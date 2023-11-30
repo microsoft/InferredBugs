@@ -1,0 +1,269 @@
+{
+    "hash": "04beb4df96f85f67ac5fb4c680a77b6d851d155e",
+    "message": "Fix ECLinux.Dispose() and improve locking",
+    "file_num_lines": 124,
+    "diff_parsed": {
+        "added": [
+            [
+                10,
+                "using System;"
+            ],
+            [
+                30,
+                "        bool disposed = false;"
+            ],
+            [
+                31,
+                "        UnixStream stream;"
+            ],
+            [
+                54,
+                "                }"
+            ],
+            [
+                60,
+                "            if (disposed)"
+            ],
+            [
+                61,
+                "            {"
+            ],
+            [
+                62,
+                "                throw new ObjectDisposedException(nameof(ECLinux));"
+            ],
+            [
+                63,
+                "            }"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                66,
+                "            bool syncRootLockTaken = false;"
+            ],
+            [
+                68,
+                "            try"
+            ],
+            [
+                70,
+                "                Monitor.TryEnter(syncRoot, timeout, ref syncRootLockTaken);"
+            ],
+            [
+                71,
+                ""
+            ],
+            [
+                72,
+                "                if (!syncRootLockTaken)"
+            ],
+            [
+                73,
+                "                {"
+            ],
+            [
+                74,
+                "                    return false;"
+            ],
+            [
+                75,
+                "                }"
+            ],
+            [
+                76,
+                ""
+            ],
+            [
+                77,
+                "                if(this.stream == null)"
+            ],
+            [
+                83,
+                "                        throw new Win32Exception(Marshal.GetLastWin32Error());"
+            ],
+            [
+                85,
+                ""
+            ],
+            [
+                86,
+                "                    this.stream = new UnixStream(fd);"
+            ],
+            [
+                87,
+                "                }"
+            ],
+            [
+                88,
+                ""
+            ],
+            [
+                89,
+                "                success = this.stream != null;"
+            ],
+            [
+                90,
+                "            }"
+            ],
+            [
+                91,
+                "            catch(Exception e)"
+            ],
+            [
+                92,
+                "            {"
+            ],
+            [
+                93,
+                "                Debug.WriteLine(e.Message);"
+            ],
+            [
+                94,
+                "            }"
+            ],
+            [
+                95,
+                "            finally"
+            ],
+            [
+                96,
+                "            {"
+            ],
+            [
+                97,
+                "                if(syncRootLockTaken && !success)"
+            ],
+            [
+                98,
+                "                {"
+            ],
+            [
+                99,
+                "                    Monitor.Exit(syncRootLockTaken);"
+            ],
+            [
+                108,
+                "            if (disposed)"
+            ],
+            [
+                109,
+                "            {"
+            ],
+            [
+                110,
+                "                throw new ObjectDisposedException(nameof(ECLinux));"
+            ],
+            [
+                111,
+                "            }"
+            ],
+            [
+                112,
+                ""
+            ],
+            [
+                129,
+                "            lock (syncRoot)"
+            ],
+            [
+                130,
+                "            {"
+            ],
+            [
+                131,
+                "                if (this.stream != null)"
+            ],
+            [
+                132,
+                "                {"
+            ],
+            [
+                133,
+                "                    this.stream.Dispose();"
+            ],
+            [
+                134,
+                "                    this.stream = null;"
+            ],
+            [
+                135,
+                "                }"
+            ],
+            [
+                136,
+                ""
+            ],
+            [
+                137,
+                "                disposed = true;"
+            ],
+            [
+                138,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                29,
+                "        private UnixStream stream;"
+            ],
+            [
+                52,
+                "                }"
+            ],
+            [
+                60,
+                "            if (Monitor.TryEnter(syncRoot, timeout))"
+            ],
+            [
+                62,
+                "                if (this.stream == null)"
+            ],
+            [
+                68,
+                "                        var e = new Win32Exception(Marshal.GetLastWin32Error());"
+            ],
+            [
+                69,
+                "                        Debug.WriteLine(string.Format(\"Error opening {0}: {1}\", PortFilePath, e.Message));"
+            ],
+            [
+                70,
+                ""
+            ],
+            [
+                71,
+                "                        Monitor.Exit(syncRoot);"
+            ],
+            [
+                72,
+                "                    }"
+            ],
+            [
+                73,
+                "                    else"
+            ],
+            [
+                74,
+                "                    {"
+            ],
+            [
+                75,
+                "                        this.stream = new UnixStream(fd);"
+            ],
+            [
+                76,
+                "                        success = true;"
+            ],
+            [
+                102,
+                "            ReleaseLock();"
+            ]
+        ]
+    },
+    "num_lines_added": 50,
+    "num_lines_removed": 14
+}

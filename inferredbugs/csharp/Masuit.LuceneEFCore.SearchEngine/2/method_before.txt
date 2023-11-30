@@ -1,0 +1,34 @@
+        [Fact]
+        public void SaveChangesUpdatesEntitiesAddedToTheIndex()
+        {
+            InitializeContext();
+            LuceneIndexerOptions options = new LuceneIndexerOptions()
+            {
+                Path = "lucene"
+            };
+            SearchEngine<TestDbContext> searchProvider = new SearchEngine<TestDbContext>(options, _context, new MemoryCache(new MemoryCacheOptions()));
+
+            searchProvider.CreateIndex();
+
+            var newUser = new User()
+            {
+                FirstName = "Duke",
+                Surname = "Nukem",
+                Email = "duke.nukem@test.com",
+                JobTitle = "Shooty Man"
+            };
+
+            var search = new SearchOptions("Nukem", "Surname");
+
+            var initialResults = searchProvider.Search<User>(search);
+
+            searchProvider.Context.Users.Add(newUser);
+            searchProvider.SaveChanges();
+
+            var newResults = searchProvider.Search<User>(search);
+
+            Assert.Equal(0, initialResults.TotalHits);
+            Assert.Equal(1, newResults.TotalHits);
+
+            Assert.Equal(newUser.Id, newResults.Results[0].Id);
+        }

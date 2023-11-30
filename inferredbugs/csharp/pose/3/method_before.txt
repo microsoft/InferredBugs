@@ -1,0 +1,27 @@
+        public static MethodBase GetMethodFromExpression(Expression expression, out Object instance)
+        {
+            switch (expression.NodeType)
+            {
+                case ExpressionType.MemberAccess:
+                    MemberExpression memberExpression = expression as MemberExpression;
+                    MemberInfo memberInfo = memberExpression.Member;
+                    if (memberInfo.MemberType == MemberTypes.Property)
+                    {
+                        PropertyInfo propertyInfo = memberInfo as PropertyInfo;
+                        instance = GetObjectInstanceFromExpression(memberExpression.Expression);
+                        return propertyInfo.GetGetMethod();
+                    }
+                    else
+                        throw new NotImplementedException("Unsupported expression");
+                case ExpressionType.Call:
+                    MethodCallExpression methodCallExpression = expression as MethodCallExpression;
+                    instance = GetObjectInstanceFromExpression(methodCallExpression.Object);
+                    return methodCallExpression.Method;
+                case ExpressionType.New:
+                    NewExpression newExpression = expression as NewExpression;
+                    instance = null;
+                    return newExpression.Constructor;
+                default:
+                    throw new NotImplementedException("Unsupported expression");
+            }
+        }

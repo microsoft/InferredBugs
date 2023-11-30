@@ -1,0 +1,32 @@
+        private void OnClientConnected(IAsyncResult asyncResult)
+        {
+            ClientMetadata client = null;
+            try
+            {
+                TcpClient clientSocket = _Listener.EndAcceptTcpClient(asyncResult);
+                client = new ClientMetadata(clientSocket);
+
+                Log("OnClientConnected received connection from: " + client.IpPort);
+
+                string clientIp = ((IPEndPoint)client.TcpClient.Client.RemoteEndPoint).Address.ToString();
+                if (IsAllowedIp(clientIp))
+                {
+                    FinaliseConnection(client);
+                }
+                else
+                {
+                    Log("*** OnClientConnected rejecting connection from " + clientIp + " (not permitted)");
+                    client.TcpClient.Close();
+                }
+            }
+            catch (SocketException ex)
+            {
+                Log("OnClientConnected socket exception from " + client.IpPort + Environment.NewLine + ex.ToString());
+            }
+            catch (Exception ex)
+            {
+                Log("OnClientConnected general exception from " + client.IpPort + Environment.NewLine + ex.ToString());
+            }
+
+            WaitForClients();
+        }

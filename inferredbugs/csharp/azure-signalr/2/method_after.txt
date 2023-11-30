@@ -1,0 +1,29 @@
+        private static AccessKey BuildAadAccessKey(Dictionary<string, string> dict, string endpoint, int? port)
+        {
+            if (dict.TryGetValue(ClientIdProperty, out var clientId))
+            {
+                if (dict.TryGetValue(TenantIdProperty, out var tenantId))
+                {
+                    if (dict.TryGetValue(ClientSecretProperty, out var clientSecret))
+                    {
+                        return new AadAccessKey(new ClientSecretCredential(tenantId, clientId, clientSecret), endpoint, port);
+                    }
+                    else if (dict.TryGetValue(ClientCertProperty, out var clientCertPath))
+                    {
+                        return new AadAccessKey(new ClientCertificateCredential(tenantId, clientId, clientCertPath), endpoint, port);
+                    }
+                    else
+                    {
+                        throw new ArgumentException(MissingClientSecretProperty, ClientSecretProperty);
+                    }
+                }
+                else
+                {
+                    return new AadAccessKey(new ManagedIdentityCredential(clientId), endpoint, port);
+                }
+            }
+            else
+            {
+                return new AadAccessKey(new ManagedIdentityCredential(), endpoint, port);
+            }
+        }

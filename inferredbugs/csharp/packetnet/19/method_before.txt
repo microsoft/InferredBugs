@@ -1,0 +1,15 @@
+        [Test]
+        public void ReadPacketWithInvalidFcs()
+        {
+            var dev = new CaptureFileReaderDevice("../../CaptureFiles/80211_ppi_fcs_present_and_invalid.pcap");
+            dev.Open();
+            var rawCapture = dev.GetNextPacket();
+            dev.Close();
+
+            var p = Packet.ParsePacket(rawCapture.LinkLayerType, rawCapture.Data) as PpiPacket;
+
+            //The packet is corrupted in such a way that the type field has been changed
+            //to a reserved/unused type. Therefore we don't expect there to be a packet
+            Assert.IsNull(p.PayloadPacket);
+            Assert.IsNotNull(p.PayloadData);
+        }

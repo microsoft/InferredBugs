@@ -1,0 +1,66 @@
+  public static List<Stream> ParseStreamCollection(TextReader reader, int context, bool allowNull)
+		{
+			var cur = reader.Read();
+			if (cur == ',' || cur == ')')
+				return null;
+			var espaced = cur != '{';
+			if (espaced)
+			{
+				for (int i = 0; i < context; i++)
+					cur = reader.Read();
+			}
+			var innerContext = context << 1;
+			var list = new List<Stream>();
+			cur = reader.Peek();
+			if (cur == '}')
+				reader.Read();
+			while (cur != -1 && cur != '}')
+			{
+				cur = reader.Read();
+				var cms = ChunkedMemoryStream.Create();
+				var sw = new StreamWriter(cms);
+				if (cur == '"' || cur == '\\')
+				{
+					for (int i = 0; i < innerContext; i++)
+						cur = reader.Read();
+					while (cur != -1)
+					{
+						if (cur == '\\' || cur == '"')
+						{
+							for (int i = 0; i < innerContext; i++)
+								cur = reader.Read();
+							if (cur == ',' || cur == '}')
+								break;
+							for (int i = 0; i < innerContext - 1; i++)
+								cur = reader.Read();
+						}
+						sw.Write((char)cur);
+						cur = reader.Read();
+					}
+					sw.Flush();
+					cms.Position = 0;
+					list.Add(cms);
+				}
+				else
+				{
+					do
+					{
+						sw.Write((char)cur);
+						cur = reader.Read();
+					} while (cur != -1 && cur != ',' && cur != '}');
+					sw.Flush();
+					cms.Position = 0;
+					if (cms.IsNull())
+						list.Add(null);
+					else
+						list.Add(cms);
+				}
+			}
+			if (espaced)
+			{
+				for (int i = 0; i < context; i++)
+					reader.Read();
+			}
+			reader.Read();
+			return list;
+		}

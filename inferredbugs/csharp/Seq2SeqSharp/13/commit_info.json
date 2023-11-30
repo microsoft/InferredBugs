@@ -1,0 +1,169 @@
+{
+    "hash": "0b6c13681fd33007f8f566ec7d4dab395bb39214",
+    "message": "1. Set default dropout to 0\n2. Move feed forward out of decoder\n3. Support named weights",
+    "file_num_lines": 507,
+    "diff_parsed": {
+        "added": [
+            [
+                4,
+                "using Seq2SeqSharp.Layers;"
+            ],
+            [
+                28,
+                "        private MultiProcessorNetworkWrapper<IFeedForwardLayer> m_decoderFFLayer; //The feed forward layers over devices after all layers in decoder"
+            ],
+            [
+                113,
+                "                     m_options.DropoutRatio, modelMetaData.DecoderLayerDepth, raDeviceIds.GetNextItem(), modelMetaData.EnableCoverageModel, isTrainable: m_options.IsDecoderTrainable), DeviceIds);"
+            ],
+            [
+                118,
+                "                    new TransformerDecoder(\"TransformerDecoder\", modelMetaData.MultiHeadNum, modelMetaData.HiddenDim, modelMetaData.TgtEmbeddingDim, modelMetaData.DecoderLayerDepth, m_options.DropoutRatio, raDeviceIds.GetNextItem(),"
+            ],
+            [
+                122,
+                "            m_decoderFFLayer = new MultiProcessorNetworkWrapper<IFeedForwardLayer>(new FeedForwardLayer(\"FeedForward\", modelMetaData.HiddenDim, modelMetaData.Vocab.TargetWordSize, dropoutRatio: 0.0f, deviceId: raDeviceIds.GetNextItem(),"
+            ],
+            [
+                123,
+                "                isTrainable: true), DeviceIds);"
+            ],
+            [
+                124,
+                ""
+            ],
+            [
+                125,
+                ""
+            ],
+            [
+                225,
+                "        private (IEncoder, IDecoder, IFeedForwardLayer, IWeightTensor, IWeightTensor, IWeightTensor, IWeightTensor) GetNetworksOnDeviceAt(int deviceIdIdx)"
+            ],
+            [
+                228,
+                "                    m_decoder.GetNetworkOnDevice(deviceIdIdx),"
+            ],
+            [
+                229,
+                "                    m_decoderFFLayer.GetNetworkOnDevice(deviceIdIdx),"
+            ],
+            [
+                247,
+                "            (IEncoder encoder, IDecoder decoder, IFeedForwardLayer decoderFFLayer, IWeightTensor srcEmbedding, IWeightTensor tgtEmbedding, IWeightTensor posEmbedding, IWeightTensor segmentEmbedding) = GetNetworksOnDeviceAt(deviceIdIdx);"
+            ],
+            [
+                271,
+                "                nr.Cost = DecodeAttentionLSTM(tgtTokensList, computeGraph, encOutput, decoder as AttentionDecoder, decoderFFLayer, tgtEmbedding, srcSnts.Count, isTraining);"
+            ],
+            [
+                279,
+                "                    (var c, var tmp) = DecodeTransformer(tgtTokensList, computeGraph, encOutput, decoder as TransformerDecoder, decoderFFLayer, tgtEmbedding, posEmbedding,"
+            ],
+            [
+                305,
+                "                                    (var cost2, var bssSeqList) = DecodeTransformer(batch2tgtTokens, g, encOutput, decoder as TransformerDecoder, decoderFFLayer, tgtEmbedding, posEmbedding,"
+            ],
+            [
+                399,
+                "        private (float, List<List<BeamSearchStatus>>) DecodeTransformer(List<List<int>> tgtSeqs, IComputeGraph g, IWeightTensor encOutputs, TransformerDecoder decoder, IFeedForwardLayer decoderFFLayer,"
+            ],
+            [
+                422,
+                "            IWeightTensor ffLayer = decoderFFLayer.Process(decOutput, batchSize, g);"
+            ],
+            [
+                423,
+                "            IWeightTensor probs = g.Softmax(ffLayer, runGradients: false, inPlace: true);"
+            ],
+            [
+                439,
+                "                ffLayer.CopyWeightsToGradients(probs);"
+            ],
+            [
+                561,
+                "        private float DecodeAttentionLSTM(List<List<int>> outputSnts, IComputeGraph g, IWeightTensor encOutputs, AttentionDecoder decoder, IFeedForwardLayer decoderFFLayer, IWeightTensor tgtEmbedding, int batchSize, bool isTraining = true)"
+            ],
+            [
+                589,
+                "                IWeightTensor dOutput = decoder.Decode(inputsM, attPreProcessResult, batchSize, g);"
+            ],
+            [
+                590,
+                "                IWeightTensor ffLayer = decoderFFLayer.Process(dOutput, batchSize, g);"
+            ],
+            [
+                593,
+                "                using (IWeightTensor probs = g.Softmax(ffLayer, runGradients: false, inPlace: true))"
+            ],
+            [
+                617,
+                "                        ffLayer.CopyWeightsToGradients(probs);"
+            ]
+        ],
+        "deleted": [
+            [
+                111,
+                "                     modelMetaData.Vocab.TargetWordSize, m_options.DropoutRatio, modelMetaData.DecoderLayerDepth, raDeviceIds.GetNextItem(), modelMetaData.EnableCoverageModel, isTrainable: m_options.IsDecoderTrainable), DeviceIds);"
+            ],
+            [
+                116,
+                "                    new TransformerDecoder(\"TransformerDecoder\", modelMetaData.MultiHeadNum, modelMetaData.HiddenDim, modelMetaData.TgtEmbeddingDim, modelMetaData.Vocab.TargetWordSize, modelMetaData.DecoderLayerDepth, m_options.DropoutRatio, raDeviceIds.GetNextItem(),"
+            ],
+            [
+                219,
+                "        private (IEncoder, IDecoder, IWeightTensor, IWeightTensor, IWeightTensor, IWeightTensor) GetNetworksOnDeviceAt(int deviceIdIdx)"
+            ],
+            [
+                222,
+                "                    m_decoder.GetNetworkOnDevice(deviceIdIdx),"
+            ],
+            [
+                240,
+                "            (IEncoder encoder, IDecoder decoder, IWeightTensor srcEmbedding, IWeightTensor tgtEmbedding, IWeightTensor posEmbedding, IWeightTensor segmentEmbedding) = GetNetworksOnDeviceAt(deviceIdIdx);"
+            ],
+            [
+                264,
+                "                nr.Cost = DecodeAttentionLSTM(tgtTokensList, computeGraph, encOutput, decoder as AttentionDecoder, tgtEmbedding, srcSnts.Count, isTraining);"
+            ],
+            [
+                272,
+                "                    (var c, var tmp) = DecodeTransformer(tgtTokensList, computeGraph, encOutput, decoder as TransformerDecoder, tgtEmbedding, posEmbedding,"
+            ],
+            [
+                298,
+                "                                    (var cost2, var bssSeqList) = DecodeTransformer(batch2tgtTokens, g, encOutput, decoder as TransformerDecoder, tgtEmbedding, posEmbedding,"
+            ],
+            [
+                392,
+                "        private (float, List<List<BeamSearchStatus>>) DecodeTransformer(List<List<int>> tgtSeqs, IComputeGraph g, IWeightTensor encOutputs, TransformerDecoder decoder,"
+            ],
+            [
+                415,
+                "            IWeightTensor probs = g.Softmax(decOutput, runGradients: false, inPlace: true);"
+            ],
+            [
+                431,
+                "                decOutput.CopyWeightsToGradients(probs);"
+            ],
+            [
+                553,
+                "        private float DecodeAttentionLSTM(List<List<int>> outputSnts, IComputeGraph g, IWeightTensor encOutputs, AttentionDecoder decoder, IWeightTensor tgtEmbedding, int batchSize, bool isTraining = true)"
+            ],
+            [
+                581,
+                "                IWeightTensor eOutput = decoder.Decode(inputsM, attPreProcessResult, batchSize, g);"
+            ],
+            [
+                584,
+                "                using (IWeightTensor probs = g.Softmax(eOutput, runGradients: false, inPlace: true))"
+            ],
+            [
+                608,
+                "                        eOutput.CopyWeightsToGradients(probs);"
+            ]
+        ]
+    },
+    "num_lines_added": 24,
+    "num_lines_removed": 15
+}

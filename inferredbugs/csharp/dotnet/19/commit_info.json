@@ -1,0 +1,517 @@
+{
+    "hash": "5851223a2dc11e59974f2f557ba1565d1415f7a7",
+    "message": "Added the ability to lock and unlock workspaces, to prevent concurrent updates.",
+    "file_num_lines": 275,
+    "diff_parsed": {
+        "added": [
+            [
+                9,
+                "using System.Threading.Tasks;"
+            ],
+            [
+                13,
+                ""
+            ],
+            [
+                14,
+                "    /// <summary>"
+            ],
+            [
+                15,
+                "    /// A client for the Structurizr API (https://api.structurizr.com)"
+            ],
+            [
+                16,
+                "    /// that allows you to get and put Structurizr workspaces in a JSON format."
+            ],
+            [
+                17,
+                "    /// </summary>"
+            ],
+            [
+                86,
+                "        /// <summary>"
+            ],
+            [
+                87,
+                "        /// Creates a new Structurizr API client with the specified API key and secret,"
+            ],
+            [
+                88,
+                "        /// for the default API URL(https://api.structurizr.com)."
+            ],
+            [
+                89,
+                "        /// </summary>"
+            ],
+            [
+                90,
+                "        /// <param name=\"apiKey\">The API key of your workspace.</param>"
+            ],
+            [
+                91,
+                "        /// <param name=\"apiSecret\">The API secret of your workspace.</param>"
+            ],
+            [
+                96,
+                "        /// <summary>"
+            ],
+            [
+                97,
+                "        /// Creates a new Structurizr client with the specified API URL, key and secret."
+            ],
+            [
+                98,
+                "        /// </summary>"
+            ],
+            [
+                99,
+                "        /// <param name=\"apiUrl\">The URL of your Structurizr instance.</param>"
+            ],
+            [
+                100,
+                "        /// <param name=\"apiKey\">The API key of your workspace.</param>"
+            ],
+            [
+                101,
+                "        /// <param name=\"apiSecret\">The API secret of your workspace.</param>"
+            ],
+            [
+                114,
+                "        /// <summary>"
+            ],
+            [
+                115,
+                "        /// Locks the specified workspace."
+            ],
+            [
+                116,
+                "        /// </summary>"
+            ],
+            [
+                117,
+                "        /// <param name=\"workspaceId\">The workspace ID.</param>"
+            ],
+            [
+                118,
+                "        /// <returns>true if the workspace could be locked, false otherwise.</returns>"
+            ],
+            [
+                119,
+                "        public bool LockWorkspace(long workspaceId)"
+            ],
+            [
+                120,
+                "        {"
+            ],
+            [
+                121,
+                "            return manageLockForWorkspace(workspaceId, true);"
+            ],
+            [
+                122,
+                "        }"
+            ],
+            [
+                123,
+                ""
+            ],
+            [
+                124,
+                "        /// <summary>"
+            ],
+            [
+                125,
+                "        /// Unlocks the specified workspace."
+            ],
+            [
+                126,
+                "        /// </summary>"
+            ],
+            [
+                127,
+                "        /// <param name=\"workspaceId\">The workspace ID.</param>"
+            ],
+            [
+                128,
+                "        /// <returns>true if the workspace could be unlocked, false otherwise.</returns>"
+            ],
+            [
+                129,
+                "        public bool UnlockWorkspace(long workspaceId)"
+            ],
+            [
+                130,
+                "        {"
+            ],
+            [
+                131,
+                "            return manageLockForWorkspace(workspaceId, false);"
+            ],
+            [
+                132,
+                "        }"
+            ],
+            [
+                133,
+                ""
+            ],
+            [
+                134,
+                "        private bool manageLockForWorkspace(long workspaceId, bool toBeLocked)"
+            ],
+            [
+                135,
+                "        {"
+            ],
+            [
+                136,
+                "            if (workspaceId <= 0)"
+            ],
+            [
+                137,
+                "            {"
+            ],
+            [
+                138,
+                "                throw new ArgumentException(\"The workspace ID must be a positive integer.\");"
+            ],
+            [
+                139,
+                "            }"
+            ],
+            [
+                140,
+                ""
+            ],
+            [
+                141,
+                "            using (HttpClient httpClient = createHttpClient())"
+            ],
+            [
+                142,
+                "            {"
+            ],
+            [
+                143,
+                "                try"
+            ],
+            [
+                144,
+                "                {"
+            ],
+            [
+                145,
+                "                    string httpMethod = toBeLocked ? \"PUT\" : \"DELETE\";"
+            ],
+            [
+                146,
+                "                    string path = WorkspacePath + workspaceId + \"/lock?user=\" + getUser() + \"&agent=\" + getAgentName();"
+            ],
+            [
+                147,
+                "                    AddHeaders(httpClient, httpMethod, path, \"\", \"\");"
+            ],
+            [
+                148,
+                ""
+            ],
+            [
+                149,
+                "                    Task<HttpResponseMessage> response;"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "                    if (toBeLocked)"
+            ],
+            [
+                152,
+                "                    {"
+            ],
+            [
+                153,
+                "                        HttpContent content = new StringContent(\"\", Encoding.UTF8, \"application/json\");"
+            ],
+            [
+                154,
+                "                        response = httpClient.PutAsync(Url + path, content);"
+            ],
+            [
+                155,
+                "                    }"
+            ],
+            [
+                156,
+                "                    else"
+            ],
+            [
+                157,
+                "                    {"
+            ],
+            [
+                158,
+                "                        response = httpClient.DeleteAsync(Url + path);"
+            ],
+            [
+                159,
+                "                    }"
+            ],
+            [
+                160,
+                ""
+            ],
+            [
+                161,
+                "                    string json = response.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                162,
+                "                    System.Console.WriteLine(json);"
+            ],
+            [
+                163,
+                "                    ApiResponse apiResponse = ApiResponse.Parse(json);"
+            ],
+            [
+                164,
+                ""
+            ],
+            [
+                165,
+                "                    if (response.Result.StatusCode == HttpStatusCode.OK)"
+            ],
+            [
+                166,
+                "                    {"
+            ],
+            [
+                167,
+                "                        return apiResponse.Success;"
+            ],
+            [
+                168,
+                "                    }"
+            ],
+            [
+                169,
+                "                    else"
+            ],
+            [
+                170,
+                "                    {"
+            ],
+            [
+                171,
+                "                        throw new StructurizrClientException(apiResponse.Message);"
+            ],
+            [
+                172,
+                "                    }"
+            ],
+            [
+                173,
+                "                }"
+            ],
+            [
+                174,
+                "                catch (Exception e)"
+            ],
+            [
+                175,
+                "                {"
+            ],
+            [
+                176,
+                "                    throw new StructurizrClientException(\"There was an error putting the workspace: \" + e.Message, e);"
+            ],
+            [
+                177,
+                "                }"
+            ],
+            [
+                178,
+                "            }"
+            ],
+            [
+                179,
+                "        }"
+            ],
+            [
+                180,
+                ""
+            ],
+            [
+                181,
+                "        /// <summary>"
+            ],
+            [
+                182,
+                "        /// Gets the workspace with the given ID."
+            ],
+            [
+                183,
+                "        /// </summary>"
+            ],
+            [
+                184,
+                "        /// <param name=\"workspaceId\">The workspace ID.</param>"
+            ],
+            [
+                185,
+                "        /// <returns>A Workspace object.</returns>"
+            ],
+            [
+                200,
+                "                var response = httpClient.GetAsync(Url + path);"
+            ],
+            [
+                201,
+                "                if (response.Result.StatusCode != HttpStatusCode.OK)"
+            ],
+            [
+                203,
+                "                    string jsonResponse = response.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                204,
+                "                    ApiResponse apiResponse = ApiResponse.Parse(jsonResponse);"
+            ],
+            [
+                205,
+                "                    throw new StructurizrClientException(apiResponse.Message);"
+            ],
+            [
+                208,
+                "                string json = response.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                232,
+                "        /// <summary>"
+            ],
+            [
+                233,
+                "        /// Updates the given workspace."
+            ],
+            [
+                234,
+                "        /// </summary>"
+            ],
+            [
+                235,
+                "        /// <param name=\"workspaceId\">The workspace ID.</param>"
+            ],
+            [
+                236,
+                "        /// <param name=\"workspace\">The workspace to be updated.</param>"
+            ],
+            [
+                260,
+                "            workspace.LastModifiedAgent = getAgentName();"
+            ],
+            [
+                261,
+                "            workspace.LastModifiedUser = getUser();"
+            ],
+            [
+                296,
+                ""
+            ],
+            [
+                300,
+                ""
+            ],
+            [
+                301,
+                "                    if (response.Result.StatusCode != HttpStatusCode.OK)"
+            ],
+            [
+                302,
+                "                    {"
+            ],
+            [
+                303,
+                "                        ApiResponse apiResponse = ApiResponse.Parse(responseContent);"
+            ],
+            [
+                304,
+                "                        throw new StructurizrClientException(apiResponse.Message);"
+            ],
+            [
+                305,
+                "                    }"
+            ],
+            [
+                329,
+                "            httpClient.DefaultRequestHeaders.Add(HttpHeaders.UserAgent, getAgentName());"
+            ],
+            [
+                333,
+                "        private string getAgentName()"
+            ],
+            [
+                334,
+                "        {"
+            ],
+            [
+                335,
+                "            return \"structurizr-dotnet/\" + _version;"
+            ],
+            [
+                336,
+                "        }"
+            ],
+            [
+                337,
+                ""
+            ],
+            [
+                338,
+                "        private String getUser()"
+            ],
+            [
+                339,
+                "        {"
+            ],
+            [
+                340,
+                "            return Environment.GetEnvironmentVariable(\"USERNAME\") ?? Environment.GetEnvironmentVariable(\"USER\");"
+            ],
+            [
+                341,
+                "        }"
+            ],
+            [
+                342,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                110,
+                "                var responseMessage = httpClient.GetAsync(Url + path);"
+            ],
+            [
+                111,
+                "                if (responseMessage.Result.StatusCode != HttpStatusCode.OK)"
+            ],
+            [
+                113,
+                "                    throw new StructurizrClientException(responseMessage.Result.Content.ReadAsStringAsync().Result);"
+            ],
+            [
+                116,
+                "                string json = responseMessage.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                223,
+                "            httpClient.DefaultRequestHeaders.Add(HttpHeaders.UserAgent, \"structurizr-dotnet/\" + _version);"
+            ]
+        ]
+    },
+    "num_lines_added": 121,
+    "num_lines_removed": 5
+}

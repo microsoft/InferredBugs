@@ -1,0 +1,55 @@
+  public bool WriteFile(string filePath)
+		{
+			StreamWriter sw = null;
+
+			string path = setFileInformation(filePath);
+		
+			if (ExtensionHelper.ExtensionEquals(filePath, ".xml"))
+			{
+				WriteXmlFile(path);
+				return true;
+			}
+			if (ExtensionHelper.ExtensionEquals(filePath, ".ifcxml"))
+			{
+				WriteXmlFile(path);
+				return true;
+			}
+#if (!NOIFCJSON)
+			else if (ExtensionHelper.ExtensionEquals(filePath, ".json"))
+			{
+				ToJSON(path);
+				return true;
+			}
+
+#endif
+#if (!NOIFCZIP)
+			bool zip = ExtensionHelper.ExtensionEquals(filePath, ".ifczip");
+			ZipArchive za = null;
+			if (zip)
+			{
+				if (File.Exists(path))
+					File.Delete(path);
+				za = ZipFile.Open(path, System.IO.Compression.ZipArchiveMode.Create);
+				ZipArchiveEntry zae = za.CreateEntry(Path.GetFileNameWithoutExtension(path) + ".ifc");
+				sw = new StreamWriter(zae.Open());
+			}
+			else
+#endif
+				sw = new StreamWriter(FileName);
+			bool result = new SerializationIfcSTEP(this).WriteSTEP(sw, path);
+			sw.Close();
+			
+#if (!NOIFCZIP)
+			if (zip)
+				za.Dispose();
+#endif
+			if (!result)
+			{
+				try
+				{
+					File.Delete(path);
+				}
+				catch { }
+			}
+			return result;
+		}

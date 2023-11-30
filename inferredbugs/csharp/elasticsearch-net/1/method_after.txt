@@ -1,0 +1,32 @@
+  public ConnectionStatus GetSync(string path)
+		{
+			var connection = this.CreateConnection(path);
+			connection.Timeout = this._ConnectionSettings.TimeOut;
+			connection.Method = "GET";
+			WebResponse response = null;
+			try
+			{
+				response = connection.GetResponse();
+				var result = new StreamReader(response.GetResponseStream()).ReadToEnd();
+				response.Close();
+				return new ConnectionStatus(result);
+			}
+			catch (WebException e)
+			{
+				if (e.Status == WebExceptionStatus.Timeout)
+					return new ConnectionStatus(new ConnectionError() { Type = ConnectionErrorType.Server, Message = "Timeout", OriginalException = e });
+
+				if (e.Status != WebExceptionStatus.Success
+					&& e.Status != WebExceptionStatus.ProtocolError)
+					return new ConnectionStatus(new ConnectionError() { Type = ConnectionErrorType.Server, Message = e.Message, OriginalException = e });
+
+				return new ConnectionStatus(new ConnectionError() { HttpStatusCode = ((HttpWebResponse)e.Response).StatusCode, Message = e.Message, OriginalException = e, Type = ConnectionErrorType.Server });
+			}
+			catch (Exception e) { return new ConnectionStatus(new ConnectionError() { Type = ConnectionErrorType.Uncaught }); }
+			finally
+			{
+				if (response != null)
+					response.Close();
+			}
+
+		}

@@ -1,0 +1,305 @@
+{
+    "hash": "97227c216dbd5b0631acf3a35dc7fa150c485799",
+    "message": "Added support for populating the Loan, LoanDocument, and LoanAttachment when creating and updating the resource.\n\nFixed potential NullReferenceException when getting the Clean property of entities.",
+    "file_num_lines": 183,
+    "diff_parsed": {
+        "added": [
+            [
+                115,
+                "        public Task<string> CreateLoanAsync(Loan loan, bool populate)"
+            ],
+            [
+                118,
+                "            Preconditions.NullOrEmpty(loan.EncompassId, $\"{nameof(loan)}.{nameof(loan.EncompassId)}\");"
+            ],
+            [
+                120,
+                "            return CreateLoanInternalAsync(JsonStreamContent.Create(loan), populate ? new QueryParameters(new QueryParameter(\"view\", \"entity\")) : null, async response =>"
+            ],
+            [
+                121,
+                "            {"
+            ],
+            [
+                122,
+                "                var loanId = Path.GetFileName(response.Headers.Location.OriginalString);"
+            ],
+            [
+                123,
+                "                loan.EncompassId = loanId;"
+            ],
+            [
+                124,
+                "                loan.Initialize(Client);"
+            ],
+            [
+                125,
+                "                if (populate)"
+            ],
+            [
+                126,
+                "                {"
+            ],
+            [
+                127,
+                "                    using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))"
+            ],
+            [
+                128,
+                "                    {"
+            ],
+            [
+                129,
+                "                        using (var reader = new StreamReader(stream))"
+            ],
+            [
+                130,
+                "                        {"
+            ],
+            [
+                131,
+                "                            JsonHelper.PopulateFromJson(reader, loan);"
+            ],
+            [
+                132,
+                "                        }"
+            ],
+            [
+                133,
+                "                    }"
+            ],
+            [
+                134,
+                "                }"
+            ],
+            [
+                135,
+                "                loan.Clean = true;"
+            ],
+            [
+                136,
+                "                return loanId;"
+            ],
+            [
+                137,
+                "            });"
+            ],
+            [
+                144,
+                "            return CreateLoanInternalAsync(new JsonContent(loan), null, response => Task.FromResult(Path.GetFileName(response.Headers.Location.OriginalString)));"
+            ],
+            [
+                147,
+                "        private async Task<string> CreateLoanInternalAsync(HttpContent content, QueryParameters queryParameters, Func<HttpResponseMessage, Task<string>> func)"
+            ],
+            [
+                149,
+                "            using (var response = await Client.HttpClient.PostAsync($\"{_apiPath}{queryParameters}\", content).ConfigureAwait(false))"
+            ],
+            [
+                155,
+                ""
+            ],
+            [
+                156,
+                "                return await func(response).ConfigureAwait(false);"
+            ],
+            [
+                160,
+                "        public Task UpdateLoanAsync(Loan loan, bool populate)"
+            ],
+            [
+                163,
+                "            Preconditions.NotNullOrEmpty(loan.EncompassId, $\"{nameof(loan)}.{nameof(loan.EncompassId)}\");"
+            ],
+            [
+                165,
+                "            loan.Initialize(Client);"
+            ],
+            [
+                166,
+                "            return UpdateLoanInternalAsync(loan.EncompassId, JsonStreamContent.Create(loan), populate ? new QueryParameters(new QueryParameter(\"view\", \"entity\")) : null, async response =>"
+            ],
+            [
+                167,
+                "            {"
+            ],
+            [
+                168,
+                "                if (populate)"
+            ],
+            [
+                169,
+                "                {"
+            ],
+            [
+                170,
+                "                    using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))"
+            ],
+            [
+                171,
+                "                    {"
+            ],
+            [
+                172,
+                "                        using (var reader = new StreamReader(stream))"
+            ],
+            [
+                173,
+                "                        {"
+            ],
+            [
+                174,
+                "                            JsonHelper.PopulateFromJson(reader, loan);"
+            ],
+            [
+                175,
+                "                        }"
+            ],
+            [
+                176,
+                "                    }"
+            ],
+            [
+                177,
+                "                }"
+            ],
+            [
+                178,
+                "                loan.Clean = true;"
+            ],
+            [
+                179,
+                "            });"
+            ],
+            [
+                190,
+                "        private async Task UpdateLoanInternalAsync(string loanId, HttpContent content, QueryParameters queryParameters = null, Func<HttpResponseMessage, Task> func = null)"
+            ],
+            [
+                192,
+                "            using (var response = await Client.HttpClient.PatchAsync($\"{_apiPath}/{loanId}{queryParameters}\", content).ConfigureAwait(false))"
+            ],
+            [
+                198,
+                ""
+            ],
+            [
+                199,
+                "                if (func != null)"
+            ],
+            [
+                200,
+                "                {"
+            ],
+            [
+                201,
+                "                    await func(response).ConfigureAwait(false);"
+            ],
+            [
+                202,
+                "                }"
+            ]
+        ],
+        "deleted": [
+            [
+                115,
+                "        public Task<string> CreateLoanAsync(Loan loan)"
+            ],
+            [
+                119,
+                "            return CreateLoanInternalAsync(loan);"
+            ],
+            [
+                120,
+                "        }"
+            ],
+            [
+                121,
+                ""
+            ],
+            [
+                122,
+                "        private async Task<string> CreateLoanInternalAsync(Loan loan)"
+            ],
+            [
+                123,
+                "        {"
+            ],
+            [
+                124,
+                "            var loanId = await CreateLoanInternalAsync(JsonStreamContent.Create(loan)).ConfigureAwait(false);"
+            ],
+            [
+                125,
+                "            loan.Clean = true;"
+            ],
+            [
+                126,
+                "            return loanId;"
+            ],
+            [
+                133,
+                "            return CreateLoanInternalAsync(new JsonContent(loan));"
+            ],
+            [
+                136,
+                "        private async Task<string> CreateLoanInternalAsync(HttpContent content)"
+            ],
+            [
+                138,
+                "            using (var response = await Client.HttpClient.PostAsync(_apiPath, content).ConfigureAwait(false))"
+            ],
+            [
+                144,
+                ""
+            ],
+            [
+                145,
+                "                return Path.GetFileName(response.Headers.Location.OriginalString);"
+            ],
+            [
+                149,
+                "        public Task UpdateLoanAsync(Loan loan)"
+            ],
+            [
+                153,
+                "            return UpdateLoanInternalAsync(loan);"
+            ],
+            [
+                154,
+                "        }"
+            ],
+            [
+                155,
+                ""
+            ],
+            [
+                156,
+                "        private async Task UpdateLoanInternalAsync(Loan loan)"
+            ],
+            [
+                157,
+                "        {"
+            ],
+            [
+                158,
+                "            await UpdateLoanInternalAsync(loan.EncompassId, JsonStreamContent.Create(loan));"
+            ],
+            [
+                159,
+                "            loan.Clean = true;"
+            ],
+            [
+                170,
+                "        private async Task UpdateLoanInternalAsync(string loanId, HttpContent content)"
+            ],
+            [
+                172,
+                "            using (var response = await Client.HttpClient.PatchAsync($\"{_apiPath}/{loanId}\", content).ConfigureAwait(false))"
+            ]
+        ]
+    },
+    "num_lines_added": 49,
+    "num_lines_removed": 24
+}

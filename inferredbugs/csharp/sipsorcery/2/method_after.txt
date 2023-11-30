@@ -1,0 +1,18 @@
+        public static Microsoft.Extensions.Logging.ILogger InitTestLogger(Xunit.Abstractions.ITestOutputHelper output)
+        {
+#if DEBUG
+            string template = "{Timestamp:HH:mm:ss.ffff} [{Level}] {Scope} {Message}{NewLine}{Exception}";
+            //var loggerFactory = new Microsoft.Extensions.Logging.LoggerFactory();
+            var serilog = new LoggerConfiguration()
+                .MinimumLevel.Is(Serilog.Events.LogEventLevel.Debug)
+                .Enrich.WithProperty("ThreadId", System.Threading.Thread.CurrentThread.ManagedThreadId)
+                .WriteTo.TestOutput(output, outputTemplate: template)
+                .WriteTo.Console(outputTemplate: template)
+                .CreateLogger();
+            SIPSorcery.LogFactory.Set(new SerilogLoggerFactory(serilog));
+            return new SerilogLoggerProvider(serilog).CreateLogger("unit");
+
+#else
+            return Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+#endif
+        }

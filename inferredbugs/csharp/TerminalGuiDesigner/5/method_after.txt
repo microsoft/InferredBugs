@@ -1,0 +1,26 @@
+        public Design GenerateNewWindow(FileInfo csFilePath, string namespaceName, out SourceCodeFile sourceFile)
+        {
+            if(csFilePath.Name.EndsWith(SourceCodeFile.ExpectedExtension))
+            {
+                throw new ArgumentException($@"{nameof(csFilePath)} should be a class file not the designer file e.g. c:\MyProj\MyWindow1.cs");
+            }
+
+
+            var className = Path.GetFileNameWithoutExtension(csFilePath.Name);
+            sourceFile = new SourceCodeFile(csFilePath);
+
+            var csharpCode = GetGenerateNewWindowCode(className,namespaceName);
+            File.WriteAllText(sourceFile.CsFile.FullName, csharpCode);
+
+            var w = new Window();
+            var lbl = new Label("Hello World");
+            lbl.Data = "label1"; // field name in the class
+            w.Add(lbl);
+
+            var design = new Design(sourceFile,"root", w);
+            design.CreateSubControlDesigns();
+
+            GenerateDesignerCs(w, sourceFile);
+
+            return design;
+        }

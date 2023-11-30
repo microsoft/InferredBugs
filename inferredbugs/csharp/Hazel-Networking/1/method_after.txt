@@ -1,0 +1,91 @@
+        private void HandleNonPeerRecord(ByteSpan message, IPEndPoint peerAddress)
+        {
+            Record record;
+            if (!Record.Parse(out record, message))
+            {
+                this.Logger.WriteError($"Dropping malformed record from non-peer `{peerAddress}`");
+                return;
+            }
+            message = message.Slice(Record.Size);
+
+            // The protocol only supports receiving a single record
+            // from a non-peer.
+            if (record.Length != message.Length)
+            {
+                ///NOTE(mendsley): This isn't always fatal.
+                /// However, this is an indication that something
+                /// fishy is going on. In the best case, there's a
+                /// bug on the client or in the UDP stack (some
+                /// stacks don't both to verify the checksum). In the
+                /// worst case we're dealing with a malicious actor.
+                /// In the malicious case, we'll end up dropping the
+                /// connection later in the process.
+                this.Logger.WriteInfo($"Received multiple record from non-peer `{peerAddress}`. Dropping all but first");
+                if (message.Length < record.Length)
+                {
+                    return;
+                }
+            }
+
+            // We only accept zero-epoch records from non-peers
+            if (record.Epoch != 0)
+            {
+                ///NOTE(mendsley): Not logging anything here, as
+                /// this could easily be latent data arriving from a
+                /// recently disconnected peer.
+                return;
+            }
+
+            // We only accept Handshake protocol messages from non-peers
+            if (record.ContentType != ContentType.Handshake)
+            {
+                this.Logger.WriteError($"Dropping non-handhsake message from non-peer `{peerAddress}`");
+                return;
+            }
+
+            ByteSpan originalMessage = message;
+
+            Handshake handshake;
+            if (!Handshake.Parse(out handshake, message))
+            {
+                this.Logger.WriteError($"Dropping malformed handshake message from non-peer `{peerAddress}`");
+                return;
+            }
+
+            // We only accept ClientHello messages from non-peers
+            if (handshake.MessageType != HandshakeType.ClientHello)
+            {
+                this.Logger.WriteError($"Dropping non-ClientHello ({handshake.MessageType}) message from non-peer `{peerAddress}`");
+                return;
+            }
+            message = message.Slice(Handshake.Size);
+
+            ClientHello clientHello;
+            if (!ClientHello.Parse(out clientHello, message))
+            {
+                this.Logger.WriteError($"Dropping malformed ClientHello message from non-peer `{peerAddress}`");
+                return;
+            }
+
+            // If this ClientHello is not signed by us, request the
+            // client send us a signed message
+            if (!HelloVerifyRequest.VerifyCookie(clientHello.Cookie, peerAddress, this.currentCookieHmac))
+            {
+                if (!HelloVerifyRequest.VerifyCookie(clientHello.Cookie, peerAddress, this.previousCookieHmac))
+                {
+                    this.SendHelloVerifyRequest(peerAddress, 1, 0, NullRecordProtection.Instance);
+                    return;
+                }
+            }
+
+            // Allocate state for the new peer and register it
+            PeerData peer = new PeerData();
+            peer.ResetPeer(this.AllocateConnectionId(peerAddress), record.SequenceNumber + 1);
+
+            this.existingPeers[peerAddress] = peer;
+
+            lock (peer)
+            {
+                this.ProcessHandshake(peer, peerAddress, ref record, originalMessage);
+            }
+        }

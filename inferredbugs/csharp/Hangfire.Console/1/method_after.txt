@@ -1,0 +1,12 @@
+        [Fact]
+        public void Expire_ExpiresOldSetAndHashKeysEither_ForBackwardsCompatibility()
+        {
+            var storage = new ConsoleStorage(_connection.Object);
+        
+            storage.Expire(_consoleId, TimeSpan.FromHours(1));
+
+            _connection.Verify(x => x.CreateWriteTransaction(), Times.Once);
+            _transaction.Verify(x => x.ExpireSet(_consoleId.GetOldConsoleKey(), It.IsAny<TimeSpan>()));
+            _transaction.Verify(x => x.ExpireHash(_consoleId.GetOldConsoleKey(), It.IsAny<TimeSpan>()));
+            _transaction.Verify(x => x.Commit(), Times.Once);
+        }

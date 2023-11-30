@@ -1,0 +1,52 @@
+        public override void CreateAddressSpace(IDictionary<NodeId, IList<IReference>> externalReferences)
+        {
+            lock (Lock)
+            {
+                IList<IReference> references = null;
+
+                if (!externalReferences.TryGetValue(ObjectIds.ObjectsFolder, out references))
+                {
+                    externalReferences[ObjectIds.ObjectsFolder] = references = new List<IReference>();
+                }
+
+                FolderState root = CreateFolder(null, "OpcPublisher", "OpcPublisher");
+                root.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, root.NodeId));
+                root.EventNotifier = EventNotifiers.SubscribeToEvents;
+                AddRootNotifier(root);
+
+                List<BaseDataVariableState> variables = new List<BaseDataVariableState>();
+
+                try
+                {
+                    FolderState dataFolder = CreateFolder(root, "Data", "Data");
+
+                    const string connectionStringItemName = "ConnectionString";
+                    DataItemState item = CreateDataItemVariable(dataFolder, connectionStringItemName, connectionStringItemName, BuiltInType.String, ValueRanks.Scalar, AccessLevels.CurrentWrite);
+                    item.Value = String.Empty;
+
+                    FolderState methodsFolder = CreateFolder(root, "Methods", "Methods");
+
+                    MethodState publishNodeMethod = CreateMethod(methodsFolder, "PublishNode", "PublishNode");
+                    SetPublishNodeMethodProperties(ref publishNodeMethod);
+
+                    MethodState unpublishNodeMethod = CreateMethod(methodsFolder, "UnpublishNode", "UnpublishNode");
+                    SetUnpublishNodeMethodProperties(ref unpublishNodeMethod);
+
+                    MethodState getPublishedNodesLegacyMethod = CreateMethod(methodsFolder, "GetPublishedNodes", "GetPublishedNodes");
+                    SetGetPublishedNodesLegacyMethodProperties(ref getPublishedNodesLegacyMethod);
+                    
+                    MethodState getConfiguredNodesOnEndpointMethod = CreateMethod(methodsFolder, "GetConfiguredNodesOnEndpoint", "GetConfiguredNodesOnEndpoint");
+                    SetGetConfiguredNodesOnEndpointMethodProperties(ref getConfiguredNodesOnEndpointMethod);
+
+                    MethodState getGetConfiguredEndpointsMethod = CreateMethod(methodsFolder, "GetConfiguredEndpoints", "GetConfiguredEndpoints");
+                    SetGetConfiguredEndpointsMethodProperties(ref getGetConfiguredEndpointsMethod);
+                }
+                catch (Exception e)
+                {
+                    Utils.Trace(e, "Error creating the address space.");
+                }
+
+                AddPredefinedNode(SystemContext, root);
+            }
+        }

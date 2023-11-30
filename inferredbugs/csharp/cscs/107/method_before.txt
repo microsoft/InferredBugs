@@ -1,0 +1,46 @@
+        protected override Variable Evaluate(ParsingScript script)
+        {
+            List<Variable> args = script.GetFunctionArgs();
+            Utils.CheckArgs(args.Count, 2, m_name);
+
+            Variable all = Utils.GetSafeVariable(args, 0);
+            string varName = Utils.GetSafeString(args, 1);
+            int index = Utils.GetSafeInt(args, 2);
+
+            // var function = ParserFunction.GetVariable(varName, script);
+            Variable mapVar = new Variable(Variable.VarType.ARRAY);
+
+            if (all.Tuple == null)
+            {
+                return Variable.EmptyInstance;
+            }
+
+            string currentValue = "";
+            int currentCount = 0;
+
+            int globalCount = 0;
+
+            for (int i = 0; i < all.Tuple.Count; i++)
+            {
+                Variable current = all.Tuple[i];
+                if (current.Tuple == null || current.Tuple.Count < index)
+                {
+                    break;
+                }
+                string newValue = current.Tuple[index].AsString();
+                if (currentValue != newValue)
+                {
+                    currentValue = newValue;
+                    currentCount = 0;
+                }
+                mapVar.Tuple.Add(new Variable(currentCount));
+                currentCount++;
+                globalCount++;
+            }
+
+            ParserFunction.AddGlobalOrLocalVariable(varName,
+                                                new GetVarFunction(mapVar), script);
+            // Script - Need to enable the warnings
+#pragma warning restore 219
+            return mapVar;
+        }

@@ -1,0 +1,53 @@
+        public void Inject(IContextCarrier carrier)
+        {
+            var span = InternalActiveSpan();
+            if (!span.IsExit)
+            {
+                throw new InvalidOperationException("Inject can be done only in Exit Span");
+            }
+
+            var spanWithPeer = span as IWithPeerInfo;
+            var peer = spanWithPeer.Peer;
+            var peerId = spanWithPeer.PeerId;
+
+            carrier.TraceSegmentId = _segment.TraceSegmentId;
+            carrier.SpanId = span.SpanId;
+            carrier.ParentApplicationInstanceId = _segment.ApplicationInstanceId;
+
+            if (DictionaryUtil.IsNull(peerId))
+            {
+                carrier.PeerHost = peer;
+            }
+            else
+            {
+                carrier.PeerId = peerId;
+            }
+
+            var refs = _segment.Refs;
+            var firstSpan = _activeSpanStacks.First();
+
+            var metaValue = GetMetaValue(refs);
+
+            carrier.EntryApplicationInstanceId = metaValue.entryApplicationInstanceId;
+
+            if (DictionaryUtil.IsNull(metaValue.operationId))
+            {
+                carrier.EntryOperationName = metaValue.operationName;
+            }
+            else
+            {
+                carrier.EntryOperationId = metaValue.operationId;
+            }
+
+            var parentOperationId = firstSpan.OperationId;
+            if (DictionaryUtil.IsNull(parentOperationId))
+            {
+                carrier.ParentOperationName = firstSpan.OperationName;
+            }
+            else
+            {
+                carrier.ParentOperationId = parentOperationId;
+            }
+
+            carrier.SetDistributedTraceIds(_segment.RelatedGlobalTraces);
+        }

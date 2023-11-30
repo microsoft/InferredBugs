@@ -1,0 +1,709 @@
+{
+    "hash": "0259b20601377c9148f7ba3afe1ce496fd4dfa01",
+    "message": "Add support for Python 3.8 fstring debug `=` (#1548)\n\n* Add equals specifier, less error testing\r\n\r\n* Whitespace -> WhiteSpace for consistency\r\n\r\n* Add error reporting\r\n\r\n* Cleanups\r\n\r\n* PR feedback\r\n\r\n* Use var more consistently",
+    "file_num_lines": 405,
+    "diff_parsed": {
+        "added": [
+            [
+                29,
+                "        private bool _incomplete = false;"
+            ],
+            [
+                32,
+                "        private static readonly StringSpan DoubleOpen = new StringSpan(\"{{\");"
+            ],
+            [
+                33,
+                "        private static readonly StringSpan DoubleClose = new StringSpan(\"}}\");"
+            ],
+            [
+                34,
+                "        private static readonly StringSpan NotEqual = new StringSpan(\"!=\");"
+            ],
+            [
+                35,
+                "        private static readonly StringSpan EqualEqual = new StringSpan(\"==\");"
+            ],
+            [
+                36,
+                "        private static readonly StringSpan BackslashN = new StringSpan(\"\\\\N\");"
+            ],
+            [
+                53,
+                "            var bufferStartLoc = CurrentLocation;"
+            ],
+            [
+                54,
+                "            while (!EndOfFString) {"
+            ],
+            [
+                64,
+                "                    if (CurrentChar == '{') {"
+            ],
+            [
+                67,
+                "                        while (!EndOfFString && CurrentChar != '}') {"
+            ],
+            [
+                76,
+                "                } else if (CurrentChar == '{') {"
+            ],
+            [
+                79,
+                "                    bufferStartLoc = CurrentLocation;"
+            ],
+            [
+                80,
+                "                } else if (CurrentChar == '}') {"
+            ],
+            [
+                81,
+                "                    if (!_incomplete) {"
+            ],
+            [
+                82,
+                "                        ReportSyntaxError(Resources.SingleClosedBraceFStringErrorMsg);"
+            ],
+            [
+                83,
+                "                    }"
+            ],
+            [
+                103,
+                "            var startOfFormattedValue = CurrentLocation.Index;"
+            ],
+            [
+                106,
+                "            SourceLocation initialSourceLocation = CurrentLocation;"
+            ],
+            [
+                107,
+                ""
+            ],
+            [
+                108,
+                "            _incomplete = false;"
+            ],
+            [
+                114,
+                "            if (EndOfFString) {"
+            ],
+            [
+                128,
+                "                formattedValue.SetLoc(new IndexSpan(startOfFormattedValue, CurrentLocation.Index - startOfFormattedValue));"
+            ],
+            [
+                139,
+                "            Debug.Assert(CurrentChar == '}' || CurrentChar == '!' || CurrentChar == ':' || (_langVersion >= PythonLanguageVersion.V38 && CurrentChar == '='));"
+            ],
+            [
+                141,
+                "            MaybeReadEqualSpecifier();"
+            ],
+            [
+                144,
+                ""
+            ],
+            [
+                145,
+                "            _incomplete = !Read('}');"
+            ],
+            [
+                151,
+                "            formattedValue.SetLoc(new IndexSpan(startOfFormattedValue, CurrentLocation.Index - startOfFormattedValue));"
+            ],
+            [
+                157,
+                "        private SourceLocation CurrentLocation => new SourceLocation(StartIndex + _position, _currentLineNumber, _currentColNumber);"
+            ],
+            [
+                158,
+                ""
+            ],
+            [
+                159,
+                "        private void MaybeReadEqualSpecifier() {"
+            ],
+            [
+                160,
+                "            if (_langVersion < PythonLanguageVersion.V38) {"
+            ],
+            [
+                161,
+                "                return;"
+            ],
+            [
+                162,
+                "            }"
+            ],
+            [
+                163,
+                ""
+            ],
+            [
+                164,
+                "            if (EndOfFString || CurrentChar != '=') {"
+            ],
+            [
+                165,
+                "                return;"
+            ],
+            [
+                166,
+                "            }"
+            ],
+            [
+                167,
+                ""
+            ],
+            [
+                168,
+                "            NextChar();"
+            ],
+            [
+                169,
+                ""
+            ],
+            [
+                170,
+                "            while (!EndOfFString && IsAsciiWhiteSpace) {"
+            ],
+            [
+                171,
+                "                NextChar();"
+            ],
+            [
+                172,
+                "            }"
+            ],
+            [
+                179,
+                "            if (!EndOfFString && CurrentChar == ':') {"
+            ],
+            [
+                188,
+                "                if (!EndOfFString) {"
+            ],
+            [
+                191,
+                "                        StartIndex + position,"
+            ],
+            [
+                200,
+                "                    formatSpecifier.SetLoc(new IndexSpan(StartIndex + position, formatStr.Length));"
+            ],
+            [
+                208,
+                "            if (!EndOfFString && CurrentChar == '!') {"
+            ],
+            [
+                210,
+                "                if (EndOfFString) {"
+            ],
+            [
+                213,
+                "                char? conversion = CurrentChar;"
+            ],
+            [
+                233,
+                "            while (!EndOfFString) {"
+            ],
+            [
+                234,
+                "                var ch = CurrentChar;"
+            ],
+            [
+                235,
+                "                if (!quoteChar.HasValue && _nestedParens.Count == 0) {"
+            ],
+            [
+                236,
+                "                    switch (ch) {"
+            ],
+            [
+                237,
+                "                        case '!' when !IsNext(NotEqual):"
+            ],
+            [
+                238,
+                "                        case '=' when !IsNext(EqualEqual) && _langVersion >= PythonLanguageVersion.V38:"
+            ],
+            [
+                239,
+                "                        case '}':"
+            ],
+            [
+                240,
+                "                        case ':':"
+            ],
+            [
+                241,
+                "                            return;"
+            ],
+            [
+                244,
+                ""
+            ],
+            [
+                245,
+                "                if (ch == '\\\\') {"
+            ],
+            [
+                263,
+                "            var stringType = 0;"
+            ],
+            [
+                265,
+                "            while (!EndOfFString) {"
+            ],
+            [
+                266,
+                "                var ch = CurrentChar;"
+            ],
+            [
+                269,
+                "                    if (ch != '!' || !IsNext(NotEqual)) {"
+            ],
+            [
+                285,
+                "            var ch = CurrentChar;"
+            ],
+            [
+                289,
+                "                if (IsNext(new StringSpan(new string(ch, 3)))) {"
+            ],
+            [
+                301,
+                "                var opening = _nestedParens.Pop();"
+            ],
+            [
+                317,
+                "            var ch = CurrentChar;"
+            ],
+            [
+                321,
+                "                if (IsNext(new StringSpan(new string(ch, 3)))) {"
+            ],
+            [
+                335,
+                "                var opening = _nestedParens.Pop();"
+            ],
+            [
+                348,
+                "        private static bool IsOpeningOf(char opening, char ch) {"
+            ],
+            [
+                362,
+                "            var ch = CurrentChar;"
+            ],
+            [
+                368,
+                "                    if (IsNext(new StringSpan(new string(ch, 3)))) {"
+            ],
+            [
+                406,
+                "            if (EndOfFString) {"
+            ],
+            [
+                411,
+                "            var expected = CurrentChar == nextChar;"
+            ],
+            [
+                412,
+                "            if (!expected) {"
+            ],
+            [
+                413,
+                "                ReportSyntaxError(Resources.ExpectingCharButFoundFStringErrorMsg.FormatInvariant(nextChar, CurrentChar));"
+            ],
+            [
+                415,
+                ""
+            ],
+            [
+                416,
+                "            NextChar();"
+            ],
+            [
+                417,
+                "            return expected;"
+            ],
+            [
+                426,
+                "            var contents = \"\";"
+            ],
+            [
+                431,
+                "                var span = new SourceSpan(bufferStartLoc, CurrentLocation);"
+            ],
+            [
+                441,
+                "            var prev = CurrentChar;"
+            ],
+            [
+                451,
+                "        private int StartIndex => _start.Index;"
+            ],
+            [
+                453,
+                "        private bool IsLineEnding(char prev) => prev == '\\n' || (prev == '\\\\' && IsNext(new StringSpan(\"n\")));"
+            ],
+            [
+                455,
+                "        private char CurrentChar => _fString[_position];"
+            ],
+            [
+                457,
+                "        private bool EndOfFString => _position >= _fString.Length;"
+            ],
+            [
+                462,
+                "            new SourceLocation(StartIndex + _position + 1, _currentLineNumber, _currentColNumber + 1));"
+            ],
+            [
+                469,
+                "            expr.SetLoc(StartIndex + startPos, StartIndex + _position);"
+            ],
+            [
+                472,
+                ""
+            ],
+            [
+                473,
+                "        private bool IsAsciiWhiteSpace {"
+            ],
+            [
+                474,
+                "            get {"
+            ],
+            [
+                475,
+                "                switch (CurrentChar) {"
+            ],
+            [
+                476,
+                "                    case '\\t':"
+            ],
+            [
+                477,
+                "                    case '\\n':"
+            ],
+            [
+                478,
+                "                    case '\\v':"
+            ],
+            [
+                479,
+                "                    case '\\f':"
+            ],
+            [
+                480,
+                "                    case '\\r':"
+            ],
+            [
+                481,
+                "                    case ' ':"
+            ],
+            [
+                482,
+                "                        return true;"
+            ],
+            [
+                483,
+                "                }"
+            ],
+            [
+                484,
+                "                return false;"
+            ],
+            [
+                485,
+                "            }"
+            ],
+            [
+                486,
+                "        }"
+            ]
+        ],
+        "deleted": [
+            [
+                18,
+                "        private readonly bool _verbatim;"
+            ],
+            [
+                32,
+                "        private static readonly StringSpan DoubleOpen = new StringSpan(\"{{\", 0, 2);"
+            ],
+            [
+                33,
+                "        private static readonly StringSpan DoubleClose = new StringSpan(\"}}\", 0, 2);"
+            ],
+            [
+                34,
+                "        private static readonly StringSpan NotEqualStringSpan = new StringSpan(\"!=\", 0, 2);"
+            ],
+            [
+                35,
+                "        private static readonly StringSpan BackslashN = new StringSpan(\"\\\\N\", 0, 2);"
+            ],
+            [
+                46,
+                "            _verbatim = options.Verbatim;"
+            ],
+            [
+                53,
+                "            var bufferStartLoc = CurrentLocation();"
+            ],
+            [
+                54,
+                "            while (!EndOfFString()) {"
+            ],
+            [
+                64,
+                "                    if (CurrentChar() == '{') {"
+            ],
+            [
+                67,
+                "                        while (!EndOfFString() && CurrentChar() != '}') {"
+            ],
+            [
+                76,
+                "                } else if (CurrentChar() == '{') {"
+            ],
+            [
+                79,
+                "                    bufferStartLoc = CurrentLocation();"
+            ],
+            [
+                80,
+                "                } else if (CurrentChar() == '}') {"
+            ],
+            [
+                81,
+                "                    ReportSyntaxError(Resources.SingleClosedBraceFStringErrorMsg);"
+            ],
+            [
+                101,
+                "            var startOfFormattedValue = CurrentLocation().Index;"
+            ],
+            [
+                104,
+                "            SourceLocation initialSourceLocation = CurrentLocation();"
+            ],
+            [
+                110,
+                "            if (EndOfFString()) {"
+            ],
+            [
+                124,
+                "                formattedValue.SetLoc(new IndexSpan(startOfFormattedValue, CurrentLocation().Index - startOfFormattedValue));"
+            ],
+            [
+                135,
+                "            Debug.Assert(CurrentChar() == '}' || CurrentChar() == '!' || CurrentChar() == ':');"
+            ],
+            [
+                139,
+                "            Read('}');"
+            ],
+            [
+                145,
+                "            formattedValue.SetLoc(new IndexSpan(startOfFormattedValue, CurrentLocation().Index - startOfFormattedValue));"
+            ],
+            [
+                151,
+                "        private SourceLocation CurrentLocation() {"
+            ],
+            [
+                152,
+                "            return new SourceLocation(StartIndex() + _position, _currentLineNumber, _currentColNumber);"
+            ],
+            [
+                159,
+                "            if (!EndOfFString() && CurrentChar() == ':') {"
+            ],
+            [
+                168,
+                "                if (!EndOfFString()) {"
+            ],
+            [
+                171,
+                "                        StartIndex() + position,"
+            ],
+            [
+                180,
+                "                    formatSpecifier.SetLoc(new IndexSpan(StartIndex() + position, formatStr.Length));"
+            ],
+            [
+                188,
+                "            char? conversion = null;"
+            ],
+            [
+                189,
+                "            if (!EndOfFString() && CurrentChar() == '!') {"
+            ],
+            [
+                191,
+                "                if (EndOfFString()) {"
+            ],
+            [
+                194,
+                "                conversion = CurrentChar();"
+            ],
+            [
+                214,
+                "            while (!EndOfFString()) {"
+            ],
+            [
+                215,
+                "                var ch = CurrentChar();"
+            ],
+            [
+                216,
+                "                if (!quoteChar.HasValue && _nestedParens.Count == 0 && (ch == '}' || ch == '!' || ch == ':')) {"
+            ],
+            [
+                217,
+                "                    // check that it's not a != comparison"
+            ],
+            [
+                218,
+                "                    if (ch != '!' || !IsNext(NotEqualStringSpan)) {"
+            ],
+            [
+                219,
+                "                        break;"
+            ],
+            [
+                222,
+                "                if (HasBackslash(ch)) {"
+            ],
+            [
+                240,
+                "            int stringType = 0;"
+            ],
+            [
+                242,
+                "            while (!EndOfFString()) {"
+            ],
+            [
+                243,
+                "                var ch = CurrentChar();"
+            ],
+            [
+                246,
+                "                    if (ch != '!' || !IsNext(NotEqualStringSpan)) {"
+            ],
+            [
+                262,
+                "            var ch = CurrentChar();"
+            ],
+            [
+                266,
+                "                if (IsNext(new StringSpan($\"{ch}{ch}{ch}\", 0, 3))) {"
+            ],
+            [
+                278,
+                "                char opening = _nestedParens.Pop();"
+            ],
+            [
+                294,
+                "            var ch = CurrentChar();"
+            ],
+            [
+                298,
+                "                if (IsNext(new StringSpan($\"{ch}{ch}{ch}\", 0, 3))) {"
+            ],
+            [
+                312,
+                "                char opening = _nestedParens.Pop();"
+            ],
+            [
+                325,
+                "        private bool IsOpeningOf(char opening, char ch) {"
+            ],
+            [
+                339,
+                "            var ch = CurrentChar();"
+            ],
+            [
+                345,
+                "                    if (IsNext(new StringSpan($\"{ch}{ch}{ch}\", 0, 3))) {"
+            ],
+            [
+                383,
+                "            if (EndOfFString()) {"
+            ],
+            [
+                387,
+                "            char ch = CurrentChar();"
+            ],
+            [
+                388,
+                "            NextChar();"
+            ],
+            [
+                390,
+                "            if (ch != nextChar) {"
+            ],
+            [
+                391,
+                "                ReportSyntaxError(Resources.ExpectingCharButFoundFStringErrorMsg.FormatInvariant(nextChar, ch));"
+            ],
+            [
+                392,
+                "                return false;"
+            ],
+            [
+                394,
+                "            return true;"
+            ],
+            [
+                403,
+                "            string contents = \"\";"
+            ],
+            [
+                408,
+                "                var span = new SourceSpan(bufferStartLoc, CurrentLocation());"
+            ],
+            [
+                418,
+                "            var prev = CurrentChar();"
+            ],
+            [
+                428,
+                "        private int StartIndex() => _start.Index;"
+            ],
+            [
+                430,
+                "        private bool IsLineEnding(char prev) => prev == '\\n' || (prev == '\\\\' && IsNext(new StringSpan(\"n\", 0, 1)));"
+            ],
+            [
+                432,
+                "        private bool HasBackslash(char ch) => ch == '\\\\';"
+            ],
+            [
+                434,
+                "        private char CurrentChar() => _fString[_position];"
+            ],
+            [
+                435,
+                ""
+            ],
+            [
+                436,
+                "        private bool EndOfFString() => _position >= _fString.Length;"
+            ],
+            [
+                441,
+                "            new SourceLocation(StartIndex() + _position + 1, _currentLineNumber, _currentColNumber + 1));"
+            ],
+            [
+                448,
+                "            expr.SetLoc(StartIndex() + startPos, StartIndex() + _position);"
+            ]
+        ]
+    },
+    "num_lines_added": 105,
+    "num_lines_removed": 69
+}

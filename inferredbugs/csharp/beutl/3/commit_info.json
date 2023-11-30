@@ -1,0 +1,557 @@
+{
+    "hash": "c2b4672135fab2f85f8615a09e1627e02df49133",
+    "message": "IEditor\u306e\u6a5f\u80fd\u3092IEditorContext (ViewModel) \u306b\u79fb\u52d5",
+    "file_num_lines": 214,
+    "diff_parsed": {
+        "added": [
+            [
+                1,
+                "\ufeffusing System.Reactive.Linq;"
+            ],
+            [
+                2,
+                "using System.Collections.Specialized;"
+            ],
+            [
+                14,
+                "using BeUtl.Framework.Service;"
+            ],
+            [
+                15,
+                "using BeUtl.Pages;"
+            ],
+            [
+                23,
+                "        public TabViewModel(IEditorContext context)"
+            ],
+            [
+                25,
+                "            Context = context;"
+            ],
+            [
+                28,
+                "        public IEditorContext Context { get; }"
+            ],
+            [
+                29,
+                ""
+            ],
+            [
+                30,
+                "        public string FilePath => Context.EdittingFile;"
+            ],
+            [
+                34,
+                "        public EditorExtension Extension => Context.Extension;"
+            ],
+            [
+                35,
+                ""
+            ],
+            [
+                36,
+                "        public IKnownEditorCommands? Commands => Context.Commands;"
+            ],
+            [
+                52,
+                "        Save = new(_projectService.IsOpened);"
+            ],
+            [
+                53,
+                "        SaveAll = new(_projectService.IsOpened);"
+            ],
+            [
+                54,
+                "        Undo = new(_projectService.IsOpened);"
+            ],
+            [
+                55,
+                "        Redo = new(_projectService.IsOpened);"
+            ],
+            [
+                56,
+                "        KnownCommands = SelectedTabItem.Select(i => i?.Commands).ToReadOnlyReactivePropertySlim();"
+            ],
+            [
+                57,
+                ""
+            ],
+            [
+                58,
+                "        Save.Subscribe(async () =>"
+            ],
+            [
+                59,
+                "        {"
+            ],
+            [
+                60,
+                "            TabViewModel? item = SelectedTabItem.Value;"
+            ],
+            [
+                61,
+                "            if (item != null)"
+            ],
+            [
+                62,
+                "            {"
+            ],
+            [
+                63,
+                "                INotificationService nservice = ServiceLocator.Current.GetRequiredService<INotificationService>();"
+            ],
+            [
+                64,
+                "                try"
+            ],
+            [
+                65,
+                "                {"
+            ],
+            [
+                66,
+                "                    bool result = await (item.Commands == null ? ValueTask.FromResult(false) : item.Commands.OnSave());"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                68,
+                "                    if (result)"
+            ],
+            [
+                69,
+                "                    {"
+            ],
+            [
+                70,
+                "                        string message = new ResourceReference<string>(\"S.Message.ItemSaved\").FindOrDefault(\"{0}\");"
+            ],
+            [
+                71,
+                "                        nservice.Show(new Notification("
+            ],
+            [
+                72,
+                "                            string.Empty,"
+            ],
+            [
+                73,
+                "                            string.Format(message, item.FileName),"
+            ],
+            [
+                74,
+                "                            NotificationType.Success));"
+            ],
+            [
+                75,
+                "                    }"
+            ],
+            [
+                76,
+                "                    else"
+            ],
+            [
+                77,
+                "                    {"
+            ],
+            [
+                78,
+                "                        string message = new ResourceReference<string>(\"S.Message.OperationCouldNotBeExecuted\").FindOrDefault(string.Empty);"
+            ],
+            [
+                79,
+                "                        nservice.Show(new Notification("
+            ],
+            [
+                80,
+                "                            string.Empty,"
+            ],
+            [
+                81,
+                "                            message,"
+            ],
+            [
+                82,
+                "                            NotificationType.Information));"
+            ],
+            [
+                83,
+                "                    }"
+            ],
+            [
+                84,
+                "                }"
+            ],
+            [
+                85,
+                "                catch"
+            ],
+            [
+                86,
+                "                {"
+            ],
+            [
+                87,
+                "                    string message = new ResourceReference<string>(\"S.Message.OperationCouldNotBeExecuted\").FindOrDefault(string.Empty);"
+            ],
+            [
+                88,
+                "                    nservice.Show(new Notification("
+            ],
+            [
+                89,
+                "                        string.Empty,"
+            ],
+            [
+                90,
+                "                        message,"
+            ],
+            [
+                91,
+                "                        NotificationType.Error));"
+            ],
+            [
+                92,
+                "                }"
+            ],
+            [
+                93,
+                "            }"
+            ],
+            [
+                94,
+                "        });"
+            ],
+            [
+                95,
+                ""
+            ],
+            [
+                96,
+                "        SaveAll.Subscribe(async () =>"
+            ],
+            [
+                97,
+                "        {"
+            ],
+            [
+                98,
+                "            IProjectService service = ServiceLocator.Current.GetRequiredService<IProjectService>();"
+            ],
+            [
+                99,
+                ""
+            ],
+            [
+                100,
+                "            Project? project = service.CurrentProject.Value;"
+            ],
+            [
+                101,
+                "            INotificationService nservice = ServiceLocator.Current.GetRequiredService<INotificationService>();"
+            ],
+            [
+                102,
+                "            int itemsCount = 0;"
+            ],
+            [
+                103,
+                ""
+            ],
+            [
+                104,
+                "            try"
+            ],
+            [
+                105,
+                "            {"
+            ],
+            [
+                106,
+                "                project?.Save(project.FileName);"
+            ],
+            [
+                107,
+                "                itemsCount++;"
+            ],
+            [
+                108,
+                ""
+            ],
+            [
+                109,
+                "                foreach (TabViewModel? item in TabItems)"
+            ],
+            [
+                110,
+                "                {"
+            ],
+            [
+                111,
+                "                    if (item.Commands != null"
+            ],
+            [
+                112,
+                "                        && await item.Commands.OnSave())"
+            ],
+            [
+                113,
+                "                    {"
+            ],
+            [
+                114,
+                "                        itemsCount++;"
+            ],
+            [
+                115,
+                "                    }"
+            ],
+            [
+                116,
+                "                }"
+            ],
+            [
+                117,
+                ""
+            ],
+            [
+                118,
+                "                string message = new ResourceReference<string>(\"S.Message.ItemsSaved\").FindOrDefault(string.Empty);"
+            ],
+            [
+                119,
+                "                nservice.Show(new Notification("
+            ],
+            [
+                120,
+                "                    string.Empty,"
+            ],
+            [
+                121,
+                "                    string.Format(message, itemsCount.ToString()),"
+            ],
+            [
+                122,
+                "                    NotificationType.Success));"
+            ],
+            [
+                123,
+                "            }"
+            ],
+            [
+                124,
+                "            catch"
+            ],
+            [
+                125,
+                "            {"
+            ],
+            [
+                126,
+                "                string message = new ResourceReference<string>(\"S.Message.OperationCouldNotBeExecuted\").FindOrDefault(string.Empty);"
+            ],
+            [
+                127,
+                "                nservice.Show(new Notification("
+            ],
+            [
+                128,
+                "                    string.Empty,"
+            ],
+            [
+                129,
+                "                    message,"
+            ],
+            [
+                130,
+                "                    NotificationType.Error));"
+            ],
+            [
+                131,
+                "            }"
+            ],
+            [
+                132,
+                "        });"
+            ],
+            [
+                133,
+                ""
+            ],
+            [
+                134,
+                "        Undo.Subscribe(async () =>"
+            ],
+            [
+                135,
+                "        {"
+            ],
+            [
+                136,
+                "            bool handled = false;"
+            ],
+            [
+                137,
+                ""
+            ],
+            [
+                138,
+                "            if (KnownCommands.Value != null)"
+            ],
+            [
+                139,
+                "                handled = await KnownCommands.Value.OnUndo();"
+            ],
+            [
+                140,
+                ""
+            ],
+            [
+                141,
+                "            if (!handled)"
+            ],
+            [
+                142,
+                "                CommandRecorder.Default.Undo();"
+            ],
+            [
+                143,
+                "        });"
+            ],
+            [
+                144,
+                "        Redo.Subscribe(async () =>"
+            ],
+            [
+                145,
+                "        {"
+            ],
+            [
+                146,
+                "            bool handled = false;"
+            ],
+            [
+                147,
+                ""
+            ],
+            [
+                148,
+                "            if (KnownCommands.Value != null)"
+            ],
+            [
+                149,
+                "                handled = await KnownCommands.Value.OnRedo();"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "            if (!handled)"
+            ],
+            [
+                152,
+                "                CommandRecorder.Default.Redo();"
+            ],
+            [
+                153,
+                "        });"
+            ],
+            [
+                162,
+                "    public ReactiveProperty<TabViewModel?> SelectedTabItem { get; } = new();"
+            ],
+            [
+                163,
+                ""
+            ],
+            [
+                164,
+                "    public ReadOnlyReactivePropertySlim<IKnownEditorCommands?> KnownCommands { get; }"
+            ],
+            [
+                165,
+                ""
+            ],
+            [
+                166,
+                "    public ReactiveCommand Save { get; }"
+            ],
+            [
+                167,
+                ""
+            ],
+            [
+                168,
+                "    public ReactiveCommand SaveAll { get; }"
+            ],
+            [
+                169,
+                ""
+            ],
+            [
+                170,
+                "    public ReactiveCommand Undo { get; }"
+            ],
+            [
+                171,
+                ""
+            ],
+            [
+                172,
+                "    public ReactiveCommand Redo { get; }"
+            ],
+            [
+                173,
+                ""
+            ],
+            [
+                239,
+                "                if (ext?.TryCreateContext(file, out IEditorContext? context) == true)"
+            ],
+            [
+                241,
+                "                    TabItems.Add(new TabViewModel(context)"
+            ]
+        ],
+        "deleted": [
+            [
+                1,
+                "\ufeffusing System.Collections.Specialized;"
+            ],
+            [
+                20,
+                "        public TabViewModel(string path, EditorExtension extension)"
+            ],
+            [
+                22,
+                "            FilePath = path;"
+            ],
+            [
+                23,
+                "            Extension = extension;"
+            ],
+            [
+                26,
+                "        public string FilePath { get; }"
+            ],
+            [
+                30,
+                "        public EditorExtension Extension { get; }"
+            ],
+            [
+                119,
+                "                if (ext != null)"
+            ],
+            [
+                121,
+                "                    TabItems.Add(new TabViewModel(file, ext)"
+            ]
+        ]
+    },
+    "num_lines_added": 128,
+    "num_lines_removed": 8
+}

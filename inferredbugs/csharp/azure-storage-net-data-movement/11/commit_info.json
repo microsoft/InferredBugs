@@ -1,0 +1,717 @@
+{
+    "hash": "0652ca9675025ed3b30b00dcb6b027f7c816c646",
+    "message": "Add fixed sized cache for permission and permission key mapping to improve perf in preserving SMB permissions",
+    "file_num_lines": 504,
+    "diff_parsed": {
+        "added": [
+            [
+                173,
+                "                    transferItem.SDDLCache = this.baseDirectoryTransfer.SDDLCache;"
+            ],
+            [
+                272,
+                "            this.GetSourceProperites(out fileAttributes, out portableSDDL, out creationTime, out lastWriteTime, out metadata, cancellationToken);"
+            ],
+            [
+                273,
+                ""
+            ],
+            [
+                274,
+                "            if (this.dest.Type == TransferLocationType.LocalDirectory)"
+            ],
+            [
+                275,
+                "            {"
+            ],
+            [
+                276,
+                "                var localFileDestLocation = this.dest as DirectoryLocation;"
+            ],
+            [
+                277,
+                "                if (!LongPathDirectory.Exists(localFileDestLocation.DirectoryPath))"
+            ],
+            [
+                278,
+                "                {"
+            ],
+            [
+                279,
+                "                    LongPathDirectory.CreateDirectory(localFileDestLocation.DirectoryPath);"
+            ],
+            [
+                280,
+                "                }"
+            ],
+            [
+                281,
+                ""
+            ],
+            [
+                282,
+                "                if (fileAttributes.HasValue)"
+            ],
+            [
+                283,
+                "                {"
+            ],
+            [
+                284,
+                "                    LongPathFile.SetFileTime(localFileDestLocation.DirectoryPath, creationTime.Value, lastWriteTime.Value, true);"
+            ],
+            [
+                285,
+                "                    LongPathFile.SetAttributes(localFileDestLocation.DirectoryPath, Utils.AzureFileNtfsAttributesToLocalAttributes(fileAttributes.Value));"
+            ],
+            [
+                286,
+                "                }"
+            ],
+            [
+                287,
+                ""
+            ],
+            [
+                288,
+                "                if (!string.IsNullOrEmpty(portableSDDL))"
+            ],
+            [
+                289,
+                "                {"
+            ],
+            [
+                290,
+                "                    FileSecurityOperations.SetFileSecurity(localFileDestLocation.DirectoryPath, portableSDDL, this.baseDirectoryTransfer.PreserveSMBPermissions);"
+            ],
+            [
+                291,
+                "                }"
+            ],
+            [
+                292,
+                "            }"
+            ],
+            [
+                293,
+                "            else if (this.dest.Type == TransferLocationType.AzureFileDirectory)"
+            ],
+            [
+                294,
+                "            {"
+            ],
+            [
+                295,
+                "                AzureFileDirectoryLocation fileDirLocation = this.dest as AzureFileDirectoryLocation;"
+            ],
+            [
+                296,
+                ""
+            ],
+            [
+                297,
+                "                var fileDirectory = fileDirLocation.FileDirectory;"
+            ],
+            [
+                298,
+                ""
+            ],
+            [
+                299,
+                "                if (string.Equals(fileDirectory.SnapshotQualifiedUri.AbsolutePath, fileDirectory.Share.SnapshotQualifiedUri.AbsolutePath))"
+            ],
+            [
+                300,
+                "                {"
+            ],
+            [
+                301,
+                "                    return;"
+            ],
+            [
+                302,
+                "                }"
+            ],
+            [
+                303,
+                ""
+            ],
+            [
+                304,
+                "                try"
+            ],
+            [
+                305,
+                "                {"
+            ],
+            [
+                306,
+                "                    CreateCloudFileDestinationDirectory(fileDirectory,"
+            ],
+            [
+                307,
+                "                        fileAttributes,"
+            ],
+            [
+                308,
+                "                        creationTime,"
+            ],
+            [
+                309,
+                "                        lastWriteTime,"
+            ],
+            [
+                310,
+                "                        metadata,"
+            ],
+            [
+                311,
+                "                        portableSDDL,"
+            ],
+            [
+                312,
+                "                        cancellationToken);"
+            ],
+            [
+                313,
+                "                }"
+            ],
+            [
+                314,
+                "                catch (StorageException storageException)"
+            ],
+            [
+                315,
+                "                {"
+            ],
+            [
+                316,
+                "                    if ((null != storageException.InnerException)"
+            ],
+            [
+                317,
+                "                        && (storageException.InnerException is OperationCanceledException))"
+            ],
+            [
+                318,
+                "                    {"
+            ],
+            [
+                319,
+                "                        throw storageException.InnerException;"
+            ],
+            [
+                320,
+                "                    }"
+            ],
+            [
+                321,
+                "                    else"
+            ],
+            [
+                322,
+                "                    {"
+            ],
+            [
+                323,
+                "                        throw new TransferException(TransferErrorCode.FailToVadlidateDestination,"
+            ],
+            [
+                324,
+                "                            string.Format(CultureInfo.CurrentCulture,"
+            ],
+            [
+                325,
+                "                                Resources.FailedToValidateDestinationException,"
+            ],
+            [
+                326,
+                "                                storageException.ToErrorDetail()),"
+            ],
+            [
+                327,
+                "                            storageException);"
+            ],
+            [
+                328,
+                "                    }"
+            ],
+            [
+                329,
+                "                }"
+            ],
+            [
+                330,
+                "            }"
+            ],
+            [
+                331,
+                "        }"
+            ],
+            [
+                332,
+                ""
+            ],
+            [
+                333,
+                "        private void GetSourceProperites(out CloudFileNtfsAttributes? fileAttributes,"
+            ],
+            [
+                334,
+                "            out string portableSDDL,"
+            ],
+            [
+                335,
+                "            out DateTimeOffset? creationTime,"
+            ],
+            [
+                336,
+                "            out DateTimeOffset? lastWriteTime,"
+            ],
+            [
+                337,
+                "            out IDictionary<string, string> metadata,"
+            ],
+            [
+                338,
+                "            CancellationToken cancellationToken)"
+            ],
+            [
+                339,
+                "        {"
+            ],
+            [
+                340,
+                "            fileAttributes = null;"
+            ],
+            [
+                341,
+                "            portableSDDL = null;"
+            ],
+            [
+                342,
+                "            creationTime = null;"
+            ],
+            [
+                343,
+                "            lastWriteTime = null;"
+            ],
+            [
+                344,
+                "            metadata = null;"
+            ],
+            [
+                345,
+                ""
+            ],
+            [
+                372,
+                "                if (this.baseDirectoryTransfer.PreserveSMBAttributes"
+            ],
+            [
+                402,
+                "                            portableSDDL = this.baseDirectoryTransfer.SDDLCache.GetValue("
+            ],
+            [
+                403,
+                "                                sourceFileDirectory.Properties.FilePermissionKey);"
+            ],
+            [
+                404,
+                ""
+            ],
+            [
+                405,
+                "                            if (null == portableSDDL)"
+            ],
+            [
+                406,
+                "                            {"
+            ],
+            [
+                407,
+                "                                portableSDDL = sourceFileDirectory.Share.GetFilePermissionAsync("
+            ],
+            [
+                408,
+                "                                    sourceFileDirectory.Properties.FilePermissionKey,"
+            ],
+            [
+                409,
+                "                                    Utils.GenerateFileRequestOptions(sourceFileDirLocation.FileRequestOptions),"
+            ],
+            [
+                410,
+                "                                    Utils.GenerateOperationContext(this.baseDirectoryTransfer.Context),"
+            ],
+            [
+                411,
+                "                                    cancellationToken).GetAwaiter().GetResult();"
+            ],
+            [
+                412,
+                "                                this.baseDirectoryTransfer.SDDLCache.AddValue(sourceFileDirectory.Properties.FilePermissionKey,"
+            ],
+            [
+                413,
+                "                                    portableSDDL);"
+            ],
+            [
+                414,
+                "                            }"
+            ],
+            [
+                425,
+                "        private void CreateCloudFileDestinationDirectory(CloudFileDirectory fileDirectory,"
+            ],
+            [
+                457,
+                "                    filePermissionKey = this.baseDirectoryTransfer.SDDLCache.GetValue(portableSDDL);"
+            ],
+            [
+                458,
+                ""
+            ],
+            [
+                459,
+                "                    if (null == filePermissionKey)"
+            ],
+            [
+                460,
+                "                    {"
+            ],
+            [
+                461,
+                "                        filePermissionKey = fileDirectory.Share.CreateFilePermissionAsync("
+            ],
+            [
+                462,
+                "                            portableSDDL,"
+            ],
+            [
+                463,
+                "                            Transfer_RequestOptions.DefaultFileRequestOptions,"
+            ],
+            [
+                464,
+                "                            Utils.GenerateOperationContext(null),"
+            ],
+            [
+                465,
+                "                            cancellationToken).GetAwaiter().GetResult();"
+            ],
+            [
+                466,
+                ""
+            ],
+            [
+                467,
+                "                        this.baseDirectoryTransfer.SDDLCache.AddValue(portableSDDL, filePermissionKey);"
+            ],
+            [
+                468,
+                "                    }"
+            ],
+            [
+                470,
+                "                    fileDirectory.Properties.FilePermissionKey = filePermissionKey;"
+            ]
+        ],
+        "deleted": [
+            [
+                297,
+                "                if (this.baseDirectoryTransfer.PreserveSMBAttributes"
+            ],
+            [
+                327,
+                "                            portableSDDL = sourceFileDirectory.Share.GetFilePermissionAsync("
+            ],
+            [
+                328,
+                "                                sourceFileDirectory.Properties.FilePermissionKey,"
+            ],
+            [
+                329,
+                "                                Utils.GenerateFileRequestOptions(sourceFileDirLocation.FileRequestOptions),"
+            ],
+            [
+                330,
+                "                                Utils.GenerateOperationContext(this.baseDirectoryTransfer.Context),"
+            ],
+            [
+                331,
+                "                                cancellationToken).GetAwaiter().GetResult();"
+            ],
+            [
+                340,
+                ""
+            ],
+            [
+                341,
+                "            if (this.dest.Type == TransferLocationType.LocalDirectory)"
+            ],
+            [
+                342,
+                "            {"
+            ],
+            [
+                343,
+                "                var localFileDestLocation = this.dest as DirectoryLocation;"
+            ],
+            [
+                344,
+                "                if (!LongPathDirectory.Exists(localFileDestLocation.DirectoryPath))"
+            ],
+            [
+                345,
+                "                {"
+            ],
+            [
+                346,
+                "                    LongPathDirectory.CreateDirectory(localFileDestLocation.DirectoryPath);"
+            ],
+            [
+                347,
+                "                }"
+            ],
+            [
+                348,
+                ""
+            ],
+            [
+                349,
+                "                if (fileAttributes.HasValue)"
+            ],
+            [
+                350,
+                "                {"
+            ],
+            [
+                351,
+                "                    LongPathFile.SetFileTime(localFileDestLocation.DirectoryPath, creationTime.Value, lastWriteTime.Value, true);"
+            ],
+            [
+                352,
+                "                    LongPathFile.SetAttributes(localFileDestLocation.DirectoryPath, Utils.AzureFileNtfsAttributesToLocalAttributes(fileAttributes.Value));"
+            ],
+            [
+                353,
+                "                }"
+            ],
+            [
+                354,
+                ""
+            ],
+            [
+                355,
+                "                if (!string.IsNullOrEmpty(portableSDDL))"
+            ],
+            [
+                356,
+                "                {"
+            ],
+            [
+                357,
+                "                    FileSecurityOperations.SetFileSecurity(localFileDestLocation.DirectoryPath, portableSDDL, this.baseDirectoryTransfer.PreserveSMBPermissions);"
+            ],
+            [
+                358,
+                "                }"
+            ],
+            [
+                359,
+                "            }"
+            ],
+            [
+                360,
+                "            else if (this.dest.Type == TransferLocationType.AzureFileDirectory)"
+            ],
+            [
+                361,
+                "            {"
+            ],
+            [
+                362,
+                "                AzureFileDirectoryLocation fileDirLocation = this.dest as AzureFileDirectoryLocation;"
+            ],
+            [
+                363,
+                ""
+            ],
+            [
+                364,
+                "                var fileDirectory = fileDirLocation.FileDirectory;"
+            ],
+            [
+                365,
+                ""
+            ],
+            [
+                366,
+                "                if (string.Equals(fileDirectory.SnapshotQualifiedUri.AbsolutePath, fileDirectory.Share.SnapshotQualifiedUri.AbsolutePath))"
+            ],
+            [
+                367,
+                "                {"
+            ],
+            [
+                368,
+                "                    return;"
+            ],
+            [
+                369,
+                "                }"
+            ],
+            [
+                370,
+                ""
+            ],
+            [
+                371,
+                "                try"
+            ],
+            [
+                372,
+                "                {"
+            ],
+            [
+                373,
+                "                    CreateCloudFileDestinationDirectory(fileDirectory,"
+            ],
+            [
+                374,
+                "                        fileAttributes,"
+            ],
+            [
+                375,
+                "                        creationTime,"
+            ],
+            [
+                376,
+                "                        lastWriteTime,"
+            ],
+            [
+                377,
+                "                        metadata,"
+            ],
+            [
+                378,
+                "                        portableSDDL,"
+            ],
+            [
+                379,
+                "                        cancellationToken);"
+            ],
+            [
+                380,
+                "                }"
+            ],
+            [
+                381,
+                "                catch (StorageException storageException)"
+            ],
+            [
+                382,
+                "                {"
+            ],
+            [
+                383,
+                "                    if ((null != storageException.InnerException)"
+            ],
+            [
+                384,
+                "                        && (storageException.InnerException is OperationCanceledException))"
+            ],
+            [
+                385,
+                "                    {"
+            ],
+            [
+                386,
+                "                        throw storageException.InnerException;"
+            ],
+            [
+                387,
+                "                    }"
+            ],
+            [
+                388,
+                "                    else"
+            ],
+            [
+                389,
+                "                    {"
+            ],
+            [
+                390,
+                "                        throw new TransferException(TransferErrorCode.FailToVadlidateDestination,"
+            ],
+            [
+                391,
+                "                            string.Format(CultureInfo.CurrentCulture,"
+            ],
+            [
+                392,
+                "                                Resources.FailedToValidateDestinationException,"
+            ],
+            [
+                393,
+                "                                storageException.ToErrorDetail()),"
+            ],
+            [
+                394,
+                "                            storageException);"
+            ],
+            [
+                395,
+                "                    }"
+            ],
+            [
+                396,
+                "                }"
+            ],
+            [
+                397,
+                "            }"
+            ],
+            [
+                400,
+                "        private static void CreateCloudFileDestinationDirectory(CloudFileDirectory fileDirectory,"
+            ],
+            [
+                432,
+                "                    filePermissionKey = fileDirectory.Share.CreateFilePermissionAsync("
+            ],
+            [
+                433,
+                "                        portableSDDL,"
+            ],
+            [
+                434,
+                "                        Transfer_RequestOptions.DefaultFileRequestOptions,"
+            ],
+            [
+                435,
+                "                        Utils.GenerateOperationContext(null),"
+            ],
+            [
+                436,
+                "                        cancellationToken).GetAwaiter().GetResult();"
+            ],
+            [
+                438,
+                "                    fileDirectory.Properties.FilePermissionKey = portableSDDL;"
+            ],
+            [
+                439,
+                "                    fileDirectory.FilePermission = null;"
+            ],
+            [
+                549,
+                "                    fileDirectory.FilePermission = null;"
+            ]
+        ]
+    },
+    "num_lines_added": 103,
+    "num_lines_removed": 73
+}

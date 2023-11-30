@@ -1,0 +1,61 @@
+        private int RunTests(FrameworkDriver driver, string testFilter)
+        {
+            XmlNode loadReport = driver.Load();
+            if (loadReport.Name == "error")
+            {
+                DisplayErrorMessage(loadReport);
+                return ConsoleRunner.UNEXPECTED_ERROR;
+            }
+
+            TextWriter savedOut = Console.Out;
+            TextWriter savedError = Console.Error;
+            XmlNode resultNode;
+
+            try
+            {
+                if (options.OutFile != null)
+                    Console.SetOut(new StreamWriter(Path.Combine(workDirectory, options.OutFile)));
+
+                if (options.ErrFile != null)
+                    Console.SetError(new StreamWriter(Path.Combine(workDirectory, options.ErrFile)));
+
+                resultNode = driver.Run(testFilter);
+            }
+            finally
+            {
+                Console.Out.Flush();
+                Console.SetOut(savedOut);
+                Console.Error.Flush();
+                Console.SetError(savedError);
+            }
+
+            if (resultNode.Name == "error")
+            {
+                DisplayErrorMessage(resultNode);
+                return ConsoleRunner.UNEXPECTED_ERROR;
+            }
+
+            string v3ResultFile = Path.Combine(workDirectory, options.V3ResultFile);
+            NUnit3TestResultWriter nunit3ResultWriter = new NUnit3TestResultWriter();
+            nunit3ResultWriter.WriteResultFile(resultNode, v3ResultFile);
+            //XmlTextWriter nunit3ResultWriter = new XmlTextWriter(v3ResultFile, System.Text.Encoding.UTF8);
+            //nunit3ResultWriter.Formatting = Formatting.Indented;
+            //resultNode.WriteTo(nunit3ResultWriter);
+            //nunit3ResultWriter.Close();
+
+            string v2ResultFile = Path.Combine(workDirectory, options.V2ResultFile);
+            NUnit2TestResultWriter nunit2ResultWriter = new NUnit2TestResultWriter();
+            nunit2ResultWriter.WriteResultFile(resultNode, v2ResultFile);
+
+            if (!options.DisplayTeamCityServiceMessages)
+                new ResultReporter(resultNode).ReportResults();
+
+            if (options.OutFile != null)
+                Console.WriteLine("Test standard output saved as {0}", Path.Combine(workDirectory, options.OutFile));
+            if (options.ErrFile != null)
+                Console.WriteLine("Test error output saved as {0}", Path.Combine(workDirectory, options.ErrFile));
+            Console.WriteLine("NUnit3 Result File Saved as {0}", v3ResultFile);
+            Console.WriteLine("NUnit2 Result File Saved as {0}", v2ResultFile);
+
+            return OK;
+        }

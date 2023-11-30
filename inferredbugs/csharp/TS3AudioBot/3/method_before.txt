@@ -1,0 +1,59 @@
+  private static string GenPlattformDat()
+		{
+			string plattform = null;
+			string version = "<?>";
+			string bitness = Environment.Is64BitProcess ? "64bit" : "32bit";
+
+			if (IsLinux)
+			{
+				var values = new Dictionary<string, string>();
+
+				try
+				{
+					var p = new Process()
+					{
+						StartInfo = new ProcessStartInfo()
+						{
+							FileName = "bash",
+							Arguments = "-c \"cat /etc/*[_-]release\"",
+							CreateNoWindow = true,
+							UseShellExecute = false,
+							RedirectStandardOutput = true,
+						}
+					};
+					p.Start();
+					p.WaitForExit(100);
+
+					while (p.StandardOutput.Peek() > -1)
+					{
+						var infoLine = p.StandardOutput.ReadLine();
+						if (string.IsNullOrEmpty(infoLine))
+							continue;
+						var match = PlattformRegex.Match(infoLine);
+						if (!match.Success)
+							continue;
+
+						values[match.Groups[1].Value.ToUpper()] = TextUtil.StripQuotes(match.Groups[2].Value);
+					}
+				}
+				catch { }
+
+				string value;
+				plattform = values.TryGetValue("NAME", out value) ? value
+						: values.TryGetValue("ID", out value) ? value
+						: values.TryGetValue("DISTRIB_ID", out value) ? value
+						: values.TryGetValue("PRETTY_NAME", out value) ? value
+						: "Linux";
+				version = values.TryGetValue("VERSION", out value) ? value
+						: values.TryGetValue("VERSION_ID", out value) ? value
+						: values.TryGetValue("DISTRIB_RELEASE", out value) ? value
+						: "<?>";
+			}
+			else
+			{
+				plattform = "Windows";
+				version = Environment.OSVersion.Version.ToString();
+			}
+
+			return $"{plattform} {version} ({bitness})";
+		}

@@ -1,0 +1,49 @@
+        [Test]
+        public void ReadPacketWithNoFcs()
+        {
+            var dev = new CaptureFileReaderDevice("../../CaptureFiles/80211_radio_without_fcs.pcap");
+            dev.Open();
+            var rawCapture = dev.GetNextPacket();
+            dev.Close();
+
+            var p = Packet.ParsePacket(rawCapture.LinkLayerType, rawCapture.Data) as RadioPacket;
+            Assert.IsNotNull(p.PayloadPacket);
+
+            var tsftField = p[RadioTapType.Tsft] as TsftRadioTapField;
+            Assert.IsNotNull(tsftField);
+            Assert.AreEqual(38724775, tsftField.TimestampUsec);
+
+            var flagsField = p[RadioTapType.Flags] as FlagsRadioTapField;
+            Assert.IsNotNull(flagsField);
+            Assert.AreEqual(0, (int) flagsField.Flags);
+
+            var rateField = p[RadioTapType.Rate] as RateRadioTapField;
+            Assert.IsNotNull(rateField);
+            Assert.AreEqual(1, rateField.RateMbps);
+
+            var channelField = p[RadioTapType.Channel] as ChannelRadioTapField;
+            Assert.IsNotNull(channelField);
+            Assert.AreEqual(2462, channelField.FrequencyMHz);
+            Assert.AreEqual(11, channelField.Channel);
+            Assert.AreEqual(RadioTapChannelFlags.Channel2Ghz | RadioTapChannelFlags.Cck, channelField.Flags);
+
+            var dbmSignalField = p[RadioTapType.DbmAntennaSignal] as DbmAntennaSignalRadioTapField;
+            Assert.IsNotNull(dbmSignalField);
+            Assert.AreEqual(-61, dbmSignalField.AntennaSignalDbm);
+
+            var dbmNoiseField = p[RadioTapType.DbmAntennaNoise] as DbmAntennaNoiseRadioTapField;
+            Assert.IsNotNull(dbmNoiseField);
+            Assert.AreEqual(-84, dbmNoiseField.AntennaNoisedBm);
+
+            var antennaField = p[RadioTapType.Antenna] as AntennaRadioTapField;
+            Assert.IsNotNull(antennaField);
+            Assert.AreEqual(0, antennaField.Antenna);
+
+            var dbSignalField = p[RadioTapType.DbAntennaSignal] as DbAntennaSignalRadioTapField;
+            Assert.IsNotNull(dbSignalField);
+            Assert.AreEqual(23, dbSignalField.SignalStrengthdB);
+
+            var macFrame = p.PayloadPacket as MacFrame;
+            Assert.IsFalse(macFrame.AppendFcs);
+            Assert.IsFalse(macFrame.FcsValid);
+        }

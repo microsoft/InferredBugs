@@ -1,0 +1,27 @@
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddIdentityServer()
+                .AddExtensionGrantValidator<SmsAuthCodeValidator>()
+                .AddDeveloperSigningCredential()
+                .AddInMemoryClients(Config.GetClients())
+                .AddInMemoryIdentityResources(Config.GetIdentityResources())
+                .AddInMemoryApiResources(Config.GetApiResources());
+
+            services.AddOptions();
+            services.Configure<ServiceDisvoveryOptions>(Configuration.GetSection("ServiceDiscovery"));
+
+            services.AddSingleton<IDnsQuery>(p =>
+            {
+                var serviceConfiguration = p.GetRequiredService<IOptions<ServiceDisvoveryOptions>>().Value;
+
+                return new LookupClient(IPAddress.Parse(serviceConfiguration.Consul.DnsEndpoint.Address), serviceConfiguration.Consul.DnsEndpoint.Port);
+
+            });
+
+            services.AddSingleton(new HttpClient());
+
+            services.AddScoped<IAuthCodeService, TestAuthCodeService>();
+            services.AddScoped<IUserService, UserService>();
+
+            services.AddMvc();
+        }

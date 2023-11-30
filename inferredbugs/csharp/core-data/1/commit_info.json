@@ -1,0 +1,529 @@
+{
+    "hash": "1d2dddd3b149147ae0db8d5dea06e68a5e8e5367",
+    "message": "\u8c03\u6574\u8fde\u63a5\u7684\u83b7\u53d6\u65b9\u5f0f\u4ee5\u53caConnectionFun\u5b8c\u5584\u6570\u636e\u5e93\u7c7b\u578b\u6ce8\u5165",
+    "file_num_lines": 79,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "using System.IO;"
+            ],
+            [
+                23,
+                "        readonly bool _isMaster;"
+            ],
+            [
+                24,
+                "        readonly string _dbStoreKey;"
+            ],
+            [
+                25,
+                ""
+            ],
+            [
+                27,
+                "        readonly IConfiguration _configuration;"
+            ],
+            [
+                28,
+                "        readonly Func<(string, DatabaseType)> _connectionFunc;"
+            ],
+            [
+                29,
+                "#else"
+            ],
+            [
+                30,
+                "        readonly Func<ConnectionStringSettings> _connectionFunc;"
+            ],
+            [
+                33,
+                ""
+            ],
+            [
+                40,
+                "        public IDbConnection DbConnection { get; private set; }"
+            ],
+            [
+                52,
+                "        public DataContext(IConfiguration configuration, bool isMaster = false, string dbStoreKey = \"\", Func<(string, DatabaseType)> connectionFunc = null)"
+            ],
+            [
+                69,
+                "        public DataContext(bool isMaster = false, string dbStoreKey = \"\", Func<ConnectionStringSettings> connectionFunc = null)"
+            ],
+            [
+                88,
+                "            var settings = DataSettings.Default;"
+            ],
+            [
+                90,
+                "            // \u83b7\u53d6\u8fde\u63a5"
+            ],
+            [
+                92,
+                "            var connectionSetting = settings.Get(_configuration, _isMaster, _dbStoreKey, _connectionFunc);"
+            ],
+            [
+                93,
+                "            connectionString = connectionSetting.Item1;"
+            ],
+            [
+                94,
+                "            _dbFactory = GetFactory(connectionSetting.Item2);"
+            ],
+            [
+                96,
+                "            var connectionSetting = settings.Get(_isMaster, _dbStoreKey, _connectionFunc);"
+            ],
+            [
+                97,
+                "            connectionString = connectionSetting?.ConnectionString;"
+            ],
+            [
+                98,
+                "            _dbFactory = DbProviderFactories.GetFactory(connectionSetting?.ProviderName);"
+            ],
+            [
+                104,
+                "            DbConnection = _dbFactory.CreateConnection();"
+            ],
+            [
+                105,
+                "            DbConnection.ConnectionString = connectionString;"
+            ],
+            [
+                106,
+                "            if (DbConnection.State != ConnectionState.Open)"
+            ],
+            [
+                107,
+                "                DbConnection.Open();"
+            ],
+            [
+                141,
+                "            if (DbConnection == null)"
+            ],
+            [
+                145,
+                "                DbConnection.Dispose();"
+            ]
+        ],
+        "deleted": [
+            [
+                12,
+                "using System.IO;"
+            ],
+            [
+                13,
+                "using System.Text.RegularExpressions;"
+            ],
+            [
+                25,
+                "        IConfiguration _configuration;"
+            ],
+            [
+                28,
+                "        private readonly bool _isMaster;"
+            ],
+            [
+                29,
+                "        private readonly string _dbStoreKey;"
+            ],
+            [
+                30,
+                "        private readonly Func<string> _connectionFunc;"
+            ],
+            [
+                34,
+                "        private IDbConnection _dbConnection;"
+            ],
+            [
+                38,
+                "        public IDbConnection DbConnection"
+            ],
+            [
+                39,
+                "        {"
+            ],
+            [
+                40,
+                "            get"
+            ],
+            [
+                41,
+                "            {"
+            ],
+            [
+                42,
+                "                return _dbConnection;"
+            ],
+            [
+                43,
+                "            }"
+            ],
+            [
+                44,
+                "        }"
+            ],
+            [
+                45,
+                "        private DatabaseType _dbType = DatabaseType.MySql;"
+            ],
+            [
+                46,
+                "        /// <summary>"
+            ],
+            [
+                47,
+                "        /// \u6570\u636e\u5e93\u7c7b\u578b"
+            ],
+            [
+                48,
+                "        /// </summary>"
+            ],
+            [
+                49,
+                "        public DatabaseType DbType"
+            ],
+            [
+                50,
+                "        {"
+            ],
+            [
+                51,
+                "            get { return _dbType; }"
+            ],
+            [
+                52,
+                "        }"
+            ],
+            [
+                64,
+                "        public DataContext(IConfiguration configuration, bool isMaster = false, Func<string> connectionFunc = null, string dbStoreKey = \"\")"
+            ],
+            [
+                81,
+                "        public DataContext(bool isMaster = false, Func<string> connectionFunc = null, string dbStoreKey = \"\")"
+            ],
+            [
+                100,
+                "            var providerName = string.Empty;"
+            ],
+            [
+                102,
+                "            #region 1. ExecuteFunc"
+            ],
+            [
+                103,
+                "            if (_connectionFunc != null)"
+            ],
+            [
+                104,
+                "            {"
+            ],
+            [
+                105,
+                "                connectionString = _connectionFunc?.Invoke();"
+            ],
+            [
+                106,
+                "            }"
+            ],
+            [
+                107,
+                "            #endregion"
+            ],
+            [
+                108,
+                ""
+            ],
+            [
+                109,
+                "            #region 2. \u914d\u7f6e\u6587\u4ef6"
+            ],
+            [
+                110,
+                "            else"
+            ],
+            [
+                111,
+                "            {"
+            ],
+            [
+                113,
+                "                #region \u81ea\u7f16\u8bd1Configuration"
+            ],
+            [
+                114,
+                "                if (_configuration == null)"
+            ],
+            [
+                115,
+                "                {"
+            ],
+            [
+                116,
+                "                    _configuration = new ConfigurationBuilder()"
+            ],
+            [
+                117,
+                "                        .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)"
+            ],
+            [
+                118,
+                "                        .AddJsonFile(\"appsettings.json\")"
+            ],
+            [
+                119,
+                "                        .Build();"
+            ],
+            [
+                120,
+                "                }"
+            ],
+            [
+                121,
+                "                #endregion"
+            ],
+            [
+                122,
+                ""
+            ],
+            [
+                123,
+                "                #region \u4ece\u5e93\u8f6c\u4e3b\u5e93"
+            ],
+            [
+                124,
+                "                var connectionKey = DataContextConfig.Default.Setting(_isMaster, _dbStoreKey);"
+            ],
+            [
+                125,
+                "                connectionString = _configuration.GetConnectionString(connectionKey);"
+            ],
+            [
+                126,
+                "                if (string.IsNullOrEmpty(connectionString) && !_isMaster)"
+            ],
+            [
+                127,
+                "                {"
+            ],
+            [
+                128,
+                "                    connectionKey = DataContextConfig.Default.Setting(true, _dbStoreKey);"
+            ],
+            [
+                129,
+                "                    connectionString = _configuration.GetConnectionString(connectionKey);"
+            ],
+            [
+                130,
+                "                }"
+            ],
+            [
+                131,
+                "                #endregion"
+            ],
+            [
+                133,
+                "                #region \u4ece\u5e93\u8f6c\u4e3b\u5e93"
+            ],
+            [
+                134,
+                "                var connectionKey = DataContextConfig.Default.Setting(_isMaster, _dbStoreKey);"
+            ],
+            [
+                135,
+                "                var connectionSetting = ConfigurationManager.ConnectionStrings[connectionKey];"
+            ],
+            [
+                136,
+                "                connectionString = connectionSetting?.ConnectionString;"
+            ],
+            [
+                137,
+                "                providerName = connectionSetting?.ProviderName;"
+            ],
+            [
+                138,
+                "                if (string.IsNullOrEmpty(connectionString) && !_isMaster)"
+            ],
+            [
+                139,
+                "                {"
+            ],
+            [
+                140,
+                "                    connectionKey = DataContextConfig.Default.Setting(true, _dbStoreKey);"
+            ],
+            [
+                141,
+                "                    connectionSetting = ConfigurationManager.ConnectionStrings[connectionKey];"
+            ],
+            [
+                142,
+                "                    connectionString = connectionSetting.ConnectionString;"
+            ],
+            [
+                143,
+                "                    providerName = connectionSetting.ProviderName;"
+            ],
+            [
+                144,
+                "                }"
+            ],
+            [
+                145,
+                "                #endregion"
+            ],
+            [
+                147,
+                "            }"
+            ],
+            [
+                148,
+                "            #endregion"
+            ],
+            [
+                150,
+                "            #region 3. \u521b\u5efa\u8fde\u63a5"
+            ],
+            [
+                154,
+                "#if ASP_NET_CORE"
+            ],
+            [
+                155,
+                "            connectionString = FixConnectionString(connectionString);"
+            ],
+            [
+                156,
+                "            _dbFactory = GetFactory(_dbType);"
+            ],
+            [
+                157,
+                "#else"
+            ],
+            [
+                158,
+                "            _dbFactory = DbProviderFactories.GetFactory(providerName);"
+            ],
+            [
+                159,
+                "#endif"
+            ],
+            [
+                160,
+                "            _dbConnection = _dbFactory.CreateConnection();"
+            ],
+            [
+                161,
+                "            _dbConnection.ConnectionString = connectionString;"
+            ],
+            [
+                162,
+                "            if (_dbConnection.State != ConnectionState.Open)"
+            ],
+            [
+                163,
+                "                _dbConnection.Open();"
+            ],
+            [
+                164,
+                "            #endregion"
+            ],
+            [
+                190,
+                ""
+            ],
+            [
+                191,
+                "        /// <summary>"
+            ],
+            [
+                192,
+                "        ///"
+            ],
+            [
+                193,
+                "        /// </summary>"
+            ],
+            [
+                194,
+                "        /// <param name=\"connectionString\"></param>"
+            ],
+            [
+                195,
+                "        /// <param name=\"param\"></param>"
+            ],
+            [
+                196,
+                "        /// <returns></returns>"
+            ],
+            [
+                197,
+                "        private string FixConnectionString(string connectionString, string param = \"DbType\")"
+            ],
+            [
+                198,
+                "        {"
+            ],
+            [
+                199,
+                "            var dbTypeRegex = new Regex($@\"(^|;){param}=(?<dbtype>[A-Za-z]+)(;|$)\");"
+            ],
+            [
+                200,
+                "            var m = dbTypeRegex.Match(connectionString);"
+            ],
+            [
+                201,
+                "            var dbTypeString = m?.Groups[\"dbtype\"].Value;"
+            ],
+            [
+                202,
+                "            _dbType = DatabaseType.MySql;"
+            ],
+            [
+                203,
+                "            var parseResult = Enum.TryParse(dbTypeString, out _dbType);"
+            ],
+            [
+                204,
+                "            if (!parseResult)"
+            ],
+            [
+                205,
+                "                _dbType = DatabaseType.MySql;"
+            ],
+            [
+                206,
+                ""
+            ],
+            [
+                207,
+                "            connectionString = Regex.Replace(connectionString, $@\"{param}=([A-Za-z]+)(;|$)\", \"\");"
+            ],
+            [
+                208,
+                "            return connectionString;"
+            ],
+            [
+                209,
+                "        }"
+            ],
+            [
+                218,
+                "            if (_dbConnection == null)"
+            ],
+            [
+                222,
+                "                _dbConnection.Dispose();"
+            ]
+        ]
+    },
+    "num_lines_added": 26,
+    "num_lines_removed": 103
+}

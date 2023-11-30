@@ -1,0 +1,385 @@
+{
+    "hash": "7030cca351cbc8a9f8f53ddc0c6e2d9f63135b72",
+    "message": "Optimize Top-p sampling method by faster exp and power function.",
+    "file_num_lines": 1454,
+    "diff_parsed": {
+        "added": [
+            [
+                846,
+                "        private static double PowerA(double a, double b)"
+            ],
+            [
+                847,
+                "        {"
+            ],
+            [
+                848,
+                "            int tmp = (int)(BitConverter.DoubleToInt64Bits(a) >> 32);"
+            ],
+            [
+                849,
+                "            int tmp2 = (int)(b * (tmp - 1072632447) + 1072632447);"
+            ],
+            [
+                850,
+                "            return BitConverter.Int64BitsToDouble(((long)tmp2) << 32);"
+            ],
+            [
+                851,
+                "        }"
+            ],
+            [
+                852,
+                ""
+            ],
+            [
+                853,
+                "        private static double Exp(double x)"
+            ],
+            [
+                854,
+                "        {"
+            ],
+            [
+                855,
+                "            var tmp = (long)(1512775 * x + 1072632447);"
+            ],
+            [
+                856,
+                "            return BitConverter.Int64BitsToDouble(tmp << 32);"
+            ],
+            [
+                857,
+                "        }"
+            ],
+            [
+                875,
+                "            float thresholdValue = 1.0f / (float)(m.Columns * 10000.0);"
+            ],
+            [
+                899,
+                ""
+            ],
+            [
+                900,
+                "                if (topP == 0.0f)"
+            ],
+            [
+                902,
+                "                    float maxWeight = float.MinValue;"
+            ],
+            [
+                903,
+                "                    int maxWeightIndice = -1;"
+            ],
+            [
+                905,
+                "                    for (int j = 0; j < m.Columns; j++)"
+            ],
+            [
+                907,
+                "                        float weight = weights[offset + j];"
+            ],
+            [
+                908,
+                "                        if (Math.Abs(weight) < thresholdValue)"
+            ],
+            [
+                909,
+                "                        {"
+            ],
+            [
+                910,
+                "                            continue;"
+            ],
+            [
+                911,
+                "                        }"
+            ],
+            [
+                912,
+                ""
+            ],
+            [
+                913,
+                "                        //Decay weights if tokens has already been generated before"
+            ],
+            [
+                914,
+                "                        if (tokenId2OffsetInSeq.ContainsKey(j))"
+            ],
+            [
+                915,
+                "                        {"
+            ],
+            [
+                916,
+                "                            int offsetInSeq = tokenId2OffsetInSeq[j];"
+            ],
+            [
+                917,
+                "                            weight = (float)((weight * (1.0 - Exp((offsetInSeq + 1 - seq.Count) / distancePenalty))) / PowerA(repeatPenalty, tokenId2Cnt[j]));"
+            ],
+            [
+                918,
+                "                        }"
+            ],
+            [
+                919,
+                ""
+            ],
+            [
+                920,
+                "                        if (Math.Abs(weight) < thresholdValue)"
+            ],
+            [
+                921,
+                "                        {"
+            ],
+            [
+                922,
+                "                            continue;"
+            ],
+            [
+                923,
+                "                        }"
+            ],
+            [
+                924,
+                ""
+            ],
+            [
+                925,
+                "                        if (weight > maxWeight)"
+            ],
+            [
+                926,
+                "                        {"
+            ],
+            [
+                927,
+                "                            maxWeight = weight;"
+            ],
+            [
+                928,
+                "                            maxWeightIndice = j;"
+            ],
+            [
+                929,
+                "                        }"
+            ],
+            [
+                932,
+                "                    indices[i] = maxWeightIndice;"
+            ],
+            [
+                933,
+                "                }"
+            ],
+            [
+                934,
+                "                else"
+            ],
+            [
+                935,
+                "                {"
+            ],
+            [
+                936,
+                "                    SortedDictionary<float, int> weight2tokenId = new SortedDictionary<float, int>();"
+            ],
+            [
+                937,
+                "                    float adjustedSum = 0.0f;"
+            ],
+            [
+                938,
+                "                    for (int j = 0; j < m.Columns; j++)"
+            ],
+            [
+                940,
+                "                        float weight = weights[offset + j];"
+            ],
+            [
+                941,
+                "                        if (Math.Abs(weight) < thresholdValue || weight2tokenId.ContainsKey(weight))"
+            ],
+            [
+                942,
+                "                        {"
+            ],
+            [
+                943,
+                "                            continue;"
+            ],
+            [
+                944,
+                "                        }"
+            ],
+            [
+                946,
+                "                        //Decay weights if tokens has already been generated before"
+            ],
+            [
+                947,
+                "                        if (tokenId2OffsetInSeq.ContainsKey(j))"
+            ],
+            [
+                948,
+                "                        {"
+            ],
+            [
+                949,
+                "                            int offsetInSeq = tokenId2OffsetInSeq[j];"
+            ],
+            [
+                950,
+                "                            weight = (float)((weight * (1.0 - Exp((offsetInSeq + 1 - seq.Count) / distancePenalty))) / PowerA(repeatPenalty, tokenId2Cnt[j]));"
+            ],
+            [
+                951,
+                "                        }"
+            ],
+            [
+                953,
+                "                        if (Math.Abs(weight) < thresholdValue || weight2tokenId.ContainsKey(weight))"
+            ],
+            [
+                954,
+                "                        {"
+            ],
+            [
+                955,
+                "                            continue;"
+            ],
+            [
+                956,
+                "                        }"
+            ],
+            [
+                958,
+                "                        adjustedSum += weight;"
+            ],
+            [
+                959,
+                "                        weight2tokenId.Add(weight, j);"
+            ],
+            [
+                962,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                863,
+                "            float thresholdValue = 1.0f / (float)(m.Columns * 100000.0);"
+            ],
+            [
+                887,
+                "                SortedDictionary<float, int> weight2tokenId = new SortedDictionary<float, int>();"
+            ],
+            [
+                888,
+                "                float adjustedSum = 0.0f;"
+            ],
+            [
+                889,
+                "                for (int j = 0; j < m.Columns; j++)"
+            ],
+            [
+                891,
+                "                    float weight = weights[offset + j];"
+            ],
+            [
+                892,
+                "                    if (weight < thresholdValue || weight2tokenId.ContainsKey(weight))"
+            ],
+            [
+                893,
+                "                    {"
+            ],
+            [
+                894,
+                "                        continue;"
+            ],
+            [
+                895,
+                "                    }"
+            ],
+            [
+                897,
+                "                    //Decay weights if tokens has already been generated before"
+            ],
+            [
+                898,
+                "                    if (tokenId2OffsetInSeq.ContainsKey(j))"
+            ],
+            [
+                900,
+                "                        int offsetInSeq = tokenId2OffsetInSeq[j];"
+            ],
+            [
+                901,
+                "                        weight = (float)((weight * (1.0 - Math.Exp((offsetInSeq + 1 - seq.Count) / distancePenalty))) / Math.Pow(repeatPenalty, tokenId2Cnt[j]));"
+            ],
+            [
+                904,
+                "                    if (weight < thresholdValue || weight2tokenId.ContainsKey(weight))"
+            ],
+            [
+                906,
+                "                        continue;"
+            ],
+            [
+                907,
+                "                    }"
+            ],
+            [
+                909,
+                "                    adjustedSum += weight;"
+            ],
+            [
+                910,
+                "                    weight2tokenId.Add(weight, j);"
+            ],
+            [
+                912,
+                "                }"
+            ],
+            [
+                915,
+                "                if (topP == 0.0f)"
+            ],
+            [
+                916,
+                "                {"
+            ],
+            [
+                917,
+                "                    if (weight2tokenId.Count > 0)"
+            ],
+            [
+                918,
+                "                    {"
+            ],
+            [
+                919,
+                "                        indices[i] = weight2tokenId.Last().Value;"
+            ],
+            [
+                921,
+                "                }"
+            ],
+            [
+                922,
+                "                else"
+            ],
+            [
+                923,
+                "                {"
+            ]
+        ]
+    },
+    "num_lines_added": 66,
+    "num_lines_removed": 27
+}

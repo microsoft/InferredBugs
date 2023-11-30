@@ -1,0 +1,81 @@
+        private void CreateDestinationDirectory(CancellationToken cancellationToken)
+        {
+            if (this.dest.Type == TransferLocationType.AzureBlobDirectory)
+            {
+                // No physical destination directory needed.
+                return;
+            }
+
+            if ((this.dest.Type == TransferLocationType.AzureFileDirectory)
+                && (null == (this.dest as AzureFileDirectoryLocation).FileDirectory.Parent))
+            {
+                //Root Azure File directory, no need to create.
+                return;
+            }
+
+            CloudFileNtfsAttributes? fileAttributes = null;
+            string portableSDDL = null;
+            DateTimeOffset? creationTime = null;
+            DateTimeOffset? lastWriteTime = null;
+            IDictionary<string, string> metadata = null;
+
+            this.GetSourceProperites(out fileAttributes, out portableSDDL, out creationTime, out lastWriteTime, out metadata, cancellationToken);
+
+            if (this.dest.Type == TransferLocationType.LocalDirectory)
+            {
+                var localFileDestLocation = this.dest as DirectoryLocation;
+                if (!LongPathDirectory.Exists(localFileDestLocation.DirectoryPath))
+                {
+                    LongPathDirectory.CreateDirectory(localFileDestLocation.DirectoryPath);
+                }
+
+                if (fileAttributes.HasValue)
+                {
+                    LongPathFile.SetFileTime(localFileDestLocation.DirectoryPath, creationTime.Value, lastWriteTime.Value, true);
+                    LongPathFile.SetAttributes(localFileDestLocation.DirectoryPath, Utils.AzureFileNtfsAttributesToLocalAttributes(fileAttributes.Value));
+                }
+
+                if (!string.IsNullOrEmpty(portableSDDL))
+                {
+                    FileSecurityOperations.SetFileSecurity(localFileDestLocation.DirectoryPath, portableSDDL, this.baseDirectoryTransfer.PreserveSMBPermissions);
+                }
+            }
+            else if (this.dest.Type == TransferLocationType.AzureFileDirectory)
+            {
+                AzureFileDirectoryLocation fileDirLocation = this.dest as AzureFileDirectoryLocation;
+
+                var fileDirectory = fileDirLocation.FileDirectory;
+
+                if (string.Equals(fileDirectory.SnapshotQualifiedUri.AbsolutePath, fileDirectory.Share.SnapshotQualifiedUri.AbsolutePath))
+                {
+                    return;
+                }
+
+                try
+                {
+                    CreateCloudFileDestinationDirectory(fileDirectory, 
+                        fileAttributes,
+                        creationTime,
+                        lastWriteTime,
+                        metadata,
+                        portableSDDL,
+                        cancellationToken);
+                }
+                catch (StorageException storageException)
+                {
+                    if ((null != storageException.InnerException)
+                        && (storageException.InnerException is OperationCanceledException))
+                    {
+                        throw storageException.InnerException;
+                    }
+                    else
+                    {
+                        throw new TransferException(TransferErrorCode.FailToVadlidateDestination,
+                            string.Format(CultureInfo.CurrentCulture,
+                                Resources.FailedToValidateDestinationException,
+                                storageException.ToErrorDetail()),
+                            storageException);
+                    }
+                }
+            }
+        }

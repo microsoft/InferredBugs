@@ -1,0 +1,26 @@
+        [Fact]
+        public void WritesImports() {
+            var declaration = parentClass.StartBlock as CodeClass.ClassDeclaration;
+            var messageClass = parentClass.GetImmediateParentOfType<CodeNamespace>().AddClass( new CodeClass {
+                Name = "Message"
+            }).First();
+            declaration.AddUsings(new () {
+                Name = "Objects",
+                Declaration = new() {
+                    Name = "util",
+                    IsExternal = true,
+                }
+            },
+            new () {
+                Name = "project-graph",
+                Declaration = new() {
+                    Name = "Message",
+                    TypeDefinition = messageClass,
+                }
+            });
+            codeElementWriter.WriteCodeElement(declaration, writer);
+            var result = tw.ToString();
+            Assert.Contains("require_relative", result);
+            Assert.Contains("message", result);
+            Assert.Contains("require", result);
+        }

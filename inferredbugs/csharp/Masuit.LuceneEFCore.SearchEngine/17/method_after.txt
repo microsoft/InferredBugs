@@ -1,0 +1,23 @@
+        [Fact]
+        public void AContextCanBeSearchedUsingAWildCard()
+        {
+            InitializeContext();
+            LuceneIndexerOptions options = new LuceneIndexerOptions()
+            {
+                Path = "lucene"
+            };
+            var memoryCache = new MemoryCache(new MemoryCacheOptions());
+            var directory = FSDirectory.Open(options.Path);
+            JieBaAnalyzer analyzer = new JieBaAnalyzer(TokenizerMode.Search);
+            SearchEngine<TestDbContext> searchProvider = new SearchEngine<TestDbContext>(_context, directory, analyzer, memoryCache);
+            searchProvider.CreateIndex();
+            SearchOptions searchOptions = new SearchOptions("Joh*", "FirstName");
+
+            // test
+            var results = searchProvider.ScoredSearch<User>(searchOptions);
+            PrintResult(results);
+
+            Assert.Equal(10, results.TotalHits);
+
+            searchProvider.DeleteIndex();
+        }

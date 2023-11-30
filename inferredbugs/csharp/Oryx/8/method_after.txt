@@ -1,0 +1,29 @@
+        [Fact]
+        public void Detect_ReturnsExpectedLanguageVersion_WhenProjectFileHasMultiplePropertyGroups()
+        {
+            // Arrange
+            var projectFile = "test.csproj";
+            var sourceRepo = new Mock<ISourceRepo>();
+            sourceRepo
+                .Setup(repo => repo.EnumerateFiles(It.IsAny<string>(), It.IsAny<bool>()))
+                .Returns(new[] { projectFile });
+            sourceRepo
+                .Setup(repo => repo.ReadFile(It.IsAny<string>()))
+                .Returns(ProjectFileWithMultipleProperties);
+            var detector = CreateDotnetCoreLanguageDetector(
+                supportedVersions: new[]
+                {
+                    DotNetCoreVersions.DotNetCore11Version,
+                    DotNetCoreVersions.DotNetCore21Version,
+                    DotNetCoreVersions.DotNetCore22Version
+                },
+                projectFile);
+
+            // Act
+            var result = detector.Detect(sourceRepo.Object);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(DotnetCoreConstants.LanguageName, result.Language);
+            Assert.Equal("2.1", result.LanguageVersion);
+        }

@@ -1,0 +1,79 @@
+        [Test]
+        public void ShouldCreateIndexEntries()
+        {
+            var testNode = new TestNode { Foo = "foo", Bar = "bar", Baz = "baz" };
+            var batch = new List<BatchStep>();
+            batch.Add(Method.POST, "/node", testNode);
+            batch.Add(Method.POST, "/index/node/my_index", new { key = "key", value = "value", uri = "{0}" });
+            batch.Add(Method.POST, "/index/node/my_index", new { key = "key3", value = "value3", uri = "{0}" });
+
+            var testHarness = new RestTestHarness
+            {
+                {
+                    MockRequest.PostObjectAsJson("/batch", batch),
+                    MockResponse.Json(HttpStatusCode.OK,
+                        @"[{'id':0,'location':'http://localhost:20001/db/data/node/763','body':{
+                          'outgoing_relationships' : 'http://localhost:20001/db/data/node/763/relationships/out',
+                          'data' : {
+                            'Baz' : 'baz',
+                            'Foo' : 'foo',
+                            'Bar' : 'bar'
+                          },
+                          'traverse' : 'http://localhost:20001/db/data/node/763/traverse/{returnType}',
+                          'all_typed_relationships' : 'http://localhost:20001/db/data/node/763/relationships/all/{-list|&|types}',
+                          'self' : 'http://localhost:20001/db/data/node/763',
+                          'property' : 'http://localhost:20001/db/data/node/763/properties/{key}',
+                          'outgoing_typed_relationships' : 'http://localhost:20001/db/data/node/763/relationships/out/{-list|&|types}',
+                          'properties' : 'http://localhost:20001/db/data/node/763/properties',
+                          'incoming_relationships' : 'http://localhost:20001/db/data/node/763/relationships/in',
+                          'extensions' : {
+                          },
+                          'create_relationship' : 'http://localhost:20001/db/data/node/763/relationships',
+                          'paged_traverse' : 'http://localhost:20001/db/data/node/763/paged/traverse/{returnType}{?pageSize,leaseTime}',
+                          'all_relationships' : 'http://localhost:20001/db/data/node/763/relationships/all',
+                          'incoming_typed_relationships' : 'http://localhost:20001/db/data/node/763/relationships/in/{-list|&|types}'
+                        },'from':'/node'},{'id':1,'location':'http://localhost:20001/db/data/index/node/my_index/key/value/763','body':{
+                          'indexed' : 'http://localhost:20001/db/data/index/node/my_index/key/value/763',
+                          'outgoing_relationships' : 'http://localhost:20001/db/data/node/763/relationships/out',
+                          'data' : {
+                            'Baz' : 'baz',
+                            'Foo' : 'foo',
+                            'Bar' : 'bar'
+                          },
+                          'traverse' : 'http://localhost:20001/db/data/node/763/traverse/{returnType}',
+                          'all_typed_relationships' : 'http://localhost:20001/db/data/node/763/relationships/all/{-list|&|types}',
+                          'self' : 'http://localhost:20001/db/data/node/763',
+                          'property' : 'http://localhost:20001/db/data/node/763/properties/{key}',
+                          'outgoing_typed_relationships' : 'http://localhost:20001/db/data/node/763/relationships/out/{-list|&|types}',
+                          'properties' : 'http://localhost:20001/db/data/node/763/properties',
+                          'incoming_relationships' : 'http://localhost:20001/db/data/node/763/relationships/in',
+                          'extensions' : {
+                          },
+                          'create_relationship' : 'http://localhost:20001/db/data/node/763/relationships',
+                          'paged_traverse' : 'http://localhost:20001/db/data/node/763/paged/traverse/{returnType}{?pageSize,leaseTime}',
+                          'all_relationships' : 'http://localhost:20001/db/data/node/763/relationships/all',
+                          'incoming_typed_relationships' : 'http://localhost:20001/db/data/node/763/relationships/in/{-list|&|types}'
+                        },'from':'/index/node/my_index/key/value'}]"
+                    )
+                }
+            };
+
+            var graphClient = testHarness.CreateAndConnectGraphClient();
+
+            graphClient.Create(
+                testNode,
+                null,
+                new[]
+                {
+                    new IndexEntry
+                    {
+                        Name = "my_index",
+                        KeyValues = new[]
+                        {
+                            new KeyValuePair<string, object>("key", "value"),
+                            new KeyValuePair<string, object>("key2", ""),
+                            new KeyValuePair<string, object>("key3", "value3")
+                        }
+                    }
+                });
+        }

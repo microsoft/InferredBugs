@@ -1,0 +1,26 @@
+        private void RenderViewport(IViewport viewport, Frame frame)
+        {
+            if (_activeScene == null) return;
+
+            var vpData = GetViewportData(viewport);
+            var scData = GetSceneData(_activeScene);
+
+            InitialiseRenderer();
+            InitialiseViewport(viewport, vpData);
+            scData.Array.ApplyChanges();
+            vpData.ElementArray.Update(scData.Array.Elements);
+            
+            // Set up FBO
+            vpData.Framebuffer.Bind();
+            
+            GL.ClearColor(Color.Black);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            scData.Array.Render(this, _shaderProgram, _modelShaderProgram, viewport);
+            vpData.ElementArray.Render(this, _shaderProgram, viewport);
+
+            // Blit FBO
+            vpData.Framebuffer.Unbind();
+            vpData.Framebuffer.Render();
+
+        }

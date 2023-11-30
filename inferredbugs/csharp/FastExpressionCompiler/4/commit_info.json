@@ -1,0 +1,269 @@
+{
+    "hash": "667b42fcbed2471c3305e4336d78c6580826a61c",
+    "message": "wip: fixing ToExpression and ToCSharp output",
+    "file_num_lines": 3134,
+    "diff_parsed": {
+        "added": [
+            [
+                1421,
+                "        public static StringBuilder AppendTypeofList(this StringBuilder sb, Type[] types,"
+            ],
+            [
+                1422,
+                "            bool stripNamespace = false, Func<Type, string, string> printType = null)"
+            ],
+            [
+                1423,
+                "        {"
+            ],
+            [
+                1424,
+                "            for (var i = 0; i < types.Length; i++)"
+            ],
+            [
+                1425,
+                "                (i > 0 ? sb.Append(\", \") : sb).AppendTypeof(types[i], stripNamespace, printType);"
+            ],
+            [
+                1426,
+                "            return sb;"
+            ],
+            [
+                1427,
+                "        }"
+            ],
+            [
+                1428,
+                ""
+            ],
+            [
+                1445,
+                "        private const string _nonPubStatMethods = \".GetMethods(BindingFlags.NonPublic|BindingFlags.Static)[\";"
+            ],
+            [
+                1446,
+                "        private const string _nonPubInstMethods = \".GetMethods(BindingFlags.NonPublic|BindingFlags.Instance)[\";"
+            ],
+            [
+                1447,
+                ""
+            ],
+            [
+                1451,
+                "            sb.Append(\"/*\").Append(method.Name).Append(\"*/\");"
+            ],
+            [
+                1452,
+                ""
+            ],
+            [
+                1454,
+                "            sb.AppendTypeof(type, stripNamespace, printType);"
+            ],
+            [
+                1455,
+                ""
+            ],
+            [
+                1456,
+                "            if (method.IsPublic)"
+            ],
+            [
+                1457,
+                "            {"
+            ],
+            [
+                1458,
+                "                var pubIndex = type.GetMethods().GetFirstIndex(method);"
+            ],
+            [
+                1459,
+                "                if (pubIndex == -1)"
+            ],
+            [
+                1460,
+                "                {"
+            ],
+            [
+                1461,
+                "                    if (method.IsGenericMethod)"
+            ],
+            [
+                1462,
+                "                    {"
+            ],
+            [
+                1463,
+                "                        var openGenMethod = method.GetGenericMethodDefinition();"
+            ],
+            [
+                1464,
+                "                        var openGenIndex = type.GetMethods().GetFirstIndex(openGenMethod);"
+            ],
+            [
+                1465,
+                "                        if (openGenIndex != -1)"
+            ],
+            [
+                1466,
+                "                        {"
+            ],
+            [
+                1467,
+                "                            return sb.Append(\".GetMethods()[\").Append(openGenIndex)"
+            ],
+            [
+                1468,
+                "                                .Append(\"].MakeGenericMethod(\")"
+            ],
+            [
+                1469,
+                "                                .AppendTypeofList(method.GetGenericArguments())"
+            ],
+            [
+                1470,
+                "                                .Append(')');"
+            ],
+            [
+                1471,
+                "                        }"
+            ],
+            [
+                1472,
+                "                    }"
+            ],
+            [
+                1473,
+                "                }"
+            ],
+            [
+                1474,
+                "                return sb.Append(\".GetMethods()[\").Append(pubIndex).Append(']');"
+            ],
+            [
+                1475,
+                "            }"
+            ],
+            [
+                1476,
+                ""
+            ],
+            [
+                1477,
+                "            var flags = BindingFlags.NonPublic;"
+            ],
+            [
+                1478,
+                "            flags |= method.IsStatic ? BindingFlags.Static : BindingFlags.Instance;"
+            ],
+            [
+                1479,
+                "            var nonPubIndex = type.GetMethods(flags).GetFirstIndex(method);"
+            ],
+            [
+                1480,
+                "            if (nonPubIndex == -1)"
+            ],
+            [
+                1481,
+                "            {"
+            ],
+            [
+                1482,
+                "                 // todo: @incomplete to implement it"
+            ],
+            [
+                1483,
+                "            }"
+            ],
+            [
+                1484,
+                "            sb.Append(method.IsStatic ? _nonPubStatMethods : _nonPubInstMethods);"
+            ],
+            [
+                1485,
+                "            return sb.Append(nonPubIndex).Append(\"]\");"
+            ],
+            [
+                1511,
+                "            var s = new StringBuilder();"
+            ],
+            [
+                1512,
+                "            var tickIndex = typeString.IndexOf('`');"
+            ],
+            [
+                1513,
+                "            if (tickIndex == -1)"
+            ],
+            [
+                1514,
+                "                s.Append(typeString);"
+            ],
+            [
+                1515,
+                "            else"
+            ],
+            [
+                1516,
+                "                s.Append(typeString.Substring(0, tickIndex));"
+            ],
+            [
+                1517,
+                ""
+            ],
+            [
+                2538,
+                "            sb.NewLineIdentExpr(Object, uniqueExprs, lineIdent, stripNamespace, printType, identSpaces).Append(\", \");"
+            ],
+            [
+                2539,
+                "            sb.NewLineIdent(lineIdent).AppendMethod(Method, stripNamespace, printType).Append(\", \");"
+            ],
+            [
+                3891,
+                ""
+            ],
+            [
+                3892,
+                "            // todo: @bug we need to construct the parameters first and store them in the `uniqueExprs` before suing the in the body"
+            ]
+        ],
+        "deleted": [
+            [
+                1415,
+                "        /// <summary>Converts the `typeof(<paramref name=\"type\"/>)` into the proper C# representation.</summary>"
+            ],
+            [
+                1442,
+                "            var methodIndex = type.GetTypeInfo().GetDeclaredMethods(method.Name).AsArray().GetFirstIndex(method);"
+            ],
+            [
+                1443,
+                "            return sb.AppendTypeof(type, stripNamespace, printType)"
+            ],
+            [
+                1444,
+                "                .Append(\".GetTypeInfo().GetDeclaredMethods(\\\"\").Append(method.Name)"
+            ],
+            [
+                1445,
+                "                .Append(\"\\\").ToArray()[\").Append(methodIndex).Append(\"]\");"
+            ],
+            [
+                1471,
+                "            var s = new StringBuilder(typeString.Substring(0, typeString.IndexOf('`')));"
+            ],
+            [
+                2492,
+                "            sb.NewLineIdentExpr(Object, uniqueExprs, lineIdent, stripNamespace, printType, identSpaces).Append(',');"
+            ],
+            [
+                2493,
+                "            sb.NewLineIdent(lineIdent).AppendMethod(Method, stripNamespace, printType);"
+            ]
+        ]
+    },
+    "num_lines_added": 56,
+    "num_lines_removed": 8
+}

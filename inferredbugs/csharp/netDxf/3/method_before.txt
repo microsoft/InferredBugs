@@ -1,0 +1,63 @@
+        private LayerStateProperties ReadLayerStateProperties(string name, IEnumerator<XRecordEntry> enumerator)
+        {
+            LayerPropertiesFlags flags = LayerPropertiesFlags.Plot;
+            string lineTypeName = Linetype.DefaultName;
+            //string plotStyle = string.Empty;
+            AciColor color = AciColor.Default;
+            Lineweight lineweight = Lineweight.Default;
+            Transparency transparency = new Transparency(0);
+
+            while (enumerator.MoveNext())
+            {
+                if (enumerator.Current == null)
+                {
+                    break;
+                }
+
+                XRecordEntry recordEntry = enumerator.Current;
+                if (recordEntry.Code == 8 || recordEntry.Code == 330)
+                {
+                    break;
+                }
+
+                switch (recordEntry.Code)
+                {
+                    case 90:
+                        flags = (LayerPropertiesFlags) (int) recordEntry.Value;
+                        break;
+                    case 62:
+                        color = AciColor.FromCadIndex((short) recordEntry.Value);
+                        break;
+                    case 370:
+                        lineweight = (Lineweight) (short) recordEntry.Value;
+                        break;
+                    case 331:
+                        Linetype linetype = (Linetype) this.doc.GetObjectByHandle((string) recordEntry.Value);
+                        lineTypeName = linetype.Name;
+                        break;
+                    case 6:
+                        lineTypeName = (string) recordEntry.Value;
+                        break;
+                    case 1:
+                        //plotStyle = (string) recordEntry.Value;
+                        break;
+                    case 440:
+                        int alpha = (int) recordEntry.Value;
+                        transparency = alpha == 0 ? new Transparency(0) : Transparency.FromAlphaValue(alpha);
+                        break;
+                    case 92:
+                        color = AciColor.FromTrueColor((int) recordEntry.Value);
+                        break;
+                }
+            }
+
+            return new LayerStateProperties(name)
+            {
+                Flags = flags,
+                Color = color,
+                Lineweight = lineweight,
+                LinetypeName = lineTypeName,
+                //PlotStyleName = plotStyle,
+                Transparency = transparency
+            };
+        }

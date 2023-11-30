@@ -1,0 +1,28 @@
+        public override int Read(byte[] buffer, int offset, int count) {
+            int read = 0;
+
+            if (!this.CanRead) {
+                throw new IOException("This stream is not readable!");
+            }
+
+            if (this.BaseStream == null) {
+                throw new IOException("The base stream is null. Has a socket connection been opened yet?");
+            }
+
+            read = this.BaseStream.Read(buffer, offset, count);
+            this._position += read;
+
+            // if EOF close stream
+            if (read == 0) {
+                this.Close();
+            }
+            else {
+                // keep-alive hack
+                if (this.ControlConnection.KeepAliveInterval > 0 && DateTime.Now.Subtract(this.LastNoOp).Seconds >= this.ControlConnection.KeepAliveInterval) {
+                    this.ControlConnection.Execute("NOOP");
+                    this.LastNoOp = DateTime.Now;
+                }
+            }
+
+            return read;
+        }

@@ -1,0 +1,30 @@
+        public static void AddGlobalOrLocalVariable(string name, GetVarFunction function, ParsingScript script = null)
+        {
+            name          = Constants.ConvertName(name);
+
+            Dictionary<string, ParserFunction> lastLevel = GetLastLevel();
+            if (lastLevel != null && s_lastExecutionLevel.IsNamespace && !string.IsNullOrWhiteSpace(s_namespace))
+            {
+                name = s_namespacePrefix + name;
+            }
+
+            function.Name = Constants.GetRealName(name);
+            function.Value.ParamName = function.Name;
+            if (script != null && script.StackLevel != null && !GlobalNameExists(name))
+            {
+                script.StackLevel.Variables[name] = function;
+                var handle = OnVariableChange;
+                if (handle != null && function is GetVarFunction)
+                {
+                    handle.Invoke(function.Name, ((GetVarFunction)function).Value, false);
+                }
+            }
+            else if (s_locals.Count > StackLevelDelta && (LocalNameExists(name) || !GlobalNameExists(name)))
+            {
+                AddLocalVariable(function);
+            }
+            else
+            {
+                AddGlobal(name, function, false /* not native */);
+            }
+        }

@@ -1,0 +1,22 @@
+        public JwtTokenResult GenerateToken(List<Claim> claims)
+        {
+
+            var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SecurityKeyStr));
+            var credentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
+            var token = new JwtSecurityToken(
+                _options.Issuer,
+                _options.Audience,
+                claims,
+                DateTime.Now,
+                DateTime.Now.AddSeconds(_options.ExpiresTime),
+                credentials
+            );
+            var jwtToken = new JwtSecurityTokenHandler().WriteToken(token);
+            return new JwtTokenResult()
+            {
+                AccessToken = jwtToken,
+                EffectiveTime = _options.ExpiresTime,
+                IssueTime = DateTime.Now,
+                ExpiresTime = DateTime.Now.AddSeconds(_options.ExpiresTime)
+            };
+        }

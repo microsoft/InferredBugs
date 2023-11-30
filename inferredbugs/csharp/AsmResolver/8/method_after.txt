@@ -1,0 +1,23 @@
+        public PropertySignature ReadPropertySignature(uint signature, PropertyDefinition parentProperty)
+        {
+            PropertySignature propertySig = null;
+            BlobSignatureReader reader;
+            if (TryGetBlobReader(signature, out reader))
+            {
+                using (reader)
+                {
+                    reader.GenericContext = parentProperty.DeclaringType;
+
+                    byte flag = reader.ReadByte();
+
+                    if ((flag & 8) == 0)
+                        throw new ArgumentException("Signature doesn't refer to a valid property signature.");
+
+                    propertySig = new PropertySignature();
+                    propertySig.HasThis = (flag & 0x20) != 0;
+                    NETGlobals.ReadCompressedUInt32(reader);
+                    propertySig.ReturnType = reader.ReadTypeReference();
+                }
+            }
+            return propertySig;
+        }

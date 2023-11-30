@@ -1,0 +1,43 @@
+        [Test, Platform("Win")]
+        [TestCase("net48")] // test code requires ValueTuple support, so can't got to net35
+        [TestCase("netcoreapp2.1")]
+        public static void Single_target_csproj(string targetFramework)
+        {
+            var workspace = CreateWorkspace()
+                .AddProject("Test.csproj", $@"
+                    <Project Sdk='Microsoft.NET.Sdk'>
+
+                      <PropertyGroup>
+                        <TargetFramework>{targetFramework}</TargetFramework>
+                      </PropertyGroup>
+
+                      <ItemGroup>
+                        <PackageReference Include='Microsoft.NET.Test.Sdk' Version='*' />
+                        <PackageReference Include='NUnit' Version='*' />
+                        <PackageReference Include='NUnit3TestAdapter' Version='{NuGetPackageVersion}' />
+                      </ItemGroup>
+
+                    </Project>");
+
+            AddTestsCs(workspace);
+
+            workspace.MSBuild(restore: true);
+
+            var results = workspace.VSTest(new[] { $@"bin\Debug\{targetFramework}\Test.dll" });
+
+            // Total Tests =
+            //              3 from PassingTestStr/TestCaseSourceMethod
+            //              1 from UnitTest_TestCaseWithTuple_TestIsNotExecuted
+            //              1 from TestA/SourceA
+            //              1 from TestB/SourceB
+            //              1 from TestC/SourceC
+            //              2 from EqualsTest/EqualsData
+            //-------------------
+            //              9 Total Tests
+
+
+
+            Assert.That(results.Counters.Total, Is.EqualTo(9), "Total tests counter did not match expectation");
+            Assert.That(results.Counters.Executed, Is.EqualTo(9), "Executed tests counter did not match expectation");
+            Assert.That(results.Counters.Passed, Is.EqualTo(9), "Passed tests counter did not match expectation");
+        }

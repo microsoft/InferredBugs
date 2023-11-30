@@ -1,0 +1,111 @@
+    public override LuaSyntaxNode VisitPropertyDeclaration(PropertyDeclarationSyntax node) {
+      var symbol = semanticModel_.GetDeclaredSymbol(node);
+      if (!symbol.IsAbstract) {
+        if (symbol.IsProtobufNetSpecialProperty()) {
+          return null;
+        }
+        bool isStatic = symbol.IsStatic;
+        bool isPrivate = symbol.IsPrivate() && symbol.ExplicitInterfaceImplementations.IsEmpty;
+        bool hasGet = false;
+        bool hasSet = false;
+        if (isPrivate && generator_.IsForcePublicSymbol(symbol)) {
+          isPrivate = false;
+        }
+
+        var propertyName = GetMemberName(symbol);
+        var attributes = BuildAttributes(node.AttributeLists);
+        PropertyMethodResult getMethod = null;
+        PropertyMethodResult setMethod = null;
+        if (node.AccessorList != null) {
+          foreach (var accessor in node.AccessorList.Accessors) {
+            if (accessor.Body != null || accessor.ExpressionBody != null) {
+              var accessorSymbol = semanticModel_.GetDeclaredSymbol(accessor);
+              var methodInfo = new MethodInfo(accessorSymbol);
+              methodInfos_.Push(methodInfo);
+              bool isGet = accessor.IsKind(SyntaxKind.GetAccessorDeclaration);
+              var functionExpression = new LuaFunctionExpressionSyntax();
+              if (!isStatic) {
+                functionExpression.AddParameter(LuaIdentifierNameSyntax.This);
+              }
+              PushFunction(functionExpression);
+              if (accessor.Body != null) {
+                var block = accessor.Body.Accept<LuaBlockSyntax>(this);
+                functionExpression.AddStatements(block.Statements);
+              } else {
+                var bodyExpression = accessor.ExpressionBody.AcceptExpression(this);
+                if (isGet) {
+                  functionExpression.AddStatement(new LuaReturnStatementSyntax(bodyExpression));
+                } else {
+                  functionExpression.AddStatement(bodyExpression);
+                }
+              }
+              if (methodInfo.HasYield) {
+                VisitYield(accessorSymbol, functionExpression);
+              }
+              PopFunction();
+              methodInfos_.Pop();
+
+              var name = new LuaPropertyOrEventIdentifierNameSyntax(true, propertyName);
+              CurType.AddMethod(name, functionExpression, isPrivate, null, IsMoreThanLocalVariables(accessorSymbol));
+
+              var methodAttributes = BuildAttributes(accessor.AttributeLists);
+              if (isGet) {
+                Contract.Assert(!hasGet);
+                hasGet = true;
+                getMethod = new PropertyMethodResult(name, methodAttributes);
+              } else {
+                Contract.Assert(!hasSet);
+                functionExpression.AddParameter(LuaIdentifierNameSyntax.Value);
+                name.IsGetOrAdd = false;
+                hasSet = true;
+                setMethod = new PropertyMethodResult(name, methodAttributes);
+              }
+            }
+          }
+        } else {
+          Contract.Assert(!hasGet);
+          methodInfos_.Push(new MethodInfo(symbol.GetMethod));
+          var name = new LuaPropertyOrEventIdentifierNameSyntax(true, propertyName);
+          var functionExpression = new LuaFunctionExpressionSyntax();
+          PushFunction(functionExpression);
+          var expression = node.ExpressionBody.AcceptExpression(this);
+          PopFunction();
+          methodInfos_.Pop();
+
+          if (!isStatic) {
+            functionExpression.AddParameter(LuaIdentifierNameSyntax.This);
+          }
+          var returnStatement = new LuaReturnStatementSyntax(expression);
+          functionExpression.AddStatement(returnStatement);
+          CurType.AddMethod(name, functionExpression, isPrivate);
+          hasGet = true;
+          getMethod = new PropertyMethodResult(name);
+        }
+
+        if (!hasGet && !hasSet) {
+          ITypeSymbol typeSymbol = symbol.Type;
+          bool isImmutable = typeSymbol.IsImmutable();
+          bool isField = IsPropertyField(semanticModel_.GetDeclaredSymbol(node));
+          if (isField) {
+            bool isReadOnly = IsReadOnlyProperty(node);
+            AddField(propertyName, typeSymbol, node.Initializer?.Value, isImmutable, isStatic, isPrivate, isReadOnly, attributes);
+          } else {
+            var innerName = AddInnerName(symbol);
+            var valueExpression = GetFieldValueExpression(typeSymbol, node.Initializer?.Value, out bool valueIsLiteral, out var statements);
+            LuaExpressionSyntax typeExpression = null;
+            if (isStatic) {
+              typeExpression = GetTypeName(symbol.ContainingType);
+            }
+            var (getName, setName) = CurType.AddProperty(propertyName, innerName, valueExpression, isImmutable && valueIsLiteral, isStatic, isPrivate, typeExpression, statements);
+            getMethod = new PropertyMethodResult(getName);
+            setMethod = new PropertyMethodResult(setName);
+          }
+        }
+
+        if (IsCurTypeSerializable || attributes.Count > 0 || symbol.HasMetadataAttribute()) {
+          AddPropertyOrEventMetaData(symbol, getMethod, setMethod, propertyName, attributes);
+        }
+      }
+
+      return base.VisitPropertyDeclaration(node);
+    }

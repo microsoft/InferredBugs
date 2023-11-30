@@ -1,0 +1,28 @@
+        public ClientResponse Resolve() {
+            UdpClient udp = new UdpClient();
+
+            try {
+                udp.Connect(dns);
+                udp.Send(this.ToArray(), this.Size);
+
+                byte[] buffer = udp.Receive(ref dns);
+                Response response = null;
+
+                try {
+                    response = Response.FromArray(buffer);
+                } catch (ArgumentException e) {
+                    throw new ResponseException("Invalid response", e);
+                }
+
+                if (response.Id != this.Id) {
+                    throw new ResponseException(response, "Mismatching request/response IDs");
+                }
+                if (response.ResponseCode != ResponseCode.NoError) {
+                    throw new ResponseException(response);
+                }
+
+                return new ClientResponse(this, response, buffer);
+            } finally {
+                udp.Close();
+            }
+        }

@@ -1,0 +1,35 @@
+        public void Load(string assemblyPath, bool useRegister)
+        {
+            fs = new FileStream(assemblyPath, FileMode.Open, FileAccess.Read);
+            {
+                var path = Path.GetDirectoryName(assemblyPath);
+                var name = Path.GetFileNameWithoutExtension(assemblyPath);
+                var pdbPath = Path.Combine(path, name) + ".pdb";
+                if (!File.Exists(pdbPath))
+                {
+                    name = Path.GetFileName(assemblyPath);
+                    pdbPath = Path.Combine(path, name) + ".mdb";
+                }
+
+                _app = new ILRuntime.Runtime.Enviorment.AppDomain(useRegister ? ILRuntime.Runtime.ILRuntimeJITFlags.JITImmediately : ILRuntime.Runtime.ILRuntimeJITFlags.None);
+                _app.DebugService.StartDebugService(56000);
+                fs2 = new System.IO.FileStream(pdbPath, FileMode.Open);
+                {
+                    ILRuntime.Mono.Cecil.Cil.ISymbolReaderProvider symbolReaderProvider = null;
+                    if (pdbPath.EndsWith(".pdb"))
+                    {
+                        symbolReaderProvider = new ILRuntime.Mono.Cecil.Pdb.PdbReaderProvider();
+                    }/* else if (pdbPath.EndsWith (".mdb")) {
+                            symbolReaderProvider = new Mono.Cecil.Mdb.MdbReaderProvider ();
+                        }*/
+
+                    _app.LoadAssembly(fs, fs2, symbolReaderProvider);
+                }
+
+                ILRuntimeHelper.Init(_app);
+                ILRuntime.Runtime.Generated.CLRBindings.Initialize(_app);
+                _app.InitializeBindings(true);
+                LoadTest();
+            }
+            lastSession = this;
+        }

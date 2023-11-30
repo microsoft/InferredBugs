@@ -1,0 +1,345 @@
+{
+    "hash": "095a64bb1d36f96dc75da0a897c5505100364459",
+    "message": "NCBC-816: Rework prepared statement API\n\nMotivation\n----------\nIn order to have coherence between the Java SDK and the .Net SDK, a\nrework of the Prepared Statement N1QL feature is needed. The new API\nwill not involve transparent caching of prepared queries but will leave\nit to the user. The two steps of the process (preparing the plan and\nexecuting it) will be made explicit in the API (cf Java SDK).\n\nModifications\n-------------\nRemoved IPreparable and all references to it, removed all occurrences\nof caching.\nAdded IQueryPlan interface. Added a method on IQueryClient to prepare\na statement and obtain the associated IQueryPlan.\nReworked IQueryRequest / QueryRequest to consider such a IQueryPlan the\nonly source of prepared request (IsPrepared = true).\nReworked actual query building and existing unit tests to reflect that.\n\nResult\n------\nDoing a prepared query is now fully into the hands of the user who can\ndecide when to best cache the plan he can now directly obtain.\nAPI is coherent with the Java SDK one.\n\nChange-Id: I90ed2b47806ff110ec787e6c293d16067ebd8450\nReviewed-on: http://review.couchbase.org/47293\nTested-by: Simon Basl\u00e9 <simon@couchbase.com>\nReviewed-by: Jeffry Morris <jeffrymorris@gmail.com>",
+    "file_num_lines": 291,
+    "diff_parsed": {
+        "added": [
+            [
+                2,
+                "using System.Configuration;"
+            ],
+            [
+                18,
+                "        private readonly string _server = ConfigurationManager.AppSettings[\"serverIp\"];"
+            ],
+            [
+                25,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", _server));"
+            ],
+            [
+                48,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", _server));"
+            ],
+            [
+                61,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", _server));"
+            ],
+            [
+                75,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", _server));"
+            ],
+            [
+                94,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", _server));"
+            ],
+            [
+                108,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", _server));"
+            ],
+            [
+                122,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$1 LIMIT 10\")."
+            ],
+            [
+                123,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ],
+            [
+                142,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\")."
+            ],
+            [
+                143,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ],
+            [
+                162,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$1 LIMIT 10\")."
+            ],
+            [
+                163,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ],
+            [
+                182,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\")."
+            ],
+            [
+                183,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ],
+            [
+                202,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\")."
+            ],
+            [
+                203,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ],
+            [
+                222,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$1 LIMIT 10\")."
+            ],
+            [
+                223,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ],
+            [
+                242,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\")."
+            ],
+            [
+                243,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ],
+            [
+                258,
+                "        public void When_Prepared_Is_True_Client_Uses_Prepared_Statement()"
+            ],
+            [
+                261,
+                "            var serverUri = new Uri(string.Format(\"http://{0}:8093/query\", _server));"
+            ],
+            [
+                262,
+                "            const string statement = \"SELECT * from `beer-sample` LIMIT 100\";"
+            ],
+            [
+                264,
+                "            var normalRequest = QueryRequest.Create(statement)."
+            ],
+            [
+                265,
+                "                BaseUri(serverUri)."
+            ],
+            [
+                266,
+                "                Pretty(false);"
+            ],
+            [
+                267,
+                "            var preparedRequest = QueryRequest.Create(). //will set the plan later"
+            ],
+            [
+                268,
+                "                BaseUri(serverUri)."
+            ],
+            [
+                273,
+                "            var resultNormal = client.Query<dynamic>(normalRequest);"
+            ],
+            [
+                275,
+                "            Console.WriteLine(\"Elasped time normal request:{0}\", stopWatch.ElapsedMilliseconds);"
+            ],
+            [
+                279,
+                "            var plan = client.Prepare(serverUri, statement).Rows.First();"
+            ],
+            [
+                280,
+                "            preparedRequest.Prepared(plan)."
+            ],
+            [
+                281,
+                "                BaseUri(serverUri)."
+            ],
+            [
+                282,
+                "                Pretty(false);"
+            ],
+            [
+                283,
+                "            var resultPrepareExecute = client.Query<dynamic>(preparedRequest);"
+            ],
+            [
+                285,
+                "            Console.WriteLine(\"Elasped time prepare statement + execute 1:{0}\", stopWatch.ElapsedMilliseconds);"
+            ],
+            [
+                289,
+                "            var resultExecute = client.Query<dynamic>(preparedRequest);"
+            ],
+            [
+                291,
+                "            Console.WriteLine(\"Elasped time execute 2:{0}\", stopWatch.ElapsedMilliseconds);"
+            ],
+            [
+                292,
+                ""
+            ],
+            [
+                293,
+                "            Assert.IsTrue(preparedRequest.IsPrepared);"
+            ],
+            [
+                294,
+                "            Assert.IsFalse(normalRequest.IsPrepared);"
+            ],
+            [
+                295,
+                "            Assert.AreEqual(QueryStatus.Success, resultNormal.Status);"
+            ],
+            [
+                296,
+                "            Assert.AreEqual(QueryStatus.Success, resultPrepareExecute.Status);"
+            ],
+            [
+                297,
+                "            Assert.AreEqual(QueryStatus.Success, resultExecute.Status);"
+            ],
+            [
+                301,
+                "        public void When_Prepared_Is_False_Client_Doesnt_Cache()"
+            ],
+            [
+                305,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` LIMIT 100\")."
+            ],
+            [
+                306,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", _server)))."
+            ]
+        ],
+        "deleted": [
+            [
+                17,
+                "        private string server = \"192.168.30.101\";"
+            ],
+            [
+                24,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", server));"
+            ],
+            [
+                47,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", server));"
+            ],
+            [
+                60,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", server));"
+            ],
+            [
+                74,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", server));"
+            ],
+            [
+                93,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", server));"
+            ],
+            [
+                107,
+                "            var uri = new Uri(string.Format(\"http://{0}:8093/query\", server));"
+            ],
+            [
+                121,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$1 LIMIT 10\", false)."
+            ],
+            [
+                122,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                141,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\", false)."
+            ],
+            [
+                142,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                161,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$1 LIMIT 10\", false)."
+            ],
+            [
+                162,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                181,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\", false)."
+            ],
+            [
+                182,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                201,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\", false)."
+            ],
+            [
+                202,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                221,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$1 LIMIT 10\", false)."
+            ],
+            [
+                222,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                241,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` WHERE type=$type LIMIT 10\", false)."
+            ],
+            [
+                242,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                257,
+                "        public void When_Prepared_Is_True_Client_Caches_And_Uses_Prepared_Statement()"
+            ],
+            [
+                261,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` LIMIT 100\", true)."
+            ],
+            [
+                262,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ],
+            [
+                267,
+                "            var result = client.Query<dynamic>(request);"
+            ],
+            [
+                269,
+                "            Console.WriteLine(\"Elasped time 1:{0}\", stopWatch.ElapsedMilliseconds);"
+            ],
+            [
+                273,
+                "            result = client.Query<dynamic>(request);"
+            ],
+            [
+                275,
+                "            Console.WriteLine(\"Elasped time 2:{0}\", stopWatch.ElapsedMilliseconds);"
+            ],
+            [
+                279,
+                "            result = client.Query<dynamic>(request);"
+            ],
+            [
+                281,
+                "            Console.WriteLine(\"Elasped time 3:{0}\", stopWatch.ElapsedMilliseconds);"
+            ],
+            [
+                282,
+                "            Assert.AreEqual(QueryStatus.Success, result.Status);"
+            ],
+            [
+                286,
+                "        public void When_Prepared_Is_True_Client_Caches_And_Uses_Prepared_Statement2()"
+            ],
+            [
+                290,
+                "            var request = QueryRequest.Create(\"SELECT * from `beer-sample` LIMIT 100\", false)."
+            ],
+            [
+                291,
+                "                BaseUri(new Uri(string.Format(\"http://{0}:8093/query\", server)))."
+            ]
+        ]
+    },
+    "num_lines_added": 49,
+    "num_lines_removed": 34
+}

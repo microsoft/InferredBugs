@@ -1,0 +1,85 @@
+{
+    "hash": "13a87979bbcacdb7a1802886c8ae4b7625c55820",
+    "message": "Capture spans for new Azure Storage SDKs (#1484)\n\nThis commit captures traces for new Azure Storage SDKs.\r\n\r\nIn newer versions of Azure Storage SDKs, such as \r\nAzure.Storage.Blobs 12.9.0+, the destination url is\r\nno longer exposed on the operation activity. It is\r\nexposed on the Azure.Core child activity however. So, a listener\r\nis subscribed to listen for Azure.Core activities and copy the url\r\nfrom the child Azure.Core activity.\r\n\r\nSome newer versions of Azure Storage SDKs, such as\r\nAzure.Storage.Queues 12.7.0+, emit multiple activities for an individual\r\nmethod call, such as QueueClient.ReceiveMessage(). This\r\ncommit attempts to ignore duplicate activities when a trace\r\nhas already been started.\r\n\r\nFixes #1352",
+    "file_num_lines": 98,
+    "diff_parsed": {
+        "added": [
+            [
+                2,
+                "using System.Diagnostics;"
+            ],
+            [
+                3,
+                "using System.Linq;"
+            ],
+            [
+                7,
+                "using Elastic.Apm.DiagnosticListeners;"
+            ],
+            [
+                19,
+                "\tpublic class AzureQueueStorageDiagnosticListenerTests : IDisposable"
+            ],
+            [
+                24,
+                "\t\tprivate readonly IDisposable _subscription;"
+            ],
+            [
+                25,
+                "\t\tprivate readonly ITestOutputHelper _output;"
+            ],
+            [
+                30,
+                "\t\t\t_output = output;"
+            ],
+            [
+                35,
+                "\t\t\t_subscription = _agent.Subscribe(new AzureQueueStorageDiagnosticsSubscriber());"
+            ],
+            [
+                83,
+                "\t\t\t\tthrow new Exception($\"No transaction received within timeout. (already received {_sender.Transactions.Count} transactions)\");"
+            ],
+            [
+                112,
+                ""
+            ],
+            [
+                113,
+                "\t\tpublic void Dispose()"
+            ],
+            [
+                114,
+                "\t\t{"
+            ],
+            [
+                115,
+                "\t\t\t_subscription.Dispose();"
+            ],
+            [
+                116,
+                "\t\t\t_agent.Dispose();"
+            ],
+            [
+                117,
+                "\t\t}"
+            ]
+        ],
+        "deleted": [
+            [
+                16,
+                "\tpublic class AzureQueueStorageDiagnosticListenerTests"
+            ],
+            [
+                29,
+                "\t\t\t_agent.Subscribe(new AzureQueueStorageDiagnosticsSubscriber());"
+            ],
+            [
+                77,
+                "\t\t\t\tthrow new Exception(\"No transaction received in timeout\");"
+            ]
+        ]
+    },
+    "num_lines_added": 15,
+    "num_lines_removed": 3
+}

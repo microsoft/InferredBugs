@@ -1,0 +1,22 @@
+        internal static JObject ReadToJson(string models)
+        {
+            if (string.IsNullOrEmpty(models))
+                return null;
+
+            var firstChar = models.Last() == ']' ? '[' : '{';
+            var p = models.IndexOf(firstChar);
+            if (p > 0)
+                models = models.Substring(p);
+
+            var settings = new JsonSerializerSettings { DateFormatHandling = DateFormatHandling.IsoDateFormat };
+            var serializer = JsonSerializer.Create(settings);
+            var jReader = new JsonTextReader(new StringReader(models));
+            var deserialized = serializer.Deserialize(jReader);
+
+            if (deserialized is JObject jObject)
+                return jObject;
+            if (deserialized is JArray jArray)
+                return jArray[0] as JObject;
+
+            throw new SnNotSupportedException();
+        }

@@ -1,0 +1,19 @@
+  public GenerationResult Generate(RequirementContext context)
+		{
+			if (context.NumberRanges == null)
+				return GenerationResult.NotApplicable;
+
+			var range = context.NumberRanges.Ranges.Any() 
+				? JsonSchemaExtensions.Randomizer.ArrayElement(context.NumberRanges.Ranges.ToArray())
+				: NumberRangeSet.Full.Ranges[0];
+
+			var minValue = (long) Math.Ceiling(range.Minimum.Value);
+			var maxValue = (long) Math.Floor(range.Maximum.Value);
+
+			var value = GetValue(minValue, maxValue, context.Multiples?.ToArray() ?? Array.Empty<decimal>(),
+				context.Antimultiples?.ToArray() ?? Array.Empty<decimal>());
+
+			return value.HasValue
+				? GenerationResult.Success(value.Value)
+				: GenerationResult.Fail("Cannot generate random with that meets all requirements");
+		}

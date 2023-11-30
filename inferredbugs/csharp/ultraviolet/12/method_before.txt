@@ -1,0 +1,20 @@
+        internal Boolean Evaluate(UltravioletContext uv, DependencyObject dobj)
+        {
+            Contract.Require(uv, "uv");
+            Contract.Require(dobj, "dobj");
+
+            var dprop = DependencyProperty.FindByStylingName(uv, dobj, dpropName.Owner, dpropName.Name);
+            if (dprop == null)
+                return false;
+
+            if (refvalCache == null || (refvalCache.GetType() != dprop.PropertyType && Nullable.GetUnderlyingType(dprop.PropertyType) != refvalCache.GetType()))
+            {
+                refvalCache = ObjectResolver.FromString(refval, dprop.PropertyType);
+            }
+
+            var comparison = TriggerComparisonCache.Get(dprop.PropertyType, op);
+            if (comparison == null)
+                throw new InvalidOperationException(PresentationStrings.InvalidTriggerComparison.Format(dpropName, op, dprop.PropertyType));
+
+            return comparison(dobj, dprop, refvalCache);
+        }

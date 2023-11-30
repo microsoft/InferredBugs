@@ -1,0 +1,18 @@
+        [Test]
+        public void publishes_message_fire_and_forget()
+        {
+            var p = new FireAndForgetPublisher();
+            var evtBlock = new ManualResetEvent(false);
+            var evtSignal = new ManualResetEvent(false);
+            var lockingSub = new MockSubscription<MessageA>(evtBlock, evtSignal);
+            var runThroughSub = new MockSubscription<MessageA>();
+
+            var token = new PublishToken(new MessageA(), new[] { lockingSub, runThroughSub });
+            p.LookAt(token);
+            
+            lockingSub.Received.ShouldBeEqualTo(0);
+            runThroughSub.Received.ShouldBeEqualTo(1);
+            evtBlock.Set();
+            evtSignal.WaitOne();
+            lockingSub.Received.ShouldBeEqualTo(1);
+        }

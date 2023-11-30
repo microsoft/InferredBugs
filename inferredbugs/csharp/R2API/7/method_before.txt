@@ -1,0 +1,25 @@
+        private static GetDelegate<TReturn> CreateGetDelegate<TReturn>(this FieldInfo field) {
+            if (field == null) {
+                throw new ArgumentException("Field cannot be null.", nameof(field));
+            }
+
+            if (!typeof(TReturn).IsAssignableFrom(field.FieldType)) {
+                throw new Exception($"Field type {field.FieldType} does not match the requested type {typeof(TReturn)}.");
+            }
+
+
+            var method = new DynamicMethodDefinition($"{field} Getter", typeof(TReturn), new[] { typeof(object) });
+            var il = method.GetILProcessor();
+
+            if (!field.IsStatic) {
+                il.Emit(OpCodes.Ldarg_0);
+                if (field.DeclaringType.GetTypeInfo().IsValueType) {
+                    il.Emit(OpCodes.Unbox_Any, field.DeclaringType);
+                }
+            }
+
+            il.Emit(!field.IsStatic ? OpCodes.Ldfld : OpCodes.Ldsfld, field);
+            il.Emit(OpCodes.Ret);
+
+            return (GetDelegate<TReturn>)method.Generate().CreateDelegate(typeof(GetDelegate<TReturn>));
+        }

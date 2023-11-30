@@ -1,0 +1,29 @@
+  [Fact]
+		public void ServerUrlsMultipleUrlsWith1InvalidUrlTest()
+		{
+			var serverUrl1 = "http://myServer1.com:1234";
+			var serverUrl2 = "invalidUrl";
+			var serverUrl3 = "http://myServer2.com:1234";
+			var serverUrls = $"{serverUrl1},{serverUrl2},{serverUrl3}";
+			var logger = new TestLogger();
+			var agent = new ApmAgent(new TestAgentComponents(logger, serverUrls));
+
+			var parsedUrls = agent.ConfigurationReader.ServerUrls;
+			parsedUrls.Should().NotBeEmpty().And.HaveCount(2, "seeded 3 but one was invalid");
+			parsedUrls[0].OriginalString.Should().Be(serverUrl1);
+			parsedUrls[0].AbsoluteUri.Should().BeEquivalentTo($"{serverUrl1}/");
+
+			parsedUrls[1].OriginalString.Should().Be(serverUrl3);
+			parsedUrls[1].AbsoluteUri.Should().BeEquivalentTo($"{serverUrl3}/");
+
+			logger.Lines.Should().NotBeEmpty();
+			logger.Lines[0]
+				.Should()
+				.ContainAll(
+					$"{{{nameof(TestAgentConfigurationReader)}}}",
+					"Failed parsing server URL from",
+					TestAgentConfigurationReader.Origin,
+					EnvVarNames.ServerUrls,
+					serverUrl2
+				);
+		}

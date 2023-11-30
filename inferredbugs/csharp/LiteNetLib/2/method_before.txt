@@ -1,0 +1,45 @@
+    static void Main(string[] args)
+    {
+        //Test ntp
+        NtpSyncModule ntpSync = new NtpSyncModule("pool.ntp.org");
+        ntpSync.GetNetworkTime();
+        if (ntpSync.SyncedTime.HasValue)
+        {
+            Console.WriteLine("Synced time test: " + ntpSync.SyncedTime.Value);
+        }
+
+        //Server
+        NetServer server = new NetServer(2);
+        server.UnconnectedMessagesEnabled = true;
+        server.Start(9050);
+
+        //Client
+        NetClient client = new NetClient();
+        client.UnconnectedMessagesEnabled = true;
+        client.Start();
+        client.Connect("localhost", 9050);
+
+        //Test unconnected
+        NetDataWriter dw = new NetDataWriter();
+        dw.Put("HELLO! TST!");
+        client.SendUnconnectedMessage(dw.CopyData(), new NetEndPoint("localhost", 9050));
+
+        while (!Console.KeyAvailable)
+        {
+            NetEvent evt;
+            while ((evt = client.GetNextEvent()) != null)
+            {
+                ClientEvent(evt);
+                client.Recycle(evt);
+            }
+            while ((evt = server.GetNextEvent()) != null)
+            {
+                ServerEvent(evt);
+                server.Recycle(evt);
+            }
+            Thread.Sleep(15);
+        }
+
+        client.Stop();
+        server.Stop();
+    }

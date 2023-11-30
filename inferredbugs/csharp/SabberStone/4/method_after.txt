@@ -1,0 +1,56 @@
+        public void OnSendOption(KettleSendOption sendOption)
+        {
+            Console.WriteLine("simulator OnSendOption called");
+
+            var sendOptionId = sendOption.Id;
+            var sendOptionMainOption = sendOption.MainOption;
+            var sendOptionPosition = sendOption.Position;
+            var sendOptionSubOption = sendOption.SubOption;
+            var sendOptionTarget = sendOption.Target;
+
+            Console.WriteLine($"Id={sendOption.Id} MainOption={sendOption.MainOption} Position={sendOption.Position} SubOption={sendOption.SubOption} Target={sendOption.Target}");
+            var allOptions = _game.AllOptionsMap[sendOptionId+1];
+            Console.WriteLine(allOptions.Print());
+
+            var powerOption = allOptions.PowerOptionList[sendOptionMainOption];
+            var optionType = powerOption.OptionType;
+
+
+
+            PlayerTask task = null;
+            switch (optionType)
+            {
+                case OptionType.END_TURN:
+                    task = EndTurnTask.Any(_game.CurrentPlayer);
+                    break;
+
+                case OptionType.POWER:
+
+                    var mainOption = powerOption.MainOption;
+                    IPlayable source = _game.IdEntityDic[mainOption.EntityId];
+                    IPlayable target = null;
+                    if (mainOption.Targets != null && mainOption.Targets.Any())
+                    {
+                        target = _game.IdEntityDic[mainOption.Targets[sendOptionTarget]];
+                    }
+
+                    task = PlayCardTask.Any(_game.CurrentPlayer, source, target, sendOptionPosition, 0);
+                    
+                    //var subOptions = powerOption.SubOptions;
+                    //if (subOptions != null && subOptions.Any())
+                    //{ 
+                    //}
+
+                    break;
+                case OptionType.PASS:
+                    break;
+                default:
+                    throw new NotImplementedException();
+            }
+            
+            _game.Process(task);
+            ShowLog(_game, LogLevel.VERBOSE);
+
+            SendPowerHistory(_game.PowerHistory.Last);
+            SendChoicesOrOptions();
+        }

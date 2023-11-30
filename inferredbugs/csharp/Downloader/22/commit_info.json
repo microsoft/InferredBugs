@@ -1,0 +1,517 @@
+{
+    "hash": "ff4cc97b683de7069cd4c235028a78696ed56405",
+    "message": "Refactore interation tests",
+    "file_num_lines": 88,
+    "diff_parsed": {
+        "added": [
+            [
+                2,
+                "using System.Diagnostics;"
+            ],
+            [
+                13,
+                "        public void TestStreamReadSpeed()"
+            ],
+            [
+                15,
+                "            // arrange"
+            ],
+            [
+                17,
+                "            var bytesPerSecond = 256; // 256 Byte/s"
+            ],
+            [
+                18,
+                "            var expectedTime = (size / bytesPerSecond) * 1000; // 4000 Milliseconds"
+            ],
+            [
+                20,
+                "            var buffer = new byte[bytesPerSecond];"
+            ],
+            [
+                21,
+                "            var readSize = 1;"
+            ],
+            [
+                22,
+                "            using Stream stream = new ThrottledStream(new MemoryStream(randomBytes), bytesPerSecond);"
+            ],
+            [
+                23,
+                "            var stopWatcher = Stopwatch.StartNew();"
+            ],
+            [
+                25,
+                "            // act"
+            ],
+            [
+                26,
+                "            stream.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                27,
+                "            while (readSize > 0)"
+            ],
+            [
+                29,
+                "                readSize = stream.Read(buffer, 0, buffer.Length);"
+            ],
+            [
+                31,
+                "            stopWatcher.Stop();"
+            ],
+            [
+                33,
+                "            // assert"
+            ],
+            [
+                34,
+                "            Assert.IsTrue(stopWatcher.ElapsedMilliseconds >= expectedTime);"
+            ],
+            [
+                38,
+                "        public void TestStreamWriteSpeed()"
+            ],
+            [
+                40,
+                "            // arrange"
+            ],
+            [
+                43,
+                "            var expectedTime = (size / bytesPerSecond) * 1000; // 4000 Milliseconds"
+            ],
+            [
+                45,
+                "            using Stream stream = new ThrottledStream(new MemoryStream(), bytesPerSecond);"
+            ],
+            [
+                46,
+                "            var stopWatcher = Stopwatch.StartNew();"
+            ],
+            [
+                48,
+                "            // act"
+            ],
+            [
+                49,
+                "            stream.Write(randomBytes, 0, randomBytes.Length);"
+            ],
+            [
+                50,
+                "            stopWatcher.Stop();"
+            ],
+            [
+                52,
+                "            // assert"
+            ],
+            [
+                53,
+                "            Assert.IsTrue(stopWatcher.ElapsedMilliseconds >= expectedTime);"
+            ],
+            [
+                57,
+                "        public void TestNegativeBandwidth()"
+            ],
+            [
+                59,
+                "            // arrange"
+            ],
+            [
+                60,
+                "            int maximumBytesPerSecond = -1;"
+            ],
+            [
+                62,
+                "            // act"
+            ],
+            [
+                63,
+                "            void CreateThrottledStream()"
+            ],
+            [
+                65,
+                "                using var throttledStream = new ThrottledStream(new MemoryStream(), maximumBytesPerSecond);"
+            ],
+            [
+                68,
+                "            // assert"
+            ],
+            [
+                69,
+                "            Assert.ThrowsException<ArgumentOutOfRangeException>(CreateThrottledStream);"
+            ],
+            [
+                73,
+                "        public void TestZeroBandwidth()"
+            ],
+            [
+                75,
+                "            // arrange"
+            ],
+            [
+                76,
+                "            int maximumBytesPerSecond = 0;"
+            ],
+            [
+                77,
+                ""
+            ],
+            [
+                78,
+                "            // act"
+            ],
+            [
+                79,
+                "            using var throttledStream = new ThrottledStream(new MemoryStream(), maximumBytesPerSecond);"
+            ],
+            [
+                80,
+                ""
+            ],
+            [
+                81,
+                "            // assert"
+            ],
+            [
+                82,
+                "            Assert.AreEqual(long.MaxValue, throttledStream.BandwidthLimit);"
+            ],
+            [
+                86,
+                "        public void TestStreamIntegrityWithSpeedMoreThanSize()"
+            ],
+            [
+                88,
+                "            TestStreamIntegrity(500, 1024);"
+            ],
+            [
+                89,
+                "        }"
+            ],
+            [
+                90,
+                ""
+            ],
+            [
+                91,
+                "        [TestMethod]"
+            ],
+            [
+                92,
+                "        public void TestStreamIntegrityWithMaximumSpeed()"
+            ],
+            [
+                93,
+                "        {"
+            ],
+            [
+                94,
+                "            TestStreamIntegrity(4096, long.MaxValue);"
+            ],
+            [
+                95,
+                "        }"
+            ],
+            [
+                96,
+                ""
+            ],
+            [
+                97,
+                "        [TestMethod]"
+            ],
+            [
+                98,
+                "        public void TestStreamIntegrityWithSpeedLessThanSize()"
+            ],
+            [
+                99,
+                "        {"
+            ],
+            [
+                100,
+                "            TestStreamIntegrity(247, 77);"
+            ],
+            [
+                101,
+                "        }"
+            ],
+            [
+                102,
+                ""
+            ],
+            [
+                103,
+                "        private void TestStreamIntegrity(int streamSize, long maximumBytesPerSecond)"
+            ],
+            [
+                104,
+                "        {"
+            ],
+            [
+                105,
+                "            // arrange"
+            ],
+            [
+                106,
+                "            byte[] data = DummyData.GenerateOrderedBytes(streamSize);"
+            ],
+            [
+                107,
+                "            byte[] copiedData = new byte[streamSize];"
+            ],
+            [
+                108,
+                "            using Stream stream = new ThrottledStream(new MemoryStream(), maximumBytesPerSecond);"
+            ],
+            [
+                109,
+                ""
+            ],
+            [
+                110,
+                "            // act"
+            ],
+            [
+                111,
+                "            stream.Write(data, 0, data.Length);"
+            ],
+            [
+                112,
+                "            stream.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                113,
+                "            stream.Read(copiedData, 0, copiedData.Length);"
+            ],
+            [
+                114,
+                ""
+            ],
+            [
+                115,
+                "            // assert"
+            ],
+            [
+                116,
+                "            Assert.AreEqual(streamSize, data.Length);"
+            ],
+            [
+                117,
+                "            Assert.AreEqual(streamSize, copiedData.Length);"
+            ],
+            [
+                118,
+                "            Assert.IsTrue(data.SequenceEqual(copiedData));"
+            ]
+        ],
+        "deleted": [
+            [
+                12,
+                "        public void TestStreamRead()"
+            ],
+            [
+                15,
+                "            var bytesPerSecond = 256; // 256 B/s"
+            ],
+            [
+                17,
+                "            using Stream src = new ThrottledStream(new MemoryStream(randomBytes), bytesPerSecond);"
+            ],
+            [
+                18,
+                "            src.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                19,
+                "            byte[] buf = new byte[bytesPerSecond];"
+            ],
+            [
+                20,
+                "            int read = 1;"
+            ],
+            [
+                21,
+                "            long start = Environment.TickCount64;"
+            ],
+            [
+                23,
+                "            while (read > 0)"
+            ],
+            [
+                25,
+                "                read = src.Read(buf, 0, buf.Length);"
+            ],
+            [
+                28,
+                "            long elapsed = Environment.TickCount64 - start;"
+            ],
+            [
+                29,
+                "            var expectedTime = (size / bytesPerSecond) * 1000;"
+            ],
+            [
+                30,
+                "            Assert.IsTrue(elapsed >= expectedTime);"
+            ],
+            [
+                34,
+                "        public void TestStreamWrite()"
+            ],
+            [
+                39,
+                "            using Stream tar = new ThrottledStream(new MemoryStream(), bytesPerSecond);"
+            ],
+            [
+                40,
+                "            tar.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                41,
+                "            var start = Environment.TickCount64;"
+            ],
+            [
+                43,
+                "            tar.Write(randomBytes, 0, randomBytes.Length);"
+            ],
+            [
+                45,
+                "            var elapsed = Environment.TickCount64 - start;"
+            ],
+            [
+                46,
+                "            var expectedTime = (size / bytesPerSecond) * 1000;"
+            ],
+            [
+                47,
+                "            Assert.IsTrue(elapsed >= expectedTime);"
+            ],
+            [
+                51,
+                "        public void TestStreamIntegrity()"
+            ],
+            [
+                53,
+                "            using (Stream tar = new ThrottledStream(new MemoryStream(), 100))"
+            ],
+            [
+                54,
+                "            {"
+            ],
+            [
+                55,
+                "                byte[] buf = DummyData.GenerateOrderedBytes(500);"
+            ],
+            [
+                56,
+                "                tar.Write(buf, 0, buf.Length);"
+            ],
+            [
+                57,
+                "                tar.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                58,
+                "                byte[] buf2 = new byte[500];"
+            ],
+            [
+                59,
+                "                tar.Read(buf2, 0, buf2.Length);"
+            ],
+            [
+                60,
+                "                Assert.IsTrue(buf.SequenceEqual(buf2));"
+            ],
+            [
+                61,
+                "            }"
+            ],
+            [
+                63,
+                "            using (Stream tar = new ThrottledStream(new MemoryStream()))"
+            ],
+            [
+                65,
+                "                byte[] buf = DummyData.GenerateOrderedBytes(4096);"
+            ],
+            [
+                66,
+                "                tar.Write(buf, 0, buf.Length);"
+            ],
+            [
+                67,
+                "                tar.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                68,
+                "                byte[] buf2 = new byte[4096];"
+            ],
+            [
+                69,
+                "                tar.Read(buf2, 0, buf2.Length);"
+            ],
+            [
+                70,
+                "                Assert.IsTrue(buf.SequenceEqual(buf2));"
+            ],
+            [
+                73,
+                "            using (Stream tar = new ThrottledStream(new MemoryStream(), 77))"
+            ],
+            [
+                74,
+                "            {"
+            ],
+            [
+                75,
+                "                byte[] buf = DummyData.GenerateOrderedBytes(247);"
+            ],
+            [
+                76,
+                "                tar.Write(buf, 0, buf.Length);"
+            ],
+            [
+                77,
+                "                tar.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                78,
+                "                byte[] buf2 = new byte[247];"
+            ],
+            [
+                79,
+                "                tar.Read(buf2, 0, buf2.Length);"
+            ],
+            [
+                80,
+                "                Assert.IsTrue(buf.SequenceEqual(buf2));"
+            ],
+            [
+                81,
+                "            }"
+            ],
+            [
+                85,
+                "        public void TestNegativeBandwidth()"
+            ],
+            [
+                87,
+                "            Assert.ThrowsException<ArgumentOutOfRangeException>(()=> new ThrottledStream(new MemoryStream(), -1));"
+            ],
+            [
+                91,
+                "        public void TestZeroBandwidth()"
+            ],
+            [
+                93,
+                "            var throttledStream = new ThrottledStream(new MemoryStream(), 0);"
+            ],
+            [
+                94,
+                "            Assert.AreEqual(long.MaxValue, throttledStream.BandwidthLimit);"
+            ]
+        ]
+    },
+    "num_lines_added": 75,
+    "num_lines_removed": 51
+}

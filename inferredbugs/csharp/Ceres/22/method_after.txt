@@ -1,0 +1,81 @@
+    public void Search(NNEvaluatorSet nnEvaluators,
+                       ParamsSelect paramsSelect,
+                       ParamsSearch paramsSearch,
+                       IManagerGameLimit limitManager,
+                       MCTSIterator reuseOtherContextForEvaluatedNodes,
+                       PositionWithHistory priorMoves,
+                       SearchLimit searchLimit, bool verbose,
+                       DateTime startTime,
+                       List<GameMoveStat> gameMoveHistory,
+                       MCTSManager.MCTSProgressCallback progressCallback = null,
+                       PositionEvalCache positionEvalCache = null,
+                       IMCTSNodeCache reuseNodeCache = null,
+                       bool possiblyUsePositionCache = false,
+                       bool isFirstMoveOfGame = false,
+                       bool moveImmediateIfOnlyOneMove = false,
+                       List<MGMove> searchMovesTablebaseRestricted = null)
+    {
+      if (searchLimit == null)
+      {
+        throw new ArgumentNullException(nameof(searchLimit));
+      }
+
+      if (searchLimit.SearchCanBeExpanded && !MCTSParamsFixed.STORAGE_USE_INCREMENTAL_ALLOC)
+      {
+        throw new Exception("STORAGE_USE_INCREMENTAL_ALLOC must be true when SearchCanBeExpanded.");
+      }
+
+      if (!MCTSParamsFixed.STORAGE_USE_INCREMENTAL_ALLOC && !searchLimit.IsNodesLimit)
+      {
+        throw new Exception("SearchLimit must be NodesPerMove or NodesPerGame when STORAGE_USE_INCREMENTAL_ALLOC is false");
+      }
+
+      bool forceNoTablebaseTerminals = PosIsTablebaseWinWithNoDTZAvailable(paramsSearch, priorMoves);
+
+      searchLimit = AdjustedSearchLimit(searchLimit, paramsSearch);
+
+      int maxNodes;
+      if (!searchLimit.SearchCanBeExpanded && searchLimit.IsNodesLimit)
+      {
+        maxNodes = (int)(searchLimit.Value + searchLimit.ValueIncrement + 5000);
+      }
+      else
+      {
+        // In this mode, we are just reserving virtual address space
+        // from a very large pool (e.g. 256TB for Windows).
+        // Therefore it is safe to reserve a very large block.
+        if (searchLimit.MaxTreeNodes != null)
+        {
+          // Reseve somewhat more storage than the maximum requested tree nodes
+          // if the search can be expenaded because during tree rewrite
+          // a preparatory step (MaterializeNodesWithNonRetainedTranspositionRoots) 
+          // will initially make the store larger (before it is subsequently compacted).
+          double NODES_BUFFER_MULTIPLIER = searchLimit.SearchCanBeExpanded ? 1.2 : 1.0;
+          long maxNodesLong = (long)(NODES_BUFFER_MULTIPLIER * searchLimit.MaxTreeNodes.Value) + 100_000;
+          maxNodes = (int)Math.Min(maxNodesLong, int.MaxValue - 100_000);
+        }
+        else
+        {
+          maxNodes = MCTSNodeStore.MAX_NODES;
+        }
+      }
+
+      MCTSNodeStore store = new MCTSNodeStore(maxNodes, priorMoves);
+
+      SearchLimit searchLimitToUse = SearchLimitPerMove(priorMoves.FinalPosition, searchLimit, 0, 0,
+                                                          paramsSearch, limitManager,
+                                                          gameMoveHistory, isFirstMoveOfGame);
+
+      Manager = new MCTSManager(this, store, reuseOtherContextForEvaluatedNodes, positionEvalCache, reuseNodeCache, null,
+                                nnEvaluators, paramsSearch, paramsSelect, searchLimitToUse,
+                                limitManager, startTime, gameMoveHistory, isFirstMoveOfGame, 
+                                forceNoTablebaseTerminals, searchMovesTablebaseRestricted);
+
+      MCTSIterator context = Manager.Context;
+
+      reuseNodeCache?.ResetCache(false);
+      reuseNodeCache?.SetContext(context);
+
+      (BestMove, TimingInfo) = MCTSManager.DoSearch(Manager, verbose, progressCallback,
+                                                  possiblyUsePositionCache, moveImmediateIfOnlyOneMove);
+    }

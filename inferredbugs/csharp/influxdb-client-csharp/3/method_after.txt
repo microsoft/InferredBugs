@@ -1,0 +1,20 @@
+        public static void RaiseForInfluxError(RequestResult resultRequest)
+        {
+            var statusCode = resultRequest.StatusCode;
+
+            if (statusCode >= 200 && statusCode < 300)
+            {
+                return;
+            }
+
+            var wrapper = new ErrorsWrapper(InfluxException.GetErrorMessage(resultRequest).ToList().AsReadOnly());
+            
+            var response = new QueryErrorResponse(statusCode, wrapper.Error);
+
+            if (wrapper.Error != null)
+            {
+                throw new InfluxException(response);
+            }
+
+            throw new HttpException(response);
+        }

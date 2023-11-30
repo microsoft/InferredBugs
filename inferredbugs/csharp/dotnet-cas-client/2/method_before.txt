@@ -1,0 +1,92 @@
+        private void ProcessValidAssertion()
+        {
+            protoLogger.Debug("Unmarshalling SAML response");
+            XmlDocument document = new XmlDocument();
+            document.Load(new StringReader(_CasResponse));
+            
+            XmlNamespaceManager nsmgr = new XmlNamespaceManager(document.NameTable);
+            nsmgr.AddNamespace("assertion", SAML11_ASSERTION_NAMESPACE);
+
+            if (document.DocumentElement != null) {
+                XmlNodeList assertions = document.DocumentElement.SelectNodes("descendant::assertion:Assertion", nsmgr);
+
+                if (assertions == null || assertions.Count < 1)
+                {
+                    protoLogger.Debug("No assertions found in SAML response.");
+                    throw new TicketValidationException("No assertions found.");
+                }
+
+                XmlReaderSettings xmlReaderSettings = new XmlReaderSettings();
+                xmlReaderSettings.ConformanceLevel = ConformanceLevel.Auto;
+                xmlReaderSettings.IgnoreWhitespace = true;
+                xmlReaderSettings.IgnoreComments = true;
+                xmlReaderSettings.CloseInput = true;
+
+                foreach (XmlNode assertionNode in assertions)
+                {
+                    XmlNode conditionsNode = assertionNode.SelectSingleNode("descendant::assertion:Conditions", nsmgr);
+                    if (conditionsNode == null)
+                    {
+                        continue;
+                    }
+
+                    DateTime notBefore;
+                    DateTime notOnOrAfter;
+                    try
+                    {
+                        notBefore = SamlUtils.GetAttributeValueAsDateTime(conditionsNode, "NotBefore");
+                        notOnOrAfter = SamlUtils.GetAttributeValueAsDateTime(conditionsNode, "NotOnOrAfter");
+                        if (!SamlUtils.IsValidAssertion(notBefore, notOnOrAfter, _ToleranceTicks))
+                        {
+                            continue;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        continue;
+                    }
+
+                    XmlNode authenticationStmtNode = assertionNode.SelectSingleNode("descendant::assertion:AuthenticationStatement", nsmgr);
+                    if (authenticationStmtNode == null)
+                    {
+                        protoLogger.Debug("No AuthenticationStatement found in SAML response.");
+                        throw new TicketValidationException("No AuthenticationStatement found in the CAS response.");
+                    }
+                    
+                    string authMethod = SamlUtils.GetAttributeValue(authenticationStmtNode.Attributes, "AuthenticationMethod");
+                    
+                    XmlNode nameIdentifierNode = assertionNode.SelectSingleNode("child::assertion:AuthenticationStatement/child::assertion:Subject/child::assertion:NameIdentifier", nsmgr);
+                    if (nameIdentifierNode == null)
+                    {
+                        protoLogger.Debug("No NameIdentifier found in SAML response.");
+                        throw new TicketValidationException("No NameIdentifier found in AuthenticationStatement of the CAS response.");
+                    }
+                    
+                    string subject = nameIdentifierNode.FirstChild.Value;
+
+                    IList<string> authValues = new List<string>();
+                    IDictionary<string, IList<string>> authenticationAttributes = new Dictionary<string, IList<string>>();
+                    authValues.Add(authMethod);
+                    authenticationAttributes.Add("samlAuthenticationStatement::authMethod", authValues);
+                    
+                    IAssertion casAssertion;
+
+                    XmlNode attributeStmtNode = assertionNode.SelectSingleNode("descendant::assertion:AttributeStatement", nsmgr);
+                    if (attributeStmtNode != null)
+                    {
+                        IDictionary<string, IList<string>> personAttributes = SamlUtils.GetAttributesFor(attributeStmtNode, nsmgr, subject);
+                        casAssertion = new Assertion(subject, notBefore, notOnOrAfter, personAttributes);
+                    }
+                    else
+                    {
+                        casAssertion = new Assertion(subject, notBefore, notOnOrAfter);
+                    }
+                    
+                    CasPrincipal = new CasPrincipal(casAssertion, null, null);
+                    
+                    return;
+                }
+            }
+            protoLogger.Debug("No assertions found in SAML response.");
+            throw new TicketValidationException("No valid assertions found in the CAS response.");
+        }

@@ -1,0 +1,51 @@
+        public static Il2CppMetadata? ReadFrom(byte[] bytes, int[] unityVer)
+        {
+            if (BitConverter.ToUInt32(bytes, 0) != 0xFAB11BAF)
+            {
+                //Magic number is wrong
+                throw new FormatException("Invalid or corrupt metadata (magic number check failed)");
+            }
+
+            var version = BitConverter.ToInt32(bytes, 4);
+            if (version is < 24 or > 29)
+            {
+                throw new FormatException("Unsupported metadata version found! We support 24-29, got " + version);
+            }
+
+            LibLogger.VerboseNewline($"\tIL2CPP Metadata Declares its version as {version}");
+
+            var unityVersion = UnityVersion.Parse(string.Join(".", unityVer));
+            float actualVersion;
+            if (version == 27)
+            {
+                if (unityVersion.IsGreaterEqual(2020, 2, 4))
+                    actualVersion = 27.1f; //2020.2.4 and above is v27.1
+                else
+                    actualVersion = version; //2020.2 and above is v27
+            } else if (version == 24)
+            {
+                if (unityVersion.IsGreaterEqual(2020, 1, 11))
+                    actualVersion = 24.4f; //2020.1.11-17 were released prior to 2019.4.21, so are still on 24.4
+                else if (unityVersion.IsGreaterEqual(2020))
+                    actualVersion = 24.3f; //2020.1.0-10 were released prior to to 2019.4.15, so are still on 24.3
+                else if (unityVersion.IsGreaterEqual(2019, 4, 21))
+                    actualVersion = 24.5f; //2019.4.21 introduces v24.5
+                else if (unityVersion.IsGreaterEqual(2019, 4, 15))
+                    actualVersion = 24.4f; //2019.4.15 introduces v24.4
+                else if (unityVersion.IsGreaterEqual(2019, 3, 7))
+                    actualVersion = 24.3f; //2019.3.7 introduces v24.3
+                else if (unityVersion.IsGreaterEqual(2019))
+                    actualVersion = 24.2f; //2019.1.0 introduces v24.2
+                else if (unityVersion.IsGreaterEqual(2018, 3))
+                    actualVersion = 24.1f; //2018.3.0 introduces v24.1
+                else
+                    actualVersion = version; //2017.1.0 was the first v24 version
+            }
+            else actualVersion = version; //Covers v29
+
+            LibLogger.InfoNewline($"\tUsing actual IL2CPP Metadata version {actualVersion}");
+
+            LibCpp2IlMain.MetadataVersion = actualVersion;
+
+            return new Il2CppMetadata(new MemoryStream(bytes));
+        }

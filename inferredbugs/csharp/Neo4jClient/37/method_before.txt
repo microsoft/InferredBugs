@@ -1,0 +1,61 @@
+        [Test]
+        public void ShouldReindexNodeWithIndexEntryContainingSpace()
+        {
+            //Arrange
+            var indexEntries = new List<IndexEntry>
+            {
+                new IndexEntry
+                {
+                    Name = "my_nodes",
+                    KeyValues = new Dictionary<string, object>
+                    {
+                        { "FooKey", "the_value with space" }
+                    },
+                }
+            };
+
+            var httpFactory = MockHttpFactory.Generate("http://foo/db/data", new Dictionary<IRestRequest, IHttpResponse>
+            {
+                {
+                    new RestRequest { Resource = "", Method = Method.GET },
+                    new NeoHttpResponse
+                    {
+                        StatusCode = HttpStatusCode.OK,
+                        ContentType = "application/json",
+                        TestContent = rootResponse.Replace('\'', '"')
+                    }
+                },
+                {
+                    new RestRequest("/index/node/my_nodes", Method.POST)
+                    {
+                        RequestFormat = DataFormat.Json,
+                        JsonSerializer = new CustomJsonSerializer { NullHandling = NullValueHandling.Ignore }
+                    }
+                    .AddBody(new { key="FooKey", value="the_value with space", uri="http://foo/db/data/node/123"}),
+                    new NeoHttpResponse {
+                        StatusCode = HttpStatusCode.Created,
+                        ContentType = "application/json",
+                        TestContent = "Location: http://foo/db/data/index/node/my_nodes/FooKey/the_value%20with%20space/123"
+                    }
+                },
+                {
+                   new RestRequest("/index/node/my_nodes/123", Method.DELETE) {
+                        RequestFormat = DataFormat.Json,
+                        JsonSerializer = new CustomJsonSerializer { NullHandling = NullValueHandling.Ignore }
+                        },
+                    new NeoHttpResponse {
+                        StatusCode = HttpStatusCode.NoContent,
+                        ContentType = "application/json",
+                    }
+                }
+            });
+            var graphClient = new GraphClient(new Uri("http://foo/db/data"), httpFactory);
+            graphClient.Connect();
+
+            //Act
+            var nodeReference = new NodeReference<TestNode>(123);
+            graphClient.ReIndex(nodeReference, indexEntries);
+
+            // Assert
+            Assert.Pass("Success.");
+        }

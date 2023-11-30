@@ -1,0 +1,38 @@
+        public X509Certificate2 GetCertByThumbprint(string thumbprint, StoreLocation storeLocation, StoreName storeName)
+        {
+            X509Store certStore = null;
+            X509Certificate2Collection certs = null;
+            try
+            {
+                certStore = new X509Store(storeName, storeLocation);
+                certStore.Open(OpenFlags.ReadOnly);
+                certs = certStore.Certificates.Find(X509FindType.FindByThumbprint, thumbprint, false);
+
+                if (certs.Count > 1)
+                {
+                    var message = string.Format("Something went horribly wrong, found more than one cert with thumbprint {0} in store location {1}, storename {2}", thumbprint, storeLocation, storeName);
+                    throw new Exception(message);
+                }
+
+                if (certs.Count == 0)
+                {
+                    var message = string.Format("No certificate with thumbprint {0} in store location {1}, storename {2}", thumbprint, storeLocation, storeName);
+                    throw new ArgumentException(message);
+                }
+
+                //Returns new cert, all existing certs will be cleaned up
+                return new X509Certificate2(certs[0]);
+            }
+            finally
+            {
+                if (certs != null)
+                {
+                    ResetCerts(certs);                    
+                }
+                if (certStore != null)
+                {
+                    ResetCerts(certStore.Certificates);
+                    certStore.Close();
+                }
+            }
+        }

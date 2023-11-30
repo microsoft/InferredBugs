@@ -1,0 +1,48 @@
+        [Fact]
+        public void Dispatch_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()
+        {
+            
+            var expectedRequest = new PactProviderServiceRequest
+            {
+                Method = HttpVerb.Get,
+                Path = "/Test"
+            };
+            var actualRequest = new PactProviderServiceRequest
+            {
+                Method = HttpVerb.Get,
+                Path = "/Test"
+            };
+            var expectedResponse = new PactProviderServiceResponse { Status = 200 };
+            var nancyResponse = new Response { StatusCode = HttpStatusCode.OK };
+
+            var mockRequestComparer = Substitute.For<IPactProviderServiceRequestComparer>();
+            var mockRequestMapper = Substitute.For<IPactProviderServiceRequestMapper>();
+            var mockResponseMapper = Substitute.For<INancyResponseMapper>();
+
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/Test", "HTTP")
+            };
+
+            var requestResponsePairs = new List<KeyValuePair<PactProviderServiceRequest, PactProviderServiceResponse>>
+            {
+                new KeyValuePair<PactProviderServiceRequest, PactProviderServiceResponse>(expectedRequest, expectedResponse)
+            };
+
+            nancyContext.SetMockRequestResponsePairs(requestResponsePairs);
+
+            mockRequestMapper.Convert(nancyContext.Request).Returns(actualRequest);
+            //mockRequestComparer.Compare Doesnt throw any exceptions
+            mockResponseMapper.Convert(expectedResponse).Returns(nancyResponse);
+
+            IRequestDispatcher requestDispatcher = new MockProviderNancyRequestDispatcher(
+                mockRequestComparer,
+                mockRequestMapper,
+                mockResponseMapper);
+
+            var response = requestDispatcher.Dispatch(nancyContext, CancellationToken.None);
+
+            Assert.Equal(nancyResponse, response.Result);
+            Assert.Equal(nancyResponse, nancyContext.Response);
+            Assert.Null(response.Exception);
+        }

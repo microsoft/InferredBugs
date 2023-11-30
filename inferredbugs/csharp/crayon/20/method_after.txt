@@ -1,0 +1,33 @@
+        private Task<Dictionary<string, object>> RunInlineVm(string[] runtimeArgs, string extensionArgsJson, CbxBundle cbxBundle, bool showLibStack, bool showOutputPrefixes, Interpreter.ResourceReader resourceReader)
+        {
+            string byteCode = cbxBundle.ByteCode;
+            string resourceManifest = cbxBundle.ResourceDB.ResourceManifestFile.TextContent;
+            string imageManifest = cbxBundle.ResourceDB.ImageResourceManifestFile.TextContent;
+
+            Interpreter.Structs.VmContext vm = Interpreter.Vm.CrayonWrapper.createVm(byteCode, resourceManifest, imageManifest);
+            Interpreter.Vm.CrayonWrapper.vmEnvSetCommandLineArgs(vm, runtimeArgs);
+            Interpreter.Vm.CrayonWrapper.vmSetResourceReaderObj(vm, resourceReader);
+            Interpreter.Vm.CrayonWrapper.vmSetWaxHub(vm, this.Hub);
+            Interpreter.Vm.CrayonWrapper.vmSetWaxPayload(vm, extensionArgsJson);
+
+            vm.environment.stdoutPrefix = showOutputPrefixes ? "STDOUT" : null;
+            vm.environment.stacktracePrefix = showOutputPrefixes ? "STACKTRACE" : null;
+
+            if (showLibStack)
+            {
+                Interpreter.Vm.CrayonWrapper.vmEnableLibStackTrace(vm);
+            }
+            TaskCompletionSource<Dictionary<string, object>> tcs = new TaskCompletionSource<Dictionary<string, object>>();
+
+            Interpreter.Vm.EventLoop eventLoop = new Interpreter.Vm.EventLoop(vm, () =>
+            {
+                string response = Interpreter.Vm.CrayonWrapper.vmGetWaxResponse(vm) ?? "{}";
+                Dictionary<string, object> taskResponse = new Dictionary<string, object>(new Wax.Util.JsonParser(response).ParseAsDictionary());
+                tcs.SetResult(taskResponse);
+
+                return true;
+            });
+
+            eventLoop.StartInterpreter();
+            return tcs.Task;
+        }

@@ -1,0 +1,44 @@
+        protected override void Initialize() {
+            _entity.IsFirstRun = !_process.OutputConnection.RecordsExist(_entity.Schema, _entity.OutputName());
+
+            if (_entity.InputConnection.Provider.Type == ProviderType.File) {
+                if (_entity.InputConnection.IsDelimited()) {
+                    Register(new FileDelimitedImporter(_entity));
+                } else {
+                    Register(new FileFixedLengthImporter(_entity));
+                }
+            } else {
+                if (_entity.IsFirstRun && _entity.UseBcp && _entity.InputConnection.Provider.Type == ProviderType.SqlServer) {
+                    Register(new BcpExtract(_process, _entity));
+                } else {
+                    Register(new EntityKeysToOperations(_entity));
+                    Register(new SerialUnionAllOperation());
+                }
+            }
+
+            Register(new ApplyDefaults(_entity.Fields, _entity.CalculatedFields));
+            Register(new TransformFields(_fieldsWithTransforms));
+            Register(new TransformFields(_entity.CalculatedFields));
+
+            if (_entity.Group)
+                Register(new EntityAggregation(_entity));
+
+            if (_entity.IsFirstRun) {
+                if (_process.OutputConnection.Provider.IsDatabase) {
+                    _process.OutputConnection.DropUniqueClusteredIndex(_entity);
+                    _process.OutputConnection.DropPrimaryKey(_entity);
+                }
+                Register(new EntityAddTflFields(_entity));
+                RegisterLast(new EntityBulkInsert(_process, _entity));
+            } else {
+                Register(new EntityJoinAction(_entity).Right(new EntityOutputKeysExtract(_process, _entity)));
+                var branch = new BranchingOperation()
+                    .Add(new PartialProcessOperation()
+                        .Register(new EntityActionFilter(ref _entity, EntityAction.Insert))
+                        .RegisterLast(new EntityBulkInsert(_process, _entity)))
+                    .Add(new PartialProcessOperation()
+                        .Register(new EntityActionFilter(ref _entity, EntityAction.Update))
+                        .RegisterLast(new EntityBatchUpdate(_process, _entity)));
+                RegisterLast(branch);
+            }
+        }

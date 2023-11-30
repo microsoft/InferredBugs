@@ -1,0 +1,44 @@
+        public List<GroupMember> GetMemberList (long groupId)
+        {
+            string result = CQP.CQ_getGroupMemberList (_authCode, groupId);
+            if (string.IsNullOrEmpty (result))
+            {
+                return null;
+            }
+            #region --其他_转换_文本到群成员列表信息a--
+            using (BinaryReader binary = new BinaryReader (new MemoryStream (Convert.FromBase64String (result))))
+            {
+                List<GroupMember> memberInfos = new List<GroupMember> ();
+                for (int i = 0, len = binary.ReadInt32_Ex (); i < len; i++)
+                {
+                    if (binary.Length () <= 0)
+                    {
+                        return null;
+                    }
+                    #region --其它_转换_ansihex到群成员信息--
+                    using (BinaryReader tempBinary = new BinaryReader (new MemoryStream (binary.ReadToken_Ex ()))) //解析群成员信息
+                    {
+                        GroupMember member = new GroupMember ();
+                        member.GroupId = tempBinary.ReadInt64_Ex ();
+                        member.QQId = tempBinary.ReadInt64_Ex ();
+                        member.Nick = tempBinary.ReadString_Ex (_defaultEncoding);
+                        member.Card = tempBinary.ReadString_Ex (_defaultEncoding);
+                        member.Sex = (Sex)tempBinary.ReadInt32_Ex ();
+                        member.Age = tempBinary.ReadInt32_Ex ();
+                        member.Area = tempBinary.ReadString_Ex (_defaultEncoding);
+                        member.JoiningTime = tempBinary.ReadInt32_Ex ().ToDateTime ();
+                        member.LastDateTime = tempBinary.ReadInt32_Ex ().ToDateTime ();
+                        member.Level = tempBinary.ReadString_Ex (_defaultEncoding);
+                        member.PermitType = (PermitType)tempBinary.ReadInt32_Ex ();
+                        member.BadRecord = tempBinary.ReadInt32_Ex () == 1;
+                        member.SpecialTitle = tempBinary.ReadString_Ex (_defaultEncoding);
+                        member.SpecialTitleDurationTime = tempBinary.ReadInt32_Ex ().ToDateTime ();
+                        member.CanModifiedCard = tempBinary.ReadInt32_Ex () == 1;
+                        memberInfos.Add (member);
+                    }
+                    #endregion
+                }
+                return memberInfos;
+            }
+            #endregion
+        }

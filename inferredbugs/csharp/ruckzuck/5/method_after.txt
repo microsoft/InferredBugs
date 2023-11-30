@@ -1,0 +1,51 @@
+        public static Stream GetIcon(Int32 iconid)
+        {
+            try
+            {
+                if (!Directory.Exists("wwwroot/icons"))
+                    Directory.CreateDirectory("wwwroot/icons");
+
+                if (File.Exists(@"wwwroot/icons/" + iconid.ToString() + ".jpg"))
+                {
+                    return File.Open(@"wwwroot/icons/" + iconid.ToString() + ".jpg", FileMode.Open);
+                }
+                else
+                {
+                    using (var handler = new HttpClientHandler())
+                    {
+                        handler.AllowAutoRedirect = true;
+                        handler.MaxAutomaticRedirections = 5;
+                        handler.CheckCertificateRevocationList = false;
+
+                        if (!string.IsNullOrEmpty(Proxy))
+                        {
+                            handler.Proxy = new WebProxy(Proxy, true);
+                            handler.UseProxy = true;
+                        }
+
+                        using (var oClient = new HttpClient(handler))
+                        {
+
+                            //oClient.DefaultRequestHeaders.Add("AuthenticatedToken", Token);
+                            oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/jpeg"));
+                            var response = oClient.GetStreamAsync(sURL + "/rest/GetIcon?id=" + iconid.ToString());
+                            response.Wait(5000);
+                            if (response.IsCompleted)
+                            {
+                                var oRet = response.Result;
+                                using (var sIcon = new FileStream(@"wwwroot/icons/" + iconid.ToString() + ".jpg", FileMode.Create))
+                                {
+                                    response.Result.CopyTo(sIcon);
+                                    sIcon.Flush();
+                                    sIcon.Dispose();
+                                }
+                                return File.Open(@"wwwroot/icons/" + iconid.ToString() + ".jpg", FileMode.Open);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }

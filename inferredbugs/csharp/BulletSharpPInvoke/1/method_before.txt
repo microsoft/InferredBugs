@@ -1,0 +1,49 @@
+        protected void StepUp(CollisionWorld collisionWorld)
+        {
+            // phase 1: up
+            Matrix start, end;
+            m_targetPosition = m_currentPosition + upAxisDirection[m_upAxis] * (m_stepHeight + (m_verticalOffset > 0.0f ? m_verticalOffset : 0.0f));
+
+            /* FIXME: Handle penetration properly */
+            start = Matrix.Translation(m_currentPosition + upAxisDirection[m_upAxis] * (m_convexShape.Margin + m_addedMargin));
+            end = Matrix.Translation(m_targetPosition);
+
+            KinematicClosestNotMeConvexResultCallback callback = new KinematicClosestNotMeConvexResultCallback(m_ghostObject, -upAxisDirection[m_upAxis], 0.7071f);
+            callback.CollisionFilterGroup = GhostObject.BroadphaseHandle.CollisionFilterGroup;
+            callback.CollisionFilterMask = GhostObject.BroadphaseHandle.CollisionFilterMask;
+
+            if (m_useGhostObjectSweepTest)
+            {
+                m_ghostObject.ConvexSweepTestRef(m_convexShape, ref start, ref end, callback, collisionWorld.DispatchInfo.AllowedCcdPenetration);
+            }
+            else
+            {
+                collisionWorld.ConvexSweepTestRef(m_convexShape, ref start, ref end, callback, 0f);
+            }
+
+            if (callback.HasHit)
+            {
+                // Only modify the position if the hit was a slope and not a wall or ceiling.
+                if (Vector3.Dot(callback.HitNormalWorld, upAxisDirection[m_upAxis]) > 0.0)
+                {
+                    // we moved up only a fraction of the step height
+                    m_currentStepOffset = m_stepHeight * callback.ClosestHitFraction;
+                    if (m_interpolateUp)
+                    {
+                        Vector3.Lerp(ref m_currentPosition, ref m_targetPosition, callback.ClosestHitFraction, out m_currentPosition);
+                    }
+                    else
+                    {
+                        m_currentPosition = m_targetPosition;
+                    }
+                }
+                m_verticalVelocity = 0.0f;
+                m_verticalOffset = 0.0f;
+            }
+            else
+            {
+                m_currentStepOffset = m_stepHeight;
+                m_currentPosition = m_targetPosition;
+            }
+
+        }

@@ -1,0 +1,31 @@
+        [Fact]
+        public void ASearchCanOrderByMultipleFields()
+        {
+            InitializeContext();
+            LuceneIndexerOptions options = new LuceneIndexerOptions()
+            {
+                Path = "lucene"
+            };
+            SearchEngine<TestDbContext> searchProvider = new SearchEngine<TestDbContext>(options, _context, new MemoryCache(new MemoryCacheOptions()));
+
+            User jc = new User()
+            {
+                FirstName = "John",
+                Surname = "Chapman",
+                JobTitle = "Test Engineer",
+                Email = "john.chapman@test.com"
+            };
+            _context.Users.Add(jc);
+            _context.SaveChanges();
+            searchProvider.CreateIndex();
+            SearchOptions search = new SearchOptions("John", "FirstName", 1000, null, null, "Surname,JobTitle");
+
+            var results = searchProvider.ScoredSearch<User>(search);
+            var topResult = results.Results[0];
+            var secondResult = results.Results[1];
+
+            Assert.Equal("Sales Associate", topResult.Entity.JobTitle);
+            Assert.Equal("Test Engineer", secondResult.Entity.JobTitle);
+
+            searchProvider.DeleteIndex();
+        }

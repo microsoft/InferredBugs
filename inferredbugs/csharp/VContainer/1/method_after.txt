@@ -1,0 +1,24 @@
+        [Test]
+        public void ResolveCollection()
+        {
+            var builder = new ContainerBuilder();
+            builder.Register<I1, MultipleInterfaceServiceA>(Lifetime.Singleton);
+            builder.Register<I1, MultipleInterfaceServiceB>(Lifetime.Transient);
+
+            var container = builder.Build();
+            var enumerable = container.Resolve<IEnumerable<I1>>();
+            var e0 = enumerable.ElementAt(0);
+            var e1 = enumerable.ElementAt(1);
+            Assert.That(e0, Is.TypeOf<MultipleInterfaceServiceA>());
+            Assert.That(e1, Is.TypeOf<MultipleInterfaceServiceB>());
+
+            var list = container.Resolve<IReadOnlyList<I1>>();
+            Assert.That(list[0], Is.TypeOf<MultipleInterfaceServiceA>());
+            Assert.That(list[1], Is.TypeOf<MultipleInterfaceServiceB>());
+
+            // Singleton
+            Assert.That(list[0], Is.EqualTo(e0));
+
+            // Empty is error
+            Assert.Throws<VContainerException>(() => container.Resolve<IEnumerable<I7>>());
+        }

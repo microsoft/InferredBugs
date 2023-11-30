@@ -1,0 +1,50 @@
+        public static bool UploadSWEntry(string lSoftware)
+        {
+            try
+            {
+                using (var handler = new HttpClientHandler())
+                {
+                    handler.AllowAutoRedirect = true;
+                    handler.MaxAutomaticRedirections = 5;
+                    handler.CheckCertificateRevocationList = false;
+
+                    if (!string.IsNullOrEmpty(Proxy))
+                    {
+                        handler.Proxy = new WebProxy(Proxy, true);
+                        handler.UseProxy = true;
+                    }
+
+                    using (var oClient = new HttpClient(handler))
+                    {
+                        if (!string.IsNullOrEmpty(ProxyUserPW))
+                        {
+                            oClient.DefaultRequestHeaders.ProxyAuthorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(bProxyUser));
+                        }
+                        oClient.DefaultRequestHeaders.Add("AuthenticatedToken", Token);
+                        oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
+                        HttpContent oCont = new StringContent(lSoftware, Encoding.UTF8, contentType);
+                        if (contentType == "application/xml")
+                        {
+                            var response = oClient.PostAsync(sURL + "/rest/UploadSWEntry", oCont);
+                            response.Wait(5000);
+
+                            if (response.IsCompleted)
+                            {
+                                if (response.Result.StatusCode == HttpStatusCode.OK)
+                                {
+                                    return true;
+                                }
+                                else
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
+            catch { }
+
+            return false;
+        }

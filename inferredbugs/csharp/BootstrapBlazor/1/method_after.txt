@@ -1,0 +1,84 @@
+    public static void CreateComponentByFieldType(this RenderTreeBuilder builder, ComponentBase component, IEditorItem item, object model, ItemChangedType changedType = ItemChangedType.Update, bool isSearch = false, ILookupService? lookUpService = null)
+    {
+        var fieldType = item.PropertyType;
+        var fieldName = item.GetFieldName();
+        var displayName = item.GetDisplayName() ?? GetDisplayName(model, fieldName);
+
+        var fieldValue = GenerateValue(model, fieldName);
+        var fieldValueChanged = GenerateValueChanged(component, model, fieldName, fieldType);
+        var valueExpression = GenerateValueExpression(model, fieldName, fieldType);
+        var lookup = item.Lookup ?? lookUpService?.GetItemsByKey(item.LookupServiceKey);
+        var componentType = item.ComponentType ?? GenerateComponentType(fieldType, item.Rows != 0, lookup);
+        builder.OpenComponent(0, componentType);
+        if (componentType.IsSubclassOf(typeof(ValidateBase<>).MakeGenericType(fieldType)))
+        {
+            builder.AddAttribute(1, nameof(ValidateBase<string>.DisplayText), displayName);
+            builder.AddAttribute(2, nameof(ValidateBase<string>.Value), fieldValue);
+            builder.AddAttribute(3, nameof(ValidateBase<string>.ValueChanged), fieldValueChanged);
+            builder.AddAttribute(4, nameof(ValidateBase<string>.ValueExpression), valueExpression);
+
+            if (!item.CanWrite(model.GetType(), changedType, isSearch))
+            {
+                builder.AddAttribute(5, nameof(ValidateBase<string>.IsDisabled), true);
+            }
+
+            if (item.ValidateRules != null)
+            {
+                builder.AddAttribute(6, nameof(ValidateBase<string>.ValidateRules), item.ValidateRules);
+            }
+
+            if (item.ShowLabelTooltip != null)
+            {
+                builder.AddAttribute(7, nameof(ValidateBase<string>.ShowLabelTooltip), item.ShowLabelTooltip);
+            }
+        }
+
+        if (componentType == typeof(NullSwitch) && TryGetProperty(model.GetType(), fieldName, out var propertyInfo))
+        {
+            // 读取默认值
+            var defaultValueAttr = propertyInfo.GetCustomAttribute<DefaultValueAttribute>();
+            if (defaultValueAttr != null)
+            {
+                var dv = defaultValueAttr.Value is bool v && v;
+                builder.AddAttribute(8, nameof(NullSwitch.DefaultValueWhenNull), dv);
+            }
+        }
+
+        if (IsCheckboxList(fieldType, componentType) && item.Items != null)
+        {
+            builder.AddAttribute(9, nameof(CheckboxList<IEnumerable<string>>.Items), item.Items.Clone());
+        }
+
+        // Nullabl<bool?>
+        if (item.ComponentType == typeof(Select<bool?>) && fieldType == typeof(bool?) && lookup == null && item.Items == null)
+        {
+            builder.AddAttribute(10, nameof(Select<bool?>.Items), GetNullableBoolItems(model, fieldName));
+        }
+
+        // Lookup
+        if (lookup != null && item.Items == null)
+        {
+            builder.AddAttribute(11, nameof(Select<SelectedItem>.Items), lookup.Clone());
+            builder.AddAttribute(12, nameof(Select<SelectedItem>.StringComparison), item.LookupStringComparison);
+        }
+
+        // 增加非枚举类,手动设定 ComponentType 为 Select 并且 Data 有值 自动生成下拉框
+        if (item.Items != null && item.ComponentType == typeof(Select<>).MakeGenericType(fieldType))
+        {
+            builder.AddAttribute(13, nameof(Select<SelectedItem>.Items), item.Items.Clone());
+        }
+
+        // 设置 SkipValidate 参数
+        if (IsValidatableComponent(componentType))
+        {
+            builder.AddAttribute(14, nameof(IEditorItem.SkipValidate), item.SkipValidate);
+        }
+
+        builder.AddMultipleAttributes(15, CreateMultipleAttributes(fieldType, model, fieldName, item));
+
+        if (item.ComponentParameters != null)
+        {
+            builder.AddMultipleAttributes(16, item.ComponentParameters);
+        }
+        builder.CloseComponent();
+    }

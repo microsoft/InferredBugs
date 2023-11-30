@@ -1,0 +1,25 @@
+        public GenericDbContext GetDbContext(DbContextParamters options)
+        {
+            if (options.ConnectionString.IsNullOrEmpty())
+            {
+                throw new Exception("连接字符串不能为空");
+            }
+
+            AbstractProvider provider = GetProvider(options.DbType);
+
+            DbConnection dbConnection = provider.GetDbConnection();
+            dbConnection.ConnectionString = options.ConnectionString;
+
+            DbContextOptionsBuilder builder = new DbContextOptionsBuilder();
+            builder.UseLoggerFactory(_loggerFactory);
+
+            provider.UseDatabase(builder, dbConnection);
+            builder.ReplaceService<IModelCacheKeyFactory, GenericModelCacheKeyFactory>();
+#if EFCORE3
+            if (_shardingOptions.MigrationsWithoutForeignKey)
+            {
+                builder.ReplaceService<IMigrationsModelDiffer, MigrationsWithoutForeignKey>();
+            }
+#endif
+            return new GenericDbContext(builder.Options, options, _shardingOptions);
+        }

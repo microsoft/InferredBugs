@@ -1,0 +1,43 @@
+        public static PutFileRet PutFile(
+            Client client, string tableName, string key, string mimeType, 
+            string localFile, string customMeta, string callbackParam)
+        {
+            long fsize = 0;
+            string[] ctxs = null;
+            string host = Config.UP_HOST;
+            using (FileStream fs = File.OpenRead(localFile))
+            {
+                fsize = fs.Length;
+                int chunkCnt = (int)((fsize + (ChunkSize - 1)) >> ChunkBits);
+                long chunkSize = ChunkSize;
+                ctxs = new string[chunkCnt];
+                Console.WriteLine("ResumablePut ==> fsize: {0}, chunkCnt: {1}", fsize, chunkCnt);
+                for (int i = 0; i < chunkCnt; i++)
+                {
+                    if (i == chunkCnt - 1)
+                    {
+                        chunkSize = fsize - (i << ChunkBits);
+                    }
+                    ResumablePutFileRet ret = null;
+                    for (int retry = 0; retry < Config.PUT_RETRY_TIMES; retry++)
+                    {
+                        fs.Seek(i * ChunkSize, SeekOrigin.Begin);
+                        ret = Mkblock(host, client, fs, chunkSize);
+                        if (ret.OK)
+                        {
+                            ctxs[i] = ret.Ctx;
+                            host = ret.Host;
+                            break;
+                        }
+                    }
+                    if (!ret.OK)
+                    {
+                        Console.WriteLine(ret.Exception.ToString());
+                        return new PutFileRet(new CallRet(ret));
+                    }
+                }
+            }
+
+            string entryURI = tableName + ":" + key;
+            return Mkfile(host, client, entryURI, fsize, customMeta, callbackParam, ctxs);
+        }

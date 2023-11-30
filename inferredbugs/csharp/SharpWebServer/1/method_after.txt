@@ -1,0 +1,30 @@
+        private void OnProcessHEAD(ref MyRequest request, ref MyResponse response)
+        {
+            string fileName = null;
+            try
+            {
+                fileName = GetRequestedFileName(ref request);
+                string filePath = fileName == null ? null : Path.Combine(_RootDirectory, fileName);
+
+                if (filePath == null || filePath.Length == 0)
+                {
+                    response.StatusCode = (int)HttpStatusCode.OK;
+                    response.StatusMessage = "OK";
+                    return;
+                }
+                else if (!File.Exists(filePath))
+                {
+                    response.StatusCode = (int)HttpStatusCode.NotFound;
+                    response.StatusMessage = "Not Found";
+                    return;
+                }
+
+                ReturnFile(filePath, ref response, true);
+            }
+            catch (Exception ex)
+            {
+                response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                response.StatusMessage = "Internal Server Error";
+                Output($"[!] Exception occured while serving file: {fileName} . Exception: {ex}");
+            }
+        }

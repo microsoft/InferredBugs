@@ -1,0 +1,44 @@
+        public string Write()
+        {
+            var codeTarget = _codeWriterSettings.CodeTarget;
+            _dataAnnotationWriter = new DataAnnotationWriter(IsEntityFramework(), _codeWriterSettings);
+            var className = _table.NetName;
+            if (string.IsNullOrEmpty(className) && _table.DatabaseSchema != null)
+            {
+                PrepareSchemaNames.Prepare(_table.DatabaseSchema, _codeWriterSettings.Namer);
+                className = _table.NetName;
+            }
+            _dataTypeWriter.CodeTarget = codeTarget;
+
+            WriteNamespaces();
+
+            if (!string.IsNullOrEmpty(_codeWriterSettings.Namespace))
+            {
+                _cb.BeginNest("namespace " + _codeWriterSettings.Namespace);
+            }
+
+            if (codeTarget == CodeTarget.PocoRiaServices)
+            {
+                WriteRiaClass(className);
+            }
+            else
+            {
+                var tableOrView = _table is DatabaseView ? "view" : "table";
+                using (_cb.BeginNest("public class " + className, "Class representing " + _table.Name + " " + tableOrView))
+                {
+                    WriteClassMembers(className);
+                }
+            }
+
+            if (_table.HasCompositeKey)
+            {
+                WriteCompositeKeyClass(className);
+            }
+
+            if (!string.IsNullOrEmpty(_codeWriterSettings.Namespace))
+            {
+                _cb.EndNest();
+            }
+
+            return _cb.ToString();
+        }

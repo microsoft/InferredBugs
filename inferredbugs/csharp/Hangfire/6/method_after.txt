@@ -1,0 +1,24 @@
+        private void StartServer()
+        {
+            _logger.Info(String.Format("Starting {0} workers...", _workerCount));
+
+            for (var i = 0; i < _workerCount; i++)
+            {
+                var workerContext = new WorkerContext(_context, i);
+
+                var worker = new Worker(
+                    new PrioritizedJobFetcher(_redisManager, _queues, 1, _fetchTimeout), 
+                    _redisManager, 
+                    workerContext);
+
+                worker.Start();
+
+                _workers.Add(worker);
+            }
+
+            _logger.Info("Workers were started.");
+            
+            _schedulePoller = new ThreadWrapper(new SchedulePoller(_redisManager, _pollInterval));
+            _fetchedJobsWatcher = new ThreadWrapper(new DequeuedJobsWatcher(_redisManager));
+            _serverWatchdog = new ThreadWrapper(new ServerWatchdog(_redisManager));
+        }

@@ -1,0 +1,28 @@
+        public string ExecuteCode(string code)
+        {
+            // Call service
+            HttpClient client = DatabricksUtility.GetHttpClient(_token);
+            var nvc = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("command", code)
+            };
+            var url = $"{_baseUrl}/api/1.2/commands/execute?language=scala&clusterId={_clusterId}&contextId={Id}";
+            var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new FormUrlEncodedContent(nvc) };
+            var response = client.SendAsync(request).Result;
+            var responseString = response.Content.ReadAsStringAsync().Result;
+            string commandId = JsonConvert.DeserializeObject<ExecuteCodeDBKernelResponse>(responseString).Id;
+
+            // Now get the result output
+            CommandResponse result = null;
+            string status = "Running";
+            do
+            {
+                var response2 = client.GetAsync($"{_baseUrl}/api/1.2/commands/status?clusterId={_clusterId}&contextId={Id}&commandId={commandId}").Result;
+                var responsestring2 = response2.Content.ReadAsStringAsync().Result;
+                result = JsonConvert.DeserializeObject<CommandResponse>(responsestring2);
+                status = result.Status;
+            } while (status != "Finished");
+            client.Dispose();
+
+            return (result.Results.Data != null) ? result.Results.Data.ToString() : "";
+        }

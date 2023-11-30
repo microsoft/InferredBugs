@@ -1,0 +1,39 @@
+        protected void SendMail(bool smtpAuth, bool isBodyHtml, byte[] attachment, int serverPort)
+        {
+            using (SmtpClient client = new SmtpClient())
+            {
+                client.Connect("localhost", serverPort, false);
+                var from = new MailboxAddress("carlos@netdumbster.com");
+                var to = new MailboxAddress("karina@netdumbster.com");
+
+                var message = new MimeMessage();
+
+                message.From.Add(from);
+                message.To.Add(to);
+                message.Subject = "test";
+
+                var builder = new BodyBuilder();
+                if (!isBodyHtml)
+                {
+                    builder.TextBody = "this is the body";
+                }
+                else
+                {
+                    builder.HtmlBody = "this is the html body";
+                }
+
+                if (attachment != null)
+                {
+                    builder.Attachments.Add("image", new MemoryStream(attachment), ContentType.Parse("image/jpeg"));
+                }
+
+                message.Body = builder.ToMessageBody();
+
+                if (smtpAuth)
+                {
+                    client.Authenticate("userName", "Password");
+                }
+
+                client.Send(message);
+            }
+        }

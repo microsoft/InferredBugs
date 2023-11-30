@@ -1,0 +1,17 @@
+    public override LuaSyntaxNode VisitYieldStatement(YieldStatementSyntax node) {
+      var curMethod = CurMethodInfoOrNull;
+      curMethod.HasYield = true;
+      if (node.IsKind(SyntaxKind.YieldBreakStatement)) {
+        return new LuaReturnStatementSyntax();
+      }
+
+      string yieldToken = node.YieldKeyword.ValueText;
+      var expression = node.Expression.AcceptExpression(this);
+      LuaExpressionSyntax targetMethod;
+      if (curMethod.Symbol.IsAsync) {
+        targetMethod = LuaIdentifierNameSyntax.Async.MemberAccess(yieldToken, true);
+      } else {
+        targetMethod = LuaIdentifierNameSyntax.System.MemberAccess(yieldToken);
+      }
+      return new LuaExpressionStatementSyntax(targetMethod.Invocation(expression));
+    }

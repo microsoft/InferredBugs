@@ -1,0 +1,96 @@
+        [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope", Justification = "No good reason to call Dispose() on DataTable and DataColumn.")]
+        protected void CreateConnectorObjectExportAttributeFlowsSummaryDataSets()
+        {
+            Logger.Instance.WriteMethodEntry();
+
+            try
+            {
+                var table = new DataTable("DataSourceAttributes") { Locale = CultureInfo.InvariantCulture };
+
+                var column1 = new DataColumn("DataSourceAttribute");
+                var column2 = new DataColumn("FlowDirection");
+
+                table.Columns.Add(column1);
+                table.Columns.Add(column2);
+                table.PrimaryKey = new[] { column1 };
+
+                var table2 = new DataTable("OutboundSyncRules") { Locale = CultureInfo.InvariantCulture };
+
+                var column12 = new DataColumn("DataSourceAttribute"); // to be able to do cascading data relations
+                var column22 = new DataColumn("Source");
+                var column32 = new DataColumn("OutboundSyncRule");
+                var column42 = new DataColumn("OutboundSyncRulePrecedence", typeof(int));
+                var column52 = new DataColumn("OutboundSyncRuleScopingCondition");
+                var column62 = new DataColumn("OutboundSyncRuleGuid");
+
+                table2.Columns.Add(column12);
+                table2.Columns.Add(column22);
+                table2.Columns.Add(column32);
+                table2.Columns.Add(column42);
+                table2.Columns.Add(column52);
+                table2.Columns.Add(column62);
+                table2.PrimaryKey = new[] { column12, column32 };
+
+                var table3 = new DataTable("MetaverseAttributes") { Locale = CultureInfo.InvariantCulture };
+
+                var column13 = new DataColumn("DataSourceAttribute");
+                var column23 = new DataColumn("OutboundSyncRule");
+                var column33 = new DataColumn("MetaverseAttribute");
+                var column43 = new DataColumn("FlowDirection");
+
+                table3.Columns.Add(column13);
+                table3.Columns.Add(column23);
+                table3.Columns.Add(column33);
+                table3.Columns.Add(column43);
+                table3.PrimaryKey = new[] { column13, column23, column33 };
+
+                var table4 = new DataTable("MetaverseObjectTypeInboundFlows") { Locale = CultureInfo.InvariantCulture };
+
+                var column14 = new DataColumn("DataSourceAttribute");
+                var column24 = new DataColumn("OutboundSyncRule");
+                var column34 = new DataColumn("MetaverseAttribute");
+                var column44 = new DataColumn("Source");
+                var column54 = new DataColumn("InboundSyncRulePrecedence", typeof(int));
+                var column64 = new DataColumn("InboundSyncRule");
+                var column74 = new DataColumn("SourceConnector");
+                var column84 = new DataColumn("InboundSyncRuleScopingCondition");
+                var column94 = new DataColumn("SourceConnectorGuid");
+                var column104 = new DataColumn("InboundSyncRuleGuid");
+
+                table4.Columns.Add(column14);
+                table4.Columns.Add(column24);
+                table4.Columns.Add(column34);
+                table4.Columns.Add(column44);
+                table4.Columns.Add(column54);
+                table4.Columns.Add(column64);
+                table4.Columns.Add(column74);
+                table4.Columns.Add(column84);
+                table4.Columns.Add(column94);
+                table4.Columns.Add(column104);
+                table4.PrimaryKey = new[] { column14, column34, column64, column74 }; // column24 is excluded as we'll insert only one row in the the parent table.
+
+                this.PilotDataSet = new DataSet("ExportAttributeFlowsSummary") { Locale = CultureInfo.InvariantCulture };
+                this.PilotDataSet.Tables.Add(table);
+                this.PilotDataSet.Tables.Add(table2);
+                this.PilotDataSet.Tables.Add(table3);
+                this.PilotDataSet.Tables.Add(table4);
+
+                var dataRelation12 = new DataRelation("DataRelation12", new[] { column1 }, new[] { column12 }, false);
+                var dataRelation23 = new DataRelation("DataRelation23", new[] { column12, column32 }, new[] { column13, column23 }, false);
+                var dataRelation34 = new DataRelation("DataRelation34", new[] { column13, column23, column33 }, new[] { column14, column24, column34 }, false);
+
+                this.PilotDataSet.Relations.Add(dataRelation12);
+                this.PilotDataSet.Relations.Add(dataRelation23);
+                this.PilotDataSet.Relations.Add(dataRelation34);
+
+                this.ProductionDataSet = this.PilotDataSet.Clone();
+
+                var printTable = this.GetConnectorObjectExportAttributeFlowsSummaryPrintTable();
+                this.PilotDataSet.Tables.Add(printTable);
+                this.ProductionDataSet.Tables.Add(printTable.Copy());
+            }
+            finally
+            {
+                Logger.Instance.WriteMethodExit();
+            }
+        }

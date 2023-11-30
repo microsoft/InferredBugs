@@ -1,0 +1,25 @@
+        public virtual void Stop(string serviceName)
+        {
+            Logger.Info("Stopping {0} Service...");
+            var service = GetService(serviceName);
+            if (service == null)
+            {
+                Logger.Warn("Unable to stop {0}. no service with that name exists.", serviceName);
+                return;
+            }
+
+            Logger.Info("Service is currently {0}", service.Status);
+
+            service.Stop();
+            service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(60));
+
+            service.Refresh();
+            if (service.Status == ServiceControllerStatus.Stopped)
+            {
+                Logger.Info("{0} has stopped successfully.");
+            }
+            else
+            {
+                Logger.Error("Service stop request has timed out. {0}", service.Status);
+            }
+        }

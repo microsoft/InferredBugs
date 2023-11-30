@@ -1,0 +1,31 @@
+    public void EncryptStream(Stream inputStream, Stream outputStream)
+    {
+      ThrowIfDisposed();
+
+      if (inputStream == null || outputStream == null)
+        throw new ArgumentNullException("One of the arguments (or two) equals null");
+
+      using (var transform = cryptAlgorithm.CreateEncryptor(cryptAlgorithm.Key, cryptAlgorithm.IV))
+      {
+        int maxBufferSizeValue = bufferCoefficient * ConstBufferCoefficient;
+
+        using (var csEncrypt = new CryptoStream(outputStream, transform, CryptoStreamMode.Write))
+        {
+          outputStream.Write(BitConverter.GetBytes(inputStream.Length), 0, sizeof(long));
+          outputStream.Write(cryptAlgorithm.IV, 0, cryptAlgorithm.BlockSize / 8);
+
+          inputStream.Position = 0;
+          var dataBuffer = new byte[maxBufferSizeValue];
+
+          while (inputStream.Position < inputStream.Length)
+          {
+            int dataSize = (inputStream.Length - inputStream.Position > maxBufferSizeValue) ? maxBufferSizeValue : (int)(inputStream.Length - inputStream.Position);
+
+            int writedDataSize = CalculateDataSize(dataSize, maxBufferSizeValue);
+
+            inputStream.Read(dataBuffer, 0, dataSize);
+            csEncrypt.Write(dataBuffer, 0, writedDataSize);
+          }
+        }
+      }
+    }

@@ -1,0 +1,25 @@
+        public byte[] SignatureBase()
+        {
+            if (Network.Current == null)
+            {
+                throw new NoNetworkSelectedException();
+            }
+
+            var memoryStream = new MemoryStream();
+            var writer = new BinaryWriter(memoryStream);
+
+            // Hashed NetworkID
+            writer.Write(Network.Current.NetworkId);
+
+            // Envelope Type - 4 bytes
+            writer.Write((int)EnvelopeType.Create(EnvelopeType.EnvelopeTypeEnum.ENVELOPE_TYPE_TX).InnerValue);
+
+            // Transaction XDR bytes
+            var txMemoryStream = new MemoryStream();
+            var txWriter = new XdrDataOutputStream(txMemoryStream);
+            xdr.Transaction.Encode(txWriter, ToXdr());
+            writer.Write(txMemoryStream.ToArray());
+
+            return memoryStream.ToArray();
+
+        }

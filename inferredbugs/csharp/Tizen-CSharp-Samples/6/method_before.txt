@@ -1,0 +1,269 @@
+        private void GetOnscreenRange(Rect visibleArea, ref Range range, bool bAllInArea = false)
+        {
+            Cell focusedCell = GetCellByItemIndex(focusGroupIndex, focusItemIndex);
+
+            int focusColumnIndex = focusedCell.columnIndex;
+
+            float areaStartPos, areaEndPos, focusedCellStart, focusedCellEnd;
+            if (GridType.Horizontal == gridType)
+            {
+                areaStartPos = visibleArea.X;
+                areaEndPos = visibleArea.X + visibleArea.Width;
+                focusedCellStart = focusedCell.rect.X;
+                focusedCellEnd = focusedCell.rect.X + focusedCell.rect.Width;
+            }
+            else
+            {
+                areaStartPos = visibleArea.Y;
+                areaEndPos = visibleArea.Y + visibleArea.Height;
+                focusedCellStart = focusedCell.rect.Y;
+                focusedCellEnd = focusedCell.rect.Y + focusedCell.rect.Height;
+            }
+
+            bool bStartFound = false, bEndFound = false;
+
+            int groupCount = groupList.Count;
+            //find start range
+            if ((bAllInArea == true && focusedCellStart < areaStartPos)
+                || (bAllInArea == false && focusedCellEnd < areaStartPos))
+            {
+               for (int i = focusGroupIndex; i < groupCount && bStartFound == false; i++)
+               {
+                   Group curGroup = groupList.ElementAt(i);
+                   int startColumnIndex = (i == focusItemIndex) ? focusColumnIndex : 0;
+                   int columnCount = curGroup.columnList.Count;
+                   for (int j = startColumnIndex; j < columnCount; j++)
+                   {
+                       Column curColumn = curGroup.columnList.ElementAt(j);
+                       if (true == bAllInArea)
+                       {
+                           if (curColumn.startPos >= areaStartPos)
+                           {
+                               range.startGroupIndex = i;
+                               range.startColumnIndex = j;
+                               bStartFound = true;
+                               break;
+                           }
+                       }
+                       else
+                       {
+                           if (curColumn.endPos > areaStartPos)
+                           {
+                               range.startGroupIndex = i;
+                               range.startColumnIndex = j;
+                               bStartFound = true;
+                               break;
+                           }
+                       }
+                   }
+               }
+            }
+            else
+            {
+                for (int i = focusGroupIndex; i >= 0 && bStartFound == false; i--)
+                {
+                    Group curGroup = groupList.ElementAt(i);
+                    int columnCount = curGroup.columnList.Count;
+                    int startColumnIndex = (i == focusItemIndex) ? focusColumnIndex : columnCount - 1;
+                    for (int j = startColumnIndex; j >= 0; j--)
+                    {
+                        Column curColumn = curGroup.columnList.ElementAt(j);
+                        if (curColumn.startPos <= areaStartPos)
+                        {
+                            if (bAllInArea == true)
+                            {
+                                if (j == columnCount - 1)
+                                {
+                                    range.startGroupIndex = i + 1;
+                                    range.startColumnIndex = 0;
+                                }
+                                else
+                                {
+                                    range.startGroupIndex = i;
+                                    range.startColumnIndex = j + 1;
+                                }
+
+                                bStartFound = true;
+                                break;
+                            }
+                            else
+                            {
+                                if (curColumn.endPos > areaStartPos)
+                                {
+                                    range.startGroupIndex = i;
+                                    range.startColumnIndex = j;
+                                }
+                                else
+                                {
+                                    if (j == columnCount - 1)
+                                    {
+                                        range.startGroupIndex = i + 1;
+                                        range.startColumnIndex = 0;
+                                    }
+                                    else
+                                    {
+                                        range.startGroupIndex = i;
+                                        range.startColumnIndex = j + 1;
+                                    }
+                                }
+
+                                bStartFound = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (bStartFound == false)
+            {
+                range.startGroupIndex = 0;
+                range.startColumnIndex = 0;
+            }
+
+            //find end range
+            if ((bAllInArea == true && focusedCellEnd >= areaEndPos)
+                || (bAllInArea == false && focusedCellStart >= areaEndPos))
+            {
+                for (int i = focusGroupIndex; i >= 0 && bEndFound == false; i--)
+                {
+                    Group curGroup = groupList.ElementAt(i);
+                    int columnCount = curGroup.columnList.Count;
+                    int startColumnIndex = (i == focusItemIndex) ? focusColumnIndex : columnCount - 1;
+                    for (int j = startColumnIndex; j >= 0; j--)
+                    {
+                        Column curColumn = curGroup.columnList.ElementAt(j);
+                        if (bAllInArea == true)
+                        {
+                            if (curColumn.endPos <= areaEndPos)
+                            {
+                                range.endGroupIndex = i;
+                                range.endColumnIndex = j;
+                                bEndFound = true;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if (curColumn.startPos <= areaEndPos)
+                            {
+                                range.endGroupIndex = i;
+                                range.endColumnIndex = j;
+                                bEndFound = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for (int i = focusGroupIndex; i < groupCount && bEndFound == false; i++)
+                {
+                    Group curGroup = groupList.ElementAt(i);
+                    int startColumnIndex = (i == focusItemIndex) ? focusColumnIndex : 0;
+                    int columnCount = curGroup.columnList.Count;
+                    for (int j = startColumnIndex; j < columnCount; j++)
+                    {
+                        Column curColumn = curGroup.columnList.ElementAt(j);
+                        if (curColumn.endPos >= areaEndPos)
+                        {
+                            if (curColumn.startPos < areaEndPos)
+                            {
+                                range.endGroupIndex = i;
+                                range.endColumnIndex = j;
+                            }
+                            else
+                            {
+                                if (j == 0)
+                                {
+                                    range.endGroupIndex = i - 1;
+                                    range.endColumnIndex = groupList.ElementAt(i - 1).columnList.Count - 1; 
+                                }
+                                else
+                                {
+                                    range.endGroupIndex = i;
+                                    range.endColumnIndex = j - 1;
+                                }
+                            }
+
+                            bEndFound = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (bEndFound == false)
+            {
+                range.endGroupIndex = groupCount - 1;
+                range.endColumnIndex = groupList.ElementAt(range.endGroupIndex).columnList.Count - 1;
+            }
+
+            range.startGroupInScrn = range.startGroupIndex;
+            range.startColumnInScrn = range.startColumnIndex;
+            range.endGroupInScrn = range.endGroupIndex;
+            range.endColumnInScrn = range.endColumnIndex;
+            
+            //get on screen start and end item index
+            Group startGroup = groupList.ElementAt(range.startGroupInScrn);
+            Column startColumn = startGroup.columnList.ElementAt(range.startColumnInScrn);
+            Cell startCell = startColumn.cellList.ElementAt(0);
+            range.startItemIndexInScrn = startCell.itemIndex;
+            if (range.startItemIndexInScrn >= startGroup.itemList.Count)
+            {
+                range.startItemIndexInScrn = startGroup.itemList.Count - 1;
+            }
+
+            Group endGroup = groupList.ElementAt(range.endGroupInScrn);
+            Column endColumn = endGroup.columnList.ElementAt(range.endColumnInScrn);
+            Cell endCell = endColumn.cellList.ElementAt(endColumn.cellList.Count - 1);
+            range.endItemIndexInScrn = endCell.itemIndex;
+            if (range.endItemIndexInScrn >= endGroup.itemList.Count)
+            {
+                range.endItemIndexInScrn = endGroup.itemList.Count - 1;
+            }
+
+            //add buffer columns
+            int frontBufferCount = preloadFrontColumnSize;
+            while (frontBufferCount-- > 0)
+            {
+                if (range.startColumnIndex > 0)
+                {
+                    range.startColumnIndex--;
+                }
+                else
+                {
+                    if (range.startGroupIndex > 0)
+                    {
+                        range.startGroupIndex--;
+                        range.startColumnIndex = groupList.ElementAt(range.startGroupIndex).columnList.Count - 1;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+
+            int backBufferCount = preloadBackColumnSize;
+            while (backBufferCount-- > 0)
+            {
+                if (range.endColumnIndex < groupList.ElementAt(range.endGroupIndex).columnList.Count - 1)
+                {
+                    range.endColumnIndex++;
+                }
+                else
+                {
+                    if (range.endGroupIndex < groupList.Count - 1)
+                    {
+                        range.endGroupIndex++;
+                        range.endColumnIndex = 0;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+        }

@@ -1,0 +1,22 @@
+        public void ShareVideo(String aid)
+        {
+            String requestBody = $"?aid={aid}&csrf={_verify.BiliJct}";
+            var request = new HttpRequestMessage(HttpMethod.Post, ApiList.AvShare + requestBody);
+            var client = _httpClientFactory.CreateClient("bilibili");
+            var response = client.SendAsync(request).Result;
+            var contentStr = response.Content.ReadAsStringAsync().Result;
+
+            var apiResponse = JsonSerializer.Deserialize<BiliApiResponse>(contentStr);
+
+            if (apiResponse.Code == 0)
+            {
+                _logger.LogInformation("视频: av{aid}分享成功", aid);
+                //desp.appendDesp("视频: av" + aid + "分享成功");
+            }
+            else
+            {
+                _logger.LogDebug("视频分享失败，原因: {msg}", apiResponse.Message);
+                _logger.LogDebug("开发者提示: 如果是csrf校验失败请检查BILI_JCT参数是否正确或者失效");
+                //desp.appendDesp("重要:csrf校验失败请检查BILI_JCT参数是否正确或者失效");
+            }
+        }

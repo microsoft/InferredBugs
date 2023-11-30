@@ -1,0 +1,30 @@
+        [HttpPost, Route("AddSendAuth"), Authorize(Policys.SystemOrUsers)]
+        public JsonResult AddSendAuth(InputTemeplate inputTemeplate)
+        {
+            var userInfo = DBManager.Instance.GetUser(UserName);
+            if (userInfo != null && inputTemeplate.Key != null && inputTemeplate.Name != null)
+            {
+                var barkKey = typeof(BarkSendTemplate).GetCustomAttributes(typeof(SendMethodKeyAttribute), false).OfType<SendMethodKeyAttribute>().First().Key;
+                if (barkKey == inputTemeplate.Key)
+                {
+                    return Fail(406, "BARK通道勿手动添加，请使用APP添加BARK地址绑定");
+                }
+                else
+                {
+                    var authInfo = inputTemeplate.TemplateToAuth();
+                    var sendAuth = new SendAuthInfo()
+                    {
+                        UserId = userInfo.Id,
+                        SendMethodTemplate = inputTemeplate.Key,
+                        AuthData = authInfo,
+                        Name = inputTemeplate.Name,
+                        CreateTime = DateTime.Now,
+                        ModifyTime = DateTime.Now,
+                    };
+                    DBManager.Instance.DBase.Insert(sendAuth);
+                    return OK(sendAuth);
+
+                }
+            }
+            return Fail();
+        }

@@ -1,0 +1,50 @@
+        private static string ConvertChunksToManifest(IList<Chunk> chunks)
+        {
+            string currentModule = "";
+            string currentDirectory = null;
+            List<string> lines = new List<string>();
+            int chunkId = 1;
+            foreach (Chunk chunk in chunks)
+            {
+                chunk.ID = chunkId++;
+                lines.Add("C," + chunk.ID + "," + chunk.Width + "," + chunk.Height);
+
+                Bitmap chunkBmp = new Bitmap(chunk.Width, chunk.Height);
+                Bitmap.Graphics g = chunkBmp.MakeGraphics();
+                for (int i = 0; i < chunk.Images.Count; ++i)
+                {
+                    Image image = chunk.Images[i];
+                    string path = image.File.OriginalPath;
+                    string dir;
+                    string filename;
+                    int lastSlash = path.LastIndexOf('/');
+                    if (lastSlash == -1)
+                    {
+                        dir = "/";
+                        filename = path;
+                    }
+                    else
+                    {
+                        dir = path.Substring(0, lastSlash);
+                        filename = path.Substring(lastSlash + 1);
+                    }
+
+                    int x = chunk.X[i];
+                    int y = chunk.Y[i];
+                    g.Blit(image.File.Bitmap, x, y);
+                    if (image.Module != currentModule)
+                    {
+                        currentModule = image.Module;
+                        lines.Add("M," + currentModule);
+                    }
+                    if (dir != currentDirectory)
+                    {
+                        currentDirectory = dir;
+                        lines.Add("D," + currentDirectory);
+                    }
+                    lines.Add("F," + x + "," + y + "," + image.Width + "," + image.Height + "," + filename);
+                }
+                chunk.FinalizedBitmap = chunkBmp;
+            }
+            return string.Join('\n', lines);
+        }

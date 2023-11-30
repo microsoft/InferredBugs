@@ -1,0 +1,42 @@
+        [Fact]
+        public void Handle_WithNancyContextRequestThatMatchesExpectedRequest_ReturnsNancyResponse()
+        {
+            var expectedRequest = new ProviderServiceRequest
+            {
+                Method = HttpVerb.Get,
+                Path = "/Test"
+            };
+            var actualRequest = new ProviderServiceRequest
+            {
+                Method = HttpVerb.Get,
+                Path = "/Test"
+            };
+            var expectedResponse = new ProviderServiceResponse { Status = 200 };
+            var nancyResponse = new Response { StatusCode = HttpStatusCode.OK };
+
+            var mockRequestComparer = Substitute.For<IProviderServiceRequestComparer>();
+            var mockRequestMapper = Substitute.For<IProviderServiceRequestMapper>();
+            var mockResponseMapper = Substitute.For<INancyResponseMapper>();
+
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/Test", "HTTP")
+            };
+
+            var interactions = new List<ProviderServiceInteraction>
+            {
+                new ProviderServiceInteraction { Request = expectedRequest, Response = expectedResponse }
+            };
+
+            nancyContext.SetMockInteraction(interactions);
+
+            mockRequestMapper.Convert(nancyContext.Request).Returns(actualRequest);
+            //mockRequestComparer.Compare Doesnt throw any exceptions
+            mockResponseMapper.Convert(expectedResponse).Returns(nancyResponse);
+
+            IMockProviderNancyRequestHandler handler = new MockProviderNancyRequestHandler(mockRequestComparer, mockRequestMapper, mockResponseMapper);
+
+            var response = handler.Handle(nancyContext);
+
+            Assert.Equal(nancyResponse, response);
+        }

@@ -1,0 +1,445 @@
+{
+    "hash": "1b33dc4477055721a57badd375faefc30871b659",
+    "message": "Add tests for PerRequestProvider",
+    "file_num_lines": 106,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "    using Microsoft.Graph.DotnetCore.Core.Test.Mocks;"
+            ],
+            [
+                5,
+                "    using Moq;"
+            ],
+            [
+                6,
+                "    using System;"
+            ],
+            [
+                7,
+                "    using System.IO;"
+            ],
+            [
+                9,
+                "    using System.Threading;"
+            ],
+            [
+                10,
+                "    using System.Threading.Tasks;"
+            ],
+            [
+                12,
+                "    public class BaseRequestExtensionsTests: IDisposable"
+            ],
+            [
+                14,
+                "        private const string requestUrl = \"http://foo.bar\";"
+            ],
+            [
+                15,
+                "        private const string defaultAuthHeader = \"Default-token\";"
+            ],
+            [
+                16,
+                "        private HttpProvider httpProvider;"
+            ],
+            [
+                17,
+                "        private BaseClient baseClient;"
+            ],
+            [
+                18,
+                "        private MockSerializer serializer = new MockSerializer();"
+            ],
+            [
+                19,
+                "        private TestHttpMessageHandler testHttpMessageHandler;"
+            ],
+            [
+                20,
+                "        private MockAuthenticationProvider defaultAuthProvider;"
+            ],
+            [
+                21,
+                ""
+            ],
+            [
+                22,
+                "        public BaseRequestExtensionsTests()"
+            ],
+            [
+                23,
+                "        {"
+            ],
+            [
+                24,
+                "            defaultAuthProvider = new MockAuthenticationProvider(defaultAuthHeader);"
+            ],
+            [
+                25,
+                "            testHttpMessageHandler = new TestHttpMessageHandler();"
+            ],
+            [
+                26,
+                "            httpProvider = new HttpProvider(testHttpMessageHandler, true, serializer.Object);"
+            ],
+            [
+                27,
+                "            baseClient = new BaseClient(\"https://localhost/v1.0\", defaultAuthProvider.Object, httpProvider);"
+            ],
+            [
+                28,
+                "        }"
+            ],
+            [
+                29,
+                ""
+            ],
+            [
+                30,
+                "        public void Dispose()"
+            ],
+            [
+                31,
+                "        {"
+            ],
+            [
+                32,
+                "            httpProvider.Dispose();"
+            ],
+            [
+                33,
+                "        }"
+            ],
+            [
+                38,
+                "            using (HttpResponseMessage httpResponseMessage = new HttpResponseMessage())"
+            ],
+            [
+                39,
+                "            {"
+            ],
+            [
+                40,
+                "                var baseRequest = new BaseRequest(requestUrl, baseClient);"
+            ],
+            [
+                41,
+                "                baseRequest.WithShouldRetry((response) => true);"
+            ],
+            [
+                43,
+                "                Assert.IsType<GraphRequestContext>(baseRequest.GetHttpRequestMessage().Properties[typeof(GraphRequestContext).ToString()]);"
+            ],
+            [
+                44,
+                "                Assert.True(baseRequest.GetHttpRequestMessage().GetMiddlewareOption<RetryHandlerOption>().ShouldRetry(httpResponseMessage));"
+            ],
+            [
+                45,
+                "            }"
+            ],
+            [
+                51,
+                "            var baseRequest = new BaseRequest(requestUrl, baseClient);"
+            ],
+            [
+                55,
+                "            Assert.Equal(3, baseRequest.GetHttpRequestMessage().GetMiddlewareOption<RetryHandlerOption>().MaxRetry);"
+            ],
+            [
+                61,
+                "            var baseRequest = new BaseRequest(requestUrl, baseClient);"
+            ],
+            [
+                65,
+                "            Assert.Equal(4, baseRequest.GetHttpRequestMessage().GetMiddlewareOption<RedirectHandlerOption>().MaxRedirects);"
+            ],
+            [
+                66,
+                "        }"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                68,
+                "        [Fact]"
+            ],
+            [
+                69,
+                "        public void WithPerRequestAuthProvider_ShouldAddPerRequestAuthProviderToAuthHandlerOption()"
+            ],
+            [
+                70,
+                "        {"
+            ],
+            [
+                71,
+                "            var requestMockAuthProvider = new MockAuthenticationProvider(\"PerRequest-Token\");"
+            ],
+            [
+                72,
+                ""
+            ],
+            [
+                73,
+                "            var baseRequest = new BaseRequest(requestUrl, baseClient);"
+            ],
+            [
+                74,
+                "            baseRequest.Client.PerRequestAuthProvider = () => requestMockAuthProvider.Object;"
+            ],
+            [
+                75,
+                "            baseRequest.WithPerRequestAuthProvider();"
+            ],
+            [
+                76,
+                "            var httpRequestMessage = baseRequest.GetHttpRequestMessage();"
+            ],
+            [
+                77,
+                ""
+            ],
+            [
+                78,
+                "            Assert.IsType<GraphRequestContext>(baseRequest.GetHttpRequestMessage().Properties[typeof(GraphRequestContext).ToString()]);"
+            ],
+            [
+                79,
+                "            Assert.NotSame(baseClient.AuthenticationProvider, httpRequestMessage.GetMiddlewareOption<AuthenticationHandlerOption>().AuthenticationProvider);"
+            ],
+            [
+                80,
+                "            Assert.Same(requestMockAuthProvider.Object, httpRequestMessage.GetMiddlewareOption<AuthenticationHandlerOption>().AuthenticationProvider);"
+            ],
+            [
+                81,
+                "        }"
+            ],
+            [
+                82,
+                ""
+            ],
+            [
+                83,
+                "        [Fact]"
+            ],
+            [
+                84,
+                "        public async Task WithPerRequestAuthProvider_ShouldUsePerRequestAuthProviderAsync()"
+            ],
+            [
+                85,
+                "        {"
+            ],
+            [
+                86,
+                "            string authorizationHeader = \"PerRequest-Token\";"
+            ],
+            [
+                87,
+                "            var requestMockAuthProvider = new MockAuthenticationProvider(authorizationHeader);"
+            ],
+            [
+                88,
+                ""
+            ],
+            [
+                89,
+                "            var baseRequest = new BaseRequest(requestUrl, baseClient);"
+            ],
+            [
+                90,
+                "            baseRequest.Client.PerRequestAuthProvider = () => requestMockAuthProvider.Object;"
+            ],
+            [
+                91,
+                "            baseRequest.WithPerRequestAuthProvider();"
+            ],
+            [
+                92,
+                ""
+            ],
+            [
+                93,
+                "            using (var httpResponseMessage = new HttpResponseMessage())"
+            ],
+            [
+                94,
+                "            {"
+            ],
+            [
+                95,
+                "                var httpRequestMessage = baseRequest.GetHttpRequestMessage();"
+            ],
+            [
+                96,
+                "                testHttpMessageHandler.AddResponseMapping(httpRequestMessage.RequestUri.ToString(), httpResponseMessage);"
+            ],
+            [
+                97,
+                ""
+            ],
+            [
+                98,
+                "                var returnedResponseMessage = await httpProvider.SendAsync(httpRequestMessage);"
+            ],
+            [
+                99,
+                ""
+            ],
+            [
+                100,
+                "                Assert.Equal(httpResponseMessage, returnedResponseMessage);"
+            ],
+            [
+                101,
+                "                Assert.Equal(authorizationHeader, returnedResponseMessage.RequestMessage.Headers.Authorization.Parameter);"
+            ],
+            [
+                102,
+                "            }"
+            ],
+            [
+                103,
+                "        }"
+            ],
+            [
+                104,
+                ""
+            ],
+            [
+                105,
+                "        [Fact]"
+            ],
+            [
+                106,
+                "        public async Task WithPerRequestAuthProvider_ShouldUseDefaultAuthProviderAsync()"
+            ],
+            [
+                107,
+                "        {"
+            ],
+            [
+                108,
+                "            string perRequestAutHeader = \"PerRequest-Token\";"
+            ],
+            [
+                109,
+                "            var requestMockAuthProvider = new MockAuthenticationProvider(perRequestAutHeader);"
+            ],
+            [
+                110,
+                ""
+            ],
+            [
+                111,
+                "            var baseRequest = new BaseRequest(requestUrl, baseClient);"
+            ],
+            [
+                112,
+                "            baseRequest.Client.PerRequestAuthProvider = () => requestMockAuthProvider.Object;"
+            ],
+            [
+                113,
+                ""
+            ],
+            [
+                114,
+                "            using (var httpResponseMessage = new HttpResponseMessage())"
+            ],
+            [
+                115,
+                "            {"
+            ],
+            [
+                116,
+                "                var httpRequestMessage = baseRequest.GetHttpRequestMessage();"
+            ],
+            [
+                117,
+                "                testHttpMessageHandler.AddResponseMapping(httpRequestMessage.RequestUri.ToString(), httpResponseMessage);"
+            ],
+            [
+                118,
+                ""
+            ],
+            [
+                119,
+                "                var returnedResponseMessage = await httpProvider.SendAsync(httpRequestMessage);"
+            ],
+            [
+                120,
+                ""
+            ],
+            [
+                121,
+                "                Assert.Equal(httpResponseMessage, returnedResponseMessage);"
+            ],
+            [
+                122,
+                "                Assert.NotEqual(perRequestAutHeader, returnedResponseMessage.RequestMessage.Headers.Authorization.Parameter);"
+            ],
+            [
+                123,
+                "                Assert.Equal(defaultAuthHeader, returnedResponseMessage.RequestMessage.Headers.Authorization.Parameter);"
+            ],
+            [
+                124,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                6,
+                "    public class BaseRequestExtensionsTests: RequestTestBase"
+            ],
+            [
+                8,
+                "        string requestUrl = \"https://foo.bar\";"
+            ],
+            [
+                13,
+                "            HttpResponseMessage httpResponseMessage = new HttpResponseMessage();"
+            ],
+            [
+                14,
+                "            var baseRequest = new BaseRequest(requestUrl, this.baseClient);"
+            ],
+            [
+                15,
+                "            baseRequest.WithShouldRetry((response) => true);"
+            ],
+            [
+                17,
+                "            Assert.IsType<GraphRequestContext>(baseRequest.GetHttpRequestMessage().Properties[typeof(GraphRequestContext).ToString()]);"
+            ],
+            [
+                18,
+                "            Assert.True(baseRequest.GetHttpRequestMessage().GetMiddlewareOption<RetryOption>().ShouldRetry(httpResponseMessage));"
+            ],
+            [
+                24,
+                "            var baseRequest = new BaseRequest(requestUrl, this.baseClient);"
+            ],
+            [
+                28,
+                "            Assert.Equal(3, baseRequest.GetHttpRequestMessage().GetMiddlewareOption<RetryOption>().MaxRetry);"
+            ],
+            [
+                34,
+                "            var baseRequest = new BaseRequest(requestUrl, this.baseClient);"
+            ],
+            [
+                38,
+                "            Assert.Equal(4, baseRequest.GetHttpRequestMessage().GetMiddlewareOption<RedirectOption>().MaxRedirects);"
+            ]
+        ]
+    },
+    "num_lines_added": 97,
+    "num_lines_removed": 11
+}

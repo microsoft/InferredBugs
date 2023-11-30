@@ -1,0 +1,29 @@
+        [Fact]
+        public void Dispatch_WithNancyContext_CompareIsCalledOnThePactProviderServiceRequestComparer()
+        {   
+            var expectedRequest = new PactProviderServiceRequest();
+            var expectedResponse = new PactProviderServiceResponse();
+            var actualRequest = new PactProviderServiceRequest();
+
+            var mockRequestComparer = Substitute.For<IPactProviderServiceRequestComparer>();
+            var mockRequestMapper = Substitute.For<IPactProviderServiceRequestMapper>();
+            var mockResponseMapper = Substitute.For<INancyResponseMapper>();
+
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/", "HTTP")
+            };
+            nancyContext.SetMockRequest( expectedRequest);
+            nancyContext.SetMockResponse( expectedResponse);
+
+            mockRequestMapper.Convert(nancyContext.Request).Returns(actualRequest);
+
+            IRequestDispatcher requestDispatcher = new MockProviderNancyRequestDispatcher(
+                mockRequestComparer,
+                mockRequestMapper,
+                mockResponseMapper);
+
+            requestDispatcher.Dispatch(nancyContext, CancellationToken.None);
+
+            mockRequestComparer.Received(1).Compare(expectedRequest, actualRequest);
+        }

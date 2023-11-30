@@ -1,0 +1,21 @@
+        public DailyTaskInfo GetDailyTaskStatus()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, ApiList.reward);
+            var client = _httpClientFactory.CreateClient("bilibili");
+            var response = client.SendAsync(request).Result;
+            var contentStr = response.Content.ReadAsStringAsync().Result;
+
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<DailyTaskInfo>>(contentStr);
+            if (apiResponse.Code == 0)
+            {
+                _logger.LogInformation("请求本日任务完成状态成功");
+                //desp.appendDesp("请求本日任务完成状态成功");
+                return apiResponse.Data;
+            }
+            else
+            {
+                _logger.LogDebug(JsonSerializer.Serialize(apiResponse));
+                return GetDailyTaskStatus();
+                //偶发性请求失败，再请求一次。
+            }
+        }

@@ -1,0 +1,33 @@
+        public IFileSystem CreateFileSystem(string fullPath, FileSystemAccess access, int maxFileCount, int maxBlockCount)
+        {
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                throw new GameFrameworkException("Full path is invalid.");
+            }
+
+            if (access == FileSystemAccess.Unspecified)
+            {
+                throw new GameFrameworkException("Access is invalid.");
+            }
+
+            if (access == FileSystemAccess.Read)
+            {
+                throw new GameFrameworkException("Access read is invalid.");
+            }
+
+            fullPath = Utility.Path.GetRegularPath(fullPath);
+            if (m_FileSystems.ContainsKey(fullPath))
+            {
+                throw new GameFrameworkException(Utility.Text.Format("File system '{0}' is already exist.", fullPath));
+            }
+
+            FileSystemStream fileSystemStream = new DotNetFileSystemStream(fullPath, access, true);
+            FileSystem fileSystem = FileSystem.Create(fullPath, access, fileSystemStream, maxFileCount, maxBlockCount);
+            if (fileSystem == null)
+            {
+                throw new GameFrameworkException(Utility.Text.Format("Create file system '{0}' failure.", fullPath));
+            }
+
+            m_FileSystems.Add(fullPath, fileSystem);
+            return fileSystem;
+        }

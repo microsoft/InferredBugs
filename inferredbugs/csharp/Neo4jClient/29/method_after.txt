@@ -1,0 +1,25 @@
+        [Test]
+        public void ShouldReturnEmptyEnumerableForNullResult()
+        {
+            using (var testHarness = new RestTestHarness
+            {
+                {
+                    MockRequest.PostJson(
+                        "/ext/GremlinPlugin/graphdb/execute_script",
+                        @"{ 'script': 'foo bar query', 'params': {} }"
+                    ),
+                    MockResponse.Json(HttpStatusCode.OK, @"[]")
+                }
+            })
+            {
+                var graphClient = (GraphClient)testHarness.CreateAndConnectGraphClient();
+
+                //Act
+                var nodes = graphClient
+                    .ExecuteGetAllNodesGremlin<Foo>("foo bar query", null)
+                    .ToList();
+
+                //Assert
+                Assert.AreEqual(0, nodes.Count());
+            }
+        }

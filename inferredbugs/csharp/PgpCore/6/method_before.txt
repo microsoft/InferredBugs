@@ -1,0 +1,58 @@
+        private void DecryptAndVerify(Stream inputStream, Stream outputStream, Stream publicKeyStream, Stream privateKeyStream, string passPhrase)
+        {
+            EncryptionKeys encryptionKeys = new EncryptionKeys(publicKeyStream, privateKeyStream, passPhrase);
+
+            var encodedFile = PgpUtilities.GetDecoderStream(inputStream);
+            PgpPublicKeyEncryptedData publicKeyED = Utilities.ExtractPublicKeyEncryptedData(encodedFile);
+
+            if (publicKeyED.KeyId != encryptionKeys.PublicKey.KeyId)
+                throw new PgpException("Failed to verify file.");
+
+            PgpObject message = Utilities.GetClearCompressedMessage(publicKeyED, encryptionKeys);
+
+            if (message is PgpCompressedData)
+            {
+                PgpCompressedData cData = (PgpCompressedData)message;
+                PgpObjectFactory of = null;
+
+                using (Stream compDataIn = cData.GetDataStream())
+                {
+                    of = new PgpObjectFactory(compDataIn);
+                }
+
+                message = of.NextPgpObject();
+                if (message is PgpOnePassSignatureList)
+                {
+                    message = of.NextPgpObject();
+                    PgpLiteralData Ld = null;
+                    Ld = (PgpLiteralData)message;
+                    Stream unc = Ld.GetInputStream();
+                    Streams.PipeAll(unc, outputStream);
+                }
+                else
+                {
+                    PgpLiteralData Ld = null;
+                    Ld = (PgpLiteralData)message;
+                    Stream unc = Ld.GetInputStream();
+                    Streams.PipeAll(unc, outputStream);
+                }
+            }
+            else if (message is PgpLiteralData)
+            {
+                PgpLiteralData ld = (PgpLiteralData)message;
+                string outFileName = ld.FileName;
+
+                Stream unc = ld.GetInputStream();
+                Streams.PipeAll(unc, outputStream);
+
+                if (publicKeyED.IsIntegrityProtected())
+                {
+                    if (!publicKeyED.Verify())
+                    {
+                        throw new PgpException("Message failed integrity check.");
+                    }
+                }
+            }
+            else
+                throw new PgpException("Message is not a simple encrypted file.");
+        }

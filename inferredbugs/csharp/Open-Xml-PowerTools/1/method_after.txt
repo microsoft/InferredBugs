@@ -1,0 +1,47 @@
+        public static string RetrieveListItem(WordprocessingDocument wordDoc, XElement paragraph, ListItemRetrieverSettings settings)
+        {
+            if (wordDoc.MainDocumentPart.NumberingDefinitionsPart == null)
+                return null;
+
+            var listItemInfo = paragraph.Annotation<ListItemInfo>();
+            if (listItemInfo == null)
+                InitializeListItemRetriever(wordDoc, settings);
+
+            listItemInfo = paragraph.Annotation<ListItemInfo>();
+            if (!listItemInfo.IsListItem)
+                return null;
+
+            var numberingDefinitionsPart = wordDoc
+                .MainDocumentPart
+                .NumberingDefinitionsPart;
+
+            if (numberingDefinitionsPart == null)
+                return null;
+
+            StyleDefinitionsPart styleDefinitionsPart = wordDoc
+                .MainDocumentPart
+                .StyleDefinitionsPart;
+
+            if (styleDefinitionsPart == null)
+                return null;
+
+            var numXDoc = numberingDefinitionsPart.GetXDocument();
+            var stylesXDoc = styleDefinitionsPart.GetXDocument();
+
+            var paragraphLevel = GetParagraphLevel(paragraph);
+            var lvl = listItemInfo.Lvl(paragraphLevel);
+
+            string lvlText = (string)lvl.Elements(W.lvlText).Attributes(W.val).FirstOrDefault();
+            if (lvlText == null)
+                return null;
+
+            var levelNumbersAnnotation = paragraph.Annotation<LevelNumbers>();
+            if (levelNumbersAnnotation == null)
+                throw new OpenXmlPowerToolsException("Internal error");
+
+            int[] levelNumbers = levelNumbersAnnotation.LevelNumbersArray;
+            string languageIdentifier = GetLanguageIdentifier(paragraph, stylesXDoc);
+            string listItem = FormatListItem(listItemInfo, levelNumbers, GetParagraphLevel(paragraph), 
+                lvlText, stylesXDoc, languageIdentifier, settings);
+            return listItem;
+        }

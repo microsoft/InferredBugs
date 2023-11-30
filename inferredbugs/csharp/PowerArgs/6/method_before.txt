@@ -1,0 +1,57 @@
+        public List<T> Tokenize(string input)
+        {
+            List<T> tokens = new List<T>();
+            Token currentToken = null;
+
+            insideStringLiteral = false;
+
+            char currentCharacter;
+            char? nextCharacter;
+            int currentIndex = -1;
+            int currentLine = 1;
+            int currentColumn = 0;
+            while (TryReadCharacter(input, ref currentIndex, out currentCharacter))
+            {
+                char peeked;
+                if(TryPeekCharacter(input, currentIndex, out peeked))
+                {
+                    nextCharacter = peeked;
+                }
+                else
+                {
+                    nextCharacter = null;
+                }
+
+                currentColumn++;
+                if(currentCharacter == '\n')
+                {
+                    Tokenize_Whitespace(input, ref currentIndex, ref currentCharacter, ref currentLine, ref currentColumn, ref currentToken, tokens);
+                    currentLine++;
+                    currentColumn = 0;
+                }
+                else if (IsEscapeSequence(currentCharacter, nextCharacter))
+                {
+                    Tokenize_EscapeCharacter(input, ref currentIndex, ref currentCharacter, ref currentLine, ref currentColumn, ref currentToken, tokens);
+                }
+                else if(insideStringLiteral)
+                {
+                    Tokenize_Plain(input, ref currentIndex, ref currentCharacter, ref currentLine, ref currentColumn, ref currentToken, tokens);
+                }
+                else if (Delimiters.Contains("" + currentCharacter))
+                {
+                    Tokenize_DelimiterCharacter(input, ref currentIndex, ref currentCharacter, ref currentLine, ref currentColumn, ref currentToken, tokens);
+                }
+                else if (char.IsWhiteSpace(currentCharacter))
+                {
+                    Tokenize_Whitespace(input, ref currentIndex, ref currentCharacter, ref currentLine, ref currentColumn, ref currentToken, tokens);
+                }
+                else
+                {
+                    Tokenize_Plain(input, ref currentIndex, ref currentCharacter, ref currentLine, ref currentColumn, ref currentToken, tokens);
+                }
+            }
+
+            FinalizeTokenIfNotNull(ref currentToken, tokens);
+
+            return tokens;
+        }

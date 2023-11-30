@@ -1,0 +1,56 @@
+        private static GPErrorCode SearchWithEmail( Dictionary<string, string> dict, out string sendingBuffer)
+        {
+            if (dict["email"] != "0")
+            {
+                List<Dictionary<string, object>> temp = SearchQuery.GetProfileFromEmail(dict);
+                if (temp == null)
+                {
+                    sendingBuffer = "No match found!";
+                    return GPErrorCode.DatabaseError;
+                }
+                if (temp.Count > 0)//we have multiple profiles 
+                {
+                    if (dict.ContainsKey("skip"))
+                    {
+                        int currentIndex = System.Convert.ToInt32(dict["skip"]);
+                        if (currentIndex < temp.Count-1)
+                        {
+                            sendingBuffer = string.Format(
+                       @"\bsr\{0}\nick\{1}\uniquenick\{2}\namespaceid\{3}\firstname\{4}\lastname\{5}\email\{6}\bsrdone\\more\final\",
+                       temp[currentIndex]["profileid"], temp[currentIndex]["nick"], temp[currentIndex]["uniquenick"], temp[currentIndex]["namespaceid"], temp[currentIndex]["firstname"], temp[currentIndex]["lastname"], temp[currentIndex]["email"]);
+                            return GPErrorCode.NoError;
+
+                        }
+                        if (currentIndex == (temp.Count - 1))
+                        {
+                            sendingBuffer = string.Format(
+                         @"\bsr\{0}\nick\{1}\uniquenick\{2}\namespaceid\{3}\firstname\{4}\lastname\{5}\email\{6}\bsrdone\\final\",
+                         temp[currentIndex]["profileid"], temp[currentIndex]["nick"], temp[currentIndex]["uniquenick"], temp[currentIndex]["namespaceid"], temp[currentIndex]["firstname"], temp[currentIndex]["lastname"], temp[currentIndex]["email"]);
+                            return GPErrorCode.NoError;
+                        }
+                    }
+                    else
+                    {
+                        if (temp.Count < 2)
+                        {
+                            sendingBuffer = string.Format(
+                         @"\bsr\{0}\nick\{1}\uniquenick\{2}\namespaceid\{3}\firstname\{4}\lastname\{5}\email\{6}\bsrdone\\final\",
+                         temp[0]["profileid"], temp[0]["nick"], temp[0]["uniquenick"], temp[0]["namespaceid"], temp[0]["firstname"], temp[0]["lastname"], temp[0]["email"]);
+                            return GPErrorCode.NoError;
+                        }
+                        else
+                        {
+                            sendingBuffer = string.Format(
+                        @"\bsr\{0}\nick\{1}\uniquenick\{2}\namespaceid\{3}\firstname\{4}\lastname\{5}\email\{6}\bsrdone\\more\final\",
+                        temp[0]["profileid"], temp[0]["nick"], temp[0]["uniquenick"], temp[0]["namespaceid"], temp[0]["firstname"], temp[0]["lastname"], temp[0]["email"]);
+                            return GPErrorCode.NoError;
+                        }
+
+                    }
+                }
+                sendingBuffer = "No match found!";
+                return GPErrorCode.DatabaseError;
+            }
+            sendingBuffer = "Parse error in email";
+            return GPErrorCode.Parse;
+        }

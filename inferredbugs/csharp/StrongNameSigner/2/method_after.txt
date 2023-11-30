@@ -1,0 +1,27 @@
+    public static AssemblyInfo GetAssemblyInfo(string assemblyPath, Action<string> outputHandler)
+    {
+      // Verify assembly path was passed in.
+      if (string.IsNullOrWhiteSpace(assemblyPath))
+      {
+        throw new ArgumentNullException("assemblyPath");
+      }
+
+      // Make sure the file actually exists.
+      if (!File.Exists(assemblyPath))
+      {
+        throw new FileNotFoundException("Could not find provided assembly file.", assemblyPath);
+      }
+
+      var a = AssemblyDefinition.ReadAssembly(assemblyPath);
+
+      return new AssemblyInfo()
+      {
+        FilePath = Path.GetFullPath(assemblyPath),
+        DotNetVersion = GetDotNetVersion(a.MainModule.Runtime),
+        IsSigned = a.MainModule.Attributes.HasFlag(ModuleAttributes.StrongNameSigned),
+        IsManagedAssembly = a.MainModule.Attributes.HasFlag(ModuleAttributes.ILOnly),
+        Is64BitOnly = a.MainModule.Architecture == TargetArchitecture.AMD64 || a.MainModule.Architecture == TargetArchitecture.IA64,
+        Is32BitOnly = a.MainModule.Attributes.HasFlag(ModuleAttributes.Required32Bit),
+        Is32BitPreferred = a.MainModule.Attributes.HasFlag(ModuleAttributes.Preferred32Bit)
+      };
+    }

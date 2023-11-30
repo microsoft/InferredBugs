@@ -1,0 +1,29 @@
+        [Fact]
+        public void Dispatch_WithCanceledCancellationToken_ResponseMapperIsCalledAndReturns500Response()
+        {
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/", "HTTP")
+            };
+
+            var requestResponsePairs = new List<KeyValuePair<PactProviderServiceRequest, PactProviderServiceResponse>>
+            {
+                new KeyValuePair<PactProviderServiceRequest, PactProviderServiceResponse>(new PactProviderServiceRequest(), new PactProviderServiceResponse())
+            };
+
+            nancyContext.SetMockRequestResponsePairs(requestResponsePairs);
+
+            var mockNancyResponseMapper = Substitute.For<INancyResponseMapper>();
+            mockNancyResponseMapper.Convert(Arg.Any<PactProviderServiceResponse>())
+                .Returns(new Response
+                {
+                    StatusCode = HttpStatusCode.InternalServerError
+                });
+
+            var handler = new MockNancyRequestHandler(null, null, mockNancyResponseMapper);
+
+            var result = handler.Handle(nancyContext).Result;
+
+            mockNancyResponseMapper.Received(1).Convert(Arg.Is<PactProviderServiceResponse>(x => x.Status == 500));
+            Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
+        }

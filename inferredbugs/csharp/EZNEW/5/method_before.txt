@@ -1,0 +1,48 @@
+        static ICondition AddCriterionHandler(DefaultQuery originalQuery, ICondition condition)
+        {
+            if (originalQuery == null || condition == null)
+            {
+                return null;
+            }
+            Criterion criterion = condition as Criterion;
+            var valueQuery = criterion.Value as IQuery;
+            originalQuery.SetHasFieldConverter(originalQuery.HasFieldConverter || criterion.HasFieldConversion());
+            if (valueQuery != null)
+            {
+                if (valueQuery.GetEntityType() == null)
+                {
+                    throw new EZNEWException("the IQuery object used for the subquery must set EntityType");
+                }
+                valueQuery = HandleParameterQueryBeforeUse(valueQuery);
+                if (!string.IsNullOrWhiteSpace(criterion.Options?.SubqueryValueFieldName))
+                {
+                    valueQuery.ClearQueryFields();
+                    valueQuery.AddQueryFields(criterion.Options.SubqueryValueFieldName);
+                }
+                criterion.SetValue(valueQuery);
+                originalQuery.AddSubquery(valueQuery);
+            }
+            else
+            {
+                bool verifyValueNull = false;
+                CriterionOperator verifyValueNullOperator = CriterionOperator.IsNull;
+                switch (criterion.Operator)
+                {
+                    case CriterionOperator.Equal:
+                        verifyValueNull = true;
+                        break;
+                    case CriterionOperator.NotEqual:
+                        verifyValueNull = true;
+                        verifyValueNullOperator = CriterionOperator.NotNull;
+                        break;
+                }
+                if (criterion.Value == null && verifyValueNull)
+                {
+                    criterion.Operator = verifyValueNullOperator;
+                }
+            }
+            originalQuery.criteria.Add(criterion);
+            //originalQuery.atomicConditionCount++;
+            //originalQuery.allConditionFieldNameCollection.Add(criterion.Name);
+            return criterion;
+        }

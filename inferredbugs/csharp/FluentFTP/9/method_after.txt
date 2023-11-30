@@ -1,0 +1,37 @@
+        public string[] GetRawListing(string path, FtpListType type) {
+            List<string> lst = new List<string>();
+            string cmd, buf;
+
+            switch (type) {
+                case FtpListType.LIST:
+                    cmd = "LIST";
+                    break;
+                case FtpListType.MLSD:
+                case FtpListType.MLST:
+                    cmd = "MLSD";
+                    break;
+                default:
+                    throw new NotImplementedException("The specified list type has not been implemented.");
+            }
+
+            try {
+                this.LockControlConnection();
+
+                using (FtpDataStream s = this.OpenDataStream(FtpDataType.ASCII)) {
+                    FtpReply reply;
+
+                    if (!(reply = s.Execute("{0} {1}", cmd, GetFtpPath(path))).Success) {
+                        throw new FtpCommandException(reply);
+                    }
+
+                    while ((buf = s.ReadLine()) != null) {
+                        lst.Add(buf);
+                    }
+                }
+            }
+            finally {
+                this.UnlockControlConnection();
+            }
+
+            return lst.ToArray();
+        }

@@ -1,0 +1,48 @@
+        private HoconValue ResolveSubstitution(HoconSubstitution sub)
+        {
+            var subField = sub.ParentField;
+
+            // first case, this substitution is a direct self-reference
+            if (sub.Path == subField.Path)
+            {
+                var parent = sub.Parent;
+                while (parent is HoconValue)
+                    parent = parent.Parent;
+
+                // Fail case
+                if (parent is HoconArray)
+                    throw new HoconException("Self-referencing substitution may not be declared within an array.");
+
+                // try to resolve substitution by looking backward in the field assignment stack
+                return subField.OlderValueThan(sub);
+            }
+
+            // second case, the substitution references a field child in the past
+            if (sub.Path.IsChildPathOf(subField.Path))
+            {
+                var olderValue = subField.OlderValueThan(sub);
+                if (olderValue.Type == HoconType.Object)
+                {
+                    var difLength = sub.Path.Count - subField.Path.Count;
+                    var deltaPath = sub.Path.SubPath(sub.Path.Count - difLength, difLength);
+
+                    var olderObject = olderValue.GetObject();
+                    if (olderObject.TryGetValue(deltaPath, out var innerValue))
+                    {
+                        return innerValue.Type == HoconType.Object ? innerValue : null;
+                    }
+                }
+            }
+
+            // Detect invalid parent-referencing substitution
+            if (subField.Path.IsChildPathOf(sub.Path))
+                throw new HoconException("Substitution may not reference one of its direct parents.");
+
+            // Detect invalid cyclic reference loop
+            if (IsValueCyclic(subField, sub))
+                throw new HoconException("A cyclic substitution loop is detected in the Hocon file.");
+
+            // third case, regular substitution
+            _root.GetObject().TryGetValue(sub.Path, out var field);
+            return field?.Clone(field.Parent) as HoconValue;
+        }

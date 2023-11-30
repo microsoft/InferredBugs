@@ -1,0 +1,245 @@
+{
+    "hash": "55808c2c3a8fd021bd20621256e382018ee2c7a7",
+    "message": "Update AWS topic subscription and SQS access policy generation (#808)\n\nCo-authored-by: Andrii Labyntsev <lab.andrii@gmail.com>",
+    "file_num_lines": 195,
+    "diff_parsed": {
+        "added": [
+            [
+                11,
+                "using Amazon.Auth.AccessControlPolicy;"
+            ],
+            [
+                46,
+                "        public ICollection<string> FetchTopics(IEnumerable<string> topicNames)"
+            ],
+            [
+                48,
+                "            if (topicNames == null)"
+            ],
+            [
+                50,
+                "                throw new ArgumentNullException(nameof(topicNames));"
+            ],
+            [
+                52,
+                ""
+            ],
+            [
+                54,
+                ""
+            ],
+            [
+                56,
+                "            foreach (var topic in topicNames)"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                65,
+                "            GenerateSqsAccessPolicyAsync(topicArns)"
+            ],
+            [
+                66,
+                "                .GetAwaiter().GetResult();"
+            ],
+            [
+                68,
+                "            return topicArns;"
+            ],
+            [
+                69,
+                "        }"
+            ],
+            [
+                71,
+                "        public void Subscribe(IEnumerable<string> topics)"
+            ],
+            [
+                72,
+                "        {"
+            ],
+            [
+                73,
+                "            if (topics == null)"
+            ],
+            [
+                74,
+                "            {"
+            ],
+            [
+                75,
+                "                throw new ArgumentNullException(nameof(topics));"
+            ],
+            [
+                76,
+                "            }"
+            ],
+            [
+                77,
+                ""
+            ],
+            [
+                78,
+                "            Connect();"
+            ],
+            [
+                79,
+                ""
+            ],
+            [
+                80,
+                "            _snsClient.SubscribeQueueToTopicsAsync(topics.ToList(), _sqsClient, _queueUrl)"
+            ],
+            [
+                224,
+                "        private async Task GenerateSqsAccessPolicyAsync(IEnumerable<string> topicArns)"
+            ],
+            [
+                225,
+                "        {"
+            ],
+            [
+                226,
+                "            Connect(initSNS: false, initSQS: true);"
+            ],
+            [
+                227,
+                ""
+            ],
+            [
+                228,
+                "            var queueAttributes = await _sqsClient.GetAttributesAsync(_queueUrl).ConfigureAwait(false);"
+            ],
+            [
+                229,
+                ""
+            ],
+            [
+                230,
+                "            var sqsQueueArn = queueAttributes[\"QueueArn\"];"
+            ],
+            [
+                231,
+                ""
+            ],
+            [
+                232,
+                "            var policy = queueAttributes.TryGetValue(\"Policy\", out var policyStr) && !string.IsNullOrEmpty(policyStr)"
+            ],
+            [
+                233,
+                "                ? Policy.FromJson(policyStr)"
+            ],
+            [
+                234,
+                "                : new Policy();"
+            ],
+            [
+                235,
+                ""
+            ],
+            [
+                236,
+                "            var topicArnsToAllow = topicArns"
+            ],
+            [
+                237,
+                "                .Where(a => !policy.HasSqsPermission(a, sqsQueueArn))"
+            ],
+            [
+                238,
+                "                .ToList();"
+            ],
+            [
+                239,
+                ""
+            ],
+            [
+                240,
+                "            if (!topicArnsToAllow.Any())"
+            ],
+            [
+                241,
+                "            {"
+            ],
+            [
+                242,
+                "                return;"
+            ],
+            [
+                243,
+                "            }"
+            ],
+            [
+                244,
+                ""
+            ],
+            [
+                245,
+                "            policy.AddSqsPermissions(topicArnsToAllow, sqsQueueArn);"
+            ],
+            [
+                246,
+                "            policy.CompactSqsPermissions(sqsQueueArn);"
+            ],
+            [
+                247,
+                ""
+            ],
+            [
+                248,
+                "            var setAttributes = new Dictionary<string, string> { { \"Policy\", policy.ToJson() } };"
+            ],
+            [
+                249,
+                "            await _sqsClient.SetAttributesAsync(_queueUrl, setAttributes).ConfigureAwait(false);"
+            ],
+            [
+                250,
+                "        }"
+            ],
+            [
+                251,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                45,
+                "        public void Subscribe(IEnumerable<string> topics)"
+            ],
+            [
+                47,
+                "            if (topics == null)"
+            ],
+            [
+                49,
+                "                throw new ArgumentNullException(nameof(topics));"
+            ],
+            [
+                51,
+                ""
+            ],
+            [
+                53,
+                ""
+            ],
+            [
+                55,
+                "            foreach (var topic in topics)"
+            ],
+            [
+                64,
+                "            Connect(initSNS: false, initSQS: true);"
+            ],
+            [
+                66,
+                "            _snsClient.SubscribeQueueToTopicsAsync(topicArns, _sqsClient, _queueUrl)"
+            ]
+        ]
+    },
+    "num_lines_added": 50,
+    "num_lines_removed": 8
+}

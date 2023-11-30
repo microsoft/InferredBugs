@@ -1,0 +1,34 @@
+        private void WorkerDoWork(Object sender, DoWorkEventArgs e)
+        {
+            try
+            {
+                BgArg args = e.Argument as BgArg;
+                String url = new Uri(this.curFile).LocalPath;
+                Boolean shouldExecute = this.IsExecutable(this.curEntry);
+                if (!Directory.Exists(args.Path) && !shouldExecute) Directory.CreateDirectory(args.Path);
+                if (Path.GetExtension(url) == ".zip") ZipHelper.ExtractZip(args.File, args.Path);
+                else if (!shouldExecute)
+                {
+                    String fileName = Path.GetFileName(url);
+                    File.Copy(this.tempFile, Path.Combine(args.Path, fileName), true);
+                }
+            }
+            catch
+            {
+                String message = this.localeData.ExtractingError + this.curFile + ".\n";
+                if (this.downloadQueue.Count > 0) message += this.localeData.ContinueWithNextItem;
+                DialogHelper.ShowError(message); // Show message first...
+                if (this.downloadQueue.Count > 0) this.DownloadNextFromQueue();
+                else
+                {
+                    this.isLoading = false;
+                    this.progressBar.Value = 0;
+                    this.cancelButton.Enabled = false;
+                    this.statusLabel.Text = this.localeData.AllItemsCompleted;
+                    this.NoneLinkLabelLinkClicked(null, null);
+                    this.TryDeleteEntryDir(this.curEntry);
+                    this.TryDeleteOldTempFiles();
+                    this.UpdateButtonLabels();
+                }
+            }
+        }

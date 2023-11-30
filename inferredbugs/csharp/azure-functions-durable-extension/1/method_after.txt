@@ -1,0 +1,34 @@
+        public void FindActivityFunction(SyntaxNodeAnalysisContext context)
+        {
+            var semanticModel = context.SemanticModel;
+            if (context.Node is AttributeSyntax attribute
+                && SyntaxNodeUtils.IsActivityTriggerAttribute(attribute))
+            {
+                if (!SyntaxNodeUtils.TryGetFunctionName(semanticModel, attribute, out string functionName))
+                {
+                    //Do not store ActivityFunctionDefinition if there is no function name
+                    return;
+                }
+
+                if (!SyntaxNodeUtils.TryGetMethodReturnTypeNode(attribute, out SyntaxNode returnTypeNode))
+                {
+                    //Do not store ActivityFunctionDefinition if there is no return type
+                    return;
+                }
+
+                SyntaxNodeUtils.TryGetITypeSymbol(semanticModel, returnTypeNode, out ITypeSymbol returnType);
+
+                SyntaxNodeUtils.TryGetParameterNodeNextToAttribute(context, attribute, out SyntaxNode parameterNode);
+
+                TryGetDefinitionInputType(semanticModel, parameterNode, out ITypeSymbol inputType);
+
+                availableFunctions.Add(new ActivityFunctionDefinition
+                {
+                    FunctionName = functionName,
+                    ParameterNode = parameterNode,
+                    InputType = inputType,
+                    ReturnTypeNode = returnTypeNode,
+                    ReturnType = returnType
+                });
+            }
+        }

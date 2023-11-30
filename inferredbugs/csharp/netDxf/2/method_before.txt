@@ -1,0 +1,59 @@
+        public static string CheckHeaderVariable(Stream stream, string headerVariable, out bool isBinary)
+        {
+            long startPosition;
+
+            if (stream == null)
+            {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            try
+            {
+                startPosition = stream.Position;
+            }
+            catch (NotSupportedException ex)
+            {
+                throw new ArgumentException("Streams with not accessible Position property are not supported.", nameof(stream), ex);
+            }
+
+            ICodeValueReader chunk;
+            isBinary = IsBinary(stream);
+            stream.Position = startPosition;
+
+            if (isBinary)
+            {
+                chunk = new BinaryCodeValueReader(new BinaryReader(stream), Encoding.ASCII);
+            }
+            else
+            {
+                chunk = new TextCodeValueReader(new StreamReader(stream));
+            }
+
+            chunk.Next();
+            while (chunk.ReadString() != DxfObjectCode.EndOfFile)
+            {
+                chunk.Next();
+                if (chunk.ReadString() == DxfObjectCode.HeaderSection)
+                {
+                    chunk.Next();
+                    while (chunk.ReadString() != DxfObjectCode.EndSection)
+                    {
+                        string varName = chunk.ReadString();
+                        chunk.Next();
+
+                        if (varName == headerVariable)
+                        {
+                            return chunk.ReadString(); // we found the variable we are looking for
+                        }
+                        // some header variables have more than one entry
+                        while (chunk.Code != 0 && chunk.Code != 9)
+                        {
+                            chunk.Next();
+                        }
+                    }
+                    // we only need to read the header section
+                    return null;
+                }
+            }
+            return null;
+        }

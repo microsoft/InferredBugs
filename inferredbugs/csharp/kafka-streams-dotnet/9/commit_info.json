@@ -1,0 +1,261 @@
+{
+    "hash": "bec4ea91e774197bb68661c6ba005db817705003",
+    "message": "work in progress",
+    "file_num_lines": 174,
+    "diff_parsed": {
+        "added": [
+            [
+                13,
+                "using Streamiz.Kafka.Net.Crosscutting;"
+            ],
+            [
+                51,
+                "            foreach (var sourceTopic in builder"
+            ],
+            [
+                52,
+                "                .GetSourceTopics()"
+            ],
+            [
+                53,
+                "                .Union(builder.GetGlobalTopics()))"
+            ],
+            [
+                104,
+                "        private void ForwardRepartitionTopic(IConsumer<byte[], byte[]> consumer, string topic)"
+            ],
+            [
+                105,
+                "        {"
+            ],
+            [
+                106,
+                "            var records = new List<ConsumeResult<byte[], byte[]>>();"
+            ],
+            [
+                107,
+                "            consumer.Subscribe(topic);"
+            ],
+            [
+                108,
+                "            ConsumeResult<byte[], byte[]> record = null;"
+            ],
+            [
+                109,
+                "            do"
+            ],
+            [
+                110,
+                "            {"
+            ],
+            [
+                111,
+                "                record = consumer.Consume();"
+            ],
+            [
+                112,
+                "                if(record != null)"
+            ],
+            [
+                113,
+                "                    records.Add(record);"
+            ],
+            [
+                114,
+                "            } while (record != null);"
+            ],
+            [
+                115,
+                ""
+            ],
+            [
+                116,
+                ""
+            ],
+            [
+                117,
+                "            if (records.Any())"
+            ],
+            [
+                118,
+                "            {"
+            ],
+            [
+                119,
+                "                long now = DateTime.Now.GetMilliseconds();"
+            ],
+            [
+                120,
+                "                var task = GetTask(topic);"
+            ],
+            [
+                121,
+                "                task.AddRecords(records);"
+            ],
+            [
+                122,
+                "                while (task.CanProcess(now))"
+            ],
+            [
+                123,
+                "                    task.Process();"
+            ],
+            [
+                124,
+                ""
+            ],
+            [
+                125,
+                "                consumer.Commit(records.Last());"
+            ],
+            [
+                126,
+                "            }"
+            ],
+            [
+                127,
+                ""
+            ],
+            [
+                128,
+                "            consumer.Unsubscribe();"
+            ],
+            [
+                129,
+                "        }"
+            ],
+            [
+                130,
+                ""
+            ],
+            [
+                137,
+                "            foreach(var topic in topics)"
+            ],
+            [
+                139,
+                "                var builder = new SyncPipeBuilder(GetTask(topic));"
+            ],
+            [
+                140,
+                "                var pipeInput = builder.Input(topic, configuration);"
+            ],
+            [
+                141,
+                ""
+            ],
+            [
+                142,
+                "                if (this.builder.IsRepartitionTopology())"
+            ],
+            [
+                143,
+                "                {"
+            ],
+            [
+                144,
+                "                    var topicsLink = new List<string>();"
+            ],
+            [
+                145,
+                "                    this.builder.GetRepartitionLinkTopics(topic, topicsLink);"
+            ],
+            [
+                146,
+                "                    var consumer = supplier.GetConsumer(topicConfiguration.ToConsumerConfig(\"consumer-repartition-forwarder\"), null);"
+            ],
+            [
+                147,
+                ""
+            ],
+            [
+                148,
+                "                    foreach (var topicLink in topicsLink)"
+            ],
+            [
+                149,
+                "                        pipeInput.Flushed += () => ForwardRepartitionTopic(consumer, topicLink);"
+            ],
+            [
+                150,
+                "                }"
+            ],
+            [
+                151,
+                ""
+            ],
+            [
+                152,
+                "                pipes.Add(topic, pipeInput);"
+            ],
+            [
+                162,
+                ""
+            ],
+            [
+                163,
+                "            if (builder.IsRepartitionTopology())"
+            ],
+            [
+                164,
+                "            {"
+            ],
+            [
+                165,
+                "                var topicsLink = new List<string>();"
+            ],
+            [
+                166,
+                "                builder.GetRepartitionLinkTopics(topicName, topicsLink);"
+            ],
+            [
+                167,
+                "                var consumer = supplier.GetConsumer(topicConfiguration.ToConsumerConfig(\"consumer-repartition-forwarder\"), null);"
+            ],
+            [
+                168,
+                ""
+            ],
+            [
+                169,
+                "                foreach (var topic in topicsLink)"
+            ],
+            [
+                170,
+                "                    pipeInput.Flushed += () => ForwardRepartitionTopic(consumer, topic);"
+            ],
+            [
+                171,
+                "            }"
+            ],
+            [
+                172,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                50,
+                "            foreach (var sourceTopic in builder.GetSourceTopics().Union(builder.GetGlobalTopics()))"
+            ],
+            [
+                107,
+                "            foreach(var t in topics)"
+            ],
+            [
+                109,
+                "                var task = GetTask(t);"
+            ],
+            [
+                110,
+                "                var builder = new SyncPipeBuilder(task);"
+            ],
+            [
+                111,
+                "                pipes.Add(t, builder.Input(t, configuration));"
+            ]
+        ]
+    },
+    "num_lines_added": 57,
+    "num_lines_removed": 5
+}

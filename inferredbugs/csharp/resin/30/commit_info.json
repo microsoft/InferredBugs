@@ -1,0 +1,477 @@
+{
+    "hash": "e1f4ef942731358d2f51f59e8e39b0aa0a13ea4c",
+    "message": "query parallelism",
+    "file_num_lines": 258,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "using System.Collections.Concurrent;"
+            ],
+            [
+                54,
+                "            IDictionary<ulong, float> result = Reduce(query);"
+            ],
+            [
+                80,
+                "            IDictionary<ulong, float> docIds = Reduce(query);"
+            ],
+            [
+                138,
+                "            //var ixStream = SessionFactory.CreateAsyncReadStream(ixFileName);"
+            ],
+            [
+                139,
+                "            //var vecStream = SessionFactory.CreateAsyncReadStream(vecFileName);"
+            ],
+            [
+                142,
+                "            //_streams.Add(ixStream);"
+            ],
+            [
+                143,
+                "            //_streams.Add(vecStream);"
+            ],
+            [
+                146,
+                "            return new NodeReader(ixFileName, vecFileName, ixpStream);"
+            ],
+            [
+                160,
+                "        private IDictionary<ulong, float> Reduce(Query query)"
+            ],
+            [
+                164,
+                "                var result = new ConcurrentDictionary<ulong, float>();"
+            ],
+            [
+                166,
+                "                Parallel.ForEach(query.ToList(), cursor =>"
+            ],
+            [
+                188,
+                "                    var docIds = new ConcurrentDictionary<ulong, float>();"
+            ],
+            [
+                190,
+                "                    if (matching.Count > 0)"
+            ],
+            [
+                192,
+                "                        var sortedMatches = matching.OrderByDescending(x => x.Score).ToArray();"
+            ],
+            [
+                193,
+                "                        var cutoff = sortedMatches[0].Score * 0.85f;"
+            ],
+            [
+                194,
+                "                        var qualifiedMatches = sortedMatches.GroupBy(x => x.Score).Where(g => g.Key >= cutoff).SelectMany(g => g).ToList();"
+            ],
+            [
+                195,
+                ""
+            ],
+            [
+                196,
+                "                        foreach (var match in qualifiedMatches)"
+            ],
+            [
+                198,
+                "                            foreach (var id in _postingsReader.Read(CollectionId, match.PostingsOffset))"
+            ],
+            [
+                200,
+                "                                if (docIds.ContainsKey(id))"
+            ],
+            [
+                201,
+                "                                {"
+            ],
+            [
+                202,
+                "                                    docIds[id] += match.Score;"
+            ],
+            [
+                203,
+                "                                }"
+            ],
+            [
+                204,
+                "                                else"
+            ],
+            [
+                205,
+                "                                {"
+            ],
+            [
+                206,
+                "                                    docIds.GetOrAdd(id, match.Score);"
+            ],
+            [
+                207,
+                "                                }"
+            ],
+            [
+                211,
+                "                        _log.Log(\"fetched {0} doc IDs in {1}\", docIds.Count, timer.Elapsed);"
+            ],
+            [
+                212,
+                "                    }"
+            ],
+            [
+                216,
+                "                    if (cursor.And)"
+            ],
+            [
+                218,
+                "                        var aggregatedResult = new ConcurrentDictionary<ulong, float>();"
+            ],
+            [
+                219,
+                ""
+            ],
+            [
+                220,
+                "                        foreach (var doc in result)"
+            ],
+            [
+                222,
+                "                            float score;"
+            ],
+            [
+                224,
+                "                            if (docIds.TryGetValue(doc.Key, out score))"
+            ],
+            [
+                226,
+                "                                aggregatedResult[doc.Key] = score + doc.Value;"
+            ],
+            [
+                228,
+                "                        }"
+            ],
+            [
+                230,
+                "                        result = aggregatedResult;"
+            ],
+            [
+                231,
+                "                    }"
+            ],
+            [
+                232,
+                "                    else if (cursor.Not)"
+            ],
+            [
+                233,
+                "                    {"
+            ],
+            [
+                234,
+                "                        foreach (var id in docIds.Keys)"
+            ],
+            [
+                235,
+                "                        {"
+            ],
+            [
+                236,
+                "                            result.Remove(id, out float _);"
+            ],
+            [
+                238,
+                "                    }"
+            ],
+            [
+                239,
+                "                    else // Or"
+            ],
+            [
+                240,
+                "                    {"
+            ],
+            [
+                241,
+                "                        foreach (var id in docIds)"
+            ],
+            [
+                243,
+                "                            float score;"
+            ],
+            [
+                244,
+                ""
+            ],
+            [
+                245,
+                "                            if (result.TryGetValue(id.Key, out score))"
+            ],
+            [
+                247,
+                "                                result[id.Key] = score + id.Value;"
+            ],
+            [
+                249,
+                "                            else"
+            ],
+            [
+                251,
+                "                                result.GetOrAdd(id.Key, id.Value);"
+            ],
+            [
+                258,
+                "                });"
+            ],
+            [
+                259,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                53,
+                "            IDictionary<ulong, float> result = await Reduce(query);"
+            ],
+            [
+                79,
+                "            IDictionary<ulong, float> docIds = await Reduce(query);"
+            ],
+            [
+                137,
+                "            var ixStream = SessionFactory.CreateAsyncReadStream(ixFileName);"
+            ],
+            [
+                138,
+                "            var vecStream = SessionFactory.CreateAsyncReadStream(vecFileName);"
+            ],
+            [
+                141,
+                "            _streams.Add(ixStream);"
+            ],
+            [
+                142,
+                "            _streams.Add(vecStream);"
+            ],
+            [
+                145,
+                "            return new NodeReader(ixStream, vecStream, ixpStream);"
+            ],
+            [
+                159,
+                "        private async Task<IDictionary<ulong, float>> Reduce(Query query)"
+            ],
+            [
+                163,
+                "                IDictionary<ulong, float> result = null;"
+            ],
+            [
+                165,
+                "                var cursor = query;"
+            ],
+            [
+                166,
+                ""
+            ],
+            [
+                167,
+                "                while (cursor != null)"
+            ],
+            [
+                189,
+                "                    var cutoff = matching[0].Score * 0.85f;"
+            ],
+            [
+                190,
+                "                    var qualifiedMatches = matching.GroupBy(x => x.Score).Where(g => g.Key >= cutoff).SelectMany(g => g).ToList();"
+            ],
+            [
+                191,
+                "                    var docIds = new Dictionary<ulong, float>();"
+            ],
+            [
+                193,
+                "                    foreach (var match in qualifiedMatches)"
+            ],
+            [
+                195,
+                "                        foreach (var id in await _postingsReader.Read(CollectionId, match.PostingsOffset))"
+            ],
+            [
+                197,
+                "                            if (docIds.ContainsKey(id))"
+            ],
+            [
+                198,
+                "                            {"
+            ],
+            [
+                199,
+                "                                docIds[id] += match.Score;"
+            ],
+            [
+                200,
+                "                            }"
+            ],
+            [
+                201,
+                "                            else"
+            ],
+            [
+                203,
+                "                                docIds.Add(id, match.Score);"
+            ],
+            [
+                206,
+                "                    }"
+            ],
+            [
+                208,
+                "                    _log.Log(\"fetched {0} doc IDs in {1}\", docIds.Count, timer.Elapsed);"
+            ],
+            [
+                212,
+                "                    if (result == null)"
+            ],
+            [
+                213,
+                "                    {"
+            ],
+            [
+                214,
+                "                        result = docIds;"
+            ],
+            [
+                215,
+                "                    }"
+            ],
+            [
+                216,
+                "                    else"
+            ],
+            [
+                218,
+                "                        if (cursor.And)"
+            ],
+            [
+                220,
+                "                            var aggregatedResult = new Dictionary<ulong, float>();"
+            ],
+            [
+                222,
+                "                            foreach (var doc in result)"
+            ],
+            [
+                224,
+                "                                float score;"
+            ],
+            [
+                225,
+                ""
+            ],
+            [
+                226,
+                "                                if (docIds.TryGetValue(doc.Key, out score))"
+            ],
+            [
+                227,
+                "                                {"
+            ],
+            [
+                228,
+                "                                    aggregatedResult[doc.Key] = score + doc.Value;"
+            ],
+            [
+                229,
+                "                                }"
+            ],
+            [
+                232,
+                "                            result = aggregatedResult;"
+            ],
+            [
+                234,
+                "                        else if (cursor.Not)"
+            ],
+            [
+                236,
+                "                            foreach (var id in docIds.Keys)"
+            ],
+            [
+                238,
+                "                                result.Remove(id);"
+            ],
+            [
+                240,
+                "                        }"
+            ],
+            [
+                241,
+                "                        else // Or"
+            ],
+            [
+                242,
+                "                        {"
+            ],
+            [
+                243,
+                "                            foreach (var id in docIds)"
+            ],
+            [
+                245,
+                "                                float score;"
+            ],
+            [
+                246,
+                ""
+            ],
+            [
+                247,
+                "                                if (result.TryGetValue(id.Key, out score))"
+            ],
+            [
+                248,
+                "                                {"
+            ],
+            [
+                249,
+                "                                    result[id.Key] = score + id.Value;"
+            ],
+            [
+                250,
+                "                                }"
+            ],
+            [
+                251,
+                "                                else"
+            ],
+            [
+                252,
+                "                                {"
+            ],
+            [
+                253,
+                "                                    result.Add(id.Key, id.Value);"
+            ],
+            [
+                254,
+                "                                }"
+            ],
+            [
+                261,
+                ""
+            ],
+            [
+                262,
+                "                    cursor = cursor.Next;"
+            ],
+            [
+                263,
+                "                }"
+            ]
+        ]
+    },
+    "num_lines_added": 56,
+    "num_lines_removed": 60
+}

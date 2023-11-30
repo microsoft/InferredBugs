@@ -1,0 +1,82 @@
+        public void ItemMove(ItemLocation from, ItemLocation to)
+        {
+            Bag srcBag = GetBag(from.Location);
+            if (srcBag == null)
+                throw new InvalidPacketValueException();
+
+            Item srcItem = srcBag.GetItem(from.BagIndex);
+            if (srcItem == null)
+                throw new InvalidPacketValueException();
+
+            if (!IsValidLocationForItem(srcItem, to.Location, to.BagIndex))
+                throw new InvalidPacketValueException();
+
+            Bag dstBag = GetBag(to.Location);
+            if (dstBag == null)
+                throw new InvalidPacketValueException();
+
+            Item dstItem = dstBag.GetItem(to.BagIndex);
+            try
+            {
+                if (dstItem == null)
+                {
+                    // no item at destination, just a simple move
+                    RemoveItem(srcItem);
+                    AddItem(srcItem, to.Location, to.BagIndex);
+
+                    player.Session.EnqueueMessageEncrypted(new ServerItemMove
+                    {
+                        To = new ItemDragDrop
+                        {
+                            Guid     = srcItem.Guid,
+                            DragDrop = ItemLocationToDragDropData(to.Location, (ushort)to.BagIndex)
+                        }
+                    });
+                }
+                else if (srcItem.Entry.Id == dstItem.Entry.Id)
+                {
+                    // item at destination with same entry, try and stack
+                    uint newStackCount = Math.Min(dstItem.StackCount + srcItem.StackCount, dstItem.Entry.MaxStackCount);
+                    uint oldStackCount = srcItem.StackCount - (newStackCount - dstItem.StackCount);
+                    ItemStackCountUpdate(dstItem, newStackCount);
+
+                    if (oldStackCount == 0u)
+                    {
+                        ItemDelete(new ItemLocation
+                        {
+                            Location = srcItem.Location,
+                            BagIndex = srcItem.BagIndex
+                        });
+                    }  
+                    else
+                        ItemStackCountUpdate(srcItem, oldStackCount);
+                }
+                else
+                {
+                    // item at destination, swap with source item
+                    RemoveItem(srcItem);
+                    RemoveItem(dstItem);
+                    AddItem(srcItem, to.Location, to.BagIndex);
+                    AddItem(dstItem, from.Location, from.BagIndex);
+
+                    player.Session.EnqueueMessageEncrypted(new ServerItemSwap
+                    {
+                        To = new ItemDragDrop
+                        {
+                            Guid     = srcItem.Guid,
+                            DragDrop = ItemLocationToDragDropData(to.Location, (ushort)to.BagIndex)
+                        },
+                        From = new ItemDragDrop
+                        {
+                            Guid     = dstItem.Guid,
+                            DragDrop = ItemLocationToDragDropData(from.Location, (ushort)from.BagIndex)
+                        }
+                    });
+                }
+            }
+            catch (Exception exception)
+            {
+                // TODO: rollback
+                log.Fatal(exception);
+            }
+        }

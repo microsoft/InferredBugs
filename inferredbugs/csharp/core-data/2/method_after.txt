@@ -1,0 +1,22 @@
+        public virtual IDbConnection OpenConnection(bool isMaster = false, bool ignoreTransaction = false)
+        {
+            IDbConnection connection;
+
+#if ASP_NET_CORE
+            if (ignoreTransaction)
+                connection = new DataContext(_configuration, isMaster, DbStoreKey, ConnectionFunc).DbConnection;
+            else
+                connection = Transaction?.Connection ??
+                    new DataContext(_configuration, isMaster, DbStoreKey, ConnectionFunc).DbConnection;
+#else
+            connection = new DataContext(isMaster, DbStoreKey, ConnectionFunc).DbConnection;
+#endif
+
+            if (connection == null)
+                throw new Exception("数据库连接创建失败，请检查连接字符串是否正确...");
+
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+
+            return connection;
+        }

@@ -1,0 +1,88 @@
+        void HandleCallbacks()
+        {
+            while ( true )
+            {
+                var callback = steamClient.WaitForCallback( true, TimeSpan.FromSeconds( 1 ) );
+
+                TimeSpan diff = DateTime.Now - connectTime;
+
+                if ( diff > STEAM3_TIMEOUT && !bConnected )
+                    break;
+
+                if ( credentials.HasSessionToken && credentials.AppTicket != null )
+                    break;
+
+                if ( callback == null )
+                    continue;
+
+                if ( callback.IsType<SteamClient.ConnectCallback>() )
+                {
+                    Console.WriteLine( " Done!" );
+                    bConnected = true;
+                    steamUser.LogOn( logonDetails );
+
+                    SteamID steamId = new SteamID();
+                    steamId.SetFromSteam2( logonDetails.ClientTGT.UserID, steamClient.ConnectedUniverse );
+
+                    Console.Write( "Logging '{0}' into Steam3...", steamId.Render() );
+                }
+
+                if ( callback.IsType<SteamUser.LogOnCallback>() )
+                {
+                    var msg = callback as SteamUser.LogOnCallback;
+
+                    if ( msg.Result == EResult.AccountLogonDenied )
+                    {
+                        Console.WriteLine( "This account is protected by Steam Guard. Please enter the authentication code sent to your email address." );
+                        Console.Write( "Auth Code: " );
+
+                        logonDetails.AuthCode = Console.ReadLine();
+
+                        Console.Write( "Retrying Steam3 connection..." );
+                        Connect();
+                        continue;
+                    }
+                    else if ( msg.Result != EResult.OK )
+                    {
+                        Console.WriteLine( "Unable to login to Steam3: {0}", msg.Result );
+                        steamUser.LogOff();
+                        break;
+                    }
+
+                    Console.WriteLine( " Done!" );
+
+                    steamApps.GetAppOwnershipTicket( depotId );
+                }
+
+                if ( callback.IsType<SteamApps.AppOwnershipTicketCallback>() )
+                {
+                    var msg = callback as SteamApps.AppOwnershipTicketCallback;
+
+                    if ( msg.AppID != depotId )
+                        continue;
+
+                    if ( msg.Result != EResult.OK )
+                    {
+                        Console.WriteLine( "Unable to get appticket for {0}: {1}", depotId, msg.Result );
+                        steamUser.LogOff();
+                        break;
+                    }
+
+                    Console.WriteLine( "Got appticket for {0}!", depotId );
+                    credentials.AppTicket = msg.Ticket;
+
+                }
+
+                if ( callback.IsType<SteamUser.SessionTokenCallback>() )
+                {
+                    var msg = callback as SteamUser.SessionTokenCallback;
+
+                    Console.WriteLine( "Got session token!" );
+                    credentials.SessionToken = msg.SessionToken;
+                    credentials.HasSessionToken = true;
+                }
+            }
+
+            credentialHandle.Set();
+            
+        }

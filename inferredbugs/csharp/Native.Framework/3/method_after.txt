@@ -1,0 +1,30 @@
+        public GroupMember GetMemberInfo (long groupId, long qqId, bool notCache = false)
+        {
+            string result = CQP.CQ_getGroupMemberInfoV2 (_authCode, groupId, qqId, notCache);
+            if (string.IsNullOrEmpty (result))
+            {
+                return null;
+            }
+            #region --其它_转换_文本到群成员信息--
+            using (BinaryReader binary = new BinaryReader (new MemoryStream (Convert.FromBase64String (result))))
+            {
+                GroupMember member = new GroupMember ();
+                member.GroupId = binary.ReadInt64_Ex ();
+                member.QQId = binary.ReadInt64_Ex ();
+                member.Nick = binary.ReadString_Ex (_defaultEncoding);
+                member.Card = binary.ReadString_Ex (_defaultEncoding);
+                member.Sex = (Sex)binary.ReadInt32_Ex ();
+                member.Age = binary.ReadInt32_Ex ();
+                member.Area = binary.ReadString_Ex (_defaultEncoding);
+                member.JoiningTime = binary.ReadInt32_Ex ().ToDateTime ();
+                member.LastDateTime = binary.ReadInt32_Ex ().ToDateTime ();
+                member.Level = binary.ReadString_Ex (_defaultEncoding);
+                member.PermitType = (PermitType)binary.ReadInt32_Ex ();
+                member.BadRecord = binary.ReadInt32_Ex () == 1;
+                member.SpecialTitle = binary.ReadString_Ex (_defaultEncoding);
+                member.SpecialTitleDurationTime = binary.ReadInt32_Ex ().ToDateTime ();
+                member.CanModifiedCard = binary.ReadInt32_Ex () == 1;
+                return member;
+            }
+            #endregion
+        }

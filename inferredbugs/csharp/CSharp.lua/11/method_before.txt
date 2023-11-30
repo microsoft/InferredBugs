@@ -1,0 +1,96 @@
+    private LuaTryAdapterExpressionSyntax VisitTryCatchesExpress(SyntaxList<CatchClauseSyntax> catches) {
+      LuaTryAdapterExpressionSyntax functionExpress = new LuaTryAdapterExpressionSyntax();
+      PushFunction(functionExpress);
+      var temp = GetTempIdentifier();
+      functionExpress.CatchTemp = temp;
+      functionExpress.AddParameter(temp);
+
+      LuaIfStatementSyntax ifStatement = null;
+      LuaInvocationExpressionSyntax filter = null;
+      bool hasCatchRoot = false;
+      foreach (var catchNode in catches) {
+        bool isRootExceptionDeclaration = false;
+        LuaExpressionSyntax ifCondition = null;
+        if (catchNode.Filter != null) {
+          filter = catchNode.Filter.Accept<LuaInvocationExpressionSyntax>(this);
+          ifCondition = filter;
+        }
+
+        if (catchNode.Declaration != null) {
+          var typeName = catchNode.Declaration.Type.Accept<LuaIdentifierNameSyntax>(this);
+          var typeSymbol = semanticModel_.GetTypeInfo(catchNode.Declaration.Type).Type;
+          if (!typeSymbol.EQ(generator_.SystemExceptionTypeSymbol)) {
+            var mathcTypeInvocation = new LuaInvocationExpressionSyntax(LuaIdentifierNameSyntax.Is, temp, typeName);
+            if (ifCondition != null) {
+              ifCondition = ifCondition.And(mathcTypeInvocation);
+            } else {
+              ifCondition = mathcTypeInvocation;
+            }
+          } else {
+            if (!catchNode.Declaration.Identifier.IsKind(SyntaxKind.None)) {
+              isRootExceptionDeclaration = true;
+            }
+            hasCatchRoot = true;
+          }
+        } else {
+          hasCatchRoot = true;
+        }
+
+        var block = catchNode.Block.Accept<LuaBlockSyntax>(this);
+        if (ifCondition != null) {
+          LuaBlockSyntax body;
+          if (ifStatement == null) {
+            ifStatement = new LuaIfStatementSyntax(ifCondition);
+            body = ifStatement.Body;
+          } else {
+            var elseIfStatement = new LuaElseIfStatementSyntax(ifCondition);
+            body = elseIfStatement.Body;
+            ifStatement.ElseIfStatements.Add(elseIfStatement);
+          }
+          if (catchNode.Declaration != null && !catchNode.Declaration.Identifier.IsKind(SyntaxKind.None)) {
+            var variableDeclarator = catchNode.Declaration.Accept<LuaVariableDeclaratorSyntax>(this);
+            variableDeclarator.Initializer = new LuaEqualsValueClauseSyntax(temp);
+            body.Statements.Add(new LuaLocalVariableDeclaratorSyntax(variableDeclarator));
+            if (filter != null) {
+              var when = (LuaFunctionExpressionSyntax)filter.Arguments.First();
+              when.AddParameter(variableDeclarator.Identifier);
+              filter.AddArgument(temp);
+            }
+          }
+          body.Statements.AddRange(block.Statements);
+        } else {
+          if (isRootExceptionDeclaration) {
+            var variableDeclarator = catchNode.Declaration.Accept<LuaVariableDeclaratorSyntax>(this);
+            variableDeclarator.Initializer = new LuaEqualsValueClauseSyntax(temp);
+            block.Statements.Insert(0, new LuaLocalVariableDeclaratorSyntax(variableDeclarator));
+          }
+
+          if (ifStatement != null) {
+            var elseClause = new LuaElseClauseSyntax();
+            elseClause.Body.Statements.AddRange(block.Statements);
+            ifStatement.Else = elseClause;
+          } else {
+            functionExpress.AddStatements(block.Statements);
+          }
+          break;
+        }
+      }
+
+      if (ifStatement != null) {
+        if (!hasCatchRoot) {
+          Contract.Assert(ifStatement.Else == null);
+          var rethrowStatement = new LuaReturnStatementSyntax();
+          rethrowStatement.Expressions.Add(LuaIdentifierNameSyntax.One);
+          rethrowStatement.Expressions.Add(temp);
+          LuaBlockSyntax block = new LuaBlockSyntax();
+          block.Statements.Add(rethrowStatement);
+          LuaElseClauseSyntax elseClause = new LuaElseClauseSyntax();
+          elseClause.Body.Statements.AddRange(block.Statements);
+          ifStatement.Else = elseClause;
+        }
+        functionExpress.AddStatement(ifStatement);
+      }
+
+      PopFunction();
+      return functionExpress;
+    }

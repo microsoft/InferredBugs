@@ -1,0 +1,30 @@
+        public void ManualDownload() {
+
+            if( ProfileLoaded || gameData.Games.Count > 0 ) {
+                if( MessageBox.Show( "This action will add the contents of a Steam community game list to the currently loaded game list. If you do not want to do this, close the open game list or profile first.\nContinue loading games?",
+                    "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Information )
+                 == DialogResult.No ) {
+                    return;
+                }
+            }
+
+            GetStringDlg dlg = new GetStringDlg( "", "Download game list", "Enter custom URL name:", "Download game list" );
+            if( dlg.ShowDialog() == DialogResult.OK ) {
+                Cursor = Cursors.WaitCursor;
+                try {
+                    int loadedGames = gameData.DownloadGameList( dlg.Value, true, null, settings.IgnoreDlc );
+                    if( loadedGames == 0 ) {
+                        MessageBox.Show( "No game data found. Please make sure the custom URL name is spelled correctly, and that the profile is public.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning );
+                        AddStatus( "No games in download." );
+                    } else {
+                        MakeChange( true );
+                        AddStatus( string.Format( "Downloaded {0} games.", loadedGames ) );
+                        FillGameList();
+                    }
+                } catch( ApplicationException e ) {
+                    MessageBox.Show( e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error );
+                    AddStatus( "Error downloading games." );
+                }
+                Cursor = Cursors.Default;
+            }
+        }

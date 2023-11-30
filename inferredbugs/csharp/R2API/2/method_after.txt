@@ -1,0 +1,26 @@
+        private static SetDelegate<TValue> CreateSetDelegate<TValue>(this PropertyInfo property) {
+            if (property == null) {
+                throw new ArgumentException("Property cannot be null.", nameof(property));
+            }
+
+            if (!property.PropertyType.IsAssignableFrom(typeof(TValue))) {
+                throw new Exception($"Value type type {typeof(TValue)} does not match the requested type {property.PropertyType}.");
+            }
+
+            using (var method = new DynamicMethodDefinition($"{property} Setter", typeof(void),
+                new[] { typeof(object), typeof(TValue) })) {
+                var il = method.GetILProcessor();
+
+                var setMethod = property.GetSetMethod(true);
+
+                if (!setMethod.IsStatic) {
+                    il.Emit(OpCodes.Ldarg_0);
+                }
+
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Call, setMethod);
+                il.Emit(OpCodes.Ret);
+
+                return (SetDelegate<TValue>)method.Generate().CreateDelegate(typeof(SetDelegate<TValue>));
+            }
+        }

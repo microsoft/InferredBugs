@@ -1,0 +1,85 @@
+        public OAuth.OAuthToken ConfigureJwtAuthorizationFlowByKey(string clientId, string userId, string oauthBasePath, string privateKey, int expiresInHours, List<string> scopes = null)
+        {
+            JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
+
+            SecurityTokenDescriptor descriptor = new SecurityTokenDescriptor()
+            {
+#if NETSTANDARD2_0
+                Expires = DateTime.UtcNow.AddHours(expiresInHours),
+#else
+                Lifetime = new Lifetime(DateTime.UtcNow, DateTime.UtcNow.AddHours(expiresInHours)),
+#endif
+            };
+
+            if (scopes == null)
+            {
+                scopes = new List<string>
+                {
+                    OAuth.Scope_SIGNATURE
+                };
+            }
+
+            descriptor.Subject = new ClaimsIdentity();
+            descriptor.Subject.AddClaim(new Claim("scope", String.Join(" ", scopes)));
+            descriptor.Subject.AddClaim(new Claim("aud", oauthBasePath));
+            descriptor.Subject.AddClaim(new Claim("iss", clientId));
+
+            if (!string.IsNullOrEmpty(userId))
+            {
+                descriptor.Subject.AddClaim(new Claim("sub", userId));
+            }
+
+            if (!string.IsNullOrEmpty(privateKey))
+            {
+                var rsa = CreateRSAKeyFromPem(privateKey);
+                RsaSecurityKey rsaKey = new RsaSecurityKey(rsa);
+                descriptor.SigningCredentials = new SigningCredentials(rsaKey, SecurityAlgorithms.RsaSha256Signature, SecurityAlgorithms.HmacSha256Signature);
+            }
+            else
+            {
+                throw new ApiException(400, "Private key not supplied or is invalid!");
+            }
+
+            var token = handler.CreateToken(descriptor);
+            string jwtToken = handler.WriteToken(token);
+
+            string baseUri = string.Format("https://{0}/", oauthBasePath);
+            RestClient restClient = new RestClient(baseUri);
+            restClient.Timeout = Configuration.Timeout;
+            restClient.UserAgent = Configuration.UserAgent;
+
+            string path = "oauth/token";
+            string contentType = "application/x-www-form-urlencoded";
+
+            Dictionary<string, string> formParams = new Dictionary<string, string>();
+            formParams.Add("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
+            formParams.Add("assertion", jwtToken);
+
+            Dictionary<string, string> queryParams = new Dictionary<string, string>();
+
+            Dictionary<string, string> headerParams = new Dictionary<string, string>();
+            headerParams.Add("Content-Type", "application/x-www-form-urlencoded");
+
+            Dictionary<string, FileParameter> fileParams = new Dictionary<string, FileParameter>();
+            Dictionary<string, string> pathParams = new Dictionary<string, string>();
+
+            object postBody = null;
+
+            RestRequest request = PrepareRequest(path, Method.POST, queryParams, postBody, headerParams, formParams, fileParams, pathParams, contentType);
+
+            IRestResponse response = restClient.Execute(request);
+
+            if (response.StatusCode >= HttpStatusCode.OK && response.StatusCode < HttpStatusCode.BadRequest)
+            {
+                OAuth.OAuthToken tokenInfo = JsonConvert.DeserializeObject<OAuth.OAuthToken>(((RestResponse)response).Content);
+                var config = Configuration.Default;
+                config.AddDefaultHeader("Authorization", string.Format("{0} {1}", tokenInfo.token_type, tokenInfo.access_token));
+                return tokenInfo;
+            }
+            else
+            {
+                throw new ApiException((int)response.StatusCode,
+                      "Error while requesting server, received a non successful HTTP code "
+                      + response.ResponseStatus + " with response Body: '" + response.Content + "'");
+            }
+        }

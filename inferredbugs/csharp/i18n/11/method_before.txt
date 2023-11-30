@@ -1,0 +1,66 @@
+  private TranslationItem ParseBody(TextReader fs, string line, List<string> extractedComments)
+		{
+            string originalLine = line;
+
+			if (string.IsNullOrEmpty(line)) {
+                return null; }
+
+            TranslationItem message = new TranslationItem { MsgKey = "" };
+			StringBuilder sb = new StringBuilder();
+
+            string msgctxt = null;
+			line = RemoveCommentIfHistorical(line); //so that we read in removed historical records too
+			if (line.StartsWith("msgctxt"))
+			{
+				msgctxt = Unquote(line);
+				line = fs.ReadLine();
+			}
+
+			line = RemoveCommentIfHistorical(line); //so that we read in removed historical records too
+			if (line.StartsWith("msgid"))
+			{
+				var msgid = Unquote(line);
+				sb.Append(msgid);
+
+				while ((line = fs.ReadLine()) != null)
+				{
+					line = RemoveCommentIfHistorical(line);
+                    if (String.IsNullOrEmpty(line))
+                    {
+                        Console.WriteLine("ERROR - line is empty. Original line: " + originalLine);
+                    }
+					if (!line.StartsWith("msgstr") && (msgid = Unquote(line)) != null)
+					{
+						sb.Append(msgid);
+					}
+					else
+					{
+						break;
+					}
+				}
+
+                message.MsgId = Unescape(sb.ToString());
+                
+                // If no msgctxt is set then msgkey is the msgid; otherwise it is msgid+msgctxt.
+                message.MsgKey = string.IsNullOrEmpty(msgctxt) ?
+                    message.MsgId:
+                    TemplateItem.KeyFromMsgidAndComment(message.MsgId, msgctxt, true);
+			}
+
+			sb.Clear();
+			line = RemoveCommentIfHistorical(line);
+			if (!string.IsNullOrEmpty(line) && line.StartsWith("msgstr"))
+			{
+				var msgstr = Unquote(line);
+				sb.Append(msgstr);
+
+				while ((line = fs.ReadLine()) != null && (msgstr = Unquote(line)) != null)
+				{
+					line = RemoveCommentIfHistorical(line);
+					sb.Append(msgstr);
+				}
+
+				message.Message = Unescape(sb.ToString());
+			}
+            return message;
+		}

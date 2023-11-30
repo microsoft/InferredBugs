@@ -1,0 +1,34 @@
+        private static T CreateObjectFromRootElement<T>(ObjectLoaderState state, DataElement element)
+        {
+            // First, ensure that we have a class, key, and identifier.
+            var objClassName = state.ResolveClass(element.AttributeValue<String>("Class"));
+            if (String.IsNullOrEmpty(objClassName))
+                throw new InvalidOperationException(NucleusStrings.DataObjectMissingClass);
+            
+            // If we're loading a Nucleus data object, parse its unique key and ID.
+            var argsBase = default(Object[]);
+            if (typeof(DataObject).IsAssignableFrom(typeof(T)))
+            {
+                var objKey = element.AttributeValue<String>("Key");
+                if (String.IsNullOrEmpty(objKey))
+                    throw new InvalidOperationException(NucleusStrings.DataObjectMissingKey);
+                
+                var objID = element.AttributeValue<String>("ID");
+                if (String.IsNullOrEmpty(objID))
+                    throw new InvalidOperationException(NucleusStrings.DataObjectMissingID);
+                
+                Guid objIDValue;
+                if (!Guid.TryParse(objID, out objIDValue))
+                    throw new InvalidOperationException(NucleusStrings.DataObjectInvalidID.Format(objID));
+                
+                 argsBase = new Object[] { objKey, objIDValue };
+            }
+
+            // Attempt to find the object class and make sure it's of the correct type.
+            var objClass = Type.GetType(objClassName, false);
+            if (objClass == null || !typeof(T).IsAssignableFrom(objClass))
+                throw new InvalidOperationException(NucleusStrings.DataObjectInvalidClass.Format(objClassName ?? "(null)", argsBase[0]));
+            
+            // Attempt to instantiate the object.
+            return CreateObject<T>(state, objClass, argsBase, GetSpecifiedConstructorArguments(element));
+        }

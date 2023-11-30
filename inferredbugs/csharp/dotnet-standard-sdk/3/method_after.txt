@@ -1,0 +1,27 @@
+        public IdentifiedLanguages Identify(string text, Dictionary<string, object> customData = null)
+        {
+            if (string.IsNullOrEmpty(text))
+                throw new ArgumentNullException(nameof(text));
+            IdentifiedLanguages result = null;
+
+            try
+            {
+                IClient client;
+                client = this.Client.WithAuthentication(this.UserName, this.Password);
+                var restRequest = client.PostAsync($"{this.Endpoint}/v2/identify");
+
+                restRequest.WithBodyContent(new StringContent(text, Encoding.UTF8, HttpMediaType.TEXT_PLAIN));
+                if (customData != null)
+                    restRequest.WithCustomData(customData);
+                result = restRequest.As<IdentifiedLanguages>().Result;
+                if(result == null)
+                    result = new IdentifiedLanguages();
+                result.CustomData = restRequest.CustomData;
+            }
+            catch(AggregateException ae)
+            {
+                throw ae.Flatten();
+            }
+
+            return result;
+        }

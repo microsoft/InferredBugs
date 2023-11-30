@@ -1,0 +1,50 @@
+        protected override Variable Evaluate(ParsingScript script)
+        {
+            List<Variable> args = script.GetFunctionArgs();
+
+            if (!m_startTimer)
+            {
+                Utils.CheckArgs(args.Count, 1, m_name);
+                string cancelTimerId = Utils.GetSafeString(args, 0);
+                System.Timers.Timer cancelTimer;
+                if (m_timers.TryGetValue(cancelTimerId, out cancelTimer))
+                {
+                    cancelTimer.Stop();
+                    cancelTimer.Dispose();
+                    m_timers.Remove(cancelTimerId);
+                }
+                return Variable.EmptyInstance;
+            }
+
+            Utils.CheckArgs(args.Count, 2, m_name);
+            int timeout      = args[0].AsInt();
+            string strAction = args[1].AsString();
+            string arg       = Utils.GetSafeString(args, 2);
+            string timerId   = Utils.GetSafeString(args, 3);
+            bool autoReset   = Utils.GetSafeInt(args, 4, 0) != 0;
+
+            arg              = Utils.ProtectQuotes(arg);
+            timerId          = Utils.ProtectQuotes(timerId);
+
+            System.Timers.Timer pauseTimer = new System.Timers.Timer(timeout);
+            pauseTimer.Elapsed += (sender, e) =>
+            {
+                if (!autoReset)
+                {
+                    pauseTimer.Stop();
+                    pauseTimer.Dispose();
+                    m_timers.Remove(timerId);
+                }
+                string body = string.Format("{0}({1},{2});", strAction,
+                              "\"" + arg + "\"", "\"" + timerId + "\"");
+
+                ParsingScript tempScript = new ParsingScript(body);
+                tempScript.Execute();
+            };
+            pauseTimer.AutoReset = autoReset;
+            m_timers[timerId] = pauseTimer;
+
+            pauseTimer.Start();
+
+            return Variable.EmptyInstance;
+        }

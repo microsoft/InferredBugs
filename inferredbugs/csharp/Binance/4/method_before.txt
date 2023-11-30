@@ -1,0 +1,32 @@
+        public void Configure(TimeSpan duration, int count)
+        {
+            if (count < 0)
+                throw new ArgumentException($"{nameof(IApiRateLimiter)} count must be greater than 0 (or equal to 0 to disable).", nameof(count));
+
+            ThrowIfDisposed();
+
+            lock (_sync)
+            {
+                if (count == 0)
+                {
+                    if (_limiters.ContainsKey(duration))
+                    {
+                        _limiters.Remove(duration);
+                    }
+                    return;
+                }
+
+                if (_limiters.ContainsKey(duration))
+                {
+                    _limiters[duration].Count = count;
+                    return;
+                }
+
+                var limiter = _services?.GetService<IRateLimiter>() ?? new RateLimiter();
+
+                limiter.Duration = duration;
+                limiter.Count = count;
+
+                _limiters[duration] = limiter;
+            }
+        }

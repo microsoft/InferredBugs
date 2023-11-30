@@ -1,0 +1,30 @@
+  private RestResponse<T> Deserialize<T>(RestRequest request, RestResponse raw) where T : new()
+		{
+			if(request.OnBeforeDeserialization != null && !request.OnBeforeDeserialization(raw))
+			{
+				return (RestResponse<T>)raw;
+			}
+
+			IDeserializer handler = GetHandler(raw.ContentType);
+			handler.RootElement = request.RootElement;
+			handler.DateFormat = request.DateFormat;
+			handler.Namespace = request.XmlNamespace;
+
+			RestResponse<T> response;
+			try
+			{
+				response = (RestResponse<T>)raw;
+				response.Data = handler.Deserialize<T>(raw);
+			}
+			catch (Exception ex)
+			{
+				response = new RestResponse<T>
+				{
+					ResponseStatus = ResponseStatus.Error,
+					ErrorMessage = ex.Message,
+					ErrorException = ex
+				};
+			}
+
+			return response;
+		}

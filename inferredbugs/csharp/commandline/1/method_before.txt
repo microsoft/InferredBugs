@@ -1,0 +1,41 @@
+        private bool DoParseArgumentsCore(string[] args, object options)
+        {
+            bool hadError = false;
+            var optionMap = OptionInfo.CreateMap(options, _settings);
+            optionMap.SetDefaults();
+            var target = new TargetWrapper(options);
+
+            IArgumentEnumerator arguments = new StringArrayEnumerator(args);
+            while (arguments.MoveNext())
+            {
+                string argument = arguments.Current;
+                if (!string.IsNullOrEmpty(argument))
+                {
+                    ArgumentParser parser = ArgumentParser.Create(argument, _settings.IgnoreUnknownArguments);
+                    if (parser != null)
+                    {
+                        Internal.ParserState result = parser.Parse(arguments, optionMap, options);
+                        if ((result & Internal.ParserState.Failure) == Internal.ParserState.Failure)
+                        {
+                            SetParserStateIfNeeded(options, parser.PostParsingState);
+                            hadError = true;
+                            continue;
+                        }
+
+                        if ((result & Internal.ParserState.MoveOnNextElement) == Internal.ParserState.MoveOnNextElement)
+                            arguments.MoveNext();
+                    }
+                    else if (target.IsValueListDefined)
+                    {
+                        if (!target.AddValueItemIfAllowed(argument))
+                        {
+                            hadError = true;
+                        }
+                    }
+                }
+            }
+
+            hadError |= !optionMap.EnforceRules();
+
+            return !hadError;
+        }

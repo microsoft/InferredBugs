@@ -1,0 +1,54 @@
+    private static NativeStorage Generate(TextWriter writer)
+    {
+        NativeCodeAnalyzer analyzer = NativeCodeAnalyzerFactory.Create(OsVersion.WindowsVista);
+        analyzer.IncludePathList.AddRange(NativeCodeAnalyzerFactory.GetCommonSdkPaths());
+
+        // Run the preprocessor
+        analyzer.Trace = true;
+        string winPath = Path.Combine(PInvoke.Parser.NativeCodeAnalyzerFactory.GetPlatformSdkIncludePath(), "windows.h");
+        TextReaderBag tr = analyzer.RunPreProcessor(winPath);
+        File.WriteAllText("d:\\temp\\windows.out.h", tr.TextReader.ReadToEnd());
+        analyzer.Trace = false;
+
+        NativeCodeAnalyzerResult result = analyzer.Analyze(winPath);
+        ErrorProvider ep = result.ErrorProvider;
+        if (ep.Errors.Count > 0)
+        {
+            Debug.Fail("Encountered an error during the parse");
+        }
+        NativeSymbolBag bag = NativeSymbolBag.CreateFrom(result, CreateInitialNativeStorage(), ep);
+
+        // Resolve with the full dll list
+        using (ProcedureFinder finder = new ProcedureFinder(FullDllList))
+        {
+            bag.TryResolveSymbolsAndValues(finder, ep);
+        }
+
+        foreach (string msg in ep.AllMessages)
+        {
+            writer.WriteLine("' " + msg);
+        }
+
+        // GenerateCode(writer, bag)
+
+        // Now write out the file
+        var ns = new NativeStorage();
+        ns.CacheLookup = true;
+        bag.SaveToNativeStorage(ns);
+        ns.CacheLookup = false;
+        ns.AcceptChanges();
+        VerifyGeneratedStorage(ns);
+        ns.WriteXml("windows.xml");
+
+        // Copy the file to the various applications
+        File.Copy("windows.xml", "..\\..\\..\\ConsoleTool\\bin\\Debug\\windows.xml", true);
+        File.Copy("windows.xml", "..\\..\\Data\\windows.xml", true);
+
+        string fullInstallTarget = Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles"), Path.Combine(PInvoke.Constants.ProductName, "Data\\windows.xml"));
+        if (File.Exists(fullInstallTarget))
+        {
+            File.Copy("windows.xml", fullInstallTarget, true);
+        }
+
+        return ns;
+    }

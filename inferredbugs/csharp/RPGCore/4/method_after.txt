@@ -1,0 +1,51 @@
+  private void FileWatcherEventHandler(object sender, FileSystemEventArgs args)
+		{
+			synchronize.Wait();
+
+			if (args.ChangeType.HasFlag(WatcherChangeTypes.Created))
+			{
+				StartTrackingFile(args.FullPath);
+			}
+
+			if (args.ChangeType.HasFlag(WatcherChangeTypes.Changed))
+			{
+				if (TryGetFileFromFullPath(args.FullPath, out var file))
+				{
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Changed,
+						Entry = file,
+					});
+				}
+				else
+				{
+					StartTrackingFile(args.FullPath);
+				}
+			}
+
+			if (args.ChangeType.HasFlag(WatcherChangeTypes.Deleted))
+			{
+				if (TryGetFileFromFullPath(args.FullPath, out var file))
+				{
+					file.Parent.Files.UntrackFileInternal(file);
+
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Deleted,
+						Entry = file,
+					});
+				}
+				else if (TryGetDirectoryFromFullPath(args.FullPath, out var directory))
+				{
+					directory.Parent.Directories.UntrackDirectoryInternal(directory);
+
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Deleted,
+						Entry = directory,
+					});
+				}
+			}
+
+			synchronize.Release();
+		}

@@ -1,0 +1,85 @@
+        public static void WriteIDictionary(TextWriter writer, object oMap)
+        {
+            WriteObjectDelegate writeKeyFn = null;
+            WriteObjectDelegate writeValueFn = null;
+
+            writer.Write(JsWriter.MapStartChar);
+            var encodeMapKey = false;
+            Type lastKeyType = null;
+            Type lastValueType = null;
+
+            var map = (IDictionary)oMap;
+            var ranOnce = false;
+            foreach (var key in map.Keys)
+            {
+                var dictionaryValue = map[key];
+
+                var isNull = (dictionaryValue == null);
+                if (isNull && !Serializer.IncludeNullValues) continue;
+
+                var keyType = key.GetType();
+                if (writeKeyFn == null || lastKeyType != keyType)
+                {
+                    lastKeyType = keyType;
+                    writeKeyFn = Serializer.GetWriteFn(keyType);
+                    encodeMapKey = Serializer.GetTypeInfo(keyType).EncodeMapKey;
+                }
+
+                JsWriter.WriteItemSeperatorIfRanOnce(writer, ref ranOnce);
+
+                JsState.WritingKeyCount++;
+                try
+                {
+                    if (encodeMapKey)
+                    {
+                        JsState.IsWritingValue = true; //prevent ""null""
+                        try
+                        {
+                            writer.Write(JsWriter.QuoteChar);
+                            writeKeyFn(writer, key);
+                            writer.Write(JsWriter.QuoteChar);
+                        }
+                        finally
+                        {
+                            JsState.IsWritingValue = false;
+                        }
+                    }
+                    else
+                    {
+                        writeKeyFn(writer, key);
+                    }
+                }
+                finally
+                {
+                    JsState.WritingKeyCount--;
+                }
+
+                writer.Write(JsWriter.MapKeySeperator);
+
+                if (isNull)
+                {
+                    writer.Write(JsonUtils.Null);
+                }
+                else
+                {
+                    var valueType = dictionaryValue.GetType();
+                    if (writeValueFn == null || lastValueType != valueType)
+                    {
+                        lastValueType = valueType;
+                        writeValueFn = Serializer.GetWriteFn(valueType);
+                    }
+
+                    JsState.IsWritingValue = true;
+                    try
+                    {
+                        writeValueFn(writer, dictionaryValue);
+                    }
+                    finally
+                    {
+                        JsState.IsWritingValue = false;
+                    }
+                }
+            }
+
+            writer.Write(JsWriter.MapEndChar);
+        }

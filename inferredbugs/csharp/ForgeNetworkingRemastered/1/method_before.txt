@@ -1,0 +1,27 @@
+  public virtual void Connect(string host, ushort port = DEFAULT_PORT)
+#endif
+		{
+			try
+			{
+				disconnectedSelf = false;
+				// Create the raw TcpClient that is to communicate with the server's tcp listener
+#if WINDOWS_UWP
+				client = new StreamSocket();
+				await client.ConnectAsync(new HostName(host), port.ToString());
+#else
+				client = new TcpClient(host, port);
+#endif
+
+				// This was a successful bind so fire the events for it
+				OnBindSuccessful();
+
+				Initialize(host, port);
+			}
+			catch (Exception e)
+			{
+				// This was a failed bind so fire the events for it
+				OnBindFailure();
+
+				throw new BaseNetworkException("Host is invalid or not found", e);
+			}
+		}

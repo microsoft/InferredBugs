@@ -1,0 +1,185 @@
+{
+    "hash": "99c440fb5c929e06843b449fe5495b16d765003c",
+    "message": "changed: Moved Ref<>.Swap to static Ref, so it could be applied to any outside ref value. Ref<> remains just a box for a value.\nchanged: Finished FactoryDelegateParameter.WithNewResolutionScope method based on Ref.Swap.\nadded: Remarks on how Ref.Swap is working.\n\n--HG--\nbranch : edge",
+    "file_num_lines": 2323,
+    "diff_parsed": {
+        "added": [
+            [
+                686,
+                "        public static FactoryDelegateParameter WithNewResolutionScope(ref FactoryDelegateParameter param)"
+            ],
+            [
+                687,
+                "        {"
+            ],
+            [
+                688,
+                "            if (param.ResolutionScope == null)"
+            ],
+            [
+                689,
+                "                Ref.Swap(ref param, p => new FactoryDelegateParameter(p.State, p.SingletonScope, p.CurrentScope, new Scope()));"
+            ],
+            [
+                690,
+                "            return param;"
+            ],
+            [
+                691,
+                "        }"
+            ],
+            [
+                692,
+                ""
+            ],
+            [
+                3086,
+                "        /// <remarks>"
+            ],
+            [
+                3087,
+                "        /// First, it evaluates new value using <paramref name=\"update\"/> function."
+            ],
+            [
+                3088,
+                "        /// Second, it checks that original value is not changed."
+            ],
+            [
+                3089,
+                "        /// If it is changed it will retry first step, otherwise it assigns new value and returns original (the one used for <paramref name=\"update\"/>)."
+            ],
+            [
+                3090,
+                "        /// </remarks>"
+            ],
+            [
+                3101,
+                "                    throw new InvalidOperationException(ERROR_RETRY_COUNT_EXCEEDED);"
+            ],
+            [
+                3106,
+                "        private static readonly string ERROR_RETRY_COUNT_EXCEEDED ="
+            ],
+            [
+                3121,
+                "            return Ref.Swap(ref _value, update);"
+            ]
+        ],
+        "deleted": [
+            [
+                678,
+                "        public static FactoryDelegateParameter WithNewResolutionScope(ref FactoryDelegateParameter param)"
+            ],
+            [
+                679,
+                "        {"
+            ],
+            [
+                680,
+                "            if (param.ResolutionScope == null)"
+            ],
+            [
+                681,
+                "            {"
+            ],
+            [
+                682,
+                "                var oldParam = param;"
+            ],
+            [
+                683,
+                "                var newParam = new FactoryDelegateParameter(param.State, param.SingletonScope, param.CurrentScope, new Scope());"
+            ],
+            [
+                684,
+                "                if (Interlocked.CompareExchange(ref param, newParam, oldParam) == oldParam)"
+            ],
+            [
+                685,
+                "                    return param;"
+            ],
+            [
+                686,
+                "            }"
+            ],
+            [
+                687,
+                "            return param;"
+            ],
+            [
+                688,
+                "        }"
+            ],
+            [
+                689,
+                ""
+            ],
+            [
+                3101,
+                "                    throw new InvalidOperationException(ERROR_EXCEEDED_RETRY_COUNT);"
+            ],
+            [
+                3106,
+                "        private static readonly string ERROR_EXCEEDED_RETRY_COUNT ="
+            ],
+            [
+                3121,
+                "            var retryCount = 0;"
+            ],
+            [
+                3122,
+                "            while (true)"
+            ],
+            [
+                3123,
+                "            {"
+            ],
+            [
+                3124,
+                "                var oldValue = _value;"
+            ],
+            [
+                3125,
+                "                var newValue = update(oldValue);"
+            ],
+            [
+                3126,
+                "                if (Interlocked.CompareExchange(ref _value, newValue, oldValue) == oldValue)"
+            ],
+            [
+                3127,
+                "                    return oldValue;"
+            ],
+            [
+                3128,
+                "                if (++retryCount > RETRY_COUNT_UNTIL_THROW)"
+            ],
+            [
+                3129,
+                "                    throw new InvalidOperationException(ERROR_EXCEEDED_RETRY_COUNT);"
+            ],
+            [
+                3130,
+                "            }"
+            ],
+            [
+                3139,
+                ""
+            ],
+            [
+                3140,
+                "        private const int RETRY_COUNT_UNTIL_THROW = 10;"
+            ],
+            [
+                3141,
+                "        private static readonly string ERROR_EXCEEDED_RETRY_COUNT ="
+            ],
+            [
+                3142,
+                "            \"Ref retried to Update for \" + RETRY_COUNT_UNTIL_THROW + \" times But there is always someone else intervened.\";"
+            ]
+        ]
+    },
+    "num_lines_added": 15,
+    "num_lines_removed": 28
+}

@@ -1,0 +1,14 @@
+        private void BuyAsset(IIndexedOhlcv indexedCandle, decimal premium, IDictionary<IEnumerable<IOhlcv>, decimal> assetCashMap, IList<Transaction> transactions)
+        {
+            if (assetCashMap.TryGetValue(indexedCandle.BackingList, out decimal cash))
+            {
+                var nextIOhlcvData = indexedCandle.Next;
+                int quantity = Convert.ToInt32(Math.Floor((cash - premium) / nextIOhlcvData.Open));
+                
+                decimal cashOut = nextIOhlcvData.Open * quantity + premium;
+                assetCashMap[indexedCandle.BackingList] -= cashOut;
+
+                transactions.Add(new Transaction(indexedCandle.BackingList, nextIOhlcvData.Index, nextIOhlcvData.DateTime, TransactionType.Buy, quantity, cashOut));
+                OnBought?.Invoke(indexedCandle.BackingList, nextIOhlcvData.Index, nextIOhlcvData.DateTime, nextIOhlcvData.Open, quantity, cashOut, assetCashMap[indexedCandle.BackingList]);
+            }
+        }

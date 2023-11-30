@@ -1,0 +1,24 @@
+        public void Subscribe(IEnumerable<string> topics)
+        {
+            if (topics == null)
+            {
+                throw new ArgumentNullException(nameof(topics));
+            }
+
+            Connect(initSNS: true, initSQS: false);
+
+            var topicArns = new List<string>();
+            foreach (var topic in topics)
+            {
+                var createTopicRequest = new CreateTopicRequest(topic.NormalizeForAws());
+
+                var createTopicResponse = _snsClient.CreateTopicAsync(createTopicRequest).GetAwaiter().GetResult();
+
+                topicArns.Add(createTopicResponse.TopicArn);
+            }
+
+            Connect(initSNS: false, initSQS: true);
+
+            _snsClient.SubscribeQueueToTopicsAsync(topicArns, _sqsClient, _queueUrl)
+                .GetAwaiter().GetResult();
+        }

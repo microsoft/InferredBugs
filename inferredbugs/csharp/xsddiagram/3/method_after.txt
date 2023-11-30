@@ -1,0 +1,91 @@
+  public DiagramItem AddElement(DiagramItem parentDiagramElement, XMLSchema.element childElement, string nameSpace)
+		{
+            ClearSearch();
+            if (childElement != null)
+			{
+				DiagramItem childDiagramElement = new DiagramItem();
+
+				XMLSchema.element referenceElement = null;
+				if (childElement.@ref != null)
+				{
+					if (!childElement.@ref.IsEmpty)
+					{
+						childDiagramElement.IsReference = true;
+
+                        XSDObject objectReferred = null;
+                        if(_elementsByName.TryGetValue(childElement.@ref.Namespace + ":element:" + childElement.@ref.Name, out objectReferred) && objectReferred != null)
+						{
+							XMLSchema.element elementReferred = objectReferred.Tag as XMLSchema.element;
+							if (elementReferred != null)
+							{
+								referenceElement = childElement;
+								childElement = elementReferred;
+							}
+						}
+						else
+							childElement.name = childElement.@ref.Name;
+					}
+				}
+
+				childDiagramElement.Diagram = this;
+				childDiagramElement.TabSchema = childElement;
+				childDiagramElement.Name = childElement.name != null ? childElement.name : "";
+				childDiagramElement.NameSpace = nameSpace;
+				childDiagramElement.ItemType = DiagramItemType.element;
+				int occurrence;
+				if (int.TryParse(referenceElement != null ? referenceElement.minOccurs : childElement.minOccurs, out occurrence))
+					childDiagramElement.MinOccurrence = occurrence;
+				else
+					childDiagramElement.MinOccurrence = -1;
+				//try { childDiagramElement.MinOccurrence = int.Parse(referenceElement != null ? referenceElement.minOccurs : childElement.minOccurs); }
+				//catch { childDiagramElement.MinOccurrence = -1; }
+				if (int.TryParse(referenceElement != null ? referenceElement.maxOccurs : childElement.maxOccurs, out occurrence))
+					childDiagramElement.MaxOccurrence = occurrence;
+				else
+					childDiagramElement.MaxOccurrence = -1;
+				//try { childDiagramElement.MaxOccurrence = int.Parse(referenceElement != null ? referenceElement.maxOccurs : childElement.maxOccurs); }
+				//catch { childDiagramElement.MaxOccurrence = -1; }
+
+				bool hasChildren;
+				bool isSimpleType;
+				GetChildrenInfo(childElement, out hasChildren, out isSimpleType);
+				childDiagramElement.HasChildElements = hasChildren;
+				childDiagramElement.IsSimpleContent = isSimpleType;
+
+                if (parentDiagramElement == null)
+                {
+                    _rootElements.Add(childDiagramElement);
+                }
+                else
+                {
+                    childDiagramElement.Parent = parentDiagramElement;
+                    parentDiagramElement.ChildElements.Add(childDiagramElement);
+                }
+
+				if (childElement.@abstract)
+				{
+					string abstractElementFullName = childDiagramElement.FullName;
+					foreach(XSDObject xsdObject in _elementsByName.Values)
+					{
+						if (xsdObject != null && xsdObject.Tag is XMLSchema.element)
+						{
+							XMLSchema.element element = xsdObject.Tag as XMLSchema.element;
+							if (element.substitutionGroup != null)
+							{
+								string elementFullName = element.substitutionGroup.Namespace + ":element:" + element.substitutionGroup.Name;
+								if (elementFullName == abstractElementFullName)
+								{
+									DiagramItem diagramBase = AddElement(parentDiagramElement, element, xsdObject.NameSpace);
+									if (diagramBase != null)
+										diagramBase.InheritFrom = childDiagramElement;
+								}
+							}
+						}
+					}
+				}
+
+				return childDiagramElement;
+			}
+
+			return null;
+		}

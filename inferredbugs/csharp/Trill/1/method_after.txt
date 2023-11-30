@@ -1,0 +1,24 @@
+        public override IDisposable Subscribe(IStreamObserver<TKey, TPayload> observer)
+        {
+            Contract.EnsuresOnThrow<IngressException>(true);
+            if (this.subscriptionActive)
+            {
+                throw new InvalidOperationException(
+                    $"Only one subscription per {nameof(BinaryIngressStreamable<object, object>)} instance " +
+                        $"{(this.stream.CanSeek ? "allowed at a time" : "for streams that do not support Seek")}");
+            }
+
+            this.subscriptionActive = true;
+            var subscription = new BinaryIngressReader<TKey, TPayload>(
+                this.IngressSiteIdentifier, this, observer, this.numMessages, this.stream, this.scheduler, this.delayed, OnSubscriptionCompleted);
+
+            if (this.delayed)
+            {
+                this.container.RegisterIngressPipe(this.IngressSiteIdentifier, subscription);
+                return subscription.DelayedDisposable;
+            }
+            else
+            {
+                return Utility.EmptyDisposable;
+            }
+        }

@@ -1,0 +1,47 @@
+        public static LoggerConfiguration MSSqlServer(
+            this LoggerAuditSinkConfiguration loggerAuditSinkConfiguration,
+            string connectionString,
+            string tableName,
+            IConfiguration appConfiguration = null,
+            LogEventLevel restrictedToMinimumLevel = LevelAlias.Minimum,
+            IFormatProvider formatProvider = null,
+            bool autoCreateSqlTable = false,
+            ColumnOptions columnOptions = null,
+            IConfigurationSection columnOptionsSection = null,
+            string schemaName = "dbo",
+            ITextFormatter logEventFormatter = null)
+        {
+            if (loggerAuditSinkConfiguration == null)
+                throw new ArgumentNullException(nameof(loggerAuditSinkConfiguration));
+
+            var colOpts = columnOptions ?? new ColumnOptions();
+            var connStr = connectionString;
+
+            if (ConfigurationManager.GetSection(AppConfigSectionName) is MSSqlServerConfigurationSection serviceConfigSection)
+            {
+                var systemConfiguration = new ApplySystemConfiguration();
+                colOpts = systemConfiguration.ConfigureColumnOptions(serviceConfigSection, colOpts);
+                connStr = systemConfiguration.GetConnectionString(connStr);
+
+                if (appConfiguration != null || columnOptionsSection != null)
+                    SelfLog.WriteLine("Warning: Both System.Configuration (app.config or web.config) and Microsoft.Extensions.Configuration are being applied to the MSSQLServer sink.");
+            }
+
+            if (appConfiguration != null || columnOptionsSection != null)
+            {
+                var microsoftExtensionsConfiguration = new ApplyMicrosoftExtensionsConfiguration();
+                connStr = microsoftExtensionsConfiguration.GetConnectionString(connStr, appConfiguration);
+                colOpts = microsoftExtensionsConfiguration.ConfigureColumnOptions(colOpts, columnOptionsSection);
+            }
+
+            return loggerAuditSinkConfiguration.Sink(
+                new MSSqlServerAuditSink(
+                    connStr,
+                    tableName,
+                    formatProvider,
+                    autoCreateSqlTable,
+                    colOpts,
+                    schemaName,
+                    logEventFormatter),
+                restrictedToMinimumLevel);
+        }

@@ -1,0 +1,51 @@
+        [TestCaseSource(nameof(ProjectTestCases))]
+        public void CompilesProject(EnvironmentPreference preference, string solutionPath, string projectPath)
+        {
+            // Given
+            StringWriter log = new StringWriter();
+            AnalyzerManager manager = new AnalyzerManager(solutionPath, new AnalyzerManagerOptions
+            {
+                LogWriter = log
+            });
+            ProjectAnalyzer analyzer = manager.GetProject(projectPath);
+            EnvironmentOptions options = new EnvironmentOptions
+            {
+                Preference = preference
+            };
+
+            // Set some enviornment variables to make it seem like we're not in a CI build
+            // Sometimes this messes up libraries like SourceLink since we're building as part of a test and not for CI
+            options.EnvironmentVariables.Add("APPVEYOR", "False");
+            options.EnvironmentVariables.Add("ContinuousIntegrationBuild", null);
+            options.EnvironmentVariables.Add("CI", "False");
+            options.EnvironmentVariables.Add("CI_LINUX", "False");
+            options.EnvironmentVariables.Add("CI_WINDOWS", "False");
+
+            
+
+            // When
+            DeleteProjectDirectory(analyzer.ProjectFile.Path, "obj");
+            DeleteProjectDirectory(analyzer.ProjectFile.Path, "bin");
+            analyzer.IgnoreFaultyImports = false;
+
+#pragma warning disable 0162
+            if (BinaryLog)
+            {
+                analyzer.AddBinaryLogger($@"E:\Temp\{Path.GetFileNameWithoutExtension(solutionPath)}.{Path.GetFileNameWithoutExtension(analyzer.ProjectFile.Path)}.core.binlog");
+            }
+#pragma warning restore 0162
+            
+#if Is_Windows
+            AnalyzerResults results = analyzer.Build(options);
+#else
+            // On non-Windows platforms we have to remove the .NET Framework target frameworks and only build .NET Core target frameworks
+            // See https://github.com/dotnet/sdk/issues/826            
+            string[] excludedTargetFrameworks = new[] { "net2", "net3", "net4", "portable" };
+            AnalyzerResults results = analyzer.Build(analyzer.ProjectFile.TargetFrameworks.Where(x => !excludedTargetFrameworks.Any(y => x.StartsWith(y))).ToArray(), options);
+#endif
+
+            // Then
+            results.Count.ShouldBeGreaterThan(0, log.ToString());
+            results.OverallSuccess.ShouldBeTrue(log.ToString());
+            results.ShouldAllBe(x => x.Succeeded, log.ToString());
+        }

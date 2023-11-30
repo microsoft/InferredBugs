@@ -1,0 +1,27 @@
+        public static string Name<T>(Expression<Func<T, object>> lambda)
+        {
+            var navs = new List<string>();
+            Expression node = (lambda as LambdaExpression).Body;
+            if (node.NodeType == ExpressionType.New) node = (node as NewExpression).Arguments[0];
+            if (node.NodeType == ExpressionType.Convert) node = (node as UnaryExpression).Operand;
+
+            while (node != null)
+            {
+                if (node.NodeType != ExpressionType.MemberAccess) node = null;
+                else
+                {
+                    var m = node as MemberExpression;
+                    if (m.Expression != null && m.Expression.Type.Name.StartsWith(_autoClassName, StringComparison.Ordinal)) node = null;
+                    else
+                    {
+                        navs.Add(m.Member.Name);
+                        node = m.Expression;
+                        if (node.NodeType == ExpressionType.Call) node = (node as MethodCallExpression).Object;
+                    }
+                }
+            }
+
+            navs.Reverse();
+            string nav = string.Join(".", navs);
+            return nav;
+        }

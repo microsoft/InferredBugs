@@ -1,0 +1,27 @@
+    [Benchmark]
+    public Task FastEndpointsThrottling()
+    {
+        var msg = new HttpRequestMessage()
+        {
+            Method = HttpMethod.Post,
+            RequestUri = new Uri($"{FEThrottleClient.BaseAddress}benchmark/throttle/123"),
+            Content = new StringContent(
+                JsonSerializer.Serialize(
+                    new FastEndpointsBench.ThrottleRequest()
+                    {
+                        FirstName = "xxx",
+                        LastName = "yyy",
+                        Age = 23,
+                        PhoneNumbers = new[] {
+                            "1111111111",
+                            "2222222222",
+                            "3333333333",
+                            "4444444444",
+                            "5555555555"
+                        }
+                    }), Encoding.UTF8, "application/json")
+        };
+        msg.Headers.Add("X-Forwarded-For", $"000.000.000.{Random.Shared.NextInt64(100, 200)}");
+
+        return FEThrottleClient.SendAsync(msg);
+    }

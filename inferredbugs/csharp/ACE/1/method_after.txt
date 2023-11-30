@@ -1,0 +1,56 @@
+        private static void HandleConnectResponse(ClientPacket packet, Session session)
+        {
+            ulong check = packet.Payload.ReadUInt64(); // 13626398284849559039 - sent in previous packet
+
+            var characterList     = new ServerPacket(0x0B, PacketHeaderFlags.EncryptedChecksum);
+            var characterFragment = new ServerPacketFragment(9, FragmentOpcode.CharacterList);
+
+            characterFragment.Payload.Write(0u);
+            characterFragment.Payload.Write(1u /*characterCount*/);
+
+            // character loop
+            {
+                characterFragment.Payload.Write(123u);
+                characterFragment.Payload.WriteString16L("Test Character");
+                characterFragment.Payload.Write(0u /*secondsGreyedOut*/);
+            }
+
+            characterFragment.Payload.Write(0u);
+            characterFragment.Payload.Write(11u /*slotCount*/);
+            characterFragment.Payload.WriteString16L("accountname");
+            characterFragment.Payload.Write(0u /*useTurbineChat*/);
+            characterFragment.Payload.Write(0u /*hasThroneOfDestiny*/);
+            characterList.Fragments.Add(characterFragment);
+
+            NetworkMgr.SendLoginPacket(characterList, session);
+
+            var serverName         = new ServerPacket(0x0B, PacketHeaderFlags.EncryptedChecksum);
+            var serverNameFragment = new ServerPacketFragment(9, FragmentOpcode.ServerName);
+
+            serverNameFragment.Payload.Write(0u);
+            serverNameFragment.Payload.Write(0u);
+            serverNameFragment.Payload.WriteString16L("ACEmulator");
+            serverName.Fragments.Add(serverNameFragment);
+
+            NetworkMgr.SendLoginPacket(serverName, session);
+
+            // looks like account settings/info, expansion information ect?
+            var packet75e5         = new ServerPacket(0x0B, PacketHeaderFlags.EncryptedChecksum);
+            var packet75e5Fragment = new ServerPacketFragment(9, FragmentOpcode.Unknown75E5);
+
+            packet75e5Fragment.Payload.Write(0u);
+            packet75e5Fragment.Payload.Write(1u);
+            packet75e5Fragment.Payload.Write(1u);
+            packet75e5Fragment.Payload.Write(1u);
+            packet75e5Fragment.Payload.Write(2u);
+            packet75e5Fragment.Payload.Write(0u);
+            packet75e5Fragment.Payload.Write(1u);
+            packet75e5.Fragments.Add(packet75e5Fragment);
+
+            NetworkMgr.SendLoginPacket(serverName, session);
+
+            var patchStatus = new ServerPacket(0x0B, PacketHeaderFlags.EncryptedChecksum);
+            patchStatus.Fragments.Add(new ServerPacketFragment(5, FragmentOpcode.PatchStatus));
+
+            NetworkMgr.SendLoginPacket(patchStatus, session);
+        }

@@ -1,0 +1,47 @@
+  private TranslateItem ParseBody(TextReader fs, string line)
+		{
+			if (string.IsNullOrEmpty(line)) {
+                return null; }
+
+            TranslateItem message = new TranslateItem();
+			StringBuilder sb = new StringBuilder();
+
+			line = RemoveCommentIfHistorical(line); //so that we read in removed historical records too
+			if (line.StartsWith("msgid"))
+			{
+				var msgid = Unquote(line);
+				sb.Append(msgid);
+
+				while ((line = fs.ReadLine()) != null)
+				{
+					line = RemoveCommentIfHistorical(line);
+					if (!line.StartsWith("msgstr") && (msgid = Unquote(line)) != null)
+					{
+						sb.Append(msgid);
+					}
+					else
+					{
+						break;
+					}
+				}
+
+				message.Id = Unescape(sb.ToString());
+			}
+
+			sb.Clear();
+			line = RemoveCommentIfHistorical(line);
+			if (!string.IsNullOrEmpty(line) && line.StartsWith("msgstr"))
+			{
+				var msgstr = Unquote(line);
+				sb.Append(msgstr);
+
+				while ((line = fs.ReadLine()) != null && (msgstr = Unquote(line)) != null)
+				{
+					line = RemoveCommentIfHistorical(line);
+					sb.Append(msgstr);
+				}
+
+				message.Message = Unescape(sb.ToString());
+			}
+            return message;
+		}

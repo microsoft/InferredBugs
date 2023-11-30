@@ -1,0 +1,44 @@
+        private bool ProcessKEXDHREPLY(DataFragment packet) {
+            //Round2 receives response
+            SSH2DataReader re = null;
+            PacketType h;
+            do {
+                re = new SSH2DataReader(packet);
+                h = re.ReadPacketType();
+                if (h == PacketType.SSH_MSG_KEXDH_REPLY)
+                    break; //successfully exit
+                else if (h == PacketType.SSH_MSG_IGNORE || h == PacketType.SSH_MSG_DEBUG) { //continue
+                    packet = _connection.ReceivePacket();
+                }
+                else
+                    throw new SSHException(String.Format("KeyExchange response is not KEXDH_REPLY but {0}", h));
+            } while (true);
+
+            byte[] key_and_cert = re.ReadString();
+            BigInteger f = re.ReadMPInt();
+            byte[] signature = re.ReadString();
+            Debug.Assert(re.Rest == 0);
+
+            //Round3 calc hash H
+            SSH2DataWriter wr = new SSH2DataWriter();
+            _k = f.modPow(_x, GetDiffieHellmanPrime(_cInfo._kexAlgorithm));
+            wr = new SSH2DataWriter();
+            wr.WriteString(_cInfo._clientVersionString);
+            wr.WriteString(_cInfo._serverVersionString);
+            wr.WriteAsString(_clientKEXINITPayload);
+            wr.WriteAsString(_serverKEXINITPayload);
+            wr.WriteAsString(key_and_cert);
+            wr.WriteBigInteger(_e);
+            wr.WriteBigInteger(f);
+            wr.WriteBigInteger(_k);
+            _hash = new SHA1CryptoServiceProvider().ComputeHash(wr.ToByteArray());
+
+            _connection.TraceReceptionEvent(h, "verifying host key");
+            if (!VerifyHostKey(key_and_cert, signature, _hash))
+                return false;
+
+            //Debug.WriteLine("hash="+DebugUtil.DumpByteArray(hash));
+            if (_sessionID == null)
+                _sessionID = _hash;
+            return true;
+        }

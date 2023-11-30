@@ -1,0 +1,80 @@
+        private void WriteFunctionBody(TextWriter output, Function function)
+        {
+            var funLocation = context.LocationResolver.GetLocation(function);
+            context.WriteLine(output, $"#line {funLocation.Line} \"{funLocation.File.Name}\"");
+
+            for (var i = 0; i < function.Signature.Parameters.Count; i++)
+            {
+                Variable argument = function.Signature.Parameters[i];
+                string varName = context.Names.GetNameForDecl(argument);
+                context.WriteLine(output, $"PRT_VALUE** {varName} = argRefs[{i}];");
+            }
+
+            foreach (Variable localVariable in function.LocalVariables)
+            {
+                string varName = context.Names.GetNameForDecl(localVariable);
+                string varTypeName = context.Names.GetNameForType(localVariable.Type);
+                // TODO: optimize away PrtMkDefaultValue if liveness shows no usages before assignments.
+                context.WriteLine(output, $"PRT_VALUE* {varName} = PrtMkDefaultValue(&{varTypeName});");
+            }
+
+            context.WriteLine(output, $"PRT_VALUE* {FunCallRetValName} = NULL;");
+            // TODO: figure out how many args are actually necessary based on function calls.
+            context.WriteLine(output, $"PRT_VALUE** {FunCallArgsArrayName}[32];");
+            context.WriteLine(output, "PRT_MACHINEINST_PRIV* p_this = (PRT_MACHINEINST_PRIV*)context;");
+            if (function.Signature.ReturnType.IsSameTypeAs(PrimitiveType.Null))
+            {
+                context.WriteLine(output, $"PRT_VALUE* {FunResultValName} = NULL;");
+            }
+            else
+            {
+                string nameForReturnType = context.Names.GetNameForType(function.Signature.ReturnType);
+                context.WriteLine(output, $"PRT_VALUE* {FunResultValName} = PrtMkDefaultValue(&{nameForReturnType});");
+            }
+
+            context.WriteLine(output);
+
+            // Write the body into a temporary buffer so that forward declarations can be found and added
+            var bodyWriter = new StringWriter();
+            var bodyLocation = context.LocationResolver.GetLocation(function.Body);
+            context.WriteLine(bodyWriter, $"#line {bodyLocation.Line} \"{bodyLocation.File.Name}\"");
+
+            foreach (IPStmt stmt in function.Body.Statements)
+            {
+                WriteStmt(bodyWriter, function, stmt);
+            }
+
+            bodyWriter.WriteLine($"{context.Names.GetReturnLabel(function)}:");
+            foreach (Variable localVariable in function.LocalVariables)
+            {
+                string varName = context.Names.GetNameForDecl(localVariable);
+                context.WriteLine(bodyWriter, $"PrtFreeValue({varName}); {varName} = NULL;");
+            }
+
+            context.WriteLine(bodyWriter, $"return {FunResultValName};");
+
+            // Write gathered literals to the prologue
+            context.WriteLine(output,
+                $"PRT_VALUE {FunNullStaticName} = {{ PRT_VALUE_KIND_NULL, {{ .ev = PRT_SPECIAL_EVENT_NULL }} }};");
+
+            foreach (var literal in context.GetRegisteredIntLiterals(function))
+            {
+                context.WriteLine(output,
+                    $"PRT_VALUE {literal.Value} = {{ PRT_VALUE_KIND_INT, {{ .nt = {literal.Key} }} }};");
+            }
+
+            foreach (var literal in context.GetRegisteredFloatLiterals(function))
+            {
+                context.WriteLine(output,
+                    $"PRT_VALUE {literal.Value} = {{ PRT_VALUE_KIND_FLOAT, {{ .ft = {literal.Key} }} }};");
+            }
+
+            foreach (var literal in context.GetRegisteredBoolLiterals(function))
+            {
+                context.WriteLine(
+                    output,
+                    $"PRT_VALUE {literal.Value} = {{ PRT_VALUE_KIND_BOOL, {{ .bl = {(literal.Key ? "PRT_TRUE" : "PRT_FALSE")} }} }};");
+            }
+
+            output.Write(bodyWriter);
+        }

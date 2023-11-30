@@ -1,0 +1,39 @@
+        [Test]
+        public void LoadPlugins_ThrowErrors_When_Same_Type_Is_Loaded_More_Than_Once()
+        {
+            // arrange
+            const string filePath1 = @"c:\pluginDirectory\plugin_one.dll";
+            var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
+            {
+                {
+                    filePath1, new MockFileData(string.Empty)
+                }
+            });
+
+            var assemblyWrapper = new TestAssemblyWrapper(defaultPlugin: typeof(TestPluginThrowsException));
+
+            var pluginPaths = new Dictionary<string, string>
+            {
+                {
+                    "my-plugin", filePath1
+                },
+                {
+                    "my-plugin-directories", @"c:\pluginDirectory"
+                },
+                {
+                    "my-plugin-invalid-path", @"c:\doesnt-exist"
+                }
+            };
+
+            var reporter = Substitute.For<IReporter>();
+
+            // act
+            var pluginHandler = new Lib.Plugins.PluginHandler(reporter, fileSystem, assemblyWrapper);
+            pluginHandler.ProcessPaths(pluginPaths);
+
+            // assert
+            Assert.AreEqual(1, pluginHandler.Plugins.Count);
+            var type = typeof(TestPluginThrowsException);
+            reporter.Received().Report($"Loaded plugin: '{type.FullName}', Version: '1.10.1.0'");
+            reporter.Received().Report($"Already loaded plugin with type '{type.FullName}'");
+        }

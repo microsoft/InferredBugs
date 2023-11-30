@@ -1,0 +1,57 @@
+        [NotNull]
+        private T[] ConsumeArgArray<T>(Instruction instruction, Func<Instruction, T> consumeItem)
+        {
+            if (instruction.OpCode == OpCodes.Call)
+            {
+                if (!(instruction.Operand is MethodReference method) || method.GetElementMethod().FullName != "!!0[] System.Array::Empty()")
+                    throw UnexpectedInstruction(instruction, "newarr or call to Array.Empty");
+
+                _il.Remove(instruction);
+                return Array.Empty<T>();
+            }
+
+            if (instruction.OpCode != OpCodes.Newarr)
+                throw UnexpectedInstruction(instruction, "newarr or call to Array.Empty");
+
+            var newarrInstruction = instruction;
+
+            var countInstruction = newarrInstruction.PrevSkipNops();
+            if (countInstruction?.OpCode != OpCodes.Ldc_I4)
+                throw UnexpectedInstruction(countInstruction, OpCodes.Ldc_I4);
+
+            var count = (int)countInstruction.Operand;
+            var args = new T[count];
+
+            var currentDupInstruction = newarrInstruction.NextSkipNops();
+
+            for (var index = 0; index < count; ++index)
+            {
+                var dupInstruction = currentDupInstruction;
+                if (dupInstruction?.OpCode != OpCodes.Dup)
+                    throw UnexpectedInstruction(dupInstruction, OpCodes.Dup);
+
+                var indexInstruction = dupInstruction.NextSkipNops();
+                if (indexInstruction?.OpCode != OpCodes.Ldc_I4)
+                    throw UnexpectedInstruction(indexInstruction, OpCodes.Ldc_I4);
+
+                if ((int?)indexInstruction?.Operand != index)
+                    throw UnexpectedInstruction(indexInstruction, $"ldc.i4 with value of {index}");
+
+                var stelemInstruction = dupInstruction.GetValueConsumingInstruction();
+                if (!stelemInstruction.OpCode.IsStelem())
+                    throw UnexpectedInstruction(stelemInstruction, "stelem");
+
+                args[index] = consumeItem(stelemInstruction.PrevSkipNops());
+
+                currentDupInstruction = stelemInstruction.NextSkipNops();
+
+                _il.Remove(dupInstruction);
+                _il.Remove(indexInstruction);
+                _il.Remove(stelemInstruction);
+            }
+
+            _il.Remove(countInstruction);
+            _il.Remove(newarrInstruction);
+
+            return args;
+        }

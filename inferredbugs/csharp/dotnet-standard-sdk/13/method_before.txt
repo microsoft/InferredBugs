@@ -1,0 +1,73 @@
+        public DetailedResponse<AnalyzedDocument> AnalyzeDocument(string projectId, string collectionId, System.IO.MemoryStream file = null, string filename = null, string fileContentType = null, string metadata = null)
+        {
+            if (string.IsNullOrEmpty(Version))
+            {
+                throw new ArgumentNullException("`Version` is required");
+            }
+            if (string.IsNullOrEmpty(projectId))
+            {
+                throw new ArgumentNullException("`projectId` is required for `AnalyzeDocument`");
+            }
+            else
+            {
+                projectId = Uri.EscapeDataString(projectId);
+            }
+            if (string.IsNullOrEmpty(collectionId))
+            {
+                throw new ArgumentNullException("`collectionId` is required for `AnalyzeDocument`");
+            }
+            else
+            {
+                collectionId = Uri.EscapeDataString(collectionId);
+            }
+            DetailedResponse<AnalyzedDocument> result = null;
+
+            try
+            {
+                var formData = new MultipartFormDataContent();
+
+                if (file != null)
+                {
+                    var fileContent = new ByteArrayContent(file.ToArray());
+                    System.Net.Http.Headers.MediaTypeHeaderValue contentType;
+                    System.Net.Http.Headers.MediaTypeHeaderValue.TryParse(fileContentType, out contentType);
+                    fileContent.Headers.ContentType = contentType;
+                    formData.Add(fileContent, "file", filename);
+                }
+
+                if (metadata != null)
+                {
+                    var metadataContent = new StringContent(metadata, Encoding.UTF8, HttpMediaType.TEXT_PLAIN);
+                    metadataContent.Headers.ContentType = null;
+                    formData.Add(metadataContent, "metadata");
+                }
+
+                IClient client = this.Client;
+                SetAuthentication();
+
+                var restRequest = client.PostAsync($"{this.Endpoint}/v2/projects/{projectId}/collections/{collectionId}/analyze");
+
+                restRequest.WithHeader("Accept", "application/json");
+                if (!string.IsNullOrEmpty(Version))
+                {
+                    restRequest.WithArgument("version", Version);
+                }
+                restRequest.WithBodyContent(formData);
+
+                restRequest.WithHeaders(Common.GetSdkHeaders("discovery", "v2", "AnalyzeDocument"));
+                restRequest.WithHeaders(customRequestHeaders);
+                ClearCustomRequestHeaders();
+
+                result = restRequest.As<AnalyzedDocument>().Result;
+                if (result == null)
+                {
+                    result = new DetailedResponse<AnalyzedDocument>();
+                }
+            }
+            catch (AggregateException ae)
+            {
+                throw ae.Flatten();
+            }
+
+            return result;
+        }

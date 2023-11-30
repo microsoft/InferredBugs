@@ -1,0 +1,19 @@
+        public override Paging<Anime> GetList<TFilter>(IFilter<TFilter> filter)
+        {
+            AnimeFilter animeFilter = filter as AnimeFilter;
+
+            var builder = Builders<Anime>.Filter;
+            FilterDefinition<Anime> queryFilter = builder.Empty;
+
+            if (!string.IsNullOrEmpty(animeFilter.title))
+            {
+                queryFilter = queryFilter & builder.Regex($"titles.{animeFilter.locale}", new BsonRegularExpression($".*{animeFilter.title}.*", "i"));
+            }
+
+            if(animeFilter.anilist_id != 0)
+            {
+                queryFilter = queryFilter & builder.Eq("anilist_id", animeFilter.anilist_id);
+            }
+
+            return new Paging<Anime>(this.Collection, animeFilter.page, queryFilter, animeFilter.per_page);
+        }

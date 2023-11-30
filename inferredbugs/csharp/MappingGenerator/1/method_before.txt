@@ -1,0 +1,31 @@
+        private static IEnumerable<MatchedPropertySymbols> RetrieveMatchedProperties(INamedTypeSymbol source, INamedTypeSymbol target)
+        {
+            var propertiesMap = new SortedDictionary<string, MatchedPropertySymbols>();
+
+            foreach (var mSymbol in GetPublicPropertySymbols(source))
+            {
+                if (!propertiesMap.ContainsKey(mSymbol.Name))
+                {
+                    // If class definition is invalid, it may happen that we get multiple properties with the same name
+                    // Ignore all but first
+                    propertiesMap.Add(mSymbol.Name, new MatchedPropertySymbols() { Source = mSymbol });
+                }
+            }
+
+            foreach (var mSymbol in GetPublicPropertySymbols(target))
+            {
+                MatchedPropertySymbols sourceProperty = null;
+                if (!propertiesMap.TryGetValue(mSymbol.Name, out sourceProperty))
+                {
+                    propertiesMap.Add(mSymbol.Name, new MatchedPropertySymbols { Target = mSymbol });
+                }
+                else if (sourceProperty.Target == null)
+                {
+                    // If class definition is invalid, it may happen that we get multiple properties with the same name
+                    // Ignore all but first
+                    sourceProperty.Target = mSymbol;
+                }
+            }
+
+            return propertiesMap.Values;
+        }

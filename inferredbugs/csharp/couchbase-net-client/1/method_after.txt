@@ -1,0 +1,40 @@
+        public IBucket CreateBucket(string bucketName)
+        {
+            var success = false;
+            IBucket bucket = null;
+            foreach (var provider in _configProviders)
+            {
+                try
+                {
+                    var config = provider.GetConfig(bucketName);
+                    switch (config.BucketType)
+                    {
+                        case BucketTypeEnum.Couchbase:
+                            bucket = new CouchbaseBucket(this, bucketName);
+                            break;
+                        case BucketTypeEnum.Memcached:
+                            throw new NotSupportedException("No implementations for MemcachedBuckets exist ATM.");
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                    var listener = bucket as IConfigListener;
+                    if (provider.RegisterListener(listener) && 
+                        _buckets.TryAdd(bucket.Name, bucket))
+                    {
+                        listener.NotifyConfigChanged(config);
+                        success = true;
+                        break;
+                    }
+                }
+                catch (ConfigException e)
+                {
+                    Log.Warn(e);
+                }
+            }
+
+            if (!success)
+            {
+                throw new ConfigException("Could not bootstrap {0}. See log for details.", bucketName);
+            }
+            return bucket;
+        }

@@ -1,0 +1,41 @@
+        public static void TrainWithSelu(string dataFilesPath)
+        {
+            using (var lap = BrightWireGpuProvider.CreateLinearAlgebra()) {
+                var graph = new GraphFactory(lap);
+
+                // parse the iris CSV into a data table and normalise
+                var dataTable = new StreamReader(new MemoryStream(File.ReadAllBytes(dataFilesPath))).ParseCSV(',').Normalise(NormalisationType.Standard);
+
+                // split the data table into training and test tables
+                var split = dataTable.Split(0);
+                var trainingData = graph.CreateDataSource(split.Training);
+                var testData = graph.CreateDataSource(split.Test);
+
+                // one hot encoding uses the index of the output vector's maximum value as the classification label
+                var errorMetric = graph.ErrorMetric.OneHotEncoding;
+
+                // configure the network properties
+                graph.CurrentPropertySet
+                    .Use(graph.GradientDescent.RmsProp)
+                    .Use(graph.GaussianWeightInitialisation(true, 0.1f, GaussianVarianceCalibration.SquareRoot2N, GaussianVarianceCount.FanInFanOut))
+                ;
+
+                // create the training engine and schedule a training rate change
+                const float TRAINING_RATE = 0.01f;
+                var engine = graph.CreateTrainingEngine(trainingData, TRAINING_RATE, batchSize: 32);
+
+                // create the network with the custom activation function
+                graph.Connect(engine)
+                    .AddFeedForward(outputSize: 16)
+	                .AddBatchNormalisation()
+                    .Add(new SeluActivation())
+                    .AddFeedForward(trainingData.OutputSize)
+                    .Add(graph.SoftMaxActivation())
+                    .AddBackpropagation(errorMetric)
+                ;
+
+                // train the network, but only run the test set every 50 iterations
+                const int TRAINING_ITERATIONS = 1500;
+                engine.Train(TRAINING_ITERATIONS, testData, errorMetric, null);
+            }
+        }

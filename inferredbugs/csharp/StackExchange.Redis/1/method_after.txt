@@ -1,0 +1,25 @@
+        private void EndConnect(IAsyncResult ar)
+        {
+            Tuple<Socket, ISocketCallback> tuple = null;
+            try
+            {
+                tuple = (Tuple<Socket, ISocketCallback>)ar.AsyncState;
+                var socket = tuple.Item1;
+                var callback = tuple.Item2;
+                socket.EndConnect(ar);
+                AddRead(socket, callback);
+                var netStream = new NetworkStream(socket, false);
+                callback.Connected(netStream);
+            }
+            catch
+            {
+                if (tuple != null)
+                {
+                    try { tuple.Item2.Error(); }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine(ex);
+                    }
+                }
+            }
+        }

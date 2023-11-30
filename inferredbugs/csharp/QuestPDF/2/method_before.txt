@@ -1,0 +1,30 @@
+        internal override ISpacePlan Measure(Size availableSpace)
+        {
+            if (MinWidth > availableSpace.Width + Size.Epsilon)
+                return new Wrap();
+            
+            if (MinHeight > availableSpace.Height + Size.Epsilon)
+                return new Wrap();
+            
+            var available = new Size(
+                MathHelpers.Min(MaxWidth, availableSpace.Width),
+                MathHelpers.Min(MaxHeight, availableSpace.Height));
+
+            var measurement = Child?.Measure(available) ?? new FullRender(Size.Zero);
+            var size = measurement as Size;
+
+            if (measurement is Wrap)
+                return new Wrap();
+            
+            var actualSize = new Size(
+                MathHelpers.Max(MinWidth, size.Width),
+                MathHelpers.Max(MinHeight, size.Height));
+            
+            if (size is FullRender)
+                return new FullRender(actualSize);
+            
+            if (size is PartialRender)
+                return new PartialRender(actualSize);
+            
+            throw new NotSupportedException();
+        }

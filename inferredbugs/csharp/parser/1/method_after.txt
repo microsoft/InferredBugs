@@ -1,0 +1,17 @@
+        [Theory]
+        [InlineData(IgnoreOptions.None)]
+        //[InlineData(IgnoreOptions.IgnoreComments)]
+        //[InlineData(IgnoreOptions.IgnoreCommentsAndLocations)]
+        public void Comments_on_FragmentInline_Should_Read_Correclty(IgnoreOptions options)
+        {
+            string query = "CommentsOnInlineFragment".ReadGraphQLFile();
+
+            using var document = query.Parse(new ParserOptions { Ignore = options });
+            document.Definitions.Count.ShouldBe(1);
+            var def = document.Definitions.First() as GraphQLOperationDefinition;
+            def.SelectionSet.Selections.Count.ShouldBe(1);
+            var field = def.SelectionSet.Selections.First() as GraphQLFieldSelection;
+            field.SelectionSet.Selections.Count.ShouldBe(1);
+            var fragment = field.SelectionSet.Selections.First() as GraphQLInlineFragment;
+            fragment.Comment.ShouldNotBeNull().Text.ShouldBe("comment");
+        }

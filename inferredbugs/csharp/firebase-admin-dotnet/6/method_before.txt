@@ -1,0 +1,20 @@
+        [Theory]
+        [MemberData(nameof(HttpErrorCodes))]
+        public void KnownHttpStatusCode(HttpStatusCode statusCode, ErrorCode expected)
+        {
+            var json = "{}";
+            var resp = new HttpResponseMessage()
+            {
+                StatusCode = statusCode,
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            };
+
+            var error = ErrorHandler.HandleHttpErrorResponse(resp, json);
+
+            Assert.Equal(expected, error.ErrorCode);
+            Assert.Equal(
+                $"Unexpected HTTP response with status: {(int)statusCode} ({statusCode})\n{json}",
+                error.Message);
+            Assert.Same(resp, error.HttpResponse);
+            Assert.Null(error.InnerException);
+        }

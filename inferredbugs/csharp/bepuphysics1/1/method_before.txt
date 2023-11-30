@@ -1,0 +1,235 @@
+        public bool RayCast(ref Ray ray, float maximumLength, ref AffineTransform transform, TriangleSidedness sidedness, out RayHit hit)
+        {
+            hit = new RayHit();
+            //Put the ray into local space.
+            Ray localRay;
+            AffineTransform inverse;
+            AffineTransform.Invert(ref transform, out inverse);
+            Matrix3x3.Transform(ref ray.Direction, ref inverse.LinearTransform, out localRay.Direction);
+            AffineTransform.Transform(ref ray.Position, ref inverse, out localRay.Position);
+
+            //Use rasterizey traversal.
+            //The origin is at 0,0,0 and the map goes +X, +Y, +Z.
+            //if it's before the origin and facing away, or outside the max and facing out, early out.
+            float maxX = heights.GetLength(0) - 1;
+            float maxZ = heights.GetLength(1) - 1;
+
+            Vector3 progressingOrigin = localRay.Position;
+            float distance = 0;
+            //Check the outside cases first.
+            if (progressingOrigin.X < 0)
+            {
+                if (localRay.Direction.X > 0)
+                {
+                    //Off the left side.
+                    float timeToMinX = -progressingOrigin.X / localRay.Direction.X;
+                    distance += timeToMinX;
+                    Vector3 increment;
+                    Vector3.Multiply(ref localRay.Direction, timeToMinX, out increment);
+                    Vector3.Add(ref increment, ref progressingOrigin, out progressingOrigin);
+                }
+                else
+                    return false; //Outside and pointing away from the terrain.
+            }
+            else if (progressingOrigin.X > maxX)
+            {
+                if (localRay.Direction.X < 0)
+                {
+                    //Off the left side.
+                    float timeToMinX = -(progressingOrigin.X - maxX) / localRay.Direction.X;
+                    distance += timeToMinX;
+                    Vector3 increment;
+                    Vector3.Multiply(ref localRay.Direction, timeToMinX, out increment);
+                    Vector3.Add(ref increment, ref progressingOrigin, out progressingOrigin);
+                }
+                else
+                    return false; //Outside and pointing away from the terrain.
+            }
+
+            if (progressingOrigin.Z < 0)
+            {
+                if (localRay.Direction.Z > 0)
+                {
+                    float timeToMinZ = -progressingOrigin.Z / localRay.Direction.Z;
+                    distance += timeToMinZ;
+                    Vector3 increment;
+                    Vector3.Multiply(ref localRay.Direction, timeToMinZ, out increment);
+                    Vector3.Add(ref increment, ref progressingOrigin, out progressingOrigin);
+                }
+                else
+                    return false;
+            }
+            else if (progressingOrigin.Z > maxZ)
+            {
+                if (localRay.Direction.Z < 0)
+                {
+                    float timeToMinZ = -(progressingOrigin.Z - maxZ) / localRay.Direction.Z;
+                    distance += timeToMinZ;
+                    Vector3 increment;
+                    Vector3.Multiply(ref localRay.Direction, timeToMinZ, out increment);
+                    Vector3.Add(ref increment, ref progressingOrigin, out progressingOrigin);
+                }
+                else
+                    return false;
+            }
+
+            if (distance > maximumLength)
+                return false;
+
+
+
+            //By now, we should be entering the main body of the terrain.
+
+            int xCell = (int)progressingOrigin.X;
+            int zCell = (int)progressingOrigin.Z;
+            //If it's hitting the border and going in, then correct the index
+            //so that it will initially target a valid quad.
+            //Without this, a quad beyond the border would be tried and failed.
+            if (xCell == heights.GetLength(0) - 1 && localRay.Direction.X < 0)
+                xCell = heights.GetLength(0) - 2;
+            if (zCell == heights.GetLength(1) - 1 && localRay.Direction.Z < 0)
+                zCell = heights.GetLength(1) - 2;
+
+            while (true)
+            {
+                //Check for a miss.
+                if (xCell < 0 ||
+                    zCell < 0 ||
+                    xCell >= heights.GetLength(0) - 1 ||
+                    zCell >= heights.GetLength(1) - 1)
+                    return false;
+
+                //Test the triangles of this cell.
+                Vector3 v1, v2, v3, v4;
+                // v3 v4
+                // v1 v2
+                GetLocalPosition(xCell, zCell, out v1);
+                GetLocalPosition(xCell + 1, zCell, out v2);
+                GetLocalPosition(xCell, zCell + 1, out v3);
+                GetLocalPosition(xCell + 1, zCell + 1, out v4);
+                RayHit hit1, hit2;
+                bool didHit1;
+                bool didHit2;
+
+                //Don't bother doing ray intersection tests if the ray can't intersect it.
+
+                float highest = v1.Y;
+                float lowest = v1.Y;
+                if (v2.Y > highest)
+                    highest = v2.Y;
+                else if (v2.Y < lowest)
+                    lowest = v2.Y;
+                if (v3.Y > highest)
+                    highest = v3.Y;
+                else if (v3.Y < lowest)
+                    lowest = v3.Y;
+                if (v4.Y > highest)
+                    highest = v4.Y;
+                else if (v4.Y < lowest)
+                    lowest = v4.Y;
+
+
+                if (!(progressingOrigin.Y > highest && localRay.Direction.Y > 0 ||
+                    progressingOrigin.Y < lowest && localRay.Direction.Y < 0))
+                {
+
+
+                    if (quadTriangleOrganization == QuadTriangleOrganization.BottomLeftUpperRight)
+                    {
+                        //Always perform the raycast as if Y+ in local space is the way the triangles are facing.
+                        didHit1 = Toolbox.FindRayTriangleIntersection(ref localRay, maximumLength, sidedness, ref v1, ref v2, ref v3, out hit1);
+                        didHit2 = Toolbox.FindRayTriangleIntersection(ref localRay, maximumLength, sidedness, ref v2, ref v4, ref v3, out hit2);
+                    }
+                    else //if (quadTriangleOrganization == CollisionShapes.QuadTriangleOrganization.BottomRightUpperLeft)
+                    {
+                        didHit1 = Toolbox.FindRayTriangleIntersection(ref localRay, maximumLength, sidedness, ref v1, ref v2, ref v4, out hit1);
+                        didHit2 = Toolbox.FindRayTriangleIntersection(ref localRay, maximumLength, sidedness, ref v1, ref v4, ref v3, out hit2);
+                    }
+                    if (didHit1 && didHit2)
+                    {
+                        if (hit1.T < hit2.T)
+                        {
+                            Vector3.Multiply(ref ray.Direction, hit1.T, out hit.Location);
+                            Vector3.Add(ref hit.Location, ref ray.Position, out hit.Location);
+                            Matrix3x3.TransformTranspose(ref hit1.Normal, ref inverse.LinearTransform, out hit.Normal);
+                            hit.T = hit1.T;
+                            return true;
+                        }
+                        Vector3.Multiply(ref ray.Direction, hit2.T, out hit.Location);
+                        Vector3.Add(ref hit.Location, ref ray.Position, out hit.Location);
+                        Matrix3x3.TransformTranspose(ref hit2.Normal, ref inverse.LinearTransform, out hit.Normal);
+                        hit.T = hit2.T;
+                        return true;
+                    }
+                    else if (didHit1)
+                    {
+                        Vector3.Multiply(ref ray.Direction, hit1.T, out hit.Location);
+                        Vector3.Add(ref hit.Location, ref ray.Position, out hit.Location);
+                        Matrix3x3.TransformTranspose(ref hit1.Normal, ref inverse.LinearTransform, out hit.Normal);
+                        hit.T = hit1.T;
+                        return true;
+                    }
+                    else if (didHit2)
+                    {
+                        Vector3.Multiply(ref ray.Direction, hit2.T, out hit.Location);
+                        Vector3.Add(ref hit.Location, ref ray.Position, out hit.Location);
+                        Matrix3x3.TransformTranspose(ref hit2.Normal, ref inverse.LinearTransform, out hit.Normal);
+                        hit.T = hit2.T;
+                        return true;
+                    }
+                }
+
+                //Move to the next cell.
+
+                float timeToX;
+                if (localRay.Direction.X < 0)
+                    timeToX = -(progressingOrigin.X - xCell) / localRay.Direction.X;
+                else if (ray.Direction.X > 0)
+                    timeToX = (xCell + 1 - progressingOrigin.X) / localRay.Direction.X;
+                else
+                    timeToX = float.MaxValue;
+
+                float timeToZ;
+                if (localRay.Direction.Z < 0)
+                    timeToZ = -(progressingOrigin.Z - zCell) / localRay.Direction.Z;
+                else if (localRay.Direction.Z > 0)
+                    timeToZ = (zCell + 1 - progressingOrigin.Z) / localRay.Direction.Z;
+                else
+                    timeToZ = float.MaxValue;
+
+                //Move to the next cell.
+                if (timeToX < timeToZ)
+                {
+                    if (localRay.Direction.X < 0)
+                        xCell--;
+                    else
+                        xCell++;
+
+                    distance += timeToX;
+                    if (distance > maximumLength)
+                        return false;
+
+                    Vector3 increment;
+                    Vector3.Multiply(ref localRay.Direction, timeToX, out increment);
+                    Vector3.Add(ref increment, ref progressingOrigin, out progressingOrigin);
+                }
+                else
+                {
+                    if (localRay.Direction.Z < 0)
+                        zCell--;
+                    else
+                        zCell++;
+
+                    distance += timeToZ;
+                    if (distance > maximumLength)
+                        return false;
+
+                    Vector3 increment;
+                    Vector3.Multiply(ref localRay.Direction, timeToZ, out increment);
+                    Vector3.Add(ref increment, ref progressingOrigin, out progressingOrigin);
+                }
+
+            }
+
+
+        }

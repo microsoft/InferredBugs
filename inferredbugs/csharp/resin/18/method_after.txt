@@ -1,0 +1,33 @@
+        private IList<DocumentPosting> GetPostings(Term term)
+        {
+            IList<DocumentPosting> postings;
+
+            if (!_termCache.TryGetValue(term, out postings))
+            {
+                var time = Time();
+
+                var fileId = term.ToPostingsFileId();
+                var fileName = Path.Combine(_directory, fileId + ".pos");
+                PostingsReader reader;
+
+                if (!_postingReaders.TryGetValue(fileId, out reader))
+                {
+                    if (!_postingReaders.TryGetValue(fileId, out reader))
+                    {
+                        var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
+                        var sr = new StreamReader(fs, Encoding.ASCII);
+
+                        reader = new PostingsReader(sr);
+
+                        _postingReaders.Add(fileId, reader);
+                    }
+                }
+
+                postings = reader.Read(term).ToList();
+                _termCache.Add(term, postings);
+
+                Log.DebugFormat("read {0} postings from {1} in {2}", postings.Count(), fileName, time.Elapsed);
+            }
+
+            return postings;
+        }

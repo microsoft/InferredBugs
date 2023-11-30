@@ -1,0 +1,25 @@
+  [Fact]
+		public void TransactionWithSpan()
+		{
+			var transactionName = "TestTransaction";
+			var transactionType = "UnitTest";
+			var spanName = "TestSpan";
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			var transaction = agent.Tracer.StartTransaction(transactionName, transactionType);
+
+			var span = transaction.StartSpan(spanName, Span.TypeExternal);
+
+			Thread.Sleep(5); //Make sure we have duration > 0
+
+			span.End();
+			transaction.End();
+			Assert.NotEmpty(payloadSender.Payloads);
+			Assert.NotEmpty(payloadSender.Payloads[0].Transactions[0].Spans);
+
+			Assert.Equal(spanName, payloadSender.Payloads[0].Transactions[0].Spans[0].Name);
+			Assert.True(payloadSender.Payloads[0].Transactions[0].Spans[0].Duration >= 5);
+			Assert.True(payloadSender.Payloads[0].Transactions[0].Spans[0].Id >= 5);
+			Assert.NotNull(payloadSender.Payloads[0].Service);
+		}

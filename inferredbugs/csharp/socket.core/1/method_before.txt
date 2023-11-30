@@ -1,0 +1,23 @@
+        internal void Send(byte[] data, int offset, int length)
+        {
+            mutex.WaitOne();           
+            if (sendSocketAsyncEventArgs.BytesTransferred == 0)
+            {
+                sendSocketAsyncEventArgs.SetBuffer(data, offset, length);
+                if (!socket.SendAsync(sendSocketAsyncEventArgs))
+                {
+                    ReadSocketAsyncEventArgs_Completed(null, sendSocketAsyncEventArgs);
+                }
+            }
+            else
+            {
+                //在极限情况下，有可能异步没有发送的时候会报错
+                SocketAsyncEventArgs saea = new SocketAsyncEventArgs();
+                saea.SetBuffer(data, offset, length);
+                if (!socket.SendAsync(saea))
+                {
+                    ReadSocketAsyncEventArgs_Completed(null, saea);
+                }
+            }
+            mutex.ReleaseMutex();
+        }

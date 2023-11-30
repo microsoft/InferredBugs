@@ -1,0 +1,24 @@
+        private static SetDelegate<TValue> CreateSetDelegate<TValue>(this FieldInfo field) {
+            if (field == null) {
+                throw new ArgumentException("Field cannot be null.", nameof(field));
+            }
+
+            if (!field.FieldType.IsAssignableFrom(typeof(TValue))) {
+                throw new Exception($"Value type type {typeof(TValue)} does not match the requested type {field.FieldType}.");
+            }
+
+            var method = new DynamicMethodDefinition($"{field} Setter", typeof(void),
+                new[] { typeof(object), typeof(TValue) });
+            var il = method.GetILProcessor();
+
+            if (!field.IsStatic) {
+                il.Emit(OpCodes.Ldarg_0);
+            }
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(!field.IsStatic ? OpCodes.Stfld : OpCodes.Stsfld, field);
+
+            il.Emit(OpCodes.Ret);
+
+            return (SetDelegate<TValue>)method.Generate().CreateDelegate(typeof(SetDelegate<TValue>));
+        }

@@ -1,0 +1,44 @@
+        public override void CreateAddressSpace(IDictionary<NodeId, IList<IReference>> externalReferences)
+        {
+            lock (Lock)
+            {
+                IList<IReference> references = null;
+
+                if (!externalReferences.TryGetValue(ObjectIds.ObjectsFolder, out references))
+                {
+                    externalReferences[ObjectIds.ObjectsFolder] = references = new List<IReference>();
+                }
+
+                FolderState root = CreateFolder(null, ProgramName, ProgramName);
+                root.AddReference(ReferenceTypes.Organizes, true, ObjectIds.ObjectsFolder);
+                references.Add(new NodeStateReference(ReferenceTypes.Organizes, false, root.NodeId));
+                root.EventNotifier = EventNotifiers.SubscribeToEvents;
+                AddRootNotifier(root);
+
+                List<BaseDataVariableState> variables = new List<BaseDataVariableState>();
+
+                try
+                {
+                    FolderState dataFolder = CreateFolder(root, "Telemetry", "Telemetry");
+
+                    _alternatingBoolean = CreateBaseVariable(dataFolder, "AlternatingBoolean", "AlternatingBoolean", BuiltInType.Boolean, ValueRanks.Scalar, AccessLevels.CurrentRead);
+                    _randomSignedInt32 = CreateBaseVariable(dataFolder, "RandomSignedInt32", "RandomSignedInt32", BuiltInType.Int32, ValueRanks.Scalar, AccessLevels.CurrentRead);
+                    _randomUnsignedInt32 = CreateBaseVariable(dataFolder, "RandomUnsignedInt32", "RandomUnsignedInt32", BuiltInType.UInt32, ValueRanks.Scalar, AccessLevels.CurrentRead);
+                    _spikeData = CreateBaseVariable(dataFolder, "SpikeData", "SpikeData", BuiltInType.Double, ValueRanks.Scalar, AccessLevels.CurrentRead);
+                    _dipData = CreateBaseVariable(dataFolder, "DipData", "DipData", BuiltInType.Double, ValueRanks.Scalar, AccessLevels.CurrentRead);
+                    _posTrendData = CreateBaseVariable(dataFolder, "PositiveTrendData", "PositiveTrendData", BuiltInType.Float, ValueRanks.Scalar, AccessLevels.CurrentRead);
+                    _negTrendData = CreateBaseVariable(dataFolder, "NegativeTrendData", "NegativeTrendData", BuiltInType.Float, ValueRanks.Scalar, AccessLevels.CurrentRead);
+
+                    FolderState methodsFolder = CreateFolder(root, "Methods", "Methods");
+
+                    MethodState resetMethod = CreateMethod(methodsFolder, "Reset", "Reset");
+                    SetResetMethodProperties(ref resetMethod);
+                }
+                catch (Exception e)
+                {
+                    Utils.Trace(e, "Error creating the address space.");
+                }
+
+                AddPredefinedNode(SystemContext, root);
+            }
+        }

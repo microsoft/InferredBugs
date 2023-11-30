@@ -1,0 +1,22 @@
+        public override void StartRun(ITestListener listener)
+        {
+            // Save Console.Out and Error for later restoration
+            _savedOut = Console.Out;
+            _savedErr = Console.Error;
+
+            QueuingEventListener queue = new QueuingEventListener();
+
+            if (Settings.Contains(DriverSettings.CaptureStandardOutput))
+                Console.SetOut(new EventListenerTextWriter(queue, TestOutputType.Out));
+            if (Settings.Contains(DriverSettings.CaptureStandardError))
+                Console.SetError(new EventListenerTextWriter(queue, TestOutputType.Error));
+
+            Context.Listener = queue;
+
+            using (EventPump pump = new EventPump(listener, queue.Events))
+            {
+                pump.Start();
+
+                Context.Dispatcher.Dispatch(TopLevelWorkItem);
+            }
+        }

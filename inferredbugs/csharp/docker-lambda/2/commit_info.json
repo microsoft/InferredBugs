@@ -1,0 +1,113 @@
+{
+    "hash": "2f584c4b0615c1e0a28b007380c800cb7d1a7e58",
+    "message": "Add file watching (#231)\n\n* Add SIGHUP handler to kill/restart bootstrap in provided runtime\r\n\r\nFixes #229\r\n\r\n* Add file watching to provided runtime\r\n\r\nWill kill/restart bootstrap if DOCKER_LAMBDA_WATCH env is set and files in /var/task or /opt change\r\n\r\n* If provided runtime is running bootstrap, just exit instead\r\n\r\n* Exit java8 runtime with error code 2 on SIGHUP or ConnectException\r\n\r\n* Exit nodejs4.3/6.10/8.10 runtimes with error code 2 on SIGHUP or ECONNRESET\r\n\r\n* Squash with java\r\n\r\n* Exit python2.7/3.6 runtimes with error code 2 on SIGHUP or connection error\r\n\r\n* Exit dotnetcore2.0/2.1 runtimes with error code 2 on SocketException",
+    "file_num_lines": 323,
+    "diff_parsed": {
+        "added": [
+            [
+                112,
+                "            HttpResponseMessage result = null;"
+            ],
+            [
+                113,
+                "            try"
+            ],
+            [
+                114,
+                "            {"
+            ],
+            [
+                115,
+                "                result = client.GetAsync(\"http://127.0.0.1:9001/2018-06-01/runtime/invocation/next\").Result;"
+            ],
+            [
+                116,
+                "            }"
+            ],
+            [
+                117,
+                "            catch (AggregateException ae)"
+            ],
+            [
+                118,
+                "            {"
+            ],
+            [
+                119,
+                "                if (ae.InnerException is HttpRequestException && ae.InnerException.InnerException != null &&"
+            ],
+            [
+                120,
+                "                    (ae.InnerException.InnerException is SocketException ||"
+            ],
+            [
+                121,
+                "                        // happens on dotnetcore2.0"
+            ],
+            [
+                122,
+                "                        ae.InnerException.InnerException.GetType().ToString().Equals(\"System.Net.Http.CurlException\")))"
+            ],
+            [
+                123,
+                "                {"
+            ],
+            [
+                124,
+                "                    System.Environment.Exit(context.StayOpen ? 2 : (invokeError == null ? 0 : 1));"
+            ],
+            [
+                125,
+                "                }"
+            ],
+            [
+                126,
+                "                else"
+            ],
+            [
+                127,
+                "                {"
+            ],
+            [
+                128,
+                "                    throw ae;"
+            ],
+            [
+                129,
+                "                }"
+            ],
+            [
+                130,
+                "            }"
+            ],
+            [
+                131,
+                ""
+            ],
+            [
+                207,
+                "                    if (ae.InnerException is HttpRequestException && ae.InnerException.InnerException != null &&"
+            ],
+            [
+                212,
+                "                        System.Environment.Exit(context.StayOpen ? 2 : (string.IsNullOrEmpty(errorType) && invokeError == null ? 0 : 1));"
+            ]
+        ],
+        "deleted": [
+            [
+                112,
+                "            var result = client.GetAsync(\"http://127.0.0.1:9001/2018-06-01/runtime/invocation/next\").Result;"
+            ],
+            [
+                188,
+                "                    if (!context.StayOpen && ae.InnerException is HttpRequestException && ae.InnerException.InnerException != null &&"
+            ],
+            [
+                193,
+                "                        System.Environment.Exit(string.IsNullOrEmpty(errorType) && invokeError == null ? 0 : 1);"
+            ]
+        ]
+    },
+    "num_lines_added": 22,
+    "num_lines_removed": 3
+}

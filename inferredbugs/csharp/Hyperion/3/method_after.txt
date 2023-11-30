@@ -1,0 +1,15 @@
+        public override void WriteValue(Stream stream, object value, SerializerSession session)
+        {
+            var array = value as Array;
+            var elementType = value.GetType().GetElementType();
+            var elementSerializer = session.Serializer.GetSerializerByType(elementType);
+            elementSerializer.WriteManifest(stream, elementType, session); //write array element type
+//            Int32Serializer.Instance.WriteValue(stream, array.Length, session); 
+            var length = BitConverter.GetBytes(array.Length);//write array length
+            stream.Write(length, 0, length.Length);
+            for (var i = 0; i < array.Length; i++) //write the elements
+            {
+                var elementValue = array.GetValue(i);
+                elementSerializer.WriteValue(stream, elementValue, session);
+            }
+        }

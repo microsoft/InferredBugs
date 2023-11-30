@@ -1,0 +1,43 @@
+        public virtual void Draw(IBitmapEditor Editor, Func<Point, Point> PointTransform = null)
+        {
+            if (!_overlaySettings.Display)
+                return;
+
+            var text = GetText();
+
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            var fontSize = _overlaySettings.FontSize;
+
+            var font = new Font(FontFamily.GenericMonospace, fontSize);
+
+            var size = Editor.MeasureString(text, font);
+
+            int paddingX = _overlaySettings.HorizontalPadding, paddingY = _overlaySettings.VerticalPadding;
+
+            var rect = new RectangleF(GetLeft(_overlaySettings, Editor.Width, size.Width),
+                GetTop(_overlaySettings, Editor.Height, size.Height),
+                size.Width + 2 * paddingX,
+                size.Height + 2 * paddingY);
+
+            Editor.FillRectangle(new SolidBrush(_overlaySettings.BackgroundColor),
+                rect,
+                _overlaySettings.CornerRadius);
+
+            Editor.DrawString(text,
+                font,
+                new SolidBrush(_overlaySettings.FontColor),
+                new RectangleF(rect.Left + paddingX, rect.Top + paddingY, size.Width, size.Height));
+
+            var border = _overlaySettings.BorderThickness;
+
+            if (border > 0)
+            {
+                rect = new RectangleF(rect.Left - border / 2f, rect.Top - border / 2f, rect.Width + border, rect.Height + border);
+
+                Editor.DrawRectangle(new Pen(_overlaySettings.BorderColor, border),
+                    rect,
+                    _overlaySettings.CornerRadius);
+            }
+        }

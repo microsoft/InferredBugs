@@ -1,0 +1,61 @@
+{
+    "hash": "a2524a81b8aa27b35d728f9eb321a7808b452d00",
+    "message": "[CI] enable MqttConnectorTest in CI pipeline (#4107)\n\n`MqttMiniServer` had multiple places with loops that try to make a progress forever even when the client disconnected.\n`AuthProtocolHead.CloseAsync` method calls `IWebHost.StopAsync` which blocks not only the execution of the current test but also other tests that were running in parallel with it.",
+    "file_num_lines": 136,
+    "diff_parsed": {
+        "added": [
+            [
+                17,
+                "    public class AuthAgentProtocolHead : IProtocolHead, IAsyncDisposable"
+            ],
+            [
+                98,
+                "        {"
+            ],
+            [
+                99,
+                "            this.DisposeAsync().ConfigureAwait(false).GetAwaiter().GetResult();"
+            ],
+            [
+                100,
+                "        }"
+            ],
+            [
+                101,
+                ""
+            ],
+            [
+                102,
+                "        public async ValueTask DisposeAsync()"
+            ],
+            [
+                106,
+                "                await this.CloseAsync(CancellationToken.None).ConfigureAwait(false);"
+            ]
+        ],
+        "deleted": [
+            [
+                17,
+                "    public class AuthAgentProtocolHead : IProtocolHead"
+            ],
+            [
+                101,
+                "                // FIXES a bug when the the process is stuck on WebHost.StopAsync() method call https://github.com/dotnet/extensions/issues/1363"
+            ],
+            [
+                102,
+                "                // lets not wait forever but cancel after a timeout"
+            ],
+            [
+                103,
+                "                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));"
+            ],
+            [
+                104,
+                "                this.CloseAsync(cts.Token).Wait();"
+            ]
+        ]
+    },
+    "num_lines_added": 7,
+    "num_lines_removed": 5
+}

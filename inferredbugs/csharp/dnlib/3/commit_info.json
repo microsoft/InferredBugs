@@ -1,0 +1,365 @@
+{
+    "hash": "156085b3f89318df071ce9eb3e011ad48a8c698c",
+    "message": "Enable CA, fix some warnings, disable CA",
+    "file_num_lines": 94,
+    "diff_parsed": {
+        "added": [
+            [
+                4,
+                "using dot10.IO;"
+            ],
+            [
+                11,
+                "\tpublic sealed class DotNetFile : IDisposable {"
+            ],
+            [
+                23,
+                "\t\t/// <param name=\"fileName\">The file to load</param>"
+            ],
+            [
+                25,
+                "\t\tpublic static DotNetFile Load(string fileName) {"
+            ],
+            [
+                26,
+                "\t\t\treturn Load(new PEImage(fileName));"
+            ],
+            [
+                63,
+                "\t\t\tIImageStream cor20HeaderStream = null, mdHeaderStream = null;"
+            ],
+            [
+                64,
+                "\t\t\tMetaData md = null;"
+            ],
+            [
+                65,
+                "\t\t\ttry {"
+            ],
+            [
+                66,
+                "\t\t\t\tvar dotNetDir = peImage.ImageNTHeaders.OptionalHeader.DataDirectories[14];"
+            ],
+            [
+                67,
+                "\t\t\t\tif (dotNetDir.VirtualAddress == RVA.Zero)"
+            ],
+            [
+                68,
+                "\t\t\t\t\tthrow new BadImageFormatException(\".NET data directory RVA is 0\");"
+            ],
+            [
+                69,
+                "\t\t\t\tif (dotNetDir.Size < 0x48)"
+            ],
+            [
+                70,
+                "\t\t\t\t\tthrow new BadImageFormatException(\".NET data directory size < 0x48\");"
+            ],
+            [
+                71,
+                "\t\t\t\tvar cor20Header = new ImageCor20Header(cor20HeaderStream = peImage.CreateStream(dotNetDir.VirtualAddress, 0x48), verify);"
+            ],
+            [
+                72,
+                "\t\t\t\tif (cor20Header.HasNativeHeader)"
+            ],
+            [
+                73,
+                "\t\t\t\t\tthrow new BadImageFormatException(\".NET native header isn't supported\");\t//TODO: Fix this"
+            ],
+            [
+                74,
+                "\t\t\t\tif (cor20Header.MetaData.VirtualAddress == RVA.Zero)"
+            ],
+            [
+                75,
+                "\t\t\t\t\tthrow new BadImageFormatException(\".NET MetaData RVA is 0\");"
+            ],
+            [
+                76,
+                "\t\t\t\tif (cor20Header.MetaData.Size < 16)"
+            ],
+            [
+                77,
+                "\t\t\t\t\tthrow new BadImageFormatException(\".NET MetaData size is too small\");"
+            ],
+            [
+                78,
+                "\t\t\t\tvar mdSize = cor20Header.MetaData.Size;"
+            ],
+            [
+                79,
+                "\t\t\t\tvar mdRva = cor20Header.MetaData.VirtualAddress;"
+            ],
+            [
+                80,
+                "\t\t\t\tvar mdHeader = new MetaDataHeader(mdHeaderStream = peImage.CreateStream(mdRva, mdSize), verify);"
+            ],
+            [
+                81,
+                "\t\t\t\tif (verify) {"
+            ],
+            [
+                82,
+                "\t\t\t\t\tforeach (var sh in mdHeader.StreamHeaders) {"
+            ],
+            [
+                83,
+                "\t\t\t\t\t\tif (sh.Offset + sh.StreamSize < sh.Offset || sh.Offset + sh.StreamSize > mdSize)"
+            ],
+            [
+                84,
+                "\t\t\t\t\t\t\tthrow new BadImageFormatException(\"Invalid stream header\");"
+            ],
+            [
+                85,
+                "\t\t\t\t\t}"
+            ],
+            [
+                88,
+                "\t\t\t\tswitch (GetMetaDataType(mdHeader.StreamHeaders)) {"
+            ],
+            [
+                89,
+                "\t\t\t\tcase MetaDataType.Compressed:"
+            ],
+            [
+                90,
+                "\t\t\t\t\tmd = new CompressedMetaData(peImage, cor20Header, mdHeader);"
+            ],
+            [
+                91,
+                "\t\t\t\t\tbreak;"
+            ],
+            [
+                93,
+                "\t\t\t\tcase MetaDataType.ENC:"
+            ],
+            [
+                94,
+                "\t\t\t\t\tmd = new ENCMetaData(peImage, cor20Header, mdHeader);"
+            ],
+            [
+                95,
+                "\t\t\t\t\tbreak;"
+            ],
+            [
+                97,
+                "\t\t\t\tdefault:"
+            ],
+            [
+                98,
+                "\t\t\t\t\tthrow new BadImageFormatException(\"No #~ or #- stream found\");"
+            ],
+            [
+                99,
+                "\t\t\t\t}"
+            ],
+            [
+                100,
+                "\t\t\t\tmd.Initialize();"
+            ],
+            [
+                102,
+                "\t\t\t\treturn new DotNetFile(md);"
+            ],
+            [
+                103,
+                "\t\t\t}"
+            ],
+            [
+                104,
+                "\t\t\tcatch {"
+            ],
+            [
+                105,
+                "\t\t\t\tif (md != null)"
+            ],
+            [
+                106,
+                "\t\t\t\t\tmd.Dispose();"
+            ],
+            [
+                107,
+                "\t\t\t\tthrow;"
+            ],
+            [
+                108,
+                "\t\t\t}"
+            ],
+            [
+                109,
+                "\t\t\tfinally {"
+            ],
+            [
+                110,
+                "\t\t\t\tif (cor20HeaderStream != null)"
+            ],
+            [
+                111,
+                "\t\t\t\t\tcor20HeaderStream.Dispose();"
+            ],
+            [
+                112,
+                "\t\t\t\tif (mdHeaderStream != null)"
+            ],
+            [
+                113,
+                "\t\t\t\t\tmdHeaderStream.Dispose();"
+            ],
+            [
+                114,
+                "\t\t\t}"
+            ]
+        ],
+        "deleted": [
+            [
+                10,
+                "\tpublic class DotNetFile : IDisposable {"
+            ],
+            [
+                22,
+                "\t\t/// <param name=\"filename\">The file to load</param>"
+            ],
+            [
+                24,
+                "\t\tpublic static DotNetFile Load(string filename) {"
+            ],
+            [
+                25,
+                "\t\t\treturn Load(new PEImage(filename));"
+            ],
+            [
+                62,
+                "\t\t\tvar dotNetDir = peImage.ImageNTHeaders.OptionalHeader.DataDirectories[14];"
+            ],
+            [
+                63,
+                "\t\t\tif (dotNetDir.VirtualAddress == RVA.Zero)"
+            ],
+            [
+                64,
+                "\t\t\t\tthrow new BadImageFormatException(\".NET data directory RVA is 0\");"
+            ],
+            [
+                65,
+                "\t\t\tif (dotNetDir.Size < 0x48)"
+            ],
+            [
+                66,
+                "\t\t\t\tthrow new BadImageFormatException(\".NET data directory size < 0x48\");"
+            ],
+            [
+                67,
+                "\t\t\tvar cor20Header = new ImageCor20Header(peImage.CreateStream(dotNetDir.VirtualAddress, 0x48), verify);"
+            ],
+            [
+                68,
+                "\t\t\tif (cor20Header.HasNativeHeader)"
+            ],
+            [
+                69,
+                "\t\t\t\tthrow new BadImageFormatException(\".NET native header isn't supported\");\t//TODO: Fix this"
+            ],
+            [
+                70,
+                "\t\t\tif (cor20Header.MetaData.VirtualAddress == RVA.Zero)"
+            ],
+            [
+                71,
+                "\t\t\t\tthrow new BadImageFormatException(\".NET MetaData RVA is 0\");"
+            ],
+            [
+                72,
+                "\t\t\tif (cor20Header.MetaData.Size < 16)"
+            ],
+            [
+                73,
+                "\t\t\t\tthrow new BadImageFormatException(\".NET MetaData size is too small\");"
+            ],
+            [
+                74,
+                "\t\t\tvar mdSize = cor20Header.MetaData.Size;"
+            ],
+            [
+                75,
+                "\t\t\tvar mdRva = cor20Header.MetaData.VirtualAddress;"
+            ],
+            [
+                76,
+                "\t\t\tvar mdHeader = new MetaDataHeader(peImage.CreateStream(mdRva, mdSize), verify);"
+            ],
+            [
+                77,
+                "\t\t\tif (verify) {"
+            ],
+            [
+                78,
+                "\t\t\t\tforeach (var sh in mdHeader.StreamHeaders) {"
+            ],
+            [
+                79,
+                "\t\t\t\t\tif (sh.Offset + sh.Size < sh.Offset || sh.Offset + sh.Size > mdSize)"
+            ],
+            [
+                80,
+                "\t\t\t\t\t\tthrow new BadImageFormatException(\"Invalid stream header\");"
+            ],
+            [
+                82,
+                "\t\t\t}"
+            ],
+            [
+                84,
+                "\t\t\tIMetaData md;"
+            ],
+            [
+                85,
+                "\t\t\tswitch (GetMetaDataType(mdHeader.StreamHeaders)) {"
+            ],
+            [
+                86,
+                "\t\t\tcase MetaDataType.Compressed:"
+            ],
+            [
+                87,
+                "\t\t\t\tmd = new CompressedMetaData(peImage, cor20Header, mdHeader);"
+            ],
+            [
+                88,
+                "\t\t\t\tbreak;"
+            ],
+            [
+                90,
+                "\t\t\tcase MetaDataType.ENC:"
+            ],
+            [
+                91,
+                "\t\t\t\tmd = new ENCMetaData(peImage, cor20Header, mdHeader);"
+            ],
+            [
+                92,
+                "\t\t\t\tbreak;"
+            ],
+            [
+                94,
+                "\t\t\tdefault:"
+            ],
+            [
+                95,
+                "\t\t\t\tthrow new BadImageFormatException(\"No #~ or #- stream found\");"
+            ],
+            [
+                96,
+                "\t\t\t}"
+            ],
+            [
+                98,
+                "\t\t\treturn new DotNetFile(md);"
+            ]
+        ]
+    },
+    "num_lines_added": 52,
+    "num_lines_removed": 36
+}

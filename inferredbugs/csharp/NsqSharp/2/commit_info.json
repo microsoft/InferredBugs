@@ -1,0 +1,513 @@
+{
+    "hash": "ddba56cd2ef48047fbb1833e5bdb38ae281146ef",
+    "message": "consumer; producer tests",
+    "file_num_lines": 241,
+    "diff_parsed": {
+        "added": [
+            [
+                5,
+                "using System.Threading;"
+            ],
+            [
+                8,
+                "using NsqSharp.Utils;"
+            ],
+            [
+                21,
+                "            w.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                38,
+                "            w.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                64,
+                "            w.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                92,
+                "            w.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                122,
+                "        [Test]"
+            ],
+            [
+                125,
+                "            var topicName = \"multi_publish\" + DateTime.Now.Unix();"
+            ],
+            [
+                126,
+                "            const int msgCount = 10;"
+            ],
+            [
+                127,
+                ""
+            ],
+            [
+                128,
+                "            var config = new Config();"
+            ],
+            [
+                129,
+                "            var w = new Producer(\"127.0.0.1:4150\", config);"
+            ],
+            [
+                130,
+                "            w.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                131,
+                "            try"
+            ],
+            [
+                132,
+                "            {"
+            ],
+            [
+                133,
+                "                var testData = new List<byte[]>();"
+            ],
+            [
+                134,
+                "                for (int i = 0; i < msgCount; i++)"
+            ],
+            [
+                135,
+                "                {"
+            ],
+            [
+                136,
+                "                    testData.Add(Encoding.UTF8.GetBytes(\"multipublish_test_case\"));"
+            ],
+            [
+                137,
+                "                }"
+            ],
+            [
+                138,
+                ""
+            ],
+            [
+                139,
+                "                var responseChan = new Chan<ProducerTransaction>(msgCount);"
+            ],
+            [
+                140,
+                "                w.MultiPublishAsync(topicName, testData, responseChan, \"test0\", 1);"
+            ],
+            [
+                141,
+                ""
+            ],
+            [
+                142,
+                "                var trans = responseChan.Receive();"
+            ],
+            [
+                143,
+                ""
+            ],
+            [
+                144,
+                "                Assert.IsNull(trans.Error);"
+            ],
+            [
+                145,
+                "                Assert.IsNotNull(trans.Args);"
+            ],
+            [
+                146,
+                "                Assert.AreEqual(2, trans.Args.Length);"
+            ],
+            [
+                147,
+                "                Assert.AreEqual(\"test0\", trans.Args[0]);"
+            ],
+            [
+                148,
+                "                Assert.AreEqual(1, trans.Args[1]);"
+            ],
+            [
+                149,
+                ""
+            ],
+            [
+                150,
+                "                w.Publish(topicName, \"bad_test_case\");"
+            ],
+            [
+                151,
+                ""
+            ],
+            [
+                152,
+                "                readMessages(topicName, msgCount);"
+            ],
+            [
+                153,
+                "            }"
+            ],
+            [
+                154,
+                "            finally"
+            ],
+            [
+                155,
+                "            {"
+            ],
+            [
+                156,
+                "                w.Stop();"
+            ],
+            [
+                157,
+                "            }"
+            ],
+            [
+                160,
+                "        [Test]"
+            ],
+            [
+                163,
+                "            var topicName = \"heartbeat\" + DateTime.Now.Unix();"
+            ],
+            [
+                164,
+                ""
+            ],
+            [
+                165,
+                "            var config = new Config();"
+            ],
+            [
+                166,
+                "            config.HeartbeatInterval = TimeSpan.FromMilliseconds(100);"
+            ],
+            [
+                167,
+                "            var w = new Producer(\"127.0.0.1:4150\", config);"
+            ],
+            [
+                168,
+                "            w.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                169,
+                ""
+            ],
+            [
+                170,
+                "            try"
+            ],
+            [
+                171,
+                "            {"
+            ],
+            [
+                172,
+                "                ErrIdentify errIdentify = null;"
+            ],
+            [
+                173,
+                "                try"
+            ],
+            [
+                174,
+                "                {"
+            ],
+            [
+                175,
+                "                    w.Publish(topicName, \"publish_test_case\");"
+            ],
+            [
+                176,
+                "                }"
+            ],
+            [
+                177,
+                "                catch (ErrIdentify ex)"
+            ],
+            [
+                178,
+                "                {"
+            ],
+            [
+                179,
+                "                    errIdentify = ex;"
+            ],
+            [
+                180,
+                "                }"
+            ],
+            [
+                181,
+                ""
+            ],
+            [
+                182,
+                "                Assert.IsNotNull(errIdentify, \"ErrIdentify not thrown\");"
+            ],
+            [
+                183,
+                "                Assert.AreEqual(\"E_BAD_BODY IDENTIFY heartbeat interval (100) is invalid\", errIdentify.Reason);"
+            ],
+            [
+                184,
+                "            }"
+            ],
+            [
+                185,
+                "            finally"
+            ],
+            [
+                186,
+                "            {"
+            ],
+            [
+                187,
+                "                w.Stop();"
+            ],
+            [
+                188,
+                "            }"
+            ],
+            [
+                189,
+                ""
+            ],
+            [
+                190,
+                "            try"
+            ],
+            [
+                191,
+                "            {"
+            ],
+            [
+                192,
+                "                config = new Config();"
+            ],
+            [
+                193,
+                "                config.HeartbeatInterval = TimeSpan.FromMilliseconds(1000);"
+            ],
+            [
+                194,
+                "                w = new Producer(\"127.0.0.1:4150\", config);"
+            ],
+            [
+                195,
+                "                w.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                196,
+                ""
+            ],
+            [
+                197,
+                "                w.Publish(topicName, \"publish_test_case\");"
+            ],
+            [
+                198,
+                ""
+            ],
+            [
+                199,
+                "                // TODO: what are we testing here?"
+            ],
+            [
+                200,
+                "                Thread.Sleep(1100);"
+            ],
+            [
+                201,
+                ""
+            ],
+            [
+                202,
+                "                const int msgCount = 10;"
+            ],
+            [
+                203,
+                "                for (int i = 0; i < msgCount; i++)"
+            ],
+            [
+                204,
+                "                {"
+            ],
+            [
+                205,
+                "                    w.Publish(topicName, \"publish_test_case\");"
+            ],
+            [
+                206,
+                "                }"
+            ],
+            [
+                207,
+                ""
+            ],
+            [
+                208,
+                "                w.Publish(topicName, \"bad_test_case\");"
+            ],
+            [
+                209,
+                ""
+            ],
+            [
+                210,
+                "                readMessages(topicName, msgCount + 1);"
+            ],
+            [
+                211,
+                "            }"
+            ],
+            [
+                212,
+                "            finally"
+            ],
+            [
+                213,
+                "            {"
+            ],
+            [
+                214,
+                "                w.Stop();"
+            ],
+            [
+                215,
+                "            }"
+            ],
+            [
+                220,
+                "            var config = new Config();"
+            ],
+            [
+                221,
+                "            config.DefaultRequeueDelay = TimeSpan.Zero;"
+            ],
+            [
+                222,
+                "            config.MaxBackoffDuration = TimeSpan.FromMilliseconds(50);"
+            ],
+            [
+                223,
+                "            var q = new Consumer(topicName, \"ch\", config);"
+            ],
+            [
+                224,
+                "            q.SetLogger(new ConsoleLogger(), LogLevel.Debug);"
+            ],
+            [
+                225,
+                ""
+            ],
+            [
+                226,
+                "            var h = new ConsumerHandler { q = q };"
+            ],
+            [
+                227,
+                "            q.AddHandler(h);"
+            ],
+            [
+                228,
+                ""
+            ],
+            [
+                229,
+                "            q.ConnectToNSQD(\"127.0.0.1:4150\");"
+            ],
+            [
+                230,
+                "            q.StopChan.Receive();"
+            ],
+            [
+                231,
+                ""
+            ],
+            [
+                232,
+                "            Assert.AreEqual(msgCount, h.messagesGood, \"should have handled a diff number of messages\");"
+            ],
+            [
+                233,
+                "            Assert.AreEqual(1, h.messagesFailed, \"failed message not done\");"
+            ],
+            [
+                237,
+                "    internal class ConsumerHandler : IHandler, IFailedMessageLogger"
+            ],
+            [
+                239,
+                "        public Consumer q { get; set; }"
+            ],
+            [
+                246,
+                "            q.Stop();"
+            ],
+            [
+                256,
+                "            if (msg != \"multipublish_test_case\" && msg != \"publish_test_case\")"
+            ]
+        ],
+        "deleted": [
+            [
+                7,
+                "using NsqSharp.Tests.Utils;"
+            ],
+            [
+                20,
+                "            w.SetLogger(new NullLogger(), LogLevel.Info);"
+            ],
+            [
+                37,
+                "            w.SetLogger(new NullLogger(), LogLevel.Info);"
+            ],
+            [
+                63,
+                "            w.SetLogger(new NullLogger(), LogLevel.Info);"
+            ],
+            [
+                91,
+                "            w.SetLogger(new NullLogger(), LogLevel.Info);"
+            ],
+            [
+                123,
+                "            // TODO"
+            ],
+            [
+                128,
+                "            // TODO"
+            ],
+            [
+                133,
+                "            // TODO: some of these tests are useless without implementing this method; depends on Consumer"
+            ],
+            [
+                137,
+                "    internal class ConsumerHandler"
+            ],
+            [
+                139,
+                "        //public Consumer q { get; set; } // TODO"
+            ],
+            [
+                145,
+                "            // TODO"
+            ],
+            [
+                147,
+                "            //q.Stop();"
+            ],
+            [
+                157,
+                "            if (msg != \"multipublish_test_case\" && msg != \"public_test_case\")"
+            ]
+        ]
+    },
+    "num_lines_added": 112,
+    "num_lines_removed": 13
+}

@@ -1,0 +1,36 @@
+        [Test]
+        public void RestoreFromRecovery()
+        {
+            storeChangelogReader.Restore();
+            stateMgr.Checkpoint();
+            stateMgr.Close();
+            store.Init(context, store);
+            stateMgr.InitializeOffsetsFromCheckpoint();
+
+            var producer = supplier.GetProducer(config.ToProducerConfig());
+            producer.Produce(changelogTopic, CreateMessage(changelogTopic, "key3", "value3"));
+            producer.Produce(changelogTopic, CreateMessage(changelogTopic, "key4", "value4"));
+
+            restoreConsumer.Resume(restoreConsumer.Assignment);
+
+            storeChangelogReader.Restore();
+            stateMgr.Checkpoint();
+            stateMgr.Close();
+
+            File.Delete(Path.Combine(config.StateDir, config.ApplicationId, "0-0", ".checkpoint"));
+
+            store.Init(context, store);
+            stateMgr.InitializeOffsetsFromCheckpoint();
+
+            restoreConsumer.Resume(restoreConsumer.Assignment);
+
+            storeChangelogReader.Restore();
+
+            Assert.AreEqual(4, store.All().ToList().Count);
+
+            var metadata = storeChangelogReader.GetMetadata(new TopicPartition(changelogTopic, 0));
+            Assert.IsNotNull(metadata);
+            Assert.AreEqual(ChangelogState.COMPLETED, metadata.ChangelogState);
+            Assert.AreEqual(3, metadata.RestoreEndOffset);
+            Assert.AreEqual(2, metadata.TotalRestored);
+        }

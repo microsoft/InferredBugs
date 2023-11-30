@@ -1,0 +1,27 @@
+        public void Run()
+        {
+            if (_communicationClient == null)
+                throw new GameModeBuilderException("No communication client has been specified");
+            if (_gameModeProvider == null)
+                throw new GameModeBuilderException("No game mode provider has been specified");
+
+            var redirect = _redirectConsoleOutput;
+
+            var runner = Build();
+
+            if (redirect)
+                Console.SetOut(new ServerLogWriter(runner.Client));
+            
+            do
+            {
+                // If true is returned, the runner wants to shut down.
+                if (runner.Run())
+                {
+                    break;
+                }
+
+            } while (_exitBehaviour == GameModeExitBehaviour.Restart);
+
+            if (redirect)
+                Console.SetOut(new StreamWriter(Console.OpenStandardOutput()));
+        }

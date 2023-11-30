@@ -1,0 +1,178 @@
+﻿using IFramework;
+using IFramework.MVVM;
+using System;
+using System.Threading.Tasks;
+
+namespace Example
+{
+    public class MvvmTest : Test
+    {
+        /// <summary>
+        /// 增加数值的消息参数
+        /// </summary>
+        public class AddArgs : IEventArgs
+        {
+            /// <summary>
+            /// 添加的数值
+            /// </summary>
+            public int value;
+            public AddArgs(int addValue)
+            {
+                this.value = addValue;
+            }
+        }
+        /// <summary>
+        /// Model
+        /// </summary>
+        class MyModel : IModel
+        {
+            public int value = 2;
+        }
+        /// <summary>
+        /// ViewModel层
+        /// </summary>
+        class MyViewModel : ViewModel<MyModel>
+        {
+            private int _value;
+
+            //需要监听的字段
+            public int value
+            {
+                get { return GetProperty(ref _value); }
+                set
+                {
+                    //将值同步到Model
+                    Tmodel.value = value;
+                    SetProperty(ref _value, value);
+                }
+            }
+
+            /// <summary>
+            /// 初始化操作
+            /// </summary>
+            protected override void Initialize()
+            {
+                Log.L("ViewModel:初始化操作");
+                value = 5;
+            }
+
+            /// <summary>
+            /// 消息监听
+            /// </summary>
+            /// <param name="message">消息</param>
+            protected override void Listen(IEventArgs message)
+            {
+                Log.E("ViewModel:接收到消息");
+
+                AddArgs addValue = message as AddArgs;
+                if (addValue != null)
+                {
+                    AddValue(addValue.value);
+                }
+            }
+
+            /// <summary>
+            /// 同步数据
+            /// </summary>
+            protected override void SyncModelValue()
+            {
+                Log.L("ViewModel:同步操作");
+                value = Tmodel.value;
+                //this.value++;
+            }
+
+            /// <summary>
+            /// 增加value
+            /// </summary>
+            /// <param name="addValue">增加的数值</param>
+            public void AddValue(int addValue)
+            {
+                value += addValue;
+            }
+
+        }
+        /// <summary>
+        /// View
+        /// </summary>
+        class MyView : View<MyViewModel>
+        {
+            //View类里面有监听器，这里只需要重写监听方法就可以了
+            protected override void BindProperty()
+            {
+                base.BindProperty();
+                this.handler.BindProperty(() =>
+                {
+                    //在这里写对UI的更变操作
+                    var value = Tcontext.value;
+                    Log.E($"View:数据出现更改，当前的值为：{value}");
+                });
+
+                Log.E("View:发送空消息");
+                //发送消息
+                Publish(null);
+
+                //绑定一个方法到环境的Update，来模拟UI的操作
+                Log.L("按A将数值增加1");
+                Framework.BindEnvUpdate(PublishAddValue, EnvironmentType.Ev0);
+            }
+
+            /// <summary>
+            /// 使用消息在View层和ViewModel通信<br/>
+            /// 这里用来模拟View层的操作
+            /// </summary>
+            public void PublishAddValue()
+            {
+                Console.WriteLine("啊啊啊啊啊啊啊");
+                if (Console.ReadKey().Key == ConsoleKey.A)
+                {
+                    int i = 1;
+                    Console.WriteLine();
+                    Log.L($"发送消息，将value增加{i}");
+                    AddArgs addValue = new AddArgs(i);
+                    Publish(addValue);
+                }
+                
+            }
+
+            
+        }
+        protected override void Start()
+        {
+            Log.L("");
+            Log.L("————————————说明——————————————");
+            Log.L("Mvvm的实现是基于单向数据绑定的");
+            Log.L("如果您不熟悉本框架的单向绑定方法建议先看BindTest的单向绑定部分\n");
+
+            Log.L("单向绑定的步骤分为三步：1、新建可观测对象实例");
+            Log.L("2、新建ObservableObjectHandler监听器实例");
+            Log.L("3、监听器对可观测对象进行监听，并做出相应操作\n");
+
+            Log.L("ViewModel继承ObservableObject，View中定义监听器监听ViewModel中的数据");
+            Log.L("ViewModel中的数据更新在Set属性器中更新到Model中");
+            Log.L("这样就做到了对ViewModel进行操作，并将数据更新到Model中，View也能做对应操作\n");
+
+            Log.L("将一部分操作封装在MVVMGroup类中，便于操作");
+            Log.L("新建Mvvm组，会先调用ViewModel中的初始化操作(Initialize方法)");
+            Log.L("然后ViewModel和Model进行同步(SyncModelValue方法)\n");
+
+            Log.L("————————————————————————————");
+            Log.L("新建一个MVVMGroup");
+
+
+            //将View ViewModel Model绑定起来
+            new MVVMGroup("name", new MyView(), new MyViewModel(), new MyModel());
+
+        }
+
+        protected override void Stop()
+        {
+        }
+
+        protected override void Update()
+        {
+        }
+    }
+
+
+
+}

@@ -1,0 +1,40 @@
+        public static void ConfigurationHangfire(this IServiceCollection services, IConfiguration Configuration,
+            IGlobalConfiguration globalConfiguration)
+        {
+            var serverProvider = services.BuildServiceProvider();
+            var hangfireSettings = serverProvider.GetService<IOptions<HangfireSettings>>().Value;
+            ConfigFromEnv(hangfireSettings);
+            var httpJobOptions = serverProvider.GetService<IOptions<HangfireHttpJobOptions>>().Value;
+            ConfigFromEnv(httpJobOptions);
+
+            httpJobOptions.GlobalSettingJsonFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hangfire",
+                "hangfire_global.json");
+
+            var sqlConnectStr = Configuration.GetSection(HangfireConnectStringKey).Get<string>();
+            var envSqlConnectStr = GetEnvConfig<string>("HangfireMysqlConnectionString");
+            if (!string.IsNullOrEmpty(envSqlConnectStr)) sqlConnectStr = envSqlConnectStr;
+
+            var mysqlOption = new MySqlStorageOptions
+            {
+                TransactionIsolationLevel = IsolationLevel.ReadCommitted,
+                QueuePollInterval = TimeSpan.FromSeconds(15),
+                JobExpirationCheckInterval = TimeSpan.FromHours(1),
+                CountersAggregateInterval = TimeSpan.FromMinutes(5),
+                PrepareSchemaIfNecessary = true,
+                DashboardJobListLimit = 50000,
+                TransactionTimeout = TimeSpan.FromMinutes(1),
+                TablesPrefix = hangfireSettings.TablePrefix
+            };
+            
+            globalConfiguration.UseStorage(new MySqlStorage(sqlConnectStr, mysqlOption))
+                .UseConsole(new ConsoleOptions
+                {
+                    BackgroundColor = "#000079"
+                })
+                .UseHangfireHttpJob(httpJobOptions)
+                .UseTagsWithMySql(new TagsOptions()
+                {
+                    TagsListStyle = TagsListStyle.Dropdown
+                },sqlOptions:mysqlOption)
+                .UseHeartbeatPage();
+        }

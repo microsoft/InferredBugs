@@ -1,0 +1,1385 @@
+{
+    "hash": "7a3ebd1abf161826cba323a49ce5f4b6f3d39009",
+    "message": "RZCache InMemory caching\n\nUse InMemory caching for short therm caching operations",
+    "file_num_lines": 633,
+    "diff_parsed": {
+        "added": [
+            [
+                17,
+                "using Microsoft.Extensions.Caching.Memory;"
+            ],
+            [
+                23,
+                "        internal static IMemoryCache _cache;"
+            ],
+            [
+                37,
+                "                if (!_cache.TryGetValue(\"PW\" + (Username + Password).GetHashCode(StringComparison.InvariantCultureIgnoreCase), out Token))"
+            ],
+            [
+                39,
+                "                    using (var oClient = new HttpClient())"
+            ],
+            [
+                40,
+                "                    {"
+            ],
+            [
+                41,
+                "                        oClient.DefaultRequestHeaders.Add(\"Username\", Username);"
+            ],
+            [
+                42,
+                "                        oClient.DefaultRequestHeaders.Add(\"Password\", Password);"
+            ],
+            [
+                43,
+                "                        oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(\"application/json\"));"
+            ],
+            [
+                44,
+                "                        var response = oClient.GetStringAsync(sURL + \"/rest/AuthenticateUser\");"
+            ],
+            [
+                45,
+                "                        response.Wait(5000);"
+            ],
+            [
+                46,
+                "                        if (response.IsCompleted)"
+            ],
+            [
+                47,
+                "                        {"
+            ],
+            [
+                48,
+                "                            Token = response.Result.Replace(\"\\\"\", \"\");"
+            ],
+            [
+                49,
+                ""
+            ],
+            [
+                50,
+                "                            // Set cache options."
+            ],
+            [
+                51,
+                "                            var cacheEntryOptions = new MemoryCacheEntryOptions()"
+            ],
+            [
+                52,
+                "                                // Keep in cache for this time, reset time if accessed."
+            ],
+            [
+                53,
+                "                                .SetSlidingExpiration(TimeSpan.FromSeconds(300));"
+            ],
+            [
+                54,
+                ""
+            ],
+            [
+                55,
+                "                            _cache.Set(\"PW\" + (Username + Password).GetHashCode(StringComparison.InvariantCultureIgnoreCase), Token, cacheEntryOptions);"
+            ],
+            [
+                56,
+                ""
+            ],
+            [
+                57,
+                "                            return Token;"
+            ],
+            [
+                58,
+                "                        }"
+            ],
+            [
+                59,
+                "                    }"
+            ],
+            [
+                61,
+                "                else"
+            ],
+            [
+                62,
+                "                    return Token;"
+            ],
+            [
+                63,
+                "            }"
+            ],
+            [
+                64,
+                "            catch(Exception ex)"
+            ],
+            [
+                65,
+                "            {"
+            ],
+            [
+                66,
+                "                Console.WriteLine(\"Auth. Error: \" + ex.Message);"
+            ],
+            [
+                76,
+                "            string sResult = \"\";"
+            ],
+            [
+                78,
+                "            {"
+            ],
+            [
+                79,
+                "                if (_cache.TryGetValue(\"SWResult-\" + Searchstring, out sResult))"
+            ],
+            [
+                80,
+                "                {"
+            ],
+            [
+                81,
+                "                    return sResult;"
+            ],
+            [
+                82,
+                "                }"
+            ],
+            [
+                84,
+                "            }"
+            ],
+            [
+                92,
+                "                        if (CatalogTTL == 0 || DateTime.Now.ToUniversalTime() - File.GetCreationTime(sCatFile).ToUniversalTime() <= new TimeSpan(CatalogTTL, 0, 1))"
+            ],
+            [
+                94,
+                "                            sResult = File.ReadAllText(sCatFile);"
+            ],
+            [
+                95,
+                "                            var cacheEntryOptions = new MemoryCacheEntryOptions()"
+            ],
+            [
+                96,
+                "                                .SetSlidingExpiration(TimeSpan.FromSeconds(60));"
+            ],
+            [
+                97,
+                "                            _cache.Set(\"SWResult-\" + Searchstring, sResult, cacheEntryOptions);"
+            ],
+            [
+                98,
+                "                            return sResult;"
+            ],
+            [
+                102,
+                "                else"
+            ],
+            [
+                103,
+                "                {"
+            ],
+            [
+                105,
+                "                }"
+            ],
+            [
+                106,
+                ""
+            ],
+            [
+                107,
+                "                using (var handler = new HttpClientHandler())"
+            ],
+            [
+                109,
+                "                    //handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => { return true; }; //To prevent Issue with FW"
+            ],
+            [
+                110,
+                ""
+            ],
+            [
+                111,
+                "                    using (var oClient = new HttpClient(handler))"
+            ],
+            [
+                112,
+                "                    {"
+            ],
+            [
+                113,
+                "                        oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                114,
+                "                        oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                115,
+                "                        var response = oClient.GetStringAsync(sURL + \"/rest/SWResults?search=\" + Searchstring);"
+            ],
+            [
+                116,
+                "                        response.Wait(7000); //7s max."
+            ],
+            [
+                117,
+                "                        if (response.IsCompleted)"
+            ],
+            [
+                118,
+                "                        {"
+            ],
+            [
+                119,
+                "                            sResult = response.Result;"
+            ],
+            [
+                120,
+                "                            // Set cache options."
+            ],
+            [
+                121,
+                "                            var cacheEntryOptions = new MemoryCacheEntryOptions()"
+            ],
+            [
+                122,
+                "                                .SetSlidingExpiration(TimeSpan.FromSeconds(60));"
+            ],
+            [
+                123,
+                "                            _cache.Set(\"SWResult-\" + Searchstring, sResult, cacheEntryOptions);"
+            ],
+            [
+                124,
+                ""
+            ],
+            [
+                125,
+                "                            if (string.IsNullOrEmpty(Searchstring))"
+            ],
+            [
+                126,
+                "                                File.WriteAllText(sCatFile, sResult);"
+            ],
+            [
+                127,
+                ""
+            ],
+            [
+                128,
+                "                            return sResult;"
+            ],
+            [
+                129,
+                "                        }"
+            ],
+            [
+                130,
+                "                    }"
+            ],
+            [
+                133,
+                "            catch (Exception ex)"
+            ],
+            [
+                134,
+                "            {"
+            ],
+            [
+                135,
+                "                Console.WriteLine(ex.Message);"
+            ],
+            [
+                136,
+                "            }"
+            ],
+            [
+                149,
+                "            string sResult = \"\";"
+            ],
+            [
+                150,
+                "            if (!_cache.TryGetValue(\"SWGET1-\" + Shortname.GetHashCode(StringComparison.InvariantCultureIgnoreCase), out sResult))"
+            ],
+            [
+                152,
+                "                try"
+            ],
+            [
+                154,
+                "                    var oClient = new HttpClient();"
+            ],
+            [
+                155,
+                "                    oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                156,
+                "                    oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                157,
+                "                    var response = oClient.GetStringAsync(sURL + \"/rest/SWGetShort?name=\" + WebUtility.UrlEncode(Shortname));"
+            ],
+            [
+                158,
+                "                    response.Wait(5000);"
+            ],
+            [
+                159,
+                "                    if (response.IsCompleted)"
+            ],
+            [
+                160,
+                "                    {"
+            ],
+            [
+                161,
+                "                        sResult = response.Result;"
+            ],
+            [
+                162,
+                ""
+            ],
+            [
+                163,
+                "                        // Set cache options."
+            ],
+            [
+                164,
+                "                        var cacheEntryOptions = new MemoryCacheEntryOptions()"
+            ],
+            [
+                165,
+                "                            .SetSlidingExpiration(TimeSpan.FromSeconds(330));"
+            ],
+            [
+                166,
+                ""
+            ],
+            [
+                167,
+                "                        _cache.Set(\"SWGET1-\" + Shortname.GetHashCode(StringComparison.InvariantCultureIgnoreCase), sResult, cacheEntryOptions);"
+            ],
+            [
+                168,
+                ""
+            ],
+            [
+                169,
+                "                        return sResult;"
+            ],
+            [
+                170,
+                "                    }"
+            ],
+            [
+                172,
+                "                catch { }"
+            ],
+            [
+                175,
+                "            return sResult;"
+            ],
+            [
+                180,
+                "            string sResult = \"\";"
+            ],
+            [
+                181,
+                "            if (!_cache.TryGetValue(\"SWGET2-\" + (PackageName + PackageVersion).GetHashCode(StringComparison.InvariantCultureIgnoreCase), out sResult))"
+            ],
+            [
+                183,
+                "                try"
+            ],
+            [
+                185,
+                "                    var oClient = new HttpClient();"
+            ],
+            [
+                186,
+                "                    oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                187,
+                "                    oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                188,
+                "                    var response = oClient.GetStringAsync(sURL + \"/rest/SWGet?name=\" + WebUtility.UrlEncode(PackageName) + \"&ver=\" + PackageVersion);"
+            ],
+            [
+                189,
+                "                    response.Wait(5000);"
+            ],
+            [
+                190,
+                "                    if (response.IsCompleted)"
+            ],
+            [
+                191,
+                "                    {"
+            ],
+            [
+                192,
+                "                        sResult = response.Result;"
+            ],
+            [
+                193,
+                ""
+            ],
+            [
+                194,
+                "                        // Set cache options."
+            ],
+            [
+                195,
+                "                        var cacheEntryOptions = new MemoryCacheEntryOptions()"
+            ],
+            [
+                196,
+                "                            .SetSlidingExpiration(TimeSpan.FromSeconds(330));"
+            ],
+            [
+                197,
+                "                        sResult = response.Result;"
+            ],
+            [
+                198,
+                "                        _cache.Set(\"SWGET2-\" + (PackageName + PackageVersion).GetHashCode(StringComparison.InvariantCultureIgnoreCase), sResult, cacheEntryOptions);"
+            ],
+            [
+                199,
+                "                        return sResult;"
+            ],
+            [
+                200,
+                "                    }"
+            ],
+            [
+                202,
+                "                catch { }"
+            ],
+            [
+                210,
+                "            string sResult = \"\";"
+            ],
+            [
+                211,
+                "            if (!_cache.TryGetValue(\"SWGET3-\" + (PackageName + Manufacturer + PackageVersion).GetHashCode(StringComparison.InvariantCultureIgnoreCase), out sResult))"
+            ],
+            [
+                213,
+                "                try"
+            ],
+            [
+                215,
+                "                    var oClient = new HttpClient();"
+            ],
+            [
+                216,
+                "                    oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                217,
+                "                    oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                218,
+                "                    var response = oClient.GetStringAsync(sURL + \"/rest/SWGetPkg?name=\" + WebUtility.UrlEncode(PackageName) + \"&manuf=\" + WebUtility.UrlEncode(Manufacturer) + \"&ver=\" + PackageVersion);"
+            ],
+            [
+                219,
+                "                    response.Wait(5000);"
+            ],
+            [
+                220,
+                "                    if (response.IsCompleted)"
+            ],
+            [
+                221,
+                "                    {"
+            ],
+            [
+                222,
+                "                        sResult = response.Result;"
+            ],
+            [
+                223,
+                ""
+            ],
+            [
+                224,
+                "                        // Set cache options."
+            ],
+            [
+                225,
+                "                        var cacheEntryOptions = new MemoryCacheEntryOptions()"
+            ],
+            [
+                226,
+                "                            .SetSlidingExpiration(TimeSpan.FromSeconds(330));"
+            ],
+            [
+                227,
+                "                        sResult = response.Result;"
+            ],
+            [
+                228,
+                "                        _cache.Set(\"SWGET3-\" + (PackageName + Manufacturer + PackageVersion).GetHashCode(StringComparison.InvariantCultureIgnoreCase), sResult, cacheEntryOptions);"
+            ],
+            [
+                229,
+                "                        return sResult;"
+            ],
+            [
+                230,
+                "                    }"
+            ],
+            [
+                232,
+                "                catch { }"
+            ],
+            [
+                274,
+                "                    if (CatalogTTL == 0 || DateTime.Now.ToUniversalTime() - File.GetCreationTime(sSWFile).ToUniversalTime() <= new TimeSpan(CatalogTTL, 0, 1))"
+            ],
+            [
+                280,
+                "                using (var handler = new HttpClientHandler())"
+            ],
+            [
+                283,
+                "                    handler.AllowAutoRedirect = true;"
+            ],
+            [
+                284,
+                "                    handler.MaxAutomaticRedirections = 5;"
+            ],
+            [
+                285,
+                "                    handler.CheckCertificateRevocationList = false;"
+            ],
+            [
+                286,
+                ""
+            ],
+            [
+                287,
+                "                    using (var oClient = new HttpClient(handler))"
+            ],
+            [
+                289,
+                "                        oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                290,
+                "                        oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                291,
+                "                        var response = oClient.GetStringAsync(sURL + \"/rest/GetSWDefinition?name=\" + WebUtility.UrlEncode(productName) + \"&ver=\" + WebUtility.UrlEncode(productVersion) + \"&man=\" + WebUtility.UrlEncode(manufacturer));"
+            ],
+            [
+                292,
+                "                        response.Wait(5000);"
+            ],
+            [
+                293,
+                "                        if (response.IsCompleted)"
+            ],
+            [
+                295,
+                "                            string sResult = response.Result;"
+            ],
+            [
+                296,
+                ""
+            ],
+            [
+                297,
+                "                            Task.Run(() =>"
+            ],
+            [
+                299,
+                "                                try"
+            ],
+            [
+                301,
+                "                                    if (contentType.ToLower() == \"application/json\")"
+            ],
+            [
+                303,
+                "                                        var oAddSW = Newtonsoft.Json.JsonConvert.DeserializeObject<List<AddSoftware>>(sResult);"
+            ],
+            [
+                304,
+                "                                        foreach (var oSW in oAddSW)"
+            ],
+            [
+                306,
+                "                                            foreach (var oDL in oSW.Files)"
+            ],
+            [
+                307,
+                "                                            {"
+            ],
+            [
+                308,
+                "                                                string sDir = @\"wwwroot/files/\" + oSW.ContentID;"
+            ],
+            [
+                309,
+                "                                                if (!Directory.Exists(sDir))"
+            ],
+            [
+                310,
+                "                                                {"
+            ],
+            [
+                311,
+                "                                                    Directory.CreateDirectory(sDir);"
+            ],
+            [
+                312,
+                "                                                }"
+            ],
+            [
+                313,
+                ""
+            ],
+            [
+                314,
+                "                                                if (oDL.URL.StartsWith(\"http\") || oDL.URL.StartsWith(\"ftp\"))"
+            ],
+            [
+                315,
+                "                                                {"
+            ],
+            [
+                316,
+                "                                                    if (!File.Exists(sDir + \"/\" + oDL.FileName))"
+            ],
+            [
+                317,
+                "                                                    {"
+            ],
+            [
+                318,
+                "                                                        var oRes = _DownloadFile(oDL.URL, sDir + \"/\" + oDL.FileName).Status;"
+            ],
+            [
+                319,
+                "                                                    }"
+            ],
+            [
+                320,
+                ""
+            ],
+            [
+                321,
+                "                                                    oDL.URL = localURL + \"/rest/dl/\" + oSW.ContentID + \"/\" + oDL.FileName;"
+            ],
+            [
+                322,
+                ""
+            ],
+            [
+                323,
+                "                                                }"
+            ],
+            [
+                324,
+                "                                            }"
+            ],
+            [
+                326,
+                "                                        sResult = Newtonsoft.Json.JsonConvert.SerializeObject(oAddSW);"
+            ],
+            [
+                327,
+                "                                        File.WriteAllText(sSWFile, sResult);"
+            ],
+            [
+                330,
+                "                                catch { }"
+            ],
+            [
+                331,
+                "                            });"
+            ],
+            [
+                332,
+                ""
+            ],
+            [
+                333,
+                "                            return response.Result;"
+            ],
+            [
+                439,
+                "                    response.Wait(5000);"
+            ],
+            [
+                486,
+                "            string sResult = \"\";"
+            ],
+            [
+                487,
+                "            if (_cache.TryGetValue(\"CHK\" + lSoftware.GetHashCode(StringComparison.InvariantCultureIgnoreCase), out sResult))"
+            ],
+            [
+                488,
+                "            {"
+            ],
+            [
+                489,
+                "                return sResult;"
+            ],
+            [
+                490,
+                "            }"
+            ],
+            [
+                493,
+                "                using (var oClient = new HttpClient())"
+            ],
+            [
+                495,
+                "                    oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                496,
+                "                    oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                497,
+                "                    HttpContent oCont = new StringContent(lSoftware, Encoding.UTF8, contentType);"
+            ],
+            [
+                498,
+                "                    if (contentType == \"application/xml\")"
+            ],
+            [
+                499,
+                "                    {"
+            ],
+            [
+                500,
+                "                        var response = oClient.PostAsync(sURL + \"/rest/CheckForUpdateXml\", oCont);"
+            ],
+            [
+                501,
+                "                        response.Wait(5000);"
+            ],
+            [
+                502,
+                "                        if (response.IsCompleted)"
+            ],
+            [
+                503,
+                "                        {"
+            ],
+            [
+                504,
+                "                            string responseBody = response.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                505,
+                "                            sResult = responseBody;"
+            ],
+            [
+                506,
+                "                            // Set cache options."
+            ],
+            [
+                507,
+                "                            var cacheEntryOptions = new MemoryCacheEntryOptions()"
+            ],
+            [
+                508,
+                "                                .SetSlidingExpiration(TimeSpan.FromSeconds(60));"
+            ],
+            [
+                510,
+                "                            _cache.Set(\"CHK\" + lSoftware.GetHashCode(StringComparison.InvariantCultureIgnoreCase), sResult, cacheEntryOptions);"
+            ],
+            [
+                512,
+                "                            return sResult;"
+            ],
+            [
+                513,
+                "                        }"
+            ],
+            [
+                514,
+                "                    }"
+            ],
+            [
+                516,
+                "                    if (contentType == \"application/json\")"
+            ],
+            [
+                517,
+                "                    {"
+            ],
+            [
+                518,
+                "                        var response = oClient.PostAsync(sURL + \"/rest/CheckForUpdateJSON\", oCont);"
+            ],
+            [
+                519,
+                "                        response.Wait(5000);"
+            ],
+            [
+                520,
+                "                        if (response.IsCompleted)"
+            ],
+            [
+                521,
+                "                        {"
+            ],
+            [
+                522,
+                "                            string responseBody = response.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                523,
+                "                            return responseBody;"
+            ],
+            [
+                524,
+                "                        }"
+            ],
+            [
+                525,
+                "                    }"
+            ],
+            [
+                577,
+                "                using (HttpClientHandler handler = new HttpClientHandler())"
+            ],
+            [
+                579,
+                "                    handler.AllowAutoRedirect = true;"
+            ],
+            [
+                580,
+                "                    handler.MaxAutomaticRedirections = 5;"
+            ],
+            [
+                581,
+                "                    handler.CheckCertificateRevocationList = false;"
+            ],
+            [
+                582,
+                "                    handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => { return true; }; //To prevent Issue with FW"
+            ],
+            [
+                583,
+                ""
+            ],
+            [
+                584,
+                "                    using (var httpClient = new HttpClient(handler))"
+            ],
+            [
+                586,
+                "                        httpClient.DefaultRequestHeaders.TryAddWithoutValidation(\"User-Agent\", \"chocolatey command line\");"
+            ],
+            [
+                587,
+                "                        using (var request = new HttpRequestMessage(HttpMethod.Get, new Uri(URL)))"
+            ],
+            [
+                589,
+                "                            using (Stream contentStream = await (await httpClient.SendAsync(request)).Content.ReadAsStreamAsync(),"
+            ],
+            [
+                590,
+                "                            stream = new FileStream(FileName, FileMode.Create, FileAccess.Write, FileShare.None, 32768, true))"
+            ],
+            [
+                591,
+                "                            {"
+            ],
+            [
+                592,
+                "                                await contentStream.CopyToAsync(stream);"
+            ],
+            [
+                593,
+                "                            }"
+            ],
+            [
+                594,
+                "                            Console.WriteLine(\"Donwloaded: \" + URL);"
+            ],
+            [
+                597,
+                "                    }"
+            ]
+        ],
+        "deleted": [
+            [
+                34,
+                "                var oClient = new HttpClient();"
+            ],
+            [
+                36,
+                "                oClient.DefaultRequestHeaders.Add(\"Username\", Username);"
+            ],
+            [
+                37,
+                "                oClient.DefaultRequestHeaders.Add(\"Password\", Password);"
+            ],
+            [
+                38,
+                "                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(\"application/json\"));"
+            ],
+            [
+                39,
+                "                var response = oClient.GetStringAsync(sURL + \"/rest/AuthenticateUser\");"
+            ],
+            [
+                40,
+                "                response.Wait(5000);"
+            ],
+            [
+                41,
+                "                if (response.Result != null)"
+            ],
+            [
+                43,
+                "                    Token = response.Result.Replace(\"\\\"\", \"\");"
+            ],
+            [
+                44,
+                "                    return Token;"
+            ],
+            [
+                47,
+                "            catch { }"
+            ],
+            [
+                56,
+                ""
+            ],
+            [
+                66,
+                "                        if (CatalogTTL == 0 || DateTime.Now.ToUniversalTime() - File.GetCreationTime(sCatFile).ToUniversalTime() <= new TimeSpan(1, 0, 0))"
+            ],
+            [
+                68,
+                "                            return File.ReadAllText(sCatFile);"
+            ],
+            [
+                73,
+                "                var oClient = new HttpClient();"
+            ],
+            [
+                74,
+                "                oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                75,
+                "                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                76,
+                "                var response = oClient.GetStringAsync(sURL + \"/rest/SWResults?search=\" + Searchstring);"
+            ],
+            [
+                77,
+                "                response.Wait(5000);"
+            ],
+            [
+                78,
+                "                if (response.Result != null)"
+            ],
+            [
+                80,
+                "                    string sResult = response.Result;"
+            ],
+            [
+                81,
+                "                    File.WriteAllText(sCatFile, sResult);"
+            ],
+            [
+                82,
+                "                    return sResult;"
+            ],
+            [
+                85,
+                "            catch { }"
+            ],
+            [
+                98,
+                "            try"
+            ],
+            [
+                100,
+                "                var oClient = new HttpClient();"
+            ],
+            [
+                101,
+                "                oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                102,
+                "                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                103,
+                "                var response = oClient.GetStringAsync(sURL + \"/rest/SWGetShort?name=\" + WebUtility.UrlEncode(Shortname));"
+            ],
+            [
+                104,
+                "                response.Wait(5000);"
+            ],
+            [
+                105,
+                "                if (response.Result != null)"
+            ],
+            [
+                107,
+                "                    return response.Result;"
+            ],
+            [
+                110,
+                "            catch { }"
+            ],
+            [
+                112,
+                "            return \"\";"
+            ],
+            [
+                117,
+                "            try"
+            ],
+            [
+                119,
+                "                var oClient = new HttpClient();"
+            ],
+            [
+                120,
+                "                oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                121,
+                "                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                122,
+                "                var response = oClient.GetStringAsync(sURL + \"/rest/SWGet?name=\" + WebUtility.UrlEncode(PackageName) + \"&ver=\" + PackageVersion);"
+            ],
+            [
+                123,
+                "                response.Wait(5000);"
+            ],
+            [
+                124,
+                "                if (response.Result != null)"
+            ],
+            [
+                126,
+                "                    return response.Result;"
+            ],
+            [
+                129,
+                "            catch { }"
+            ],
+            [
+                136,
+                "            try"
+            ],
+            [
+                138,
+                "                var oClient = new HttpClient();"
+            ],
+            [
+                139,
+                "                oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                140,
+                "                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                141,
+                "                var response = oClient.GetStringAsync(sURL + \"/rest/SWGetPkg?name=\" + WebUtility.UrlEncode(PackageName) + \"&manuf=\" + WebUtility.UrlEncode(Manufacturer) + \"&ver=\" + PackageVersion);"
+            ],
+            [
+                142,
+                "                response.Wait(5000);"
+            ],
+            [
+                143,
+                "                if (response.Result != null)"
+            ],
+            [
+                145,
+                "                    return response.Result;"
+            ],
+            [
+                148,
+                "            catch { }"
+            ],
+            [
+                189,
+                "                    if (CatalogTTL == 0 || DateTime.Now.ToUniversalTime() - File.GetCreationTime(sSWFile).ToUniversalTime() <= new TimeSpan(1, 0, 0))"
+            ],
+            [
+                195,
+                "                var oClient = new HttpClient();"
+            ],
+            [
+                196,
+                "                oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                197,
+                "                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                198,
+                "                var response = oClient.GetStringAsync(sURL + \"/rest/GetSWDefinition?name=\" + WebUtility.UrlEncode(productName) + \"&ver=\" + WebUtility.UrlEncode(productVersion) + \"&man=\" + WebUtility.UrlEncode(manufacturer));"
+            ],
+            [
+                199,
+                "                response.Wait(5000);"
+            ],
+            [
+                200,
+                "                if (response.Result != null)"
+            ],
+            [
+                202,
+                "                    string sResult = response.Result;"
+            ],
+            [
+                204,
+                "                    try"
+            ],
+            [
+                206,
+                "                        if (contentType.ToLower() == \"application/json\")"
+            ],
+            [
+                208,
+                "                            var oAddSW = Newtonsoft.Json.JsonConvert.DeserializeObject<List<AddSoftware>>(sResult);"
+            ],
+            [
+                209,
+                "                            foreach (var oSW in oAddSW)"
+            ],
+            [
+                211,
+                "                                foreach (var oDL in oSW.Files)"
+            ],
+            [
+                213,
+                "                                    string sDir = @\"wwwroot/files/\" + oSW.ContentID;"
+            ],
+            [
+                214,
+                "                                    if (!Directory.Exists(sDir))"
+            ],
+            [
+                215,
+                "                                    {"
+            ],
+            [
+                216,
+                "                                        Directory.CreateDirectory(sDir);"
+            ],
+            [
+                217,
+                "                                    }"
+            ],
+            [
+                218,
+                ""
+            ],
+            [
+                219,
+                "                                    if (oDL.URL.StartsWith(\"http\") || oDL.URL.StartsWith(\"ftp\"))"
+            ],
+            [
+                221,
+                "                                        if (!File.Exists(sDir + \"/\" + oDL.FileName))"
+            ],
+            [
+                223,
+                "                                            var oRes = _DownloadFile(oDL.URL, sDir + \"/\" + oDL.FileName).Status;"
+            ],
+            [
+                224,
+                ""
+            ],
+            [
+                225,
+                "                                            //Thread.Sleep(5000);"
+            ],
+            [
+                227,
+                ""
+            ],
+            [
+                228,
+                "                                        oDL.URL = localURL + \"/rest/dl/\" + oSW.ContentID + \"/\" + oDL.FileName;"
+            ],
+            [
+                229,
+                ""
+            ],
+            [
+                232,
+                "                            }"
+            ],
+            [
+                233,
+                "                            sResult = Newtonsoft.Json.JsonConvert.SerializeObject(oAddSW);"
+            ],
+            [
+                236,
+                "                    catch { }"
+            ],
+            [
+                237,
+                "                    File.WriteAllText(sSWFile, sResult);"
+            ],
+            [
+                238,
+                "                    return sResult;"
+            ],
+            [
+                342,
+                "                    //response.Wait(5000);"
+            ],
+            [
+                391,
+                "                var oClient = new HttpClient();"
+            ],
+            [
+                392,
+                "                oClient.DefaultRequestHeaders.Add(\"AuthenticatedToken\", Token);"
+            ],
+            [
+                393,
+                "                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));"
+            ],
+            [
+                394,
+                "                HttpContent oCont = new StringContent(lSoftware, Encoding.UTF8, contentType);"
+            ],
+            [
+                395,
+                "                if (contentType == \"application/xml\")"
+            ],
+            [
+                397,
+                "                    var response = oClient.PostAsync(sURL + \"/rest/CheckForUpdateXml\", oCont);"
+            ],
+            [
+                398,
+                "                    response.Wait(5000);"
+            ],
+            [
+                400,
+                "                    string responseBody = response.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                401,
+                "                    return responseBody;"
+            ],
+            [
+                402,
+                "                }"
+            ],
+            [
+                404,
+                "                if (contentType == \"application/json\")"
+            ],
+            [
+                405,
+                "                {"
+            ],
+            [
+                406,
+                "                    var response = oClient.PostAsync(sURL + \"/rest/CheckForUpdateJSON\", oCont);"
+            ],
+            [
+                407,
+                "                    response.Wait(5000);"
+            ],
+            [
+                409,
+                "                    string responseBody = response.Result.Content.ReadAsStringAsync().Result;"
+            ],
+            [
+                410,
+                "                    return responseBody;"
+            ],
+            [
+                462,
+                "                HttpClientHandler handler = new HttpClientHandler();"
+            ],
+            [
+                463,
+                "                handler.AllowAutoRedirect = true;"
+            ],
+            [
+                464,
+                "                handler.MaxAutomaticRedirections = 5;"
+            ],
+            [
+                465,
+                ""
+            ],
+            [
+                466,
+                "                using (var httpClient = new HttpClient(handler))"
+            ],
+            [
+                468,
+                "                    httpClient.DefaultRequestHeaders.TryAddWithoutValidation(\"User-Agent\", \"chocolatey command line\");"
+            ],
+            [
+                469,
+                "                    using (var request = new HttpRequestMessage(HttpMethod.Get, new Uri(URL)))"
+            ],
+            [
+                471,
+                "                        using (Stream contentStream = await (await httpClient.SendAsync(request)).Content.ReadAsStreamAsync(),"
+            ],
+            [
+                472,
+                "                        stream = new FileStream(FileName, FileMode.Create, FileAccess.Write, FileShare.None, 32768, true))"
+            ],
+            [
+                474,
+                "                            await contentStream.CopyToAsync(stream);"
+            ],
+            [
+                476,
+                "                    }"
+            ],
+            [
+                482,
+                "                System.Diagnostics.Debug.WriteLine(ex.Message);"
+            ]
+        ]
+    },
+    "num_lines_added": 231,
+    "num_lines_removed": 112
+}

@@ -1,0 +1,40 @@
+        public static string ParamToJwk(
+            ECParameters ecParams,
+            JsonSerializerSettings settings = null)
+        {
+            Dictionary<string, string> dic = new Dictionary<string, string>();
+
+            dic[JwtConst.kty] = JwtConst.EC; // 必須
+            dic[JwtConst.alg] = JwtConst.ES256;
+
+            // 楕円曲線
+            dic[JwtConst.crv] = EccPublicKeyConverter.GetCrvStringFromECCurve(ecParams.Curve);
+            // 公開鍵の部分
+            dic[JwtConst.x] = CustomEncode.ToBase64UrlString(ecParams.Q.X);
+            dic[JwtConst.y] = CustomEncode.ToBase64UrlString(ecParams.Q.Y);
+            //if (ecParams.D != null) // 秘密鍵の部分は処理しない
+            //{
+            //    dic[JwtConst.d] = CustomEncode.ToBase64UrlString(ecParams.D);
+            //}
+
+            // JSON Web Key (JWK) Thumbprint
+            // https://openid-foundation-japan.github.io/rfc7638.ja.html
+            // kid : https://openid-foundation-japan.github.io/rfc7638.ja.html#Example
+            //       https://openid-foundation-japan.github.io/rfc7638.ja.html#MembersUsed
+            //       kidには、JWK の JWK Thumbprint 値などが用いられるらしい。
+            //       ★ EC 公開鍵の必須メンバを辞書順に並べると、crv, kty, x, y となる。
+            dic[JwtConst.kid] = CustomEncode.ToBase64UrlString(
+                GetHash.GetHashBytes(
+                    CustomEncode.StringToByte(
+                        JsonConvert.SerializeObject(new
+                        {
+                            e = dic[JwtConst.crv],
+                            kty = dic[JwtConst.kty],
+                            x = dic[JwtConst.x],
+                            y = dic[JwtConst.y]
+                        }),
+                        CustomEncode.UTF_8),
+                    EnumHashAlgorithm.SHA256_M));
+
+            return EccPublicKeyConverter.CreateJwkFromDictionary(dic, settings);
+        }

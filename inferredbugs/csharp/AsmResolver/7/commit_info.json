@@ -1,0 +1,1121 @@
+{
+    "hash": "206cf825e3bbb8db6912bcbb6dbe6cd847a73567",
+    "message": "Some little optimizations",
+    "file_num_lines": 327,
+    "diff_parsed": {
+        "added": [
+            [
+                130,
+                "        public bool TryGetBlobReader(uint index, out BlobSignatureReader reader)"
+            ],
+            [
+                131,
+                "        {"
+            ],
+            [
+                132,
+                "            reader = null;"
+            ],
+            [
+                133,
+                "            if (index == 0 || index > StreamSize)"
+            ],
+            [
+                134,
+                "                return false;"
+            ],
+            [
+                135,
+                ""
+            ],
+            [
+                136,
+                "            reader = GetBlobReader(index);"
+            ],
+            [
+                137,
+                "            return true;"
+            ],
+            [
+                138,
+                "        }"
+            ],
+            [
+                139,
+                ""
+            ],
+            [
+                140,
+                "        public bool TryGetBlobReader(uint index, IGenericContext instance, out BlobSignatureReader reader)"
+            ],
+            [
+                141,
+                "        {"
+            ],
+            [
+                142,
+                "            if (TryGetBlobReader(index, out reader))"
+            ],
+            [
+                143,
+                "            {"
+            ],
+            [
+                144,
+                "                reader.GenericContext = instance;"
+            ],
+            [
+                145,
+                "                return true;"
+            ],
+            [
+                146,
+                "            }"
+            ],
+            [
+                147,
+                "            return false;"
+            ],
+            [
+                148,
+                "        }"
+            ],
+            [
+                149,
+                ""
+            ],
+            [
+                168,
+                "            BlobSignatureReader reader;"
+            ],
+            [
+                169,
+                "            if (TryGetBlobReader(sig, context, out reader))"
+            ],
+            [
+                171,
+                "                using (reader)"
+            ],
+            [
+                173,
+                "                    byte flag = reader.ReadByte();"
+            ],
+            [
+                174,
+                ""
+            ],
+            [
+                175,
+                "                    if (flag == 0x6)"
+            ],
+            [
+                177,
+                "                        FieldSignature fieldsignature = new FieldSignature();"
+            ],
+            [
+                178,
+                "                        fieldsignature.ReturnType = reader.ReadTypeReference((ElementType)reader.ReadByte());"
+            ],
+            [
+                179,
+                "                        signature = fieldsignature;"
+            ],
+            [
+                181,
+                "                    else"
+            ],
+            [
+                183,
+                "                        MethodSignature methodsignature = new MethodSignature();"
+            ],
+            [
+                184,
+                ""
+            ],
+            [
+                185,
+                "                        if ((flag & 0x20) != 0)"
+            ],
+            [
+                187,
+                "                            methodsignature.HasThis = true;"
+            ],
+            [
+                188,
+                "                            flag = (byte)(flag & -33);"
+            ],
+            [
+                190,
+                "                        if ((flag & 0x40) != 0)"
+            ],
+            [
+                191,
+                "                        {"
+            ],
+            [
+                192,
+                "                            methodsignature.ExplicitThis = true;"
+            ],
+            [
+                193,
+                "                            flag = (byte)(flag & -65);"
+            ],
+            [
+                194,
+                "                        }"
+            ],
+            [
+                195,
+                "                        if ((flag & 0x10) != 0)"
+            ],
+            [
+                196,
+                "                        {"
+            ],
+            [
+                197,
+                "                            int genericsig = NETGlobals.ReadCompressedInt32(reader);"
+            ],
+            [
+                198,
+                "                            if (!context.IsDefinition)"
+            ],
+            [
+                199,
+                "                            {"
+            ],
+            [
+                200,
+                "                                AddMissingGenericParameters(context.Method, genericsig - 1);"
+            ],
+            [
+                201,
+                "                            }"
+            ],
+            [
+                202,
+                "                        }"
+            ],
+            [
+                203,
+                "                        methodsignature.CallingConvention = (MethodCallingConvention)flag;"
+            ],
+            [
+                205,
+                "                        uint paramCount = NETGlobals.ReadCompressedUInt32(reader);"
+            ],
+            [
+                206,
+                "                        methodsignature.ReturnType = reader.ReadTypeReference();"
+            ],
+            [
+                207,
+                ""
+            ],
+            [
+                208,
+                "                        ParameterReference[] parameters = new ParameterReference[paramCount];"
+            ],
+            [
+                209,
+                "                        for (int i = 0; i < paramCount; i++)"
+            ],
+            [
+                210,
+                "                        {"
+            ],
+            [
+                211,
+                "                            parameters[i] = new ParameterReference() { ParameterType = reader.ReadTypeReference((ElementType)reader.ReadByte()) };"
+            ],
+            [
+                212,
+                "                        }"
+            ],
+            [
+                213,
+                "                        methodsignature.Parameters = parameters;"
+            ],
+            [
+                215,
+                "                        signature = methodsignature;"
+            ],
+            [
+                216,
+                "                    }"
+            ],
+            [
+                245,
+                "            BlobSignatureReader reader;"
+            ],
+            [
+                246,
+                "            if (TryGetBlobReader(signature, parentMethod, out reader))"
+            ],
+            [
+                248,
+                "                using (reader)"
+            ],
+            [
+                249,
+                "                {"
+            ],
+            [
+                250,
+                "                    reader.GenericContext = parentMethod;"
+            ],
+            [
+                252,
+                "                    byte local_sig = reader.ReadByte();"
+            ],
+            [
+                254,
+                "                    if (local_sig != 0x7)"
+            ],
+            [
+                255,
+                "                        throw new ArgumentException(\"Signature doesn't refer to a valid local variable signature\");"
+            ],
+            [
+                257,
+                "                    uint count = NETGlobals.ReadCompressedUInt32(reader);"
+            ],
+            [
+                259,
+                "                    if (count == 0)"
+            ],
+            [
+                260,
+                "                        return null;"
+            ],
+            [
+                262,
+                "                    variables = new VariableDefinition[count];"
+            ],
+            [
+                264,
+                "                    for (int i = 0; i < count; i++)"
+            ],
+            [
+                265,
+                "                        variables[i] = new VariableDefinition(i, reader.ReadTypeReference());"
+            ],
+            [
+                266,
+                "                }"
+            ],
+            [
+                274,
+                "            BlobSignatureReader reader;"
+            ],
+            [
+                275,
+                "            if (TryGetBlobReader(signature, paramProvider, out reader))"
+            ],
+            [
+                277,
+                "                using (reader)"
+            ],
+            [
+                278,
+                "                {"
+            ],
+            [
+                279,
+                "                    reader.GenericContext = paramProvider;"
+            ],
+            [
+                280,
+                "                    typeRef = reader.ReadTypeReference();"
+            ],
+            [
+                281,
+                "                }"
+            ],
+            [
+                288,
+                "            BlobSignatureReader reader;"
+            ],
+            [
+                289,
+                "            if (TryGetBlobReader(signature, context, out reader))"
+            ],
+            [
+                291,
+                "                using (reader)"
+            ],
+            [
+                293,
+                "                    if (reader.ReadByte() == 0xa)"
+            ],
+            [
+                294,
+                "                    {"
+            ],
+            [
+                295,
+                "                        uint count = NETGlobals.ReadCompressedUInt32(reader);"
+            ],
+            [
+                296,
+                "                        TypeReference[] types = new TypeReference[count];"
+            ],
+            [
+                297,
+                "                        for (int i = 0; i < count; i++)"
+            ],
+            [
+                298,
+                "                            types[i] = reader.ReadTypeReference();"
+            ],
+            [
+                300,
+                "                        return types;"
+            ],
+            [
+                301,
+                "                    }"
+            ],
+            [
+                310,
+                "            BlobSignatureReader reader;"
+            ],
+            [
+                311,
+                "            if (TryGetBlobReader(signature, out reader))"
+            ],
+            [
+                313,
+                "                using (reader)"
+            ],
+            [
+                315,
+                ""
+            ],
+            [
+                316,
+                "                    switch (type)"
+            ],
+            [
+                317,
+                "                    {"
+            ],
+            [
+                318,
+                "                        case ElementType.Boolean:"
+            ],
+            [
+                319,
+                "                            value = reader.ReadByte() == 1;"
+            ],
+            [
+                320,
+                "                            break;"
+            ],
+            [
+                321,
+                "                        case ElementType.Char:"
+            ],
+            [
+                322,
+                "                            value = (char)reader.ReadUInt16();"
+            ],
+            [
+                323,
+                "                            break;"
+            ],
+            [
+                324,
+                "                        case ElementType.String:"
+            ],
+            [
+                325,
+                "                            value = reader.ReadUtf8String(); //Encoding.Unicode.GetString(reader.ReadBytes((int)reader.BaseStream.Length));"
+            ],
+            [
+                326,
+                "                            break;"
+            ],
+            [
+                327,
+                "                        case ElementType.I1:"
+            ],
+            [
+                328,
+                "                            value = reader.ReadSByte();"
+            ],
+            [
+                329,
+                "                            break;"
+            ],
+            [
+                330,
+                "                        case ElementType.I2:"
+            ],
+            [
+                331,
+                "                            value = reader.ReadInt16();"
+            ],
+            [
+                332,
+                "                            break;"
+            ],
+            [
+                333,
+                "                        case ElementType.I4:"
+            ],
+            [
+                334,
+                "                            value = reader.ReadInt32();"
+            ],
+            [
+                335,
+                "                            break;"
+            ],
+            [
+                336,
+                "                        case ElementType.I8:"
+            ],
+            [
+                337,
+                "                            value = reader.ReadInt64();"
+            ],
+            [
+                338,
+                "                            break;"
+            ],
+            [
+                339,
+                "                        case ElementType.U1:"
+            ],
+            [
+                340,
+                "                            value = reader.ReadByte();"
+            ],
+            [
+                341,
+                "                            break;"
+            ],
+            [
+                342,
+                "                        case ElementType.U2:"
+            ],
+            [
+                343,
+                "                            value = reader.ReadUInt16();"
+            ],
+            [
+                344,
+                "                            break;"
+            ],
+            [
+                345,
+                "                        case ElementType.U4:"
+            ],
+            [
+                346,
+                "                            value = reader.ReadUInt32();"
+            ],
+            [
+                347,
+                "                            break;"
+            ],
+            [
+                348,
+                "                        case ElementType.U8:"
+            ],
+            [
+                349,
+                "                            value = reader.ReadUInt64();"
+            ],
+            [
+                350,
+                "                            break;"
+            ],
+            [
+                351,
+                "                        case ElementType.R4:"
+            ],
+            [
+                352,
+                "                            value = reader.ReadSingle();"
+            ],
+            [
+                353,
+                "                            break;"
+            ],
+            [
+                354,
+                "                        case ElementType.R8:"
+            ],
+            [
+                355,
+                "                            value = reader.ReadDouble();"
+            ],
+            [
+                356,
+                "                            break;"
+            ],
+            [
+                357,
+                "                        default:"
+            ],
+            [
+                358,
+                "                            throw new ArgumentException(\"Invalid constant type\", \"type\");"
+            ],
+            [
+                359,
+                "                    }"
+            ],
+            [
+                368,
+                "            BlobSignatureReader reader;"
+            ],
+            [
+                369,
+                "            if (TryGetBlobReader(signature, out reader))"
+            ],
+            [
+                371,
+                "                using (reader)"
+            ],
+            [
+                372,
+                "                {"
+            ],
+            [
+                373,
+                "                    ushort sign = reader.ReadUInt16();"
+            ],
+            [
+                374,
+                "                    if (sign != 0x0001)"
+            ],
+            [
+                375,
+                "                        throw new ArgumentException(\"Signature doesn't refer to a valid Custom Attribute signature\");"
+            ],
+            [
+                378,
+                "                    int fixedArgCount = 0;"
+            ],
+            [
+                380,
+                "                    if (parent.Constructor.Signature != null && parent.Constructor.Signature.Parameters != null)"
+            ],
+            [
+                381,
+                "                        fixedArgCount = parent.Constructor.Signature.Parameters.Length;"
+            ],
+            [
+                383,
+                "                    CustomAttributeArgument[] fixedArgs = new CustomAttributeArgument[fixedArgCount];"
+            ],
+            [
+                385,
+                "                    for (int i = 0; i < fixedArgCount; i++)"
+            ],
+            [
+                386,
+                "                    {"
+            ],
+            [
+                387,
+                "                        fixedArgs[i] = new CustomAttributeArgument(reader.ReadArgumentValue(parent.Constructor.Signature.Parameters[i].ParameterType));"
+            ],
+            [
+                388,
+                "                    }"
+            ],
+            [
+                390,
+                "                    int namedArgCount = 0;"
+            ],
+            [
+                391,
+                "                    CustomAttributeArgument[] namedArgs = new CustomAttributeArgument[namedArgCount];"
+            ],
+            [
+                393,
+                "                    customAttrSig = new CustomAttributeSignature(fixedArgs, namedArgs);"
+            ],
+            [
+                394,
+                "                }"
+            ]
+        ],
+        "deleted": [
+            [
+                148,
+                "            using (BlobSignatureReader reader = GetBlobReader(sig, context))"
+            ],
+            [
+                150,
+                "                byte flag = reader.ReadByte();"
+            ],
+            [
+                151,
+                ""
+            ],
+            [
+                152,
+                "                if (flag == 0x6)"
+            ],
+            [
+                154,
+                "                    FieldSignature fieldsignature = new FieldSignature();"
+            ],
+            [
+                155,
+                "                    fieldsignature.ReturnType = reader.ReadTypeReference((ElementType)reader.ReadByte());"
+            ],
+            [
+                156,
+                "                    signature = fieldsignature;"
+            ],
+            [
+                157,
+                "                }"
+            ],
+            [
+                158,
+                "                else"
+            ],
+            [
+                159,
+                "                {"
+            ],
+            [
+                160,
+                "                    MethodSignature methodsignature = new MethodSignature();"
+            ],
+            [
+                161,
+                ""
+            ],
+            [
+                162,
+                "                    if ((flag & 0x20) != 0)"
+            ],
+            [
+                163,
+                "                    {"
+            ],
+            [
+                164,
+                "                        methodsignature.HasThis = true;"
+            ],
+            [
+                165,
+                "                        flag = (byte)(flag & -33);"
+            ],
+            [
+                166,
+                "                    }"
+            ],
+            [
+                167,
+                "                    if ((flag & 0x40) != 0)"
+            ],
+            [
+                169,
+                "                        methodsignature.ExplicitThis = true;"
+            ],
+            [
+                170,
+                "                        flag = (byte)(flag & -65);"
+            ],
+            [
+                172,
+                "                    if ((flag & 0x10) != 0)"
+            ],
+            [
+                174,
+                "                        int genericsig = NETGlobals.ReadCompressedInt32(reader);"
+            ],
+            [
+                175,
+                "                        if (!context.IsDefinition)"
+            ],
+            [
+                177,
+                "                            AddMissingGenericParameters(context.Method, genericsig - 1);"
+            ],
+            [
+                179,
+                "                    }"
+            ],
+            [
+                180,
+                "                    methodsignature.CallingConvention = (MethodCallingConvention)flag;"
+            ],
+            [
+                182,
+                "                    uint paramCount = NETGlobals.ReadCompressedUInt32(reader);"
+            ],
+            [
+                183,
+                "                    methodsignature.ReturnType = reader.ReadTypeReference();"
+            ],
+            [
+                184,
+                ""
+            ],
+            [
+                185,
+                "                    ParameterReference[] parameters = new ParameterReference[paramCount];"
+            ],
+            [
+                186,
+                "                    for (int i = 0; i < paramCount; i++)"
+            ],
+            [
+                187,
+                "                    {"
+            ],
+            [
+                188,
+                "                        parameters[i] = new ParameterReference() { ParameterType = reader.ReadTypeReference((ElementType)reader.ReadByte()) };"
+            ],
+            [
+                189,
+                "                    }"
+            ],
+            [
+                190,
+                "                    methodsignature.Parameters = parameters;"
+            ],
+            [
+                192,
+                "                    signature = methodsignature;"
+            ],
+            [
+                221,
+                "            using (BlobSignatureReader reader = GetBlobReader(signature))"
+            ],
+            [
+                223,
+                "                reader.GenericContext = parentMethod;"
+            ],
+            [
+                225,
+                "                byte local_sig = reader.ReadByte();"
+            ],
+            [
+                227,
+                "                if (local_sig != 0x7)"
+            ],
+            [
+                228,
+                "                    throw new ArgumentException(\"Signature doesn't refer to a valid local variable signature\");"
+            ],
+            [
+                230,
+                "                uint count = NETGlobals.ReadCompressedUInt32(reader);"
+            ],
+            [
+                232,
+                "                if (count == 0)"
+            ],
+            [
+                233,
+                "                    return null;"
+            ],
+            [
+                235,
+                "                variables = new VariableDefinition[count];"
+            ],
+            [
+                237,
+                "                for (int i = 0; i < count; i++)"
+            ],
+            [
+                238,
+                "                    variables[i] = new VariableDefinition(i, reader.ReadTypeReference());"
+            ],
+            [
+                246,
+                "            using (BlobSignatureReader reader = GetBlobReader(signature))"
+            ],
+            [
+                248,
+                "                reader.GenericContext = paramProvider;"
+            ],
+            [
+                249,
+                "                typeRef = reader.ReadTypeReference();"
+            ],
+            [
+                251,
+                ""
+            ],
+            [
+                257,
+                "            using (BlobSignatureReader reader = GetBlobReader(signature, context))"
+            ],
+            [
+                259,
+                "                if (reader.ReadByte() == 0xa)"
+            ],
+            [
+                261,
+                "                    uint count = NETGlobals.ReadCompressedUInt32(reader);"
+            ],
+            [
+                262,
+                "                    TypeReference[] types = new TypeReference[count];"
+            ],
+            [
+                263,
+                "                    for (int i = 0; i < count; i++)"
+            ],
+            [
+                264,
+                "                        types[i] = reader.ReadTypeReference();"
+            ],
+            [
+                266,
+                "                    return types;"
+            ],
+            [
+                275,
+                "            using (BlobSignatureReader reader = GetBlobReader(signature))"
+            ],
+            [
+                277,
+                ""
+            ],
+            [
+                278,
+                "                switch (type)"
+            ],
+            [
+                280,
+                "                    case ElementType.Boolean:"
+            ],
+            [
+                281,
+                "                        value = reader.ReadByte() == 1;"
+            ],
+            [
+                282,
+                "                        break;"
+            ],
+            [
+                283,
+                "                    case ElementType.Char:"
+            ],
+            [
+                284,
+                "                        value = (char)reader.ReadUInt16();"
+            ],
+            [
+                285,
+                "                        break;"
+            ],
+            [
+                286,
+                "                    case ElementType.String:"
+            ],
+            [
+                287,
+                "                        value = reader.ReadUtf8String(); //Encoding.Unicode.GetString(reader.ReadBytes((int)reader.BaseStream.Length));"
+            ],
+            [
+                288,
+                "                        break;"
+            ],
+            [
+                289,
+                "                    case ElementType.I1:"
+            ],
+            [
+                290,
+                "                        value =  reader.ReadSByte();"
+            ],
+            [
+                291,
+                "                        break;"
+            ],
+            [
+                292,
+                "                    case ElementType.I2:"
+            ],
+            [
+                293,
+                "                        value =  reader.ReadInt16();"
+            ],
+            [
+                294,
+                "                        break;"
+            ],
+            [
+                295,
+                "                    case ElementType.I4:"
+            ],
+            [
+                296,
+                "                        value =  reader.ReadInt32();"
+            ],
+            [
+                297,
+                "                        break;"
+            ],
+            [
+                298,
+                "                    case ElementType.I8:"
+            ],
+            [
+                299,
+                "                        value =  reader.ReadInt64();"
+            ],
+            [
+                300,
+                "                        break;"
+            ],
+            [
+                301,
+                "                    case ElementType.U1:"
+            ],
+            [
+                302,
+                "                        value =  reader.ReadByte();"
+            ],
+            [
+                303,
+                "                        break;"
+            ],
+            [
+                304,
+                "                    case ElementType.U2:"
+            ],
+            [
+                305,
+                "                        value =  reader.ReadUInt16();"
+            ],
+            [
+                306,
+                "                        break;"
+            ],
+            [
+                307,
+                "                    case ElementType.U4:"
+            ],
+            [
+                308,
+                "                        value =  reader.ReadUInt32();"
+            ],
+            [
+                309,
+                "                        break;"
+            ],
+            [
+                310,
+                "                    case ElementType.U8:"
+            ],
+            [
+                311,
+                "                        value =  reader.ReadUInt64();"
+            ],
+            [
+                312,
+                "                        break;"
+            ],
+            [
+                313,
+                "                    case ElementType.R4:"
+            ],
+            [
+                314,
+                "                        value =  reader.ReadSingle();"
+            ],
+            [
+                315,
+                "                        break;"
+            ],
+            [
+                316,
+                "                    case ElementType.R8:"
+            ],
+            [
+                317,
+                "                        value =  reader.ReadDouble();"
+            ],
+            [
+                318,
+                "                        break;"
+            ],
+            [
+                319,
+                "                    default:"
+            ],
+            [
+                320,
+                "                        throw new ArgumentException(\"Invalid constant type\", \"type\");"
+            ],
+            [
+                329,
+                "            using (BlobSignatureReader reader = GetBlobReader(signature))"
+            ],
+            [
+                331,
+                "                ushort sign = reader.ReadUInt16();"
+            ],
+            [
+                332,
+                "                if (sign != 0x0001)"
+            ],
+            [
+                333,
+                "                    throw new ArgumentException(\"Signature doesn't refer to a valid Custom Attribute signature\");"
+            ],
+            [
+                336,
+                "                int fixedArgCount = 0;"
+            ],
+            [
+                338,
+                "                if (parent.Constructor.Signature != null && parent.Constructor.Signature.Parameters != null)"
+            ],
+            [
+                339,
+                "                    fixedArgCount = parent.Constructor.Signature.Parameters.Length;"
+            ],
+            [
+                341,
+                "                CustomAttributeArgument[] fixedArgs = new CustomAttributeArgument[fixedArgCount];"
+            ],
+            [
+                343,
+                "                for (int i = 0; i < fixedArgCount; i++)"
+            ],
+            [
+                344,
+                "                {"
+            ],
+            [
+                345,
+                "                    fixedArgs[i] = new CustomAttributeArgument(reader.ReadArgumentValue(parent.Constructor.Signature.Parameters[i].ParameterType));"
+            ],
+            [
+                346,
+                "                }"
+            ],
+            [
+                348,
+                "                int namedArgCount = 0;"
+            ],
+            [
+                349,
+                "                CustomAttributeArgument[] namedArgs = new CustomAttributeArgument[namedArgCount];"
+            ],
+            [
+                351,
+                "                customAttrSig = new CustomAttributeSignature(fixedArgs, namedArgs);"
+            ]
+        ]
+    },
+    "num_lines_added": 160,
+    "num_lines_removed": 117
+}

@@ -1,0 +1,21 @@
+        private void WorkerDoWork(Object sender, DoWorkEventArgs e)
+        {
+            try
+            {
+                BgArg args = e.Argument as BgArg;
+                String url = new Uri(this.curFile).LocalPath;
+                Boolean shouldExecute = this.IsExecutable(this.curEntry);
+                if (!Directory.Exists(args.Path) && !shouldExecute) Directory.CreateDirectory(args.Path);
+                if (Path.GetExtension(url) == ".zip") ZipHelper.ExtractZip(args.File, args.Path);
+                else if (!shouldExecute)
+                {
+                    String fileName = Path.GetFileName(url);
+                    File.Copy(this.tempFile, Path.Combine(args.Path, fileName), true);
+                }
+            }
+            catch
+            {
+                DialogHelper.ShowError(this.localeData.ExtractingError + this.curFile + ".\n" + this.localeData.ContinueWithNextItem);
+                this.DownloadNextFromQueue();
+            }
+        }

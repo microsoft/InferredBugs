@@ -1,0 +1,193 @@
+{
+    "hash": "50c4e68c8c5178a5887e53ae64101a4f127106ad",
+    "message": "changed: Version to BETA.\nbreaking: Replacing whole family of Web.Reuse.InRequest with single Reuse.InWebRequest located in DryIoc rather than extensions.\nchanged: DryIoc.Web to use existing WebScope if found istead of always creating new one.\nchanged: DryIoc.WebApi to use IAssemblyResolver and IHttpControllerTypeResolver.\nadded: Ext methods ContainerTools.WithAutoFallbackResolution and AutoRegisterUnknownServiceRule rule.\nadded: DryIoc.WebApi WithAutoFallbackResolution method.\n\n--HG--\nbranch : dev",
+    "file_num_lines": 130,
+    "diff_parsed": {
+        "added": [
+            [
+                53,
+                "            container.Register<Blah>(Reuse.InWebRequest);"
+            ],
+            [
+                54,
+                "            container.Register<Fooh>(Reuse.InWebRequest, serviceKey: 1);"
+            ],
+            [
+                55,
+                "            container.Register<Fooh>(Reuse.InWebRequest, serviceKey: 2);"
+            ],
+            [
+                69,
+                "        public void Can_begin_scope_and_resolve_controller_without_specifying_assemblies()"
+            ],
+            [
+                72,
+                "            new Container().WithWebApi(config);"
+            ],
+            [
+                73,
+                ""
+            ],
+            [
+                74,
+                "            using (var scope = config.DependencyResolver.BeginScope())"
+            ],
+            [
+                75,
+                "            {"
+            ],
+            [
+                76,
+                "                var controller = scope.GetService(typeof(MyController));"
+            ],
+            [
+                77,
+                "                Assert.NotNull(controller);"
+            ],
+            [
+                78,
+                "                Assert.AreSame(controller, scope.GetService(typeof(MyController)));"
+            ],
+            [
+                79,
+                "            }"
+            ],
+            [
+                80,
+                "        }"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                82,
+                "        [Test]"
+            ],
+            [
+                83,
+                "        public void Can_begin_scope_and_resolve_controller_specifying_assemblies()"
+            ],
+            [
+                84,
+                "        {"
+            ],
+            [
+                85,
+                "            var config = new HttpConfiguration();"
+            ],
+            [
+                86,
+                "            new Container().WithWebApi(config, new[] { Assembly.GetExecutingAssembly() });"
+            ],
+            [
+                104,
+                "            var container = new Container().WithAutoFallbackResolution(config);"
+            ],
+            [
+                106,
+                "            container.WithWebApi(config);"
+            ],
+            [
+                145,
+                "            var scopedContainer = new Container().OpenScope(Reuse.WebRequestScopeName);"
+            ]
+        ],
+        "deleted": [
+            [
+                53,
+                "            container.Register<Blah>(Reuse.InRequest);"
+            ],
+            [
+                54,
+                "            container.Register<Fooh>(Reuse.InRequest, serviceKey: 1);"
+            ],
+            [
+                55,
+                "            container.Register<Fooh>(Reuse.InRequest, serviceKey: 2);"
+            ],
+            [
+                69,
+                "        public void Can_begin_scope_and_resolve_controller()"
+            ],
+            [
+                72,
+                "            new Container().WithWebApi(config, new[] { typeof(MyController).Assembly });"
+            ],
+            [
+                90,
+                "var container = new Container(rules =>"
+            ],
+            [
+                91,
+                "    rules.WithUnknownServiceResolver(GetNotRegisteredServices(Assembly.GetExecutingAssembly())));"
+            ],
+            [
+                93,
+                "container.WithWebApi(config);"
+            ],
+            [
+                106,
+                "        private static Rules.UnknownServiceResolver GetNotRegisteredServices(params Assembly[] assemblies)"
+            ],
+            [
+                107,
+                "        {"
+            ],
+            [
+                108,
+                "            // load types once"
+            ],
+            [
+                109,
+                "            var implTypes = assemblies.ThrowIfNull().SelectMany(a => a.GetLoadedTypes()).ToArray();"
+            ],
+            [
+                110,
+                ""
+            ],
+            [
+                111,
+                "            return request =>"
+            ],
+            [
+                112,
+                "            {"
+            ],
+            [
+                113,
+                "                var container = request.Container;"
+            ],
+            [
+                114,
+                "                var reuse = container.OpenedScope != null ? Reuse.InRequest : DryIoc.Reuse.Singleton;"
+            ],
+            [
+                115,
+                "                container.RegisterMany(implTypes, type => type.IsAssignableTo(request.ServiceType), reuse);"
+            ],
+            [
+                116,
+                "                return container.GetServiceFactoryOrDefault(request.ServiceType, serviceKey: null);"
+            ],
+            [
+                117,
+                "            };"
+            ],
+            [
+                118,
+                "        }"
+            ],
+            [
+                119,
+                ""
+            ],
+            [
+                146,
+                "            var scopedContainer = new Container().OpenScope();"
+            ]
+        ]
+    },
+    "num_lines_added": 22,
+    "num_lines_removed": 23
+}

@@ -1,0 +1,13 @@
+        [ContractMethod(CpuFee = 1 << 16, RequiredCallFlags = CallFlags.States)]
+        private bool UnregisterCandidate(ApplicationEngine engine, ECPoint pubkey)
+        {
+            if (!engine.CheckWitnessInternal(Contract.CreateSignatureRedeemScript(pubkey).ToScriptHash()))
+                return false;
+            StorageKey key = CreateStorageKey(Prefix_Candidate).Add(pubkey);
+            if (engine.Snapshot.TryGet(key) is null) return true;
+            StorageItem item = engine.Snapshot.GetAndChange(key);
+            CandidateState state = item.GetInteroperable<CandidateState>();
+            state.Registered = false;
+            CheckCandidate(engine.Snapshot, pubkey, state);
+            return true;
+        }

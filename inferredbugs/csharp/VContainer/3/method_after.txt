@@ -1,0 +1,22 @@
+        [Test]
+        public void CreateScopeWithResolveSingleton()
+        {
+            var builder = new ContainerBuilder();
+            builder.Register<DisposableServiceA>(Lifetime.Singleton)
+                .AsImplementedInterfaces()
+                .AsSelf();
+
+            var container = builder.Build();
+            var scopedContainer = container.CreateScope(childBuilder =>
+            {
+                childBuilder.Register<DisposableServiceB>(Lifetime.Singleton)
+                    .AsImplementedInterfaces()
+                    .AsSelf();
+            });
+
+            var singleton = container.Resolve<DisposableServiceA>();
+            var singleton2 = scopedContainer.Resolve<DisposableServiceA>();
+            Assert.That(singleton, Is.InstanceOf<DisposableServiceA>());
+            Assert.That(singleton2, Is.InstanceOf<DisposableServiceA>());
+            Assert.That(singleton, Is.EqualTo(singleton2));
+        }

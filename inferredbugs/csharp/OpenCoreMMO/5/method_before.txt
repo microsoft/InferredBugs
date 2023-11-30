@@ -1,0 +1,35 @@
+        [Fact]
+        public void Item_doesnt_go_to_hole_if_the_final_tile_is_blocked()
+        {
+            //arrange
+            var map = MapTestDataBuilder.Build(100, 105, 100, 105, 7, 8, addGround: true,
+                staticTiles:new List<Location>()
+                {
+                    new(100,100,8)
+                });
+            var player = PlayerTestDataBuilder.Build();
+
+            var item = ItemTestData.CreateWeaponItem(1);
+
+            var hole = new Ground(new ItemType(), new Location(100,100,7));
+            hole.Metadata.Attributes.SetAttribute(ItemAttribute.FloorChange, "down");
+            
+            var sourceTile = (IDynamicTile)map[101, 100, 7];
+            var destinationTile =  (IDynamicTile)map[100, 100, 7];
+            var undergroundTile = (ITile)map[100, 100, 8];
+
+            
+            destinationTile.ReplaceGround(hole);
+            
+            sourceTile.AddItem(item);
+
+            var toMapMovementService = new ToMapMovementService(map);
+
+            //act
+            toMapMovementService.Move(player,new MovementParams(sourceTile.Location, destinationTile.Location, 1));
+
+            //assert
+            sourceTile.TopItemOnStack.Should().Be(item);
+            destinationTile.TopItemOnStack.Should().NotBe(item);
+            undergroundTile.TopItemOnStack.Should().NotBe(item);
+        }

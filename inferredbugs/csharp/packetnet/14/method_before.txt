@@ -1,0 +1,22 @@
+        [Test]
+        public void ReadingPacketsFromFile()
+        {
+            var dev = new CaptureFileReaderDevice("../../CaptureFiles/80211_plus_radiotap_header.pcap");
+            dev.Open();
+            var rawCapture = dev.GetNextPacket();
+            dev.Close();
+
+            var p = Packet.ParsePacket(rawCapture.LinkLayerType, rawCapture.Data) as RadioPacket;
+            Assert.IsNotNull(p);
+            Assert.IsNotNull(p[RadioTapType.Flags]);
+            Assert.IsNotNull(p[RadioTapType.Rate]);
+            Assert.IsNotNull(p[RadioTapType.Channel]);
+            Assert.IsNotNull(p[RadioTapType.DbmAntennaSignal]);
+            Assert.IsNotNull(p[RadioTapType.DbmAntennaNoise]);
+            Assert.IsNotNull(p[RadioTapType.LockQuality]);
+            Assert.IsNotNull(p[RadioTapType.Antenna]);
+            Assert.IsNotNull(p[RadioTapType.DbAntennaSignal]);
+            var macFrame = p.PayloadPacket as MacFrame;
+            Assert.IsNotNull(macFrame);
+            Assert.IsTrue(macFrame.AppendFcs);
+        }

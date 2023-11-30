@@ -1,0 +1,32 @@
+        [Fact]
+        public void Handle_WhenExpectedRequestHasNotBeenSet_ResponseMapperIsCalledAndReturns500Response()
+        {
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/", "HTTP")
+            };
+
+            var interactions = new List<ProviderServiceInteraction>
+            {
+                new ProviderServiceInteraction { Request =  null, Response = new ProviderServiceResponse()}
+            };
+
+            nancyContext.SetMockInteraction(interactions);
+
+            var mockRequestMapper = Substitute.For<IProviderServiceRequestMapper>();
+            var mockResponseMapper = Substitute.For<INancyResponseMapper>();
+            var mockStatsProvider = Substitute.For<IStatsProvider>();
+
+            mockResponseMapper.Convert(Arg.Any<ProviderServiceResponse>())
+                .Returns(new Response
+                {
+                    StatusCode = HttpStatusCode.InternalServerError
+                });
+
+            IMockProviderRequestHandler handler = new MockProviderRequestHandler(mockRequestMapper, mockResponseMapper, mockStatsProvider);
+
+            var result = handler.Handle(nancyContext);
+
+            mockResponseMapper.Received(1).Convert(Arg.Is<ProviderServiceResponse>(x => x.Status == 500));
+            Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
+        }

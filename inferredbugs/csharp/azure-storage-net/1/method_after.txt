@@ -1,0 +1,14 @@
+        [DoesServiceRequest]
+        private Task DownloadRangeToStreamAsync(Stream target, long? offset, long? length, AccessCondition accessCondition, BlobRequestOptions options, OperationContext operationContext, AggregatingProgressIncrementer progressIncrementer, CancellationToken cancellationToken)
+        {
+            CommonUtility.AssertNotNull("target", target);
+
+            progressIncrementer = progressIncrementer ?? AggregatingProgressIncrementer.None;
+
+            BlobRequestOptions modifiedOptions = BlobRequestOptions.ApplyDefaults(options, BlobType.Unspecified, this.ServiceClient);
+            return Executor.ExecuteAsync(
+                this.GetBlobImpl(this.attributes, progressIncrementer.CreateProgressIncrementingStream(target), offset, length, accessCondition, modifiedOptions),
+                modifiedOptions.RetryPolicy,
+                operationContext,
+                cancellationToken);
+        }

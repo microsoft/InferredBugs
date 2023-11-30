@@ -1,0 +1,38 @@
+  private void MakeFDpair()
+		{
+			Mutex sync;
+
+			try
+			{
+				sync = new Mutex(false, "Global\\netmq-signaler-port-sync");
+			}
+			catch (UnauthorizedAccessException)
+			{
+				sync = Mutex.OpenExisting("Global\\netmq-signaler-port-sync", MutexRights.Synchronize | MutexRights.Modify);
+			}
+
+			Debug.Assert(sync != null);
+
+			sync.WaitOne();
+
+			Socket listner = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Unspecified);
+			listner.NoDelay = true;
+			listner.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
+			IPEndPoint endpoint = new IPEndPoint(IPAddress.Loopback, Config.SignalerPort);
+
+			listner.Bind(endpoint);
+			listner.Listen(1);
+
+			m_w = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Unspecified);
+			
+			m_w.NoDelay = true;
+
+			m_w.Connect(endpoint);
+
+			m_r = listner.Accept();			
+
+			listner.Close();
+
+			sync.ReleaseMutex();
+		}

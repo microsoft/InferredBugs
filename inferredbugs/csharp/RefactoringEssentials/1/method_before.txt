@@ -1,0 +1,15 @@
+        static bool HasReturnContract(BlockSyntax bodyStatement, string returnType)
+        {
+            var workspace = new AdhocWorkspace();
+
+            var rhsEnsures = $"Contract.Ensures(Contract.Result<{returnType}>() != null);";
+            var lhsEnsures = $"Contract.Ensures(null != Contract.Result<{returnType}>());";
+            foreach (var expression in bodyStatement.DescendantNodes().OfType<ExpressionStatementSyntax>())
+            {
+                var formatted = Formatter.Format(expression, workspace).ToString();
+
+                if (formatted == rhsEnsures || formatted == lhsEnsures)
+                    return true;
+            }
+            return false;
+        }

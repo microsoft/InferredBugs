@@ -1,0 +1,26 @@
+        public void UpdateConfig(IBucketConfig bucketConfig)
+        {
+            IConfigObserver configObserver;
+            if (!ConfigObservers.TryGetValue(bucketConfig.Name, out configObserver))
+            {
+                Log.Warn(x=>x("A ConfigObserver for the bucket {0} was not found. Provider has been disposed: {1}", 
+                    bucketConfig.Name, Disposed));
+                return;
+            }
+
+            IConfigInfo oldConfigInfo;
+            if (!Configs.TryGetValue(bucketConfig.Name, out oldConfigInfo))
+            {
+                throw new ConfigNotFoundException(bucketConfig.Name);
+            }
+
+            var oldBucketConfig = oldConfigInfo.BucketConfig;
+            if (bucketConfig.Rev > oldBucketConfig.Rev)
+            {
+                var configInfo = GetConfig(bucketConfig);
+                if (Configs.TryUpdate(bucketConfig.Name, configInfo, oldConfigInfo))
+                {
+                    configObserver.NotifyConfigChanged(configInfo);
+                }
+            }
+        }

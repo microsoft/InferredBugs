@@ -1,0 +1,425 @@
+{
+    "hash": "f03d8897bff07751e0047714e55338ab061822ca",
+    "message": "ResourceBuffer support, preserve order of mdstreams, minor bugfixes.",
+    "file_num_lines": 91,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "using System.Runtime.CompilerServices;"
+            ],
+            [
+                4,
+                "using System.Runtime.InteropServices;"
+            ],
+            [
+                12,
+                "using AsmResolver.X86;"
+            ],
+            [
+                20,
+                "            // Create new assembly."
+            ],
+            [
+                22,
+                "            assembly.NetDirectory.Flags = ImageNetDirectoryFlags.None; // Required for mixed mode apps."
+            ],
+            [
+                24,
+                ""
+            ],
+            [
+                25,
+                "            // Lock the metadata so that we can add and remove members safely."
+            ],
+            [
+                28,
+                ""
+            ],
+            [
+                29,
+                "            // Add custom resource."
+            ],
+            [
+                30,
+                "            image.Assembly.Resources.Add(new ManifestResource(\"MyResource\", ManifestResourceAttributes.Public,"
+            ],
+            [
+                31,
+                "                new byte[] {10, 9, 8, 7, 6, 5, 4, 3, 2, 1}));"
+            ],
+            [
+                32,
+                ""
+            ],
+            [
+                33,
+                "            // Create a native method."
+            ],
+            [
+                34,
+                "            var nativeMethod = CreateNativeMethod(image);"
+            ],
+            [
+                35,
+                "            image.Assembly.Modules[0].Types[0].Methods.Add(nativeMethod);"
+            ],
+            [
+                36,
+                ""
+            ],
+            [
+                37,
+                "            // Create a new type."
+            ],
+            [
+                38,
+                "            var type = new TypeDefinition(\"SomeNamespace\", \"SomeType\", importer.ImportType(typeof(object)));"
+            ],
+            [
+                39,
+                "            type.Attributes = TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed;"
+            ],
+            [
+                40,
+                "            image.Assembly.Modules[0].Types.Add(type);"
+            ],
+            [
+                41,
+                ""
+            ],
+            [
+                42,
+                "            // Create a new main method."
+            ],
+            [
+                45,
+                "            type.Methods.Add(mainMethod);"
+            ],
+            [
+                46,
+                ""
+            ],
+            [
+                47,
+                "            var cilBody = new CilMethodBody(mainMethod);"
+            ],
+            [
+                48,
+                "            cilBody.Instructions.Add(CilInstruction.Create(CilOpCodes.Ldstr, \"The secret number is: {0}\"));"
+            ],
+            [
+                49,
+                "            cilBody.Instructions.Add(CilInstruction.Create(CilOpCodes.Call, nativeMethod));"
+            ],
+            [
+                50,
+                "            cilBody.Instructions.Add(CilInstruction.Create(CilOpCodes.Box, importer.ImportType(typeof(int))));"
+            ],
+            [
+                51,
+                "            cilBody.Instructions.Add(CilInstruction.Create(CilOpCodes.Call,"
+            ],
+            [
+                52,
+                "                importer.ImportMethod(typeof(Console).GetMethod(\"WriteLine\", new[] {typeof(string),typeof(object)}))));"
+            ],
+            [
+                53,
+                "            cilBody.Instructions.Add(CilInstruction.Create(CilOpCodes.Ret));"
+            ],
+            [
+                54,
+                "            mainMethod.MethodBody = cilBody;"
+            ],
+            [
+                55,
+                ""
+            ],
+            [
+                56,
+                "            // Commit our changes."
+            ],
+            [
+                57,
+                "            var mapping = header.UnlockMetadata();"
+            ],
+            [
+                58,
+                ""
+            ],
+            [
+                59,
+                "            // Set entrypoint to our main method."
+            ],
+            [
+                60,
+                "            assembly.NetDirectory.EntryPointToken = mapping[mainMethod].ToUInt32();"
+            ],
+            [
+                61,
+                ""
+            ],
+            [
+                62,
+                "            // Add a custom metadata stream."
+            ],
+            [
+                63,
+                "            header.StreamHeaders.Add(new MetadataStreamHeader(\"#Washi\","
+            ],
+            [
+                64,
+                "                new CustomMetadataStream(new byte[] {1, 2, 3, 4, 5, 6, 7, 8})));"
+            ],
+            [
+                65,
+                ""
+            ],
+            [
+                66,
+                "            // Save!"
+            ],
+            [
+                67,
+                "            string outputPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), \"output.exe\");"
+            ],
+            [
+                68,
+                "            assembly.Write(outputPath, new CompactNetAssemblyBuilder(assembly));"
+            ],
+            [
+                70,
+                "        }"
+            ],
+            [
+                72,
+                "        private static MethodDefinition CreateNativeMethod(MetadataImage image)"
+            ],
+            [
+                73,
+                "        {"
+            ],
+            [
+                74,
+                "            var nativeMethod = new MethodDefinition(\"MyNativeMethod\","
+            ],
+            [
+                75,
+                "                MethodAttributes.Assembly | MethodAttributes.Static | MethodAttributes.PInvokeImpl,"
+            ],
+            [
+                76,
+                "                new MethodSignature(image.TypeSystem.Int32));"
+            ],
+            [
+                78,
+                "            nativeMethod.ImplAttributes = MethodImplAttributes.Native"
+            ],
+            [
+                79,
+                "                                          | MethodImplAttributes.Unmanaged"
+            ],
+            [
+                80,
+                "                                          | MethodImplAttributes.PreserveSig;"
+            ],
+            [
+                82,
+                "            var nativeBody = new X86MethodBody();"
+            ],
+            [
+                83,
+                "            nativeBody.Instructions.Add(new X86Instruction"
+            ],
+            [
+                84,
+                "            {"
+            ],
+            [
+                85,
+                "                Mnemonic = X86Mnemonic.Push,"
+            ],
+            [
+                86,
+                "                OpCode = X86OpCodes.Push_Ebp,"
+            ],
+            [
+                87,
+                "            });"
+            ],
+            [
+                88,
+                "            nativeBody.Instructions.Add(new X86Instruction"
+            ],
+            [
+                89,
+                "            {"
+            ],
+            [
+                90,
+                "                Mnemonic = X86Mnemonic.Mov,"
+            ],
+            [
+                91,
+                "                OpCode = X86OpCodes.Mov_Reg1632_RegOrMem1632,"
+            ],
+            [
+                92,
+                "                Operand1 = new X86Operand(X86Register.Ebx),"
+            ],
+            [
+                93,
+                "                Operand2 = new X86Operand(X86Register.Esp),"
+            ],
+            [
+                94,
+                "            });"
+            ],
+            [
+                96,
+                "            nativeBody.Instructions.Add(new X86Instruction"
+            ],
+            [
+                97,
+                "            {"
+            ],
+            [
+                98,
+                "                Mnemonic = X86Mnemonic.Mov,"
+            ],
+            [
+                99,
+                "                OpCode = X86OpCodes.Mov_Eax_Imm1632,"
+            ],
+            [
+                100,
+                "                Operand1 = new X86Operand(X86Register.Eax),"
+            ],
+            [
+                101,
+                "                Operand2 = new X86Operand(1337),"
+            ],
+            [
+                102,
+                "            });"
+            ],
+            [
+                103,
+                ""
+            ],
+            [
+                104,
+                "            nativeBody.Instructions.Add(new X86Instruction"
+            ],
+            [
+                105,
+                "            {"
+            ],
+            [
+                106,
+                "                Mnemonic = X86Mnemonic.Pop,"
+            ],
+            [
+                107,
+                "                OpCode = X86OpCodes.Pop_Ebp,"
+            ],
+            [
+                108,
+                "            });"
+            ],
+            [
+                110,
+                "            nativeBody.Instructions.Add(new X86Instruction"
+            ],
+            [
+                112,
+                "                Mnemonic = X86Mnemonic.Retn,"
+            ],
+            [
+                113,
+                "                OpCode = X86OpCodes.Retn,"
+            ],
+            [
+                114,
+                "            });"
+            ],
+            [
+                116,
+                "            nativeMethod.MethodBody = nativeBody;"
+            ],
+            [
+                117,
+                "            return nativeMethod;"
+            ]
+        ],
+        "deleted": [
+            [
+                21,
+                ""
+            ],
+            [
+                25,
+                "            image.Assembly.Modules[0].Types[0].Methods.Add(mainMethod);"
+            ],
+            [
+                27,
+                "            mainMethod.MethodBody = new CilMethodBody(mainMethod);"
+            ],
+            [
+                28,
+                "            var instructions = mainMethod.CilMethodBody.Instructions;"
+            ],
+            [
+                29,
+                "            instructions.Add(CilInstruction.Create(CilOpCodes.Ldstr, \"Hello, world!\"));"
+            ],
+            [
+                30,
+                "            instructions.Add(CilInstruction.Create(CilOpCodes.Call,"
+            ],
+            [
+                31,
+                "                importer.ImportMethod(typeof(Console).GetMethod(\"WriteLine\", new[] {typeof(string)}))));"
+            ],
+            [
+                32,
+                "            instructions.Add(CilInstruction.Create(CilOpCodes.Ret));"
+            ],
+            [
+                34,
+                "            var mapping = header.UnlockMetadata();"
+            ],
+            [
+                36,
+                "            assembly.NetDirectory.EntryPointToken = mapping[mainMethod].ToUInt32();"
+            ],
+            [
+                38,
+                "            string outputPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), \"output.exe\");"
+            ],
+            [
+                40,
+                "            var builder = new CompactNetAssemblyBuilder(assembly);"
+            ],
+            [
+                41,
+                "            builder.Build();"
+            ],
+            [
+                42,
+                "            using (var stream = File.Create(outputPath))"
+            ],
+            [
+                44,
+                "                builder.Write(new WritingContext(assembly, new BinaryStreamWriter(stream)));"
+            ],
+            [
+                45,
+                "            }"
+            ]
+        ]
+    },
+    "num_lines_added": 87,
+    "num_lines_removed": 16
+}

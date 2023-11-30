@@ -1,0 +1,191 @@
+        public static object CreateFromXaml( string xaml, object dataContext ) {
+            if (null == xaml) throw new ArgumentNullException("xaml");
+
+            // { prefix -> namespace }
+            Dictionary<String, String> namespaces = new Dictionary< string, string >();
+            object result = null;
+
+            using ( XmlReader xmlReader = XmlReader.Create( new StringReader( xaml ) ) ) {
+
+                // stack of constructing objects
+                Stack<ObjectInfo> objects = new Stack< ObjectInfo >();
+                ObjectInfo top = null;
+
+                while ( xmlReader.Read( ) ) {
+                    Console.WriteLine(xmlReader.Name);
+
+                    if ( xmlReader.NodeType == XmlNodeType.Element ) {
+                        String name = xmlReader.Name;
+                        
+                        // explicit property syntax
+                        if ( top != null && name.StartsWith( top.name + "." ) ) {
+                            if ( top.currentProperty != null )
+                                throw new ApplicationException( "Illegal syntax in property value definition." );
+                            string propertyName = name.Substring( objects.Peek( ).name.Length + 1 );
+                            top.currentProperty = propertyName;
+                        } else {
+                            // object
+                            if ( name == "item" ) {
+                                // predefined string object
+                                top = new ObjectInfo(  )
+                                    {
+                                        name = "item",
+                                        type = typeof(string)
+                                    };
+                                objects.Push( top );
+                            } else {
+                                Type type = resolveType( name );
+                                ConstructorInfo constructorInfo = type.GetConstructor( new Type[ 0 ] );
+                                if ( null == constructorInfo ) {
+                                    throw new ApplicationException(
+                                        String.Format( "Type {0} has no default constructor.", type.FullName ) );
+                                }
+                                Object invoke = constructorInfo.Invoke( new object[ 0 ] );
+                                top = new ObjectInfo( )
+                                    {
+                                        name = name,
+                                        obj = invoke,
+                                        type = type
+                                    };
+                                objects.Push( top );
+                            }
+
+                            // process attributes
+                            if ( xmlReader.HasAttributes ) {
+                                while ( xmlReader.MoveToNextAttribute( ) ) {
+                                    //
+                                    string attributePrefix = xmlReader.Prefix;
+                                    string attributeName = xmlReader.LocalName;
+                                    string attributeValue = xmlReader.Value;
+
+                                    // If we have found xmlns-attributes on root object, register them
+                                    // in namespaces dictionary
+                                    if ( attributePrefix == "xmlns" && objects.Count == 1 ) {
+                                        namespaces.Add( attributeName, attributeValue );
+                                    } else {
+                                        if ( attributePrefix != string.Empty ) {
+                                            if ( !namespaces.ContainsKey( attributePrefix ) )
+                                                throw new InvalidOperationException(
+                                                    string.Format( "Unknown prefix {0}", attributePrefix ) );
+                                            string namespaceUrl = namespaces[ attributePrefix ];
+                                            if ( namespaceUrl == "http://consoleframework.org/xaml.xsd"
+                                                 && attributeName == "Key" ) {
+                                                top.key = attributeValue;
+                                            }
+                                        } else {
+                                            // Process attribute as property assignment
+                                            PropertyInfo propertyInfo = top.type.GetProperty( attributeName );
+                                            Object value = processText( attributeValue, attributeName, top.obj,
+                                                                        dataContext );
+                                            if ( null != value ) {
+                                                object convertedValue = convertValueIfNeed( value.GetType( ),
+                                                                                            propertyInfo.PropertyType,
+                                                                                            value );
+                                                propertyInfo.SetValue( top.obj, convertedValue, null );
+                                            }
+                                        }
+                                    }
+                                    //
+                                }
+                                xmlReader.MoveToElement( );
+                            }
+                        }
+                    }
+
+                    if ( xmlReader.NodeType == XmlNodeType.Text ) {
+                        // this call moves xmlReader current element forward
+                        string content = xmlReader.ReadContentAsString( );
+                        if ( top.name == "item" ) {
+                            top.obj = content;
+                        } else {
+                            top.currentPropertyText = content;
+                        }
+                    }
+
+                    if ( xmlReader.NodeType == XmlNodeType.EndElement ) {
+                        // closed element having text content
+                        if (top.currentPropertyText != null) {
+                            PropertyInfo property = top.type.GetProperty(top.currentProperty);
+                            Object value = processText( top.currentPropertyText,
+                                top.currentProperty,
+                                top.obj,
+                                dataContext);
+                            if ( value != null ) {
+                                Object convertedValue = convertValueIfNeed( value.GetType( ),
+                                                                            property.PropertyType, value );
+                                property.SetValue( top.obj, convertedValue, null );
+                            }
+                            top.currentProperty = null;
+                            top.currentPropertyText = null;
+                        } else {
+                            // closed element having sub-element content
+                            if ( top.currentProperty != null ) {
+                                // был закрыт один из тегов-свойств, дочерний элемент
+                                // уже присвоен свойству, поэтому ничего делать не нужно, кроме
+                                // обнуления currentProperty
+                                top.currentProperty = null;
+                            } else {
+                                // был закрыт основной тег текущего конструируемого объекта
+                                // нужно получить объект уровнем выше и присвоить себя свойству этого
+                                // объекта, либо добавить в свойство-коллекцию, если это коллекция
+                                ObjectInfo initialized = objects.Pop( );
+                                if ( objects.Count == 0 ) {
+                                    result = initialized.obj;
+                                } else {
+                                    top = objects.Peek( );
+
+                                    string propertyName;
+                                    if ( top.currentProperty != null ) {
+                                        propertyName = top.currentProperty;
+                                    } else {
+                                        // todo : determine name of content property
+                                        propertyName = "Content";
+                                    }
+
+                                    // If parent object property is ICollection<T>,
+                                    // add current object into them as T (will conversion if need)
+                                    PropertyInfo property = top.type.GetProperty(propertyName);
+                                    Type typeArg1 = property.PropertyType.IsGenericType
+                                        ? property.PropertyType.GetGenericArguments( )[ 0 ]
+                                        : null;
+                                    if (null != typeArg1 && typeof(ICollection<>).MakeGenericType(typeArg1).IsAssignableFrom(property.PropertyType))
+                                    {
+                                        object collection = property.GetValue( top.obj, null );
+                                        MethodInfo methodInfo = collection.GetType( ).GetMethod( "Add" );
+                                        object converted = convertValueIfNeed( initialized.obj.GetType(  ), typeArg1, initialized.obj );
+                                        methodInfo.Invoke( collection, new[ ] { converted } );
+                                    } else {
+                                        // If parent object property is IDictionary<string, T>,
+                                        // add current object into them (by x:Key value) 
+                                        // with conversion to T if need
+                                        Type typeArg2 = property.PropertyType.IsGenericType && property.PropertyType.GetGenericArguments(  ).Length > 1
+                                                            ? property.PropertyType.GetGenericArguments( )[ 1 ]
+                                                            : null;
+                                        if ( null != typeArg1 && typeArg1 == typeof ( string )
+                                             && null != typeArg2 &&
+                                             typeof ( IDictionary< , > ).MakeGenericType( typeArg1, typeArg2 )
+                                                                        .IsAssignableFrom( property.PropertyType ) ) {
+                                            object dictionary = property.GetValue( top.obj, null );
+                                            MethodInfo methodInfo = dictionary.GetType( ).GetMethod( "Add" );
+                                            object converted = convertValueIfNeed( initialized.obj.GetType( ),
+                                                                                   typeArg2, initialized.obj );
+                                            if ( null == initialized.key )
+                                                throw new InvalidOperationException(
+                                                    "Key is not specified for item of dictionary" );
+                                            methodInfo.Invoke( dictionary, new[ ] { initialized.key, converted } );
+                                        } else {
+                                            // Handle as property - call setter with conversion if need
+                                            property.SetValue( top.obj, convertValueIfNeed(
+                                                initialized.obj.GetType( ), property.PropertyType, initialized.obj ),
+                                                               null );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }

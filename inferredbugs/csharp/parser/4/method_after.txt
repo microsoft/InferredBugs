@@ -1,0 +1,23 @@
+    [Theory]
+    [InlineData(IgnoreOptions.None)]
+    //[InlineData(IgnoreOptions.Comments)]
+    [InlineData(IgnoreOptions.Locations)]
+    //[InlineData(IgnoreOptions.All)]
+    public void Comments_on_FragmentSpread_Should_Read_Correctly(IgnoreOptions options)
+    {
+        string query = "CommentsOnFragmentSpread".ReadGraphQLFile();
+
+        using var document = query.Parse(new ParserOptions { Ignore = options });
+        document.Definitions.Count.ShouldBe(2);
+        var def = document.Definitions.First() as GraphQLOperationDefinition;
+        def.SelectionSet.Selections.Count.ShouldBe(1);
+        var field = def.SelectionSet.Selections.First() as GraphQLField;
+        field.SelectionSet.Selections.Count.ShouldBe(1);
+        var spread = field.SelectionSet.Selections.First() as GraphQLFragmentSpread;
+        spread.Comment.ShouldNotBeNull().Value.ShouldBe("comment");
+        spread.FragmentName.Comment.Value.ShouldBe("comment on fragment name 1");
+
+        var frag = document.Definitions.Last() as GraphQLFragmentDefinition;
+        frag.Comment.ShouldBeNull();
+        frag.FragmentName.Comment.Value.ShouldBe("comment on fragment name 2");
+    }

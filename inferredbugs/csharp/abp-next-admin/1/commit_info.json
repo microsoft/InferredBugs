@@ -1,0 +1,145 @@
+{
+    "hash": "86a26d962ad1be908cba846814e35a53e57dbc17",
+    "message": "fix(idgenerator): \u89e3\u51b3\u96ea\u82b1\u7b97\u6cd5\u65f6\u949f\u56de\u9000\u95ee\u9898",
+    "file_num_lines": 46,
+    "diff_parsed": {
+        "added": [
+            [
+                1,
+                "\ufeffusing System;"
+            ],
+            [
+                2,
+                "using System.Collections.Concurrent;"
+            ],
+            [
+                13,
+                "    private readonly ConcurrentDictionary<string, JobLock> _localSyncObjects = new();"
+            ],
+            [
+                18,
+                "        if (_localSyncObjects.TryGetValue(jobKey, out var jobLock))"
+            ],
+            [
+                20,
+                "            if (jobLock.ExpirationTime > DateTime.UtcNow)"
+            ],
+            [
+                21,
+                "            {"
+            ],
+            [
+                22,
+                "                return Task.FromResult(false);"
+            ],
+            [
+                23,
+                "            }"
+            ],
+            [
+                24,
+                "            jobLock.ExpirationTime = DateTime.UtcNow.AddSeconds(lockSeconds);"
+            ],
+            [
+                25,
+                "            return Task.FromResult(true);"
+            ],
+            [
+                28,
+                "        jobLock = new JobLock"
+            ],
+            [
+                29,
+                "        {"
+            ],
+            [
+                30,
+                "            ExpirationTime = DateTime.UtcNow.AddSeconds(lockSeconds),"
+            ],
+            [
+                31,
+                "            Semaphore = new SemaphoreSlim(1, 1)"
+            ],
+            [
+                32,
+                "        };"
+            ],
+            [
+                33,
+                ""
+            ],
+            [
+                34,
+                "        return Task.FromResult(_localSyncObjects.TryAdd(jobKey, jobLock));"
+            ],
+            [
+                41,
+                "        if (_localSyncObjects.TryGetValue(jobKey, out var jobLock))"
+            ],
+            [
+                43,
+                "            jobLock.Semaphore.Dispose();"
+            ],
+            [
+                50,
+                ""
+            ],
+            [
+                51,
+                "    private class JobLock"
+            ],
+            [
+                52,
+                "    {"
+            ],
+            [
+                53,
+                "        public DateTime ExpirationTime { get; set; }"
+            ],
+            [
+                54,
+                "        public SemaphoreSlim Semaphore { get; set; }"
+            ],
+            [
+                55,
+                "    }"
+            ]
+        ],
+        "deleted": [
+            [
+                1,
+                "\ufeffusing System.Collections.Concurrent;"
+            ],
+            [
+                12,
+                "    private readonly ConcurrentDictionary<string, SemaphoreSlim> _localSyncObjects = new();"
+            ],
+            [
+                17,
+                "        if (_localSyncObjects.ContainsKey(jobKey))"
+            ],
+            [
+                19,
+                "            return Task.FromResult(false);"
+            ],
+            [
+                22,
+                "        var semaphore = new SemaphoreSlim(1, 1);"
+            ],
+            [
+                23,
+                "        return Task.FromResult(_localSyncObjects.TryAdd(jobKey, semaphore));"
+            ],
+            [
+                30,
+                "        if (_localSyncObjects.TryGetValue(jobKey, out var semaphore))"
+            ],
+            [
+                32,
+                "            semaphore.Dispose();"
+            ]
+        ]
+    },
+    "num_lines_added": 25,
+    "num_lines_removed": 8
+}

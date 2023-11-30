@@ -1,0 +1,529 @@
+{
+    "hash": "9ffdb646368a25b9365a4e7b4e8dfef2ee6312fa",
+    "message": "Implement packed attestation data validation",
+    "file_num_lines": 140,
+    "diff_parsed": {
+        "added": [
+            [
+                16,
+                "        public static readonly Dictionary<int, HashAlgorithmName> algLookup = new Dictionary<int, HashAlgorithmName>"
+            ],
+            [
+                17,
+                "        {"
+            ],
+            [
+                18,
+                "            {-7, HashAlgorithmName.SHA256},"
+            ],
+            [
+                19,
+                "            {-35, HashAlgorithmName.SHA384 },"
+            ],
+            [
+                20,
+                "            {-36, HashAlgorithmName.SHA512 }"
+            ],
+            [
+                21,
+                "        };"
+            ],
+            [
+                76,
+                "            byte[] data = new byte[AttestionObject.AuthData.Length + hashedClientDataJson.Length];"
+            ],
+            [
+                77,
+                "            AttestionObject.AuthData.CopyTo(data, 0);"
+            ],
+            [
+                78,
+                "            hashedClientDataJson.CopyTo(data, AttestionObject.AuthData.Length);"
+            ],
+            [
+                79,
+                ""
+            ],
+            [
+                91,
+                "            if (!AuthDataHelper.IsUserVerified(AttestionObject.AuthData)) throw new Fido2VerificationException();"
+            ],
+            [
+                99,
+                "            //"
+            ],
+            [
+                102,
+                ""
+            ],
+            [
+                103,
+                "            // A COSEAlgorithmIdentifier containing the identifier of the algorithm used to generate the attestation signature"
+            ],
+            [
+                104,
+                "            var alg = AttestionObject.AttStmt[\"alg\"];"
+            ],
+            [
+                105,
+                "            // A byte string containing the attestation signature"
+            ],
+            [
+                106,
+                "            var sig = AttestionObject.AttStmt[\"sig\"];"
+            ],
+            [
+                107,
+                "            // The elements of this array contain attestnCert and its certificate chain, each encoded in X.509 format"
+            ],
+            [
+                108,
+                "            var x5c = AttestionObject.AttStmt[\"x5c\"];"
+            ],
+            [
+                109,
+                "            // The identifier of the ECDAA-Issuer public key"
+            ],
+            [
+                110,
+                "            var ecdaaKeyId = AttestionObject.AttStmt[\"ecdaaKeyId\"];"
+            ],
+            [
+                111,
+                ""
+            ],
+            [
+                112,
+                "            var parsedSignature = AuthDataHelper.ParseSigData(sig.GetByteString());"
+            ],
+            [
+                122,
+                ""
+            ],
+            [
+                123,
+                "                // 1. Verify that attStmt is valid CBOR conforming to the syntax defined above and perform CBOR decoding on it to extract the contained fields."
+            ],
+            [
+                126,
+                "                // 2a. the attestation certificate attestnCert MUST be the first element in the array"
+            ],
+            [
+                129,
+                "                var pubKey = (ECDsaCng)cert.GetECDsaPublicKey();"
+            ],
+            [
+                131,
+                "                // 2b. If certificate public key is not an Elliptic Curve (EC) public key over the P-256 curve, terminate this algorithm and return an appropriate error"
+            ],
+            [
+                132,
+                "                if (CngAlgorithm.ECDsaP256 != pubKey.Key.Algorithm) throw new Fido2VerificationException();"
+            ],
+            [
+                134,
+                "                // 3. Extract the claimed rpIdHash from authenticatorData, and the claimed credentialId and credentialPublicKey from authenticatorData"
+            ],
+            [
+                135,
+                ""
+            ],
+            [
+                136,
+                "                // 4. Convert the COSE_KEY formatted credentialPublicKey (see Section 7 of [RFC8152]) to CTAP1/U2F public Key format"
+            ],
+            [
+                137,
+                ""
+            ],
+            [
+                138,
+                "                // 5. Let verificationData be the concatenation of (0x00 || rpIdHash || clientDataHash || credentialId || publicKeyU2F)"
+            ],
+            [
+                139,
+                ""
+            ],
+            [
+                140,
+                "                // 6. Verify the sig using verificationData and certificate public key"
+            ],
+            [
+                144,
+                "             */"
+            ],
+            [
+                145,
+                "            if (AttestionObject.Fmt == \"packed\")"
+            ],
+            [
+                146,
+                "            {"
+            ],
+            [
+                147,
+                "                // If x5c is present, this indicates that the attestation type is not ECDAA"
+            ],
+            [
+                148,
+                "                if (null != x5c)"
+            ],
+            [
+                149,
+                "                {"
+            ],
+            [
+                150,
+                "                    // The attestation certificate attestnCert MUST be the first element in the array."
+            ],
+            [
+                151,
+                "                    var cert = new X509Certificate2(x5c.Values.First().GetByteString());"
+            ],
+            [
+                152,
+                "                    // 2a. Verify that sig is a valid signature over the concatenation of authenticatorData and clientDataHash"
+            ],
+            [
+                153,
+                "                    // using the attestation public key in attestnCert with the algorithm specified in alg"
+            ],
+            [
+                154,
+                "                    var pubKey = (ECDsaCng)cert.GetECDsaPublicKey(); // attestation public key"
+            ],
+            [
+                155,
+                ""
+            ],
+            [
+                156,
+                "                    if (true != pubKey.VerifyData(data, parsedSignature, algLookup[alg.AsInt32()])) throw new Fido2VerificationException();"
+            ],
+            [
+                157,
+                "                    // 2b. Version MUST be set to 3"
+            ],
+            [
+                158,
+                "                    if (3 != cert.Version) throw new Fido2VerificationException();"
+            ],
+            [
+                159,
+                "                    // Subject field MUST contain C, O, OU, CN"
+            ],
+            [
+                160,
+                "                    // OU must match \"Authenticator Attestation\""
+            ],
+            [
+                161,
+                "                    var dictSubject = cert.Subject.Split(\", \").Select(part => part.Split('=')).ToDictionary(split => split[0], split => split[1]);"
+            ],
+            [
+                162,
+                "                    if (0 == dictSubject[\"C\"].Length ||"
+            ],
+            [
+                163,
+                "                        0 == dictSubject[\"O\"].Length ||"
+            ],
+            [
+                164,
+                "                        0 == dictSubject[\"OU\"].Length ||"
+            ],
+            [
+                165,
+                "                        0 == dictSubject[\"CN\"].Length ||"
+            ],
+            [
+                166,
+                "                        \"Authenticator Attestation\" != dictSubject[\"OU\"].ToString()) throw new Fido2VerificationException();"
+            ],
+            [
+                167,
+                "                    bool BasicConstraintsFound = false;"
+            ],
+            [
+                168,
+                "                    foreach (var ext in cert.Extensions)"
+            ],
+            [
+                169,
+                "                    {"
+            ],
+            [
+                170,
+                "                        // 2c. If the related attestation root certificate is used for multiple authenticator models,"
+            ],
+            [
+                171,
+                "                        // the Extension OID 1.3.6.1.4.1.45724.1.1.4 (id-fido-gen-ce-aaguid) MUST be present, containing the AAGUID as a 16-byte OCTET STRING"
+            ],
+            [
+                172,
+                "                        if (ext.Oid.Value.Equals(\"1.3.6.1.4.1.45724.1.1.4\")) // id-fido-gen-ce-aaguid"
+            ],
+            [
+                173,
+                "                        {"
+            ],
+            [
+                174,
+                "                            var ms = new System.IO.MemoryStream(ext.RawData.ToArray());"
+            ],
+            [
+                175,
+                "                            // OCTET STRING"
+            ],
+            [
+                176,
+                "                            if (0x4 != ms.ReadByte()) throw new Fido2VerificationException();"
+            ],
+            [
+                177,
+                "                            // AAGUID"
+            ],
+            [
+                178,
+                "                            if (0x10 != ms.ReadByte()) throw new Fido2VerificationException();"
+            ],
+            [
+                179,
+                "                            var btGuid = new byte[0x10];"
+            ],
+            [
+                180,
+                "                            ms.Read(btGuid, 0, 0x10);"
+            ],
+            [
+                181,
+                "                            // verify that the value of this extension matches the aaguid in authenticatorData"
+            ],
+            [
+                182,
+                "                            if (!btGuid.SequenceEqual(AuthDataHelper.GetAttestionData(AttestionObject.AuthData).aaguid.ToArray())) throw new Fido2VerificationException();"
+            ],
+            [
+                183,
+                "                            //The extension MUST NOT be marked as critical"
+            ],
+            [
+                184,
+                "                            if (true == ext.Critical) throw new Fido2VerificationException();"
+            ],
+            [
+                185,
+                "                        }"
+            ],
+            [
+                186,
+                "                        // 2d. // The Basic Constraints extension MUST have the CA component set to false"
+            ],
+            [
+                187,
+                "                        if (ext.Oid.FriendlyName == \"Basic Constraints\")"
+            ],
+            [
+                188,
+                "                        {"
+            ],
+            [
+                189,
+                "                            BasicConstraintsFound = true;"
+            ],
+            [
+                190,
+                "                            X509BasicConstraintsExtension baseExt = (X509BasicConstraintsExtension)ext;"
+            ],
+            [
+                191,
+                ""
+            ],
+            [
+                192,
+                "                            if (true == baseExt.CertificateAuthority) throw new Fido2VerificationException();"
+            ],
+            [
+                193,
+                "                        }"
+            ],
+            [
+                194,
+                "                        // id-fido-u2f-ce-transports"
+            ],
+            [
+                195,
+                "                        if (ext.Oid.Value.Equals(\"1.3.6.1.4.1.45724.2.1.1\"))"
+            ],
+            [
+                196,
+                "                        {"
+            ],
+            [
+                197,
+                "                            var ms = new System.IO.MemoryStream(ext.RawData.ToArray());"
+            ],
+            [
+                198,
+                "                            // BIT STRING"
+            ],
+            [
+                199,
+                "                            if (0x3 != ms.ReadByte()) throw new Fido2VerificationException();"
+            ],
+            [
+                200,
+                "                            if (0x2 != ms.ReadByte()) throw new Fido2VerificationException();"
+            ],
+            [
+                201,
+                "                            var unused = ms.ReadByte(); // unused byte"
+            ],
+            [
+                202,
+                "                            // https://fidoalliance.org/specs/fido-u2f-v1.1-id-20160915/fido-u2f-authenticator-transports-extension-v1.1-id-20160915.html#fido-u2f-certificate-transports-extension"
+            ],
+            [
+                203,
+                "                            var u2ftransports = ms.ReadByte(); // do something with this?"
+            ],
+            [
+                204,
+                "                        }"
+            ],
+            [
+                205,
+                "                    }"
+            ],
+            [
+                206,
+                "                    // The Basic Constraints extension MUST have the CA component set to false"
+            ],
+            [
+                207,
+                "                    if (false == BasicConstraintsFound) throw new Fido2VerificationException();"
+            ],
+            [
+                208,
+                "                }"
+            ],
+            [
+                209,
+                "                // If ecdaaKeyId is present, then the attestation type is ECDAA"
+            ],
+            [
+                210,
+                "                else if (null != ecdaaKeyId)"
+            ],
+            [
+                211,
+                "                {"
+            ],
+            [
+                212,
+                "                    var cert = new X509Certificate2(ecdaaKeyId.GetByteString());"
+            ],
+            [
+                213,
+                "                    var pubKey = (ECDsaCng)cert.GetECDsaPublicKey();"
+            ],
+            [
+                214,
+                "                    if (true != pubKey.VerifyData(data, parsedSignature.ToArray())) throw new Fido2VerificationException();"
+            ],
+            [
+                215,
+                "                }"
+            ],
+            [
+                216,
+                "                // If neither x5c nor ecdaaKeyId is present, self attestation is in use"
+            ],
+            [
+                217,
+                "                else"
+            ],
+            [
+                218,
+                "                {"
+            ],
+            [
+                219,
+                "                    var cert = new X509Certificate2(AuthDataHelper.GetAttestionData(AttestionObject.AuthData).credentialPublicKey.ToArray());"
+            ],
+            [
+                220,
+                "                    var pubKey = (ECDsaCng)cert.GetECDsaPublicKey();"
+            ],
+            [
+                221,
+                "                    // Validate that alg matches the algorithm of the credentialPublicKey in authenticatorData"
+            ],
+            [
+                222,
+                "                    if (true != algLookup[alg.AsInt32()].Equals(pubKey.Key.Algorithm)) throw new Fido2VerificationException();"
+            ],
+            [
+                223,
+                "                    // Verify that sig is a valid signature over the concatenation of authenticatorData and clientDataHash using the credential public key with alg"
+            ],
+            [
+                224,
+                "                    if (true != pubKey.VerifyData(data, parsedSignature, algLookup[alg.AsInt32()])) throw new Fido2VerificationException();"
+            ],
+            [
+                225,
+                "                }"
+            ],
+            [
+                226,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                7,
+                ""
+            ],
+            [
+                82,
+                "            // todo: implement"
+            ],
+            [
+                90,
+                ""
+            ],
+            [
+                101,
+                "                var x5c = AttestionObject.AttStmt[\"x5c\"];"
+            ],
+            [
+                102,
+                "                var sig = AttestionObject.AttStmt[\"sig\"];"
+            ],
+            [
+                104,
+                "                // validate 1. Verify that attStmt is valid CBOR conforming to the syntax defined above and perform CBOR decoding on it to extract the contained fields."
+            ],
+            [
+                109,
+                "                var pubKey = cert.PublicKey;"
+            ],
+            [
+                110,
+                "                var y = 1;"
+            ],
+            [
+                116,
+                "*/"
+            ],
+            [
+                117,
+                ""
+            ]
+        ]
+    },
+    "num_lines_added": 119,
+    "num_lines_removed": 10
+}

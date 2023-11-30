@@ -1,0 +1,50 @@
+        public ExternalProxy GetProxy(Uri destination)
+        {
+            IList<string> proxies;
+            if (GetAutoProxies(destination, out proxies))
+            {
+                if (proxies == null)
+                {
+                    return null;
+                }
+
+                string proxy = proxies[0];
+                int port = 80;
+                if (proxy.Contains(":"))
+                {
+                    var parts = proxy.Split(new[] { ':' }, 2);
+                    proxy = parts[0];
+                    port = int.Parse(parts[1]);
+                }
+
+                // TODO: Apply authorization
+                var systemProxy = new ExternalProxy
+                {
+                    HostName = proxy,
+                    Port = port,
+                };
+
+                return systemProxy;
+            }
+
+            if (Proxy?.IsBypassed(destination) == true)
+                return null;
+
+            var protocolType = ProxyInfo.ParseProtocolType(destination.Scheme);
+            if (protocolType.HasValue)
+            {
+                HttpSystemProxyValue value = null;
+                if (ProxyInfo?.Proxies?.TryGetValue(protocolType.Value, out value) == true)
+                {
+                    var systemProxy = new ExternalProxy
+                    {
+                        HostName = value.HostName,
+                        Port = value.Port,
+                    };
+
+                    return systemProxy;
+                }
+            }
+
+            return null;
+        }

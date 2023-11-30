@@ -1,0 +1,59 @@
+        protected virtual string VisitNavMember(Expression expression, string memberName = null)
+        {
+            // 表达式 => b.Client.Address.AddressName
+            Expression node = expression;
+            Stack<NavMember> stack = null;
+            string alias = string.Empty;
+            while (node != null && node.Visitable())
+            {
+                if (node.NodeType != ExpressionType.MemberAccess) break;
+
+                if (stack == null) stack = new Stack<NavMember>();
+                var member = node as MemberExpression;
+
+                var typeRuntime = TypeRuntimeInfoCache.GetRuntimeInfo(member.Expression.Type);
+                ForeignKeyAttribute attribute = typeRuntime.GetMemberAttribute<ForeignKeyAttribute>(member.Member.Name);
+
+                string key = member.GetKeyWidthoutAnonymous();
+                stack.Push(new NavMember(key, member));
+                node = member.Expression;
+                if (node.NodeType == ExpressionType.Call) node = (node as MethodCallExpression).Object;
+            }
+
+            if (stack != null && stack.Count > 0)
+            {
+                while (stack != null && stack.Count > 0)
+                {
+                    NavMember nav = stack.Pop();
+                    Type type = nav.Expression.Type;
+                    if (type.IsGenericType) type = type.GetGenericArguments()[0];
+
+                    var typeRuntime = TypeRuntimeInfoCache.GetRuntimeInfo(type);
+                    // 检查表达式是否由 GetTable<,>(path) 显式指定过别名
+                    alias = _aliasGenerator.GetGetTableAlias(nav.Key);
+                    if (string.IsNullOrEmpty(alias))
+                    {
+                        // 如果没有，检查查询表达式是否显示指定该表关联
+                        alias = _aliasGenerator.GetJoinTableAlias(typeRuntime.TableName);
+                    }
+                    if (string.IsNullOrEmpty(alias))
+                    {
+                        // 如果没有，则使用导航属性别名
+                        alias = _aliasGenerator.GetNavTableAlias(nav.Key);
+                        if (!_navMembers.Contains(nav.Key)) _navMembers.Add(nav);
+                    }
+
+                    // 例： a.Client.ClientId
+                    if (stack.Count == 0 && !string.IsNullOrEmpty(memberName)) _builder.AppendMember(alias, memberName);
+                }
+            }
+            else
+            {
+                // => SelectMany 也会产生类似 'b.Client.Address.AddressName' 这样的表达式
+                alias = _aliasGenerator.GetTableAlias(expression);
+                _builder.AppendMember(alias, memberName);
+            }
+
+            // Fix issue# Join 表达式显式指定导航属性时时，alias 为空
+            return alias;
+        }

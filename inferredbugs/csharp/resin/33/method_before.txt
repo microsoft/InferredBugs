@@ -1,0 +1,22 @@
+        private void Flush()
+        {
+            _indexWriter.Dispose();
+            _documentVectorStream.Dispose();
+
+            var tasks = new List<Task>();
+            var writers = new List<ColumnSerializer>();
+
+            foreach (var model in _newColumns)
+            {
+                var columnWriter = new ColumnSerializer(
+                    CollectionId, model.Key, SessionFactory, new RemotePostingsWriter(_config, CollectionName), "ix1", "ixp1");
+
+                tasks.Add(columnWriter.SerializeColumnSegment(model.Value));
+
+                writers.Add(columnWriter);
+            }
+
+            Task.WaitAll(tasks.ToArray());
+
+            this.Log("***FLUSHED*** and completed building of model {0}", CollectionId);
+        }

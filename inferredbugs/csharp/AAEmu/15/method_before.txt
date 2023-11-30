@@ -1,0 +1,112 @@
+        public void Build(GameConnection connection, uint designId, float posX, float posY, float posZ, float zRot,
+            ulong itemId, int moneyAmount, int ht, bool autoUseAaPoint)
+        {
+            // TODO validate house by range...
+            // TODO remove itemId
+            // TODO minus moneyAmount
+
+            var sourceDesignItem = connection.ActiveChar.Inventory.GetItemById(itemId);
+            if ((sourceDesignItem == null) && (sourceDesignItem.OwnerId != connection.ActiveChar.Id))
+            {
+                // Invalid itemId supplied or the id is not owned by the user
+                connection.ActiveChar.SendErrorMessage(ErrorMessageType.BagInvalidItem);
+                return;
+            }
+
+
+            var zoneId = WorldManager.Instance.GetZoneId(1, posX, posY);
+
+            var houseTemplate = _housingTemplates[designId];
+            CalculateBuildingTaxInfo(connection.ActiveChar.AccountId, houseTemplate, true, out var totalTaxAmountDue, out var heavyTaxHouseCount, out var normalTaxHouseCount, out var hostileTaxRate, out _);
+
+            if (FeaturesManager.Fsets.Check(Models.Game.Features.Feature.taxItem))
+            {
+                // Pay in Tax Certificate
+
+                var userTaxCount = connection.ActiveChar.Inventory.GetItemsCount(SlotType.Inventory, Item.TaxCertificate);
+                var userBoundTaxCount = connection.ActiveChar.Inventory.GetItemsCount(SlotType.Inventory, Item.BoundTaxCertificate);
+                var totalUserTaxCount = userTaxCount + userBoundTaxCount;
+                var totalCertsCost = (int)Math.Ceiling(totalTaxAmountDue / 10000f);
+
+                // Alloyingly complex item consumption, maybe we need a seperate function in inventory to handle this kind of thing
+                var consumedCerts = totalCertsCost;
+                if (totalCertsCost > totalUserTaxCount)
+                {
+                    connection.ActiveChar.SendErrorMessage(ErrorMessageType.MailNotEnoughMoneyToPayTaxes);
+                    return;
+                }
+                else
+                {
+                    var c = consumedCerts;
+                    // Use Bound First
+                    if ((userBoundTaxCount > 0) && (c > 0))
+                    {
+                        if (c > userBoundTaxCount)
+                            c = userBoundTaxCount;
+                        connection.ActiveChar.Inventory.Bag.ConsumeItem(Models.Game.Items.Actions.ItemTaskType.HouseCreation, Item.BoundTaxCertificate, c, null);
+                        consumedCerts -= c;
+                    }
+                    c = consumedCerts;
+                    if ((userTaxCount > 0) && (c > 0))
+                    {
+                        if (c > userTaxCount)
+                            c = userTaxCount;
+                        connection.ActiveChar.Inventory.Bag.ConsumeItem(Models.Game.Items.Actions.ItemTaskType.HouseCreation, Item.TaxCertificate, c, null);
+                        consumedCerts -= c;
+                    }
+
+                    if (consumedCerts != 0)
+                        _log.Error("Something went wrong when paying tax for new building for player {0}", connection.ActiveChar.Name);
+                }
+                
+            }
+            else
+            {
+                // Pay in Gold
+                // TODO: test house with actual gold tax
+                if (totalTaxAmountDue > connection.ActiveChar.Money)
+                {
+                    connection.ActiveChar.SendErrorMessage(ErrorMessageType.MailNotEnoughMoneyToPayTaxes);
+                    return;
+                }
+                connection.ActiveChar.SubtractMoney(SlotType.Inventory, totalTaxAmountDue,Models.Game.Items.Actions.ItemTaskType.HouseCreation);
+            }
+
+
+            if (connection.ActiveChar.Inventory.Bag.ConsumeItem(Models.Game.Items.Actions.ItemTaskType.HouseBuilding, sourceDesignItem.TemplateId, 1, sourceDesignItem) <= 0)
+            {
+                connection.ActiveChar.SendErrorMessage(ErrorMessageType.BagInvalidItem);
+                return;
+            }
+
+            // Spawn the actual house
+            var house = Create(designId,connection.ActiveChar.Faction.Id);
+
+            // Fallback for un-translated buildings (en_us)
+            if (house.Name == string.Empty)
+            {
+                var fakeLocalizedName = LocalizationManager.Instance.Get("items", "name", sourceDesignItem.Template.Id, houseTemplate.Name);
+                if (fakeLocalizedName.EndsWith(" Design"))
+                    fakeLocalizedName = fakeLocalizedName.Replace(" Design", "");
+                house.Name = fakeLocalizedName;
+            }
+
+            house.Id = HousingIdManager.Instance.GetNextId();
+            house.Transform = new Transform(house, null, 1, zoneId, 1, posX, posY, posZ, zRot);
+
+            if (house.Template.BuildSteps.Count > 0)
+                house.CurrentStep = 0;
+            else
+                house.CurrentStep = -1;
+            house.OwnerId = connection.ActiveChar.Id;
+            house.CoOwnerId = connection.ActiveChar.Id;
+            house.AccountId = connection.AccountId;
+            house.Permission = HousingPermission.Private;
+            house.PlaceDate = DateTime.Now;
+            house.ProtectionEndDate = DateTime.Now.AddDays(7);
+            _houses.Add(house.Id, house);
+            _housesTl.Add(house.TlId, house);
+            connection.ActiveChar.SendPacket(new SCMyHousePacket(house));
+            house.Spawn();
+            UpdateTaxInfo(house);
+        }

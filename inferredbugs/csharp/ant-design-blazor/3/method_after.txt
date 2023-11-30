@@ -1,0 +1,66 @@
+        public IQueryable<TItem> FilterList<TItem>(IQueryable<TItem> source)
+        {
+            if (Filters?.Any() != true)
+            {
+                return source;
+            }
+
+            var sourceExpression = _getFieldExpression.Parameters[0];
+
+            Expression lambda = null;
+            if (this.FilterType == TableFilterType.List)
+            {
+                lambda = Expression.Constant(false, typeof(bool));
+            }
+
+            IFilterExpression filterExpression = null;
+            if (FilterType == TableFilterType.FieldType)
+            {
+                filterExpression = _filterExpressionResolver.GetFilterExpression();
+            }
+            foreach (var filter in Filters)
+            {
+                if (filter.Value == null && (filter.FilterCompareOperator != TableFilterCompareOperator.IsNull && filter.FilterCompareOperator != TableFilterCompareOperator.IsNotNull)) continue;
+                if (this.FilterType == TableFilterType.List)
+                {
+                    lambda = Expression.OrElse(lambda!, Expression.Invoke(OnFilter, Expression.Constant(filter.Value, typeof(TField)), _getFieldExpression.Body));
+                }
+                else // TableFilterType.FieldType
+                {
+                    Expression constantExpression = null;
+                    if (filter.FilterCompareOperator == TableFilterCompareOperator.IsNull || filter.FilterCompareOperator == TableFilterCompareOperator.IsNotNull)
+                    {
+                        constantExpression = Expression.Constant(null, typeof(TField));
+                    }
+                    else
+                    {
+                        constantExpression = Expression.Constant(filter.Value, typeof(TField));
+                    }
+                    var expression = filterExpression!.GetFilterExpression(filter.FilterCompareOperator, _getFieldExpression.Body, constantExpression);
+                    if (lambda == null)
+                    {
+                        lambda = expression;
+                    }
+                    else
+                    {
+                        if (filter.FilterCondition == TableFilterCondition.And)
+                        {
+                            lambda = Expression.AndAlso(lambda, expression);
+                        }
+                        else
+                        {
+                            lambda = Expression.OrElse(lambda, expression);
+                        }
+                    }
+                }
+            }
+            if (lambda == null)
+            {
+                return source;
+            }
+            else
+            {
+                return source.Where(Expression.Lambda<Func<TItem, bool>>(lambda, sourceExpression));
+            }
+
+        }

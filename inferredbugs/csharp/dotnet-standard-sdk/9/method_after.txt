@@ -1,0 +1,50 @@
+        public BaseModel AddGrammar(string customizationId, string grammarName, string grammarFile, string contentType, bool? allowOverwrite = null, Dictionary<string, object> customData = null)
+        {
+            if (string.IsNullOrEmpty(customizationId))
+                throw new ArgumentNullException(nameof(customizationId));
+            if (string.IsNullOrEmpty(grammarName))
+                throw new ArgumentNullException(nameof(grammarName));
+            if (string.IsNullOrEmpty(grammarFile))
+                throw new ArgumentNullException(nameof(grammarFile));
+            if (string.IsNullOrEmpty(contentType))
+                throw new ArgumentNullException(nameof(contentType));
+            BaseModel result = null;
+
+            try
+            {
+                IClient client;
+                if(_tokenManager == null)
+                {
+                    client = this.Client.WithAuthentication(this.UserName, this.Password);
+                }
+                else
+                {
+                    client = this.Client.WithAuthentication(_tokenManager.GetToken());
+                }
+                var restRequest = client.PostAsync($"{this.Endpoint}/v1/customizations/{customizationId}/grammars/{grammarName}");
+
+                if (!string.IsNullOrEmpty(contentType))
+                    restRequest.WithHeader("Content-Type", contentType);
+                if (allowOverwrite != null)
+                    restRequest.WithArgument("allow_overwrite", allowOverwrite);
+
+                var grammarsContent = new ByteArrayContent(Encoding.UTF8.GetBytes(grammarFile));
+                System.Net.Http.Headers.MediaTypeHeaderValue grammarsContentType;
+                System.Net.Http.Headers.MediaTypeHeaderValue.TryParse(contentType, out grammarsContentType);
+                grammarsContent.Headers.ContentType = grammarsContentType;
+                restRequest.WithBodyContent(grammarsContent);
+
+                if (customData != null)
+                    restRequest.WithCustomData(customData);
+                result = restRequest.As<BaseModel>().Result;
+                if(result == null)
+                    result = new BaseModel();
+                result.CustomData = restRequest.CustomData;
+            }
+            catch(AggregateException ae)
+            {
+                throw ae.Flatten();
+            }
+
+            return result;
+        }

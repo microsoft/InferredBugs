@@ -1,0 +1,20 @@
+        [Test]
+        public void CreateStreamThread()
+        {
+            var config = new StreamConfig<StringSerDes, StringSerDes>();
+            config.ApplicationId = "test";
+            
+            var builder = new StreamBuilder();
+            builder.Stream<string, string>("topic").To("topic2");
+
+            var topo = builder.Build();
+
+            var supplier = new SyncKafkaSupplier();
+            var thread = StreamThread.Create(
+                "thread-0", "c0",
+                topo.Builder, new StreamMetricsRegistry(), config,
+                supplier, supplier.GetAdmin(config.ToAdminConfig("admin")),
+                0) as StreamThread;
+
+            Assert.AreEqual("thread-0", thread.Name);
+        }

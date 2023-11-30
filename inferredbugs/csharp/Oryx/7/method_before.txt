@@ -1,0 +1,41 @@
+        [Fact]
+        public void Detect_ReturnsSdkVersion_SpecifiedInGlobalJsonFile()
+        {
+            // Arrange
+            var projectFile = "test.csproj";
+            var globalJsonFileContent = GlobalJsonWithSdkVersionPlaceholder.Replace(
+                "#version#",
+                "100.100.100");
+            var projectFileContent = ProjectFileWithTargetFrameworkPlaceHolder.Replace(
+                "#TargetFramework#",
+                "netcoreapp2.1");
+            var sourceRepo = new Mock<ISourceRepo>();
+            sourceRepo
+                .Setup(repo => repo.EnumerateFiles(It.IsAny<string>(), It.IsAny<bool>()))
+                .Returns(new[] { projectFile, "global.json" });
+            sourceRepo
+                .Setup(repo => repo.FileExists("global.json"))
+                .Returns(true);
+            sourceRepo
+                .Setup(repo => repo.ReadFile("test.csproj"))
+                .Returns(projectFileContent);
+            sourceRepo
+                .Setup(repo => repo.ReadFile("global.json"))
+                .Returns(globalJsonFileContent);
+            var detector = CreateDotnetCoreLanguageDetector(
+                supportedVersions: new[]
+                {
+                    DotnetCoreConstants.DotnetCoreSdkVersion11,
+                    DotnetCoreConstants.DotnetCoreSdkVersion21,
+                    DotnetCoreConstants.DotnetCoreSdkVersion22
+                },
+                projectFile);
+
+            // Act
+            var result = detector.Detect(sourceRepo.Object);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(DotnetCoreConstants.LanguageName, result.Language);
+            Assert.Equal("100.100.100", result.LanguageVersion);
+        }

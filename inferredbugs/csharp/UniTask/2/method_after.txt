@@ -1,0 +1,17 @@
+        public static CancellationToken ToCancellationToken(this UniTask task, CancellationToken linkToken)
+        {
+            if (linkToken.IsCancellationRequested)
+            {
+                return linkToken;
+            }
+
+            if (!linkToken.CanBeCanceled)
+            {
+                return ToCancellationToken(task);
+            }
+
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(linkToken);
+            ToCancellationTokenCore(task, cts).Forget();
+
+            return cts.Token;
+        }

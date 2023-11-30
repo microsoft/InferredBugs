@@ -1,0 +1,73 @@
+        public override bool AdvancedSearch(int methodCount)
+        {
+            if (sectionWithName != null)
+            {
+                if (sectionWithName.ContainsKey(".data.rel.ro") && sectionWithName.ContainsKey(".text") && sectionWithName.ContainsKey(".bss"))
+                {
+                    var datarelro = sectionWithName[".data.rel.ro"];
+                    var text = sectionWithName[".text"];
+                    var bss = sectionWithName[".bss"];
+                    elf_32_shdr datarelrolocal = null;
+                    if (sectionWithName.ContainsKey(".data.rel.ro.local"))
+                        datarelrolocal = sectionWithName[".data.rel.ro.local"];
+                    uint codeRegistration = 0;
+                    uint metadataRegistration = 0;
+                    var pmethodPointers = FindPointersAsc(methodCount, datarelro, text);
+                    if (pmethodPointers == 0 && datarelrolocal != null)
+                        pmethodPointers = FindPointersAsc(methodCount, datarelrolocal, text);
+                    if (pmethodPointers != 0)
+                    {
+                        codeRegistration = FindReference(pmethodPointers, datarelro);
+                        if (codeRegistration == 0 && datarelrolocal != null)
+                            codeRegistration = FindReference(pmethodPointers, datarelrolocal);
+                        if (codeRegistration == 0)
+                        {
+                            pmethodPointers = FindPointersDesc(methodCount, datarelro, text);
+                            if (pmethodPointers == 0 && datarelrolocal != null)
+                                pmethodPointers = FindPointersDesc(methodCount, datarelrolocal, text);
+                            if (pmethodPointers != 0)
+                            {
+                                codeRegistration = FindReference(pmethodPointers, datarelro);
+                                if (codeRegistration == 0 && datarelrolocal != null)
+                                    codeRegistration = FindReference(pmethodPointers, datarelrolocal);
+                            }
+                        }
+                    }
+                    var pmetadataUsages = FindPointersAsc(maxmetadataUsages, datarelro, bss);
+                    if (pmetadataUsages == 0 && datarelrolocal != null)
+                        pmetadataUsages = FindPointersAsc(maxmetadataUsages, datarelrolocal, bss);
+                    if (pmetadataUsages != 0)
+                    {
+                        metadataRegistration = FindReference(pmetadataUsages, datarelro);
+                        if (metadataRegistration == 0 && datarelrolocal != null)
+                            metadataRegistration = FindReference(pmetadataUsages, datarelrolocal);
+                        if (metadataRegistration == 0)
+                        {
+                            pmetadataUsages = FindPointersDesc(maxmetadataUsages, datarelro, bss);
+                            if (pmetadataUsages == 0 && datarelrolocal != null)
+                                pmetadataUsages = FindPointersDesc(maxmetadataUsages, datarelrolocal, bss);
+                            if (pmetadataUsages != 0)
+                            {
+                                metadataRegistration = FindReference(pmetadataUsages, datarelro);
+                                if (metadataRegistration == 0 && datarelrolocal != null)
+                                    metadataRegistration = FindReference(pmetadataUsages, datarelrolocal);
+                            }
+                        }
+                    }
+                    if (codeRegistration != 0 && metadataRegistration != 0)
+                    {
+                        codeRegistration -= 8u;
+                        metadataRegistration -= 64u;
+                        Console.WriteLine("CodeRegistration : {0:x}", codeRegistration);
+                        Console.WriteLine("MetadataRegistration : {0:x}", metadataRegistration);
+                        Init(codeRegistration, metadataRegistration);
+                        return true;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("ERROR: The necessary section is missing.");
+                }
+            }
+            return false;
+        }

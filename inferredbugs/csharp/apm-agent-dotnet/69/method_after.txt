@@ -1,0 +1,33 @@
+  private static void ErrorOnTransactionCommon(string culprit = null)
+		{
+			const string transactionName = TestTransaction;
+			const string transactionType = UnitTest;
+			const string exceptionMessage = "Foo!";
+			var payloadSender = new MockPayloadSender();
+			using (var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender)))
+			{
+				var transaction = agent.Tracer.StartTransaction(transactionName, transactionType);
+
+				Thread.Sleep(5); //Make sure we have duration > 0
+				try
+				{
+					throw new InvalidOperationException(exceptionMessage);
+				}
+				catch (Exception e)
+				{
+					if (string.IsNullOrEmpty(culprit))
+						transaction.CaptureException(e);
+					else
+						transaction.CaptureException(e, culprit);
+				}
+
+				transaction.End();
+			}
+
+			payloadSender.Transactions.Should().ContainSingle();
+			payloadSender.Errors.Should().ContainSingle();
+			payloadSender.FirstError.Exception.Message.Should().Be(exceptionMessage);
+			payloadSender.FirstError.Exception.Message.Should().Be(exceptionMessage);
+
+			payloadSender.FirstError.Culprit.Should().Be(!string.IsNullOrEmpty(culprit) ? culprit : "PublicAPI-CaptureException");
+		}

@@ -1,0 +1,20 @@
+        public static TestSuiteResult RunChildCommands(TestSuiteCommand command, TestExecutionContext context)
+        {
+            TestSuiteResult suiteResult = TestExecutionContext.CurrentContext.CurrentResult as TestSuiteResult;
+            suiteResult.SetResult(ResultState.Success);
+
+            foreach (TestCommand childCommand in command.Children)
+            {
+                TestResult childResult = CommandRunner.Execute(childCommand);
+
+                suiteResult.AddResult(childResult);
+
+                if (childResult.ResultState == ResultState.Cancelled)
+                    break;
+
+                if (childResult.ResultState.Status == TestStatus.Failed && TestExecutionContext.CurrentContext.StopOnError)
+                    break;
+            }
+
+            return suiteResult;
+        }

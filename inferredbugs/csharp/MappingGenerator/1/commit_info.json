@@ -1,0 +1,265 @@
+{
+    "hash": "639bbacfe7980296b2f94c682850c01f6f968f77",
+    "message": "Add flattening with function",
+    "file_num_lines": 320,
+    "diff_parsed": {
+        "added": [
+            [
+                141,
+                "            foreach (var x in matchedProperties.Where(x => x.Source != null  && x.Target != null))"
+            ],
+            [
+                148,
+                "               if (HasInterface(x.Target.Type, \"System.Collections.Generic.ICollection<T>\") &&"
+            ],
+            [
+                154,
+                "                    var listElementType = ((INamedTypeSymbol) x.Source.Type).TypeArguments[0];"
+            ],
+            [
+                192,
+                "            var unmappedDirectlySources = matchedProperties.Where(x => x.Source != null  && x.Target == null);"
+            ],
+            [
+                213,
+                "            //Flattening with function eg. t.Total = s.GetTotal()"
+            ],
+            [
+                214,
+                "            var unmappedDirectlySourcesMethod = matchedProperties.Where(x => x.SourceGetMethod != null  && x.Target == null);"
+            ],
+            [
+                215,
+                "            foreach (var unmappedSourceMethod in unmappedDirectlySourcesMethod)"
+            ],
+            [
+                216,
+                "            {"
+            ],
+            [
+                217,
+                "                var target = matchedProperties.FirstOrDefault(x => x.Target!=null && unmappedSourceMethod.SourceGetMethod.Name.EndsWith(x.Target.Name))?.Target;"
+            ],
+            [
+                218,
+                "                if (target != null)"
+            ],
+            [
+                219,
+                "                {"
+            ],
+            [
+                220,
+                "                    if (target.SetMethod.DeclaredAccessibility != Accessibility.Public && globbalTargetAccessor.Kind() != SyntaxKind.ThisExpression)"
+            ],
+            [
+                221,
+                "                    {"
+            ],
+            [
+                222,
+                "                        continue;"
+            ],
+            [
+                223,
+                "                    }"
+            ],
+            [
+                224,
+                ""
+            ],
+            [
+                225,
+                "                    var targetAccess = generator.MemberAccessExpression(localTargetIdentifier, target.Name);"
+            ],
+            [
+                226,
+                "                    var sourceAccess = generator.MemberAccessExpression(globalSourceAccessor, unmappedSourceMethod.SourceGetMethod.Name);"
+            ],
+            [
+                227,
+                "                    var sourceCall = generator.InvocationExpression(sourceAccess);"
+            ],
+            [
+                228,
+                "                    yield return generator.AssignmentStatement(targetAccess, sourceCall);"
+            ],
+            [
+                229,
+                "                }"
+            ],
+            [
+                230,
+                "            }"
+            ],
+            [
+                231,
+                ""
+            ],
+            [
+                232,
+                ""
+            ],
+            [
+                278,
+                "        private static bool IsPublicGetMethod(ISymbol x)"
+            ],
+            [
+                279,
+                "        {"
+            ],
+            [
+                280,
+                "           return x is IMethodSymbol mSymbol"
+            ],
+            [
+                281,
+                "                   && mSymbol.ReturnsVoid == false"
+            ],
+            [
+                282,
+                "                   && mSymbol.Parameters.Length == 0"
+            ],
+            [
+                283,
+                "                   && x.DeclaredAccessibility == Accessibility.Public"
+            ],
+            [
+                284,
+                "                   && x.IsImplicitlyDeclared == false"
+            ],
+            [
+                285,
+                "                   && mSymbol.MethodKind == MethodKind.Ordinary"
+            ],
+            [
+                286,
+                "                ;"
+            ],
+            [
+                287,
+                "        }"
+            ],
+            [
+                288,
+                ""
+            ],
+            [
+                312,
+                "        }"
+            ],
+            [
+                313,
+                ""
+            ],
+            [
+                314,
+                "        private static IEnumerable<IMethodSymbol> GetPublicGetMethods(INamedTypeSymbol source)"
+            ],
+            [
+                315,
+                "        {"
+            ],
+            [
+                316,
+                "            return GetBaseTypesAndThis(source).SelectMany(x=> x.GetMembers()).Where(IsPublicGetMethod).OfType<IMethodSymbol>();"
+            ],
+            [
+                343,
+                "            foreach (var methodSymbol in GetPublicGetMethods(source))"
+            ],
+            [
+                344,
+                "            {"
+            ],
+            [
+                345,
+                "                if (propertiesMap.ContainsKey(methodSymbol.Name) == false)"
+            ],
+            [
+                346,
+                "                {"
+            ],
+            [
+                347,
+                "                    propertiesMap.Add(methodSymbol.Name, new MatchedPropertySymbols()"
+            ],
+            [
+                348,
+                "                    {"
+            ],
+            [
+                349,
+                "                        SourceGetMethod = methodSymbol"
+            ],
+            [
+                350,
+                "                    });"
+            ],
+            [
+                351,
+                "                }"
+            ],
+            [
+                352,
+                "            }"
+            ],
+            [
+                353,
+                ""
+            ],
+            [
+                356,
+                "                if (mSymbol.IsReadOnly)"
+            ],
+            [
+                357,
+                "                {"
+            ],
+            [
+                358,
+                "                    continue;"
+            ],
+            [
+                359,
+                "                }"
+            ],
+            [
+                360,
+                ""
+            ],
+            [
+                381,
+                "        public IMethodSymbol SourceGetMethod { get; set; }"
+            ]
+        ],
+        "deleted": [
+            [
+                141,
+                "            foreach (var x in matchedProperties.Where(x => x.Source != null && x.Target != null && x.Target.IsReadOnly == false))"
+            ],
+            [
+                148,
+                "                var sourcePropertyType = x.Source.Type;"
+            ],
+            [
+                149,
+                "                if (HasInterface(x.Target.Type, \"System.Collections.Generic.ICollection<T>\") &&"
+            ],
+            [
+                155,
+                "                    var listElementType = ((INamedTypeSymbol) sourcePropertyType).TypeArguments[0];"
+            ],
+            [
+                193,
+                "            var unmappedDirectlySources = matchedProperties.Where(x => x.Source != null && x.Target == null);"
+            ],
+            [
+                294,
+                "        //TODO: Search for GetXXX or SetXXX methods"
+            ]
+        ]
+    },
+    "num_lines_added": 57,
+    "num_lines_removed": 6
+}

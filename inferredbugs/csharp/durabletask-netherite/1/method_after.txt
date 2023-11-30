@@ -1,0 +1,47 @@
+        public override void Process(CreationRequestReceived creationRequestReceived, EffectTracker effects)
+        {
+            bool filterDuplicate = this.OrchestrationState != null
+                && creationRequestReceived.DedupeStatuses != null
+                && creationRequestReceived.DedupeStatuses.Contains(this.OrchestrationState.OrchestrationStatus);
+
+            if (!filterDuplicate)
+            {
+                var ee = creationRequestReceived.ExecutionStartedEvent;
+
+                // set the orchestration state now (before processing the creation in the history)
+                // so that this new instance is "on record" immediately - it is guaranteed to replace whatever is in flight
+                this.OrchestrationState = new OrchestrationState
+                {
+                    Name = ee.Name,
+                    Version = ee.Version,
+                    OrchestrationInstance = ee.OrchestrationInstance,
+                    OrchestrationStatus = OrchestrationStatus.Pending,
+                    ParentInstance = ee.ParentInstance,
+                    Input = ee.Input,
+                    Tags = ee.Tags,
+                    CreatedTime = ee.Timestamp,
+                    LastUpdatedTime = DateTime.UtcNow,
+                    CompletedTime = Core.Common.DateTimeUtils.MinDateTime,
+                    ScheduledStartTime = ee.ScheduledStartTime
+                };
+
+                // queue the message in the session, or start a timer if delayed
+                if (!ee.ScheduledStartTime.HasValue)
+                {
+                    effects.Add(TrackedObjectKey.Sessions);
+                }
+                else
+                {
+                    effects.Add(TrackedObjectKey.Timers);
+                }
+            }
+
+            effects.Add(TrackedObjectKey.Outbox);
+            creationRequestReceived.ResponseToSend = new CreationResponseReceived()
+            {
+                ClientId = creationRequestReceived.ClientId,
+                RequestId = creationRequestReceived.RequestId,
+                Succeeded = !filterDuplicate,
+                ExistingInstanceOrchestrationStatus = this.OrchestrationState?.OrchestrationStatus,
+            };
+        }

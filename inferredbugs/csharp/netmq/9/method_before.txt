@@ -1,0 +1,17 @@
+        [TestCase("BadCommand1")]
+        public void BadCommandTests(string command)
+        {
+            string actorMessage = "whatever";
+            EchoShimHandler echoShimHandler = new EchoShimHandler();
+            Action<Exception> pipeExceptionHandler = (ex) =>
+            {
+                Assert.AreEqual("Unexpected command",ex.Message);
+            };
+            Actor actor = new Actor(NetMQContext.Create(), pipeExceptionHandler, echoShimHandler, new object[] { "Hello World" });
+            actor.SendMore(command);
+            actor.Send(actorMessage);
+            var result = actor.ReceiveString();
+            string expectedEchoHandlerResult = string.Format("ECHO BACK : {0}", actorMessage);
+            Assert.AreEqual(expectedEchoHandlerResult, result);
+            actor.Dispose();
+        }

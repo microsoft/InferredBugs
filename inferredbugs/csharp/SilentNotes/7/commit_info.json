@@ -1,0 +1,1033 @@
+{
+    "hash": "f1e2f191d600fbbb547c59870224507d2dabf3cb",
+    "message": "HtmlShortener keeps the DOM tree intact, when optimizing then content.",
+    "file_num_lines": 192,
+    "diff_parsed": {
+        "added": [
+            [
+                8,
+                "using System.Linq;"
+            ],
+            [
+                9,
+                "using System.Text;"
+            ],
+            [
+                20,
+                "        private static char[] _tagMarkupCharacters = { '<', '>', '/', ' ', '\\t' };"
+            ],
+            [
+                21,
+                "        private static Regex _findTagsRegex;"
+            ],
+            [
+                22,
+                ""
+            ],
+            [
+                23,
+                "        // Sorted list of tags which cannot have child nodes see: https://developer.mozilla.org/en-US/docs/Glossary/empty_element"
+            ],
+            [
+                24,
+                "        private static string[] _emptyTagNames = { \"area\", \"base\", \"br\", \"col\", \"embed\", \"hr\", \"img\", \"input\", \"keygen\", \"link\", \"meta\", \"param\", \"source\", \"track\", \"wbr\" };"
+            ],
+            [
+                25,
+                ""
+            ],
+            [
+                26,
+                "        // Sorted list of tags which are affecting the maximum number of tags / maximum length"
+            ],
+            [
+                27,
+                "        private static string[] _relevantTagNames = { \"blockquote\", \"dd\", \"div\", \"dt\", \"h1\", \"h2\", \"h3\", \"h4\", \"li\", \"p\", \"pre\", \"table\" };"
+            ],
+            [
+                62,
+                "        /// Truncates a long HTML document, so that it is possible to show only the start of the"
+            ],
+            [
+                63,
+                "        /// document. The resulting content keeps the tag structure like lists, but removes elements"
+            ],
+            [
+                64,
+                "        /// if a certain length is reached."
+            ],
+            [
+                67,
+                "        /// <returns>Shortened HTML content or the original content if it was short enough.</returns>"
+            ],
+            [
+                73,
+                "            TagTreeItem rootTag = new TagTreeItem();"
+            ],
+            [
+                74,
+                "            IEnumerator<Match> tagEnumerator = EnumerateTags(content).GetEnumerator();"
+            ],
+            [
+                75,
+                "            BuildTagTree(rootTag, tagEnumerator);"
+            ],
+            [
+                76,
+                ""
+            ],
+            [
+                77,
+                "            int numberOfFoundTags = 0;"
+            ],
+            [
+                78,
+                "            int lengthOfMarkedTags = 0;"
+            ],
+            [
+                79,
+                "            MarkRetainedTags(rootTag, ref numberOfFoundTags, ref lengthOfMarkedTags);"
+            ],
+            [
+                80,
+                ""
+            ],
+            [
+                81,
+                "            List<TagTreeItem> tagsToRemove = new List<TagTreeItem>();"
+            ],
+            [
+                82,
+                "            FindTagsToRemove(tagsToRemove, rootTag);"
+            ],
+            [
+                83,
+                ""
+            ],
+            [
+                84,
+                "            if (tagsToRemove.Count > 0)"
+            ],
+            [
+                85,
+                "                return RemoveTags(content, tagsToRemove);"
+            ],
+            [
+                86,
+                "            else"
+            ],
+            [
+                87,
+                "                return content;"
+            ],
+            [
+                88,
+                "        }"
+            ],
+            [
+                89,
+                ""
+            ],
+            [
+                90,
+                "        /// <summary>"
+            ],
+            [
+                91,
+                "        /// Searches the HTML content and enumerates all found opening/closing HTML tags."
+            ],
+            [
+                92,
+                "        /// </summary>"
+            ],
+            [
+                93,
+                "        /// <param name=\"content\">The HTML content to search.</param>"
+            ],
+            [
+                94,
+                "        /// <returns>Found matches of tags.</returns>"
+            ],
+            [
+                95,
+                "        private static IEnumerable<Match> EnumerateTags(string content)"
+            ],
+            [
+                96,
+                "        {"
+            ],
+            [
+                97,
+                "            Regex htmlTagRegex = GetOrCreateRegex();"
+            ],
+            [
+                98,
+                "            Match foundTag = htmlTagRegex.Match(content, 0);"
+            ],
+            [
+                99,
+                "            while (foundTag.Success)"
+            ],
+            [
+                100,
+                "            {"
+            ],
+            [
+                101,
+                "                yield return foundTag;"
+            ],
+            [
+                102,
+                "                foundTag = htmlTagRegex.Match(content, foundTag.Index + foundTag.Length);"
+            ],
+            [
+                103,
+                "            }"
+            ],
+            [
+                104,
+                "        }"
+            ],
+            [
+                105,
+                ""
+            ],
+            [
+                106,
+                "        /// <summary>"
+            ],
+            [
+                107,
+                "        /// Recursively walks the HTML tags and builds a tree of <see cref=\"TagTreeItem\"/> objects."
+            ],
+            [
+                108,
+                "        /// </summary>"
+            ],
+            [
+                109,
+                "        /// <param name=\"parent\">The current element of the tree which should be extended.</param>"
+            ],
+            [
+                110,
+                "        /// <param name=\"tagEnumerator\">The enumerator which can find the tags.</param>"
+            ],
+            [
+                111,
+                "        private void BuildTagTree(TagTreeItem parent, IEnumerator<Match> tagEnumerator)"
+            ],
+            [
+                112,
+                "        {"
+            ],
+            [
+                113,
+                "            while (tagEnumerator.MoveNext())"
+            ],
+            [
+                115,
+                "                Match foundTag = tagEnumerator.Current;"
+            ],
+            [
+                116,
+                "                if (string.IsNullOrEmpty(foundTag.Value))"
+            ],
+            [
+                117,
+                "                    continue;"
+            ],
+            [
+                118,
+                ""
+            ],
+            [
+                119,
+                "                string tagName = GetLowerCaseTagName(foundTag.Value);"
+            ],
+            [
+                120,
+                "                if (IsEmptyTag(tagName))"
+            ],
+            [
+                122,
+                "                    TagTreeItem child = new TagTreeItem"
+            ],
+            [
+                124,
+                "                        Name = tagName,"
+            ],
+            [
+                125,
+                "                        StartTag = foundTag,"
+            ],
+            [
+                126,
+                "                        EndTag = null,"
+            ],
+            [
+                127,
+                "                    };"
+            ],
+            [
+                128,
+                "                    parent.Children.Add(child);"
+            ],
+            [
+                129,
+                "                }"
+            ],
+            [
+                130,
+                "                else if (IsOpeningTag(foundTag.Value))"
+            ],
+            [
+                131,
+                "                {"
+            ],
+            [
+                132,
+                "                    TagTreeItem child = new TagTreeItem"
+            ],
+            [
+                133,
+                "                    {"
+            ],
+            [
+                134,
+                "                        Name = tagName,"
+            ],
+            [
+                135,
+                "                        StartTag = foundTag,"
+            ],
+            [
+                136,
+                "                    };"
+            ],
+            [
+                137,
+                "                    parent.Children.Add(child);"
+            ],
+            [
+                138,
+                "                    BuildTagTree(child, tagEnumerator);"
+            ],
+            [
+                139,
+                "                }"
+            ],
+            [
+                140,
+                "                else"
+            ],
+            [
+                141,
+                "                {"
+            ],
+            [
+                142,
+                "                    if (string.Equals(tagName, parent.Name))"
+            ],
+            [
+                143,
+                "                    {"
+            ],
+            [
+                144,
+                "                        parent.EndTag = foundTag;"
+            ],
+            [
+                145,
+                "                        return;"
+            ],
+            [
+                147,
+                "                }"
+            ],
+            [
+                148,
+                "            }"
+            ],
+            [
+                149,
+                "        }"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "        /// <summary>"
+            ],
+            [
+                152,
+                "        /// Walks the tree of tags, and sets the <see cref=\"TagTreeItem.Retained\"/> to true, for so"
+            ],
+            [
+                153,
+                "        /// many tags as are inside the limits of <see cref=\"WantedTagNumber\"/> and <see cref=\"WantedLength\"/>."
+            ],
+            [
+                154,
+                "        /// It assumes that all <see cref=\"TagTreeItem.Retained\"/> are preset to false."
+            ],
+            [
+                155,
+                "        /// </summary>"
+            ],
+            [
+                156,
+                "        /// <param name=\"tag\">Decide for this tag.</param>"
+            ],
+            [
+                157,
+                "        /// <param name=\"numberOfMarkedTags\">The sum of already marked tags.</param>"
+            ],
+            [
+                158,
+                "        /// <param name=\"lengthOfMarkedTags\">The sum of the length of the already marked tags.</param>"
+            ],
+            [
+                159,
+                "        private void MarkRetainedTags(TagTreeItem tag, ref int numberOfMarkedTags, ref int lengthOfMarkedTags)"
+            ],
+            [
+                160,
+                "        {"
+            ],
+            [
+                161,
+                "            for (int index = 0; index < tag.ChildrenCount; index++)"
+            ],
+            [
+                162,
+                "            {"
+            ],
+            [
+                163,
+                "                TagTreeItem childTag = tag.Children[index];"
+            ],
+            [
+                164,
+                "                bool isRelevant = IsRelevantTag(childTag.Name);"
+            ],
+            [
+                165,
+                "                if (isRelevant)"
+            ],
+            [
+                166,
+                "                {"
+            ],
+            [
+                167,
+                "                    if ((numberOfMarkedTags < WantedTagNumber) && (lengthOfMarkedTags < WantedLength))"
+            ],
+            [
+                169,
+                "                        childTag.Retained = true;"
+            ],
+            [
+                170,
+                "                        numberOfMarkedTags++;"
+            ],
+            [
+                171,
+                "                        lengthOfMarkedTags += childTag.ContentLength;"
+            ],
+            [
+                172,
+                "                        MarkRetainedTags(childTag, ref numberOfMarkedTags, ref lengthOfMarkedTags);"
+            ],
+            [
+                175,
+                "                else"
+            ],
+            [
+                176,
+                "                {"
+            ],
+            [
+                177,
+                "                    childTag.Retained = true;"
+            ],
+            [
+                178,
+                "                    MarkRetainedTags(childTag, ref numberOfMarkedTags, ref lengthOfMarkedTags);"
+            ],
+            [
+                179,
+                "                }"
+            ],
+            [
+                183,
+                "        /// <summary>"
+            ],
+            [
+                184,
+                "        /// Recursively walks the tag tree and fills <paramref name=\"result\"/> with tags which can"
+            ],
+            [
+                185,
+                "        /// be removed to shorten the content. Only removeable top level tags are included, without"
+            ],
+            [
+                186,
+                "        /// their child tags."
+            ],
+            [
+                187,
+                "        /// </summary>"
+            ],
+            [
+                188,
+                "        /// <param name=\"result\">Receives the tags to remove.</param>"
+            ],
+            [
+                189,
+                "        /// <param name=\"tag\">Check this tag and recursively its children.</param>"
+            ],
+            [
+                190,
+                "        private static void FindTagsToRemove(List<TagTreeItem> result, TagTreeItem tag)"
+            ],
+            [
+                192,
+                "            for (int index = 0; index < tag.ChildrenCount; index++)"
+            ],
+            [
+                194,
+                "                TagTreeItem childTag = tag.Children[index];"
+            ],
+            [
+                195,
+                "                if (childTag.Retained)"
+            ],
+            [
+                196,
+                "                {"
+            ],
+            [
+                197,
+                "                    FindTagsToRemove(result, childTag);"
+            ],
+            [
+                198,
+                "                }"
+            ],
+            [
+                199,
+                "                else"
+            ],
+            [
+                200,
+                "                {"
+            ],
+            [
+                201,
+                "                    result.Add(childTag);"
+            ],
+            [
+                202,
+                "                }"
+            ],
+            [
+                203,
+                "            }"
+            ],
+            [
+                204,
+                "        }"
+            ],
+            [
+                205,
+                ""
+            ],
+            [
+                206,
+                "        private static string RemoveTags(string content, List<TagTreeItem> tagsToRemove)"
+            ],
+            [
+                207,
+                "        {"
+            ],
+            [
+                208,
+                "            // Remove the range of the characters covered by the tag, working from the end to"
+            ],
+            [
+                209,
+                "            // the begin of the content."
+            ],
+            [
+                210,
+                "            StringBuilder result = new StringBuilder(content);"
+            ],
+            [
+                211,
+                "            for (int index = tagsToRemove.Count - 1; index >= 0; index--)"
+            ],
+            [
+                212,
+                "            {"
+            ],
+            [
+                213,
+                "                TagTreeItem tagToRemove = tagsToRemove[index];"
+            ],
+            [
+                214,
+                "                result.Remove(tagToRemove.StartTagPosition, tagToRemove.TagLength);"
+            ],
+            [
+                216,
+                "            return result.ToString();"
+            ],
+            [
+                219,
+                "        private static string GetLowerCaseTagName(string tag)"
+            ],
+            [
+                221,
+                "            if (string.IsNullOrEmpty(tag))"
+            ],
+            [
+                222,
+                "                return string.Empty;"
+            ],
+            [
+                223,
+                ""
+            ],
+            [
+                224,
+                "            string tagContent = tag.Trim(_tagMarkupCharacters);"
+            ],
+            [
+                225,
+                "            int position = tagContent.IndexOfAny(_tagMarkupCharacters);"
+            ],
+            [
+                231,
+                "        /// <summary>"
+            ],
+            [
+                232,
+                "        /// Gets a value indicating whether the tag should be counted when limiting by"
+            ],
+            [
+                233,
+                "        /// <see cref=\"WantedTagNumber\"/>."
+            ],
+            [
+                234,
+                "        /// </summary>"
+            ],
+            [
+                235,
+                "        /// <param name=\"tagName\">Name of the tag which is countable or not.</param>"
+            ],
+            [
+                236,
+                "        /// <returns>Returns true if the tag should be counted, otherwise false.</returns>"
+            ],
+            [
+                237,
+                "        private static bool IsRelevantTag(string tagName)"
+            ],
+            [
+                238,
+                "        {"
+            ],
+            [
+                239,
+                "            return Array.BinarySearch(_relevantTagNames, tagName) >= 0;"
+            ],
+            [
+                240,
+                "        }"
+            ],
+            [
+                241,
+                ""
+            ],
+            [
+                242,
+                "        private static bool IsEmptyTag(string tagName)"
+            ],
+            [
+                244,
+                "            return Array.BinarySearch(_emptyTagNames, tagName) >= 0;"
+            ],
+            [
+                251,
+                ""
+            ],
+            [
+                252,
+                "        private static Regex GetOrCreateRegex()"
+            ],
+            [
+                253,
+                "        {"
+            ],
+            [
+                254,
+                "            return _findTagsRegex ?? (_findTagsRegex = new Regex(\"<[^>]+>\", RegexOptions.Compiled)); // Any HTML tag"
+            ],
+            [
+                255,
+                "        }"
+            ],
+            [
+                256,
+                ""
+            ],
+            [
+                257,
+                "        private class TagTreeItem"
+            ],
+            [
+                258,
+                "        {"
+            ],
+            [
+                259,
+                "            private List<TagTreeItem> _children;"
+            ],
+            [
+                260,
+                ""
+            ],
+            [
+                261,
+                "            public string Name { get; set; }"
+            ],
+            [
+                262,
+                ""
+            ],
+            [
+                263,
+                "            public Match StartTag { get; set; }"
+            ],
+            [
+                264,
+                ""
+            ],
+            [
+                265,
+                "            public Match EndTag { get; set; }"
+            ],
+            [
+                266,
+                ""
+            ],
+            [
+                267,
+                "            public int StartTagPosition"
+            ],
+            [
+                268,
+                "            {"
+            ],
+            [
+                269,
+                "                get { return StartTag.Index; }"
+            ],
+            [
+                270,
+                "            }"
+            ],
+            [
+                271,
+                ""
+            ],
+            [
+                272,
+                "            public int ContentLength"
+            ],
+            [
+                273,
+                "            {"
+            ],
+            [
+                274,
+                "                get { return (EndTag != null) ? EndTag.Index - StartTag.Index - StartTag.Length : 0; }"
+            ],
+            [
+                275,
+                "            }"
+            ],
+            [
+                276,
+                ""
+            ],
+            [
+                277,
+                "            public int TagLength"
+            ],
+            [
+                278,
+                "            {"
+            ],
+            [
+                279,
+                "                get { return (EndTag != null) ? EndTag.Index + EndTag.Length - StartTag.Index : 0; }"
+            ],
+            [
+                280,
+                "            }"
+            ],
+            [
+                281,
+                ""
+            ],
+            [
+                282,
+                "            public bool Retained { get; set; }"
+            ],
+            [
+                283,
+                ""
+            ],
+            [
+                284,
+                "            public List<TagTreeItem> Children"
+            ],
+            [
+                285,
+                "            {"
+            ],
+            [
+                286,
+                "                get { return _children ?? (_children = new List<TagTreeItem>()); }"
+            ],
+            [
+                287,
+                "            }"
+            ],
+            [
+                288,
+                ""
+            ],
+            [
+                289,
+                "            /// <summary>"
+            ],
+            [
+                290,
+                "            /// Gets the number of children. By using <see cref=\"ChildrenCount\"/> instead of"
+            ],
+            [
+                291,
+                "            /// Children.Count we can avoid creation of unnecessary lists (lazy creation)."
+            ],
+            [
+                292,
+                "            /// </summary>"
+            ],
+            [
+                293,
+                "            public int ChildrenCount"
+            ],
+            [
+                294,
+                "            {"
+            ],
+            [
+                295,
+                "                get { return _children != null ? _children.Count : 0; }"
+            ],
+            [
+                296,
+                "            }"
+            ],
+            [
+                297,
+                "        }"
+            ]
+        ],
+        "deleted": [
+            [
+                18,
+                "        private static char[] _tagCharacters = { '<', '>', '/', ' ', '\\t' };"
+            ],
+            [
+                19,
+                "        private static string[] _visibleBlockTagNames = { \"p\", \"h1\", \"h2\", \"h3\", \"li\", \"div\", \"dt\", \"dd\", \"blockquote\", \"pre\", \"table\" };"
+            ],
+            [
+                20,
+                "        private readonly Regex _findTagsRegex;"
+            ],
+            [
+                30,
+                "            _findTagsRegex = new Regex(\"<[^>]+>\", RegexOptions.None); // Any HTML tag"
+            ],
+            [
+                56,
+                "        /// Truncates a long HTML document, so that only the start of the document can be displayed."
+            ],
+            [
+                57,
+                "        /// The resulting content starts with the first visible block tag and is stripped of the"
+            ],
+            [
+                58,
+                "        /// enclosing html/body tag."
+            ],
+            [
+                61,
+                "        /// <returns>Shortened HTML contant or the original content if it was short enough.</returns>"
+            ],
+            [
+                67,
+                "            int tagCount = 0;"
+            ],
+            [
+                68,
+                "            Match firstTag = null;"
+            ],
+            [
+                69,
+                "            Stack<string> tagNames = new Stack<string>();"
+            ],
+            [
+                70,
+                "            foreach (Match foundTag in EnumerateTags(content))"
+            ],
+            [
+                72,
+                "                string tagName = GetTagName(foundTag.Value);"
+            ],
+            [
+                73,
+                "                if (IsVisibleBlockTag(tagName))"
+            ],
+            [
+                75,
+                "                    if (IsOpeningTag(foundTag.Value))"
+            ],
+            [
+                77,
+                "                        tagNames.Push(tagName);"
+            ],
+            [
+                78,
+                "                        if (firstTag == null)"
+            ],
+            [
+                79,
+                "                            firstTag = foundTag;"
+            ],
+            [
+                81,
+                "                    else"
+            ],
+            [
+                83,
+                "                        if (tagName == tagNames.Peek())"
+            ],
+            [
+                84,
+                "                        {"
+            ],
+            [
+                85,
+                "                            tagNames.Pop();"
+            ],
+            [
+                86,
+                ""
+            ],
+            [
+                87,
+                "                            if (tagNames.Count == 0)"
+            ],
+            [
+                88,
+                "                            {"
+            ],
+            [
+                89,
+                "                                tagCount++;"
+            ],
+            [
+                90,
+                "                                int length = foundTag.Index + foundTag.Length - firstTag.Index;"
+            ],
+            [
+                91,
+                "                                if (tagCount >= WantedTagNumber || length >= WantedLength)"
+            ],
+            [
+                92,
+                "                                {"
+            ],
+            [
+                93,
+                "                                    return content.Substring(firstTag.Index, length);"
+            ],
+            [
+                94,
+                "                                }"
+            ],
+            [
+                95,
+                "                            }"
+            ],
+            [
+                96,
+                "                        }"
+            ],
+            [
+                100,
+                "            return content;"
+            ],
+            [
+                103,
+                "        private IEnumerable<Match> EnumerateTags(string content)"
+            ],
+            [
+                105,
+                "            Match foundTag = _findTagsRegex.Match(content, 0);"
+            ],
+            [
+                106,
+                "            while (foundTag.Success)"
+            ],
+            [
+                108,
+                "                yield return foundTag;"
+            ],
+            [
+                109,
+                "                foundTag = _findTagsRegex.Match(content, foundTag.Index + foundTag.Length);"
+            ],
+            [
+                113,
+                "        private static string GetTagName(string tag)"
+            ],
+            [
+                115,
+                "            string tagContent = tag.Trim(_tagCharacters);"
+            ],
+            [
+                116,
+                "            int position = tagContent.IndexOfAny(_tagCharacters);"
+            ],
+            [
+                122,
+                "        private static bool IsVisibleBlockTag(string tagName)"
+            ],
+            [
+                124,
+                "            return Array.IndexOf(_visibleBlockTagNames, tagName) >= 0;"
+            ]
+        ]
+    },
+    "num_lines_added": 211,
+    "num_lines_removed": 44
+}

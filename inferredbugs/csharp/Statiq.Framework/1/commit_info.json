@@ -1,0 +1,237 @@
+{
+    "hash": "29ed5a0623ea683816efb1432a5d93a8ec8bc78f",
+    "message": "Some refactoring to make IConfiguration implementation lazy(ish), tests now pass",
+    "file_num_lines": 181,
+    "diff_parsed": {
+        "added": [
+            [
+                61,
+                "                : new SettingsConfigurationDictionary();"
+            ],
+            [
+                62,
+                "            SettingsConfigurationList list = path is null ? null : new SettingsConfigurationList();"
+            ],
+            [
+                185,
+                "            get => ((IConfiguration)this).GetSection(key).Value;"
+            ],
+            [
+                191,
+                "            key.ThrowIfNull(nameof(key));"
+            ],
+            [
+                192,
+                ""
+            ],
+            [
+                193,
+                "            string[] keys = key.Split(':');"
+            ],
+            [
+                194,
+                "            object item = this;"
+            ],
+            [
+                195,
+                "            for (int c = 0; c < keys.Length; c++)"
+            ],
+            [
+                197,
+                "                if (item is null || item is string)"
+            ],
+            [
+                198,
+                "                {"
+            ],
+            [
+                199,
+                "                    return new SettingsConfigurationSection(this, keys[^1], key, default);"
+            ],
+            [
+                200,
+                "                }"
+            ],
+            [
+                201,
+                "                else if (item is IDictionary<string, object> dictionary || TypeHelper.TryConvert(item, out dictionary))"
+            ],
+            [
+                202,
+                "                {"
+            ],
+            [
+                203,
+                "                    if (!dictionary.TryGetValue(keys[c], out item))"
+            ],
+            [
+                204,
+                "                    {"
+            ],
+            [
+                205,
+                "                        return new SettingsConfigurationSection(this, keys[^1], key, default);"
+            ],
+            [
+                206,
+                "                    }"
+            ],
+            [
+                207,
+                "                }"
+            ],
+            [
+                208,
+                "                else if (item is IList<object> list || (!(item is string) && item is IEnumerable && TypeHelper.TryConvert(item, out list)))"
+            ],
+            [
+                210,
+                "                    if (!int.TryParse(keys[c], out int index) || index >= list.Count)"
+            ],
+            [
+                211,
+                "                    {"
+            ],
+            [
+                212,
+                "                        return new SettingsConfigurationSection(this, keys[^1], key, default);"
+            ],
+            [
+                213,
+                "                    }"
+            ],
+            [
+                214,
+                "                    item = list[index];"
+            ],
+            [
+                215,
+                "                }"
+            ],
+            [
+                216,
+                "                else"
+            ],
+            [
+                217,
+                "                {"
+            ],
+            [
+                218,
+                "                    return new SettingsConfigurationSection(this, keys[^1], key, default);"
+            ],
+            [
+                221,
+                "            return new SettingsConfigurationSection(this, keys[^1], key, item);"
+            ],
+            [
+                225,
+                "            this.Select(x => new SettingsConfigurationSection(this, x.Key, x.Key, x.Value));"
+            ]
+        ],
+        "deleted": [
+            [
+                61,
+                "                : new SettingsConfigurationDictionary(path);"
+            ],
+            [
+                62,
+                "            SettingsConfigurationList list = path is null ? null : new SettingsConfigurationList(path);"
+            ],
+            [
+                185,
+                "            get => this.GetString(key);"
+            ],
+            [
+                191,
+                "            int firstSeparator = key.IndexOf(':');"
+            ],
+            [
+                192,
+                "            string rootKey = firstSeparator >= 0 ? key[..firstSeparator] : key;"
+            ],
+            [
+                193,
+                "            if (TryGetRaw(rootKey, out object rawValue))"
+            ],
+            [
+                195,
+                "                // The rawValue will always be a SettingsValue so unwrap it"
+            ],
+            [
+                196,
+                "                rawValue = ((SettingsValue)rawValue).Get(default, default);"
+            ],
+            [
+                197,
+                "                IConfigurationSection section = GetConfigurationSection(rootKey, rawValue);"
+            ],
+            [
+                198,
+                "                if (firstSeparator >= 0)"
+            ],
+            [
+                200,
+                "                    // This is a nested key"
+            ],
+            [
+                201,
+                "                    section = section.GetSection(key[(firstSeparator + 1) ..]);"
+            ],
+            [
+                203,
+                "                return section;"
+            ],
+            [
+                205,
+                ""
+            ],
+            [
+                206,
+                "            // This isn't a valid root key, so return a blank section"
+            ],
+            [
+                207,
+                "            return new SettingsConfigurationSection(key[(key.LastIndexOf(':') + 1) ..], key, default);"
+            ],
+            [
+                211,
+                "            this.GetRawEnumerable().Select(x => GetConfigurationSection(x.Key, x.Value));"
+            ],
+            [
+                212,
+                ""
+            ],
+            [
+                213,
+                "        private IConfigurationSection GetConfigurationSection(string key, object rawValue) =>"
+            ],
+            [
+                214,
+                "            rawValue is IConfigurationSection configurationSection"
+            ],
+            [
+                215,
+                "                    ? configurationSection"
+            ],
+            [
+                216,
+                "                    : new SettingsConfigurationSection("
+            ],
+            [
+                217,
+                "                        key,"
+            ],
+            [
+                218,
+                "                        key,"
+            ],
+            [
+                219,
+                "                        TypeHelper.TryExpandAndConvert(key, rawValue, this, out string value) ? value : default);"
+            ]
+        ]
+    },
+    "num_lines_added": 31,
+    "num_lines_removed": 25
+}

@@ -1,0 +1,25 @@
+    private void StartLongPolling()
+    {
+        if (Interlocked.CompareExchange(ref _cts, new(), null) != null) return;
+
+        bool restoreFlow = false;
+        try
+        {
+            if (!ExecutionContext.IsFlowSuppressed())
+            {
+                ExecutionContext.SuppressFlow();
+                restoreFlow = true;
+            }
+
+            var unused = DoLongPollingRefresh(_options.AppId, _options.Cluster, _options.DataCenter, _cts.Token);
+        }
+        catch (Exception ex)
+        {
+            var exception = new ApolloConfigException("Schedule long polling refresh failed", ex);
+            Logger().Warn(exception.GetDetailMessage());
+        }
+        finally
+        {
+            if (restoreFlow) ExecutionContext.RestoreFlow();
+        }
+    }

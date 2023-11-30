@@ -1,0 +1,54 @@
+        private StructInfo GetStructInfo(UStruct unrealStruct, bool isBlueprintType)
+        {
+            StructInfo structInfo;
+            if (structInfos.TryGetValue(unrealStruct, out structInfo))
+            {
+                return structInfo;
+            }
+
+            structInfo = new StructInfo(this, unrealStruct, isBlueprintType);
+            foreach (UFunction function in unrealStruct.GetFields<UFunction>(false, true, true))
+            {
+                // We need to include interface functions as otherwise some interface functions wont be implemented.
+                // If the interface function already has an implementation skip that function (as otherwise there will be duplicates).
+                if (!structInfo.IsClass || !function.GetOwnerClass().IsChildOf<UInterface>() ||
+                    structInfo.Class.FindFunctionByName(function.GetFName(), true).GetOwnerClass().IsChildOf<UInterface>())
+                {
+                    structInfo.AddFunction(function, CanExportFunction(function, isBlueprintType));
+                }
+            }
+
+            if (isBlueprintType)
+            {
+                UUserDefinedStruct userDefinedStruct = unrealStruct as UUserDefinedStruct;
+                if (userDefinedStruct != null)
+                {
+                    Dictionary<UProperty, string> variableNames = GetStructBPVariableNames(userDefinedStruct);
+
+                    foreach (UProperty property in unrealStruct.GetFields<UProperty>(false))
+                    {
+                        structInfo.AddProperty(property, variableNames[property], CanExportProperty(property, unrealStruct, isBlueprintType));
+                    }
+                }
+                else
+                {
+                    foreach (UProperty property in unrealStruct.GetProperties<UProperty>(false))
+                    {
+                        structInfo.AddProperty(property, null, CanExportProperty(property, unrealStruct, isBlueprintType));
+                    }
+                }
+            }
+            else
+            {
+                foreach (UProperty property in unrealStruct.GetFields<UProperty>(false))
+                {
+                    structInfo.AddProperty(property, null, CanExportProperty(property, unrealStruct, isBlueprintType));
+                }
+            }
+
+            structInfo.ResolveCollapsedMembers();
+            structInfo.PostProcess();
+
+            structInfos.Add(unrealStruct, structInfo);
+            return structInfo;
+        }

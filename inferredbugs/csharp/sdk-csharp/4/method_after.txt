@@ -1,0 +1,29 @@
+        public override void DecodeBinaryModeEventData(ReadOnlyMemory<byte> body, CloudEvent cloudEvent)
+        {
+            Validation.CheckNotNull(cloudEvent, nameof(cloudEvent));
+
+            ContentType contentType = new ContentType(cloudEvent.DataContentType ?? JsonMediaType);
+
+            Encoding encoding = MimeUtilities.GetEncoding(contentType);
+
+            if (contentType.MediaType == JsonMediaType)
+            {
+                if (body.Length > 0)
+                {
+                    var jsonReader = CreateJsonReader(BinaryDataUtilities.AsStream(body), encoding);
+                    cloudEvent.Data = JToken.Load(jsonReader);
+                }
+                else
+                {
+                    cloudEvent.Data = null;
+                }
+            }
+            else if (contentType.MediaType.StartsWith("text/") == true)
+            {
+                cloudEvent.Data = BinaryDataUtilities.GetString(body, encoding);
+            }
+            else
+            {
+                cloudEvent.Data = body.ToArray();
+            }
+        }

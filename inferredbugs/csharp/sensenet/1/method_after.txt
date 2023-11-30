@@ -1,0 +1,46 @@
+        internal static JObject ReadToJson(string models)
+        {
+            if (string.IsNullOrEmpty(models))
+                return null;
+
+            var firstChar = models.Last() == ']' ? '[' : '{';
+            var p = models.IndexOf(firstChar);
+            if (p > 0)
+                models = models.Substring(p);
+
+            if (!models.StartsWith("{") || !models.EndsWith("}"))
+            {
+                var json = new StringBuilder("{");
+                var pairs = models.Split('&');
+                foreach (var pair in pairs)
+                {
+                    var items = pair.Split('=');
+                    if (items.Length != 2)
+                    {
+                        json.Clear();
+                        break;
+                    }
+                    if (json.Length > 1)
+                        json.Append(",");
+                    json.Append($"\"{items[0]}\":\"{items[1]}\"");
+                }
+
+                if (json.Length > 0)
+                {
+                    json.Append("}");
+                    models = json.ToString();
+                }
+            }
+
+            var settings = new JsonSerializerSettings {DateFormatHandling = DateFormatHandling.IsoDateFormat};
+            var serializer = JsonSerializer.Create(settings);
+            var jReader = new JsonTextReader(new StringReader(models));
+            var deserialized = serializer.Deserialize(jReader);
+
+            if (deserialized is JObject jObject)
+                return jObject;
+            if (deserialized is JArray jArray)
+                return jArray[0] as JObject;
+
+            throw new SnNotSupportedException();
+        }

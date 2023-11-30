@@ -1,0 +1,33 @@
+        [Fact]
+        public void Handle_WithNancyContext_ConvertIsCalledOnTheNancyResponseMapper()
+        {   
+            var expectedRequest = new ProviderServiceRequest
+            {
+                Method = HttpVerb.Get,
+                Path = "/"
+            };
+            var expectedResponse = new ProviderServiceResponse();
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/", "HTTP")
+            };
+
+            var mockRequestComparer = Substitute.For<IProviderServiceRequestComparer>();
+            var mockRequestMapper = Substitute.For<IProviderServiceRequestMapper>();
+            var mockResponseMapper = Substitute.For<INancyResponseMapper>();
+
+            mockRequestMapper.Convert(nancyContext.Request).Returns(expectedRequest);
+
+            var interactions = new List<ProviderServiceInteraction>
+            {
+                new ProviderServiceInteraction() { Request = expectedRequest, Response = expectedResponse}
+            };
+
+            nancyContext.SetMockInteraction(interactions);
+
+            IMockProviderNancyRequestHandler handler = new MockProviderNancyRequestHandler(mockRequestComparer, mockRequestMapper, mockResponseMapper);
+
+            handler.Handle(nancyContext);
+
+            mockResponseMapper.Received(1).Convert(expectedResponse);
+        }

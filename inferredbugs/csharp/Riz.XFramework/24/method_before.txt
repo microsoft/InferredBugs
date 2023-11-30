@@ -1,0 +1,24 @@
+        protected override Expression VisitMemberInit(MemberInitExpression node)
+        {
+            if (node.Bindings == null || node.Bindings.Count == 0)
+                throw new XFrameworkException("Update<T> at least update one member.");
+
+            for (int index = 0; index < node.Bindings.Count; ++index)
+            {
+                MemberAssignment member = node.Bindings[index] as MemberAssignment;
+                _builder.AppendMember("t0", member.Member.Name);
+                _builder.Append(" = ");
+
+                if (member.Expression.CanEvaluate())
+                    _builder.Append(member.Expression.Evaluate().Value, member.Member, node.Type);
+                else
+                    base.Visit(member.Expression);
+
+                if (index < node.Bindings.Count - 1)
+                {
+                    _builder.Append(",");
+                    _builder.AppendNewLine();
+                }
+            }
+            return node;
+        }

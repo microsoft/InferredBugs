@@ -1,0 +1,37 @@
+        public void GenerateDesignerCs(View forView, FileInfo designerFile, string namespaceName)
+        {
+            var ns = new CodeNamespace(namespaceName);
+            ns.Imports.Add(new CodeNamespaceImport("System"));
+            ns.Imports.Add(new CodeNamespaceImport("Terminal.Gui"));
+
+            var className = Path.GetFileNameWithoutExtension(designerFile.Name.Replace(CodeToView.ExpectedExtension,""));
+
+            CodeCompileUnit compileUnit = new CodeCompileUnit();
+            compileUnit.Namespaces.Add(ns);
+
+            CodeTypeDeclaration class1 = new CodeTypeDeclaration(className);
+            class1.IsPartial = true;
+
+            var initMethod = new CodeMemberMethod();
+            initMethod.Name = "InitializeComponent";
+
+            AddSubViewsToDesignerCs(forView,class1, initMethod);
+                                    
+            class1.Members.Add(initMethod);
+            ns.Types.Add(class1);
+
+            CSharpCodeProvider provider = new CSharpCodeProvider();
+
+            using (var sw = new StringWriter())
+            {
+                IndentedTextWriter tw = new IndentedTextWriter(sw, "    ");
+
+                // Generate source code using the code provider.
+                provider.GenerateCodeFromCompileUnit(compileUnit, tw,
+                    new CodeGeneratorOptions());
+
+                tw.Close();
+
+                File.WriteAllText(designerFile.FullName,sw.ToString());
+            }
+        }

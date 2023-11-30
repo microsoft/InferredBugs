@@ -1,0 +1,28 @@
+        [Fact]
+        public void SkipAndTakeWorkWhenSearchingUsingAContextProvider()
+        {
+            InitializeContext();
+            LuceneIndexerOptions options = new LuceneIndexerOptions()
+            {
+                Path = "lucene"
+            };
+            SearchEngine<TestDbContext> searchProvider = new SearchEngine<TestDbContext>(options, _context, new MemoryCache(new MemoryCacheOptions()));
+            searchProvider.CreateIndex();
+            SearchOptions searchOptions = new SearchOptions("John", "FirstName");
+
+            var initialResults = searchProvider.ScoredSearch<User>(searchOptions);
+            var lastId = initialResults.Results[4].Entity.Id;
+
+            Assert.Equal(5, initialResults.TotalHits);
+            Assert.Equal(5, initialResults.Results.Count);
+
+            searchOptions.Skip = 4;
+            searchOptions.Take = 1;
+            var subResults = searchProvider.ScoredSearch<User>(searchOptions);
+
+            Assert.Equal(5, subResults.TotalHits);
+            Assert.Equal(1, subResults.Results.Count);
+            Assert.Equal(lastId, subResults.Results.First().Entity.Id);
+
+            searchProvider.DeleteIndex();
+        }

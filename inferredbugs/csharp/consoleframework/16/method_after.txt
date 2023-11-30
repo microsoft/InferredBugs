@@ -1,0 +1,56 @@
+        public object CreateFromXaml( string xaml, object dataContext ) {
+            if (null == xaml) throw new ArgumentNullException("xaml");
+            this.dataContext = dataContext;
+            
+            using ( XmlReader xmlReader = XmlReader.Create( new StringReader( xaml ) ) ) {
+                while ( xmlReader.Read( ) ) {
+                    if ( xmlReader.NodeType == XmlNodeType.Element ) {
+                        String name = xmlReader.Name;
+                        
+                        // explicit property syntax
+                        if ( Top != null && name.StartsWith( Top.name + "." ) ) {
+                            if ( Top.currentProperty != null )
+                                throw new ApplicationException( "Illegal syntax in property value definition." );
+                            string propertyName = name.Substring( Top.name.Length + 1 );
+                            Top.currentProperty = propertyName;
+                        } else {
+                            objects.Push( createObject( name ) );
+
+                            // process attributes
+                            if ( xmlReader.HasAttributes ) {
+                                while ( xmlReader.MoveToNextAttribute( ) ) {
+                                    //
+                                    string attributePrefix = xmlReader.Prefix;
+                                    string attributeName = xmlReader.LocalName;
+                                    string attributeValue = xmlReader.Value;
+
+                                    processAttribute( attributePrefix, attributeName, attributeValue );
+                                    //
+                                }
+                                xmlReader.MoveToElement( );
+                            }
+                        }
+                    }
+
+                    if ( xmlReader.NodeType == XmlNodeType.Text ) {
+                        // this call moves xmlReader current element forward
+                        string content = xmlReader.ReadContentAsString( );
+                        if ( Top.name == "item" ) {
+                            Top.obj = content;
+                        } else {
+                            Top.currentPropertyText = content;
+                        }
+                    }
+
+                    if ( xmlReader.NodeType == XmlNodeType.EndElement ) {
+                        processEndElement( );
+                    }
+                }
+            }
+
+            // После обработки всех элементов последний раз обращаемся к
+            // расширениям разметки, ожидающим свои forward-references
+            processFixupTokens();
+
+            return result;
+        }

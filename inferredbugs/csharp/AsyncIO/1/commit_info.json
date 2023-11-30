@@ -1,0 +1,360 @@
+{
+    "hash": "4634efa5c1fd6fd01b95810294ebd24e9b8cf170",
+    "message": "adds tests",
+    "file_num_lines": 159,
+    "diff_parsed": {
+        "added": [
+            [
+                8,
+                "using System.Threading;"
+            ],
+            [
+                109,
+                "            completionPort.Dispose();"
+            ],
+            [
+                110,
+                "            listenSocket.Dispose();"
+            ],
+            [
+                111,
+                "            server.Dispose();"
+            ],
+            [
+                112,
+                "            clientSocket.Dispose();"
+            ],
+            [
+                113,
+                "        }"
+            ],
+            [
+                114,
+                ""
+            ],
+            [
+                115,
+                "        [Test]"
+            ],
+            [
+                116,
+                "        public void SendReceive()"
+            ],
+            [
+                117,
+                "        {"
+            ],
+            [
+                118,
+                "            CompletionPort completionPort = CompletionPort.Create();"
+            ],
+            [
+                119,
+                ""
+            ],
+            [
+                120,
+                "            bool exception = false;"
+            ],
+            [
+                121,
+                ""
+            ],
+            [
+                122,
+                "            var task = Task.Factory.StartNew(() =>"
+            ],
+            [
+                123,
+                "            {"
+            ],
+            [
+                124,
+                "                bool cancel = false;"
+            ],
+            [
+                125,
+                ""
+            ],
+            [
+                126,
+                "                while (!cancel)"
+            ],
+            [
+                127,
+                "                {"
+            ],
+            [
+                128,
+                "                    CompletionStatus [] completionStatuses = new CompletionStatus[10];"
+            ],
+            [
+                129,
+                ""
+            ],
+            [
+                130,
+                "                    int removed;"
+            ],
+            [
+                131,
+                ""
+            ],
+            [
+                132,
+                "                    completionPort.GetMultipleQueuedCompletionStatus(-1, completionStatuses, out removed);"
+            ],
+            [
+                133,
+                ""
+            ],
+            [
+                134,
+                "                    for (int i = 0; i < removed; i++)"
+            ],
+            [
+                135,
+                "                    {"
+            ],
+            [
+                136,
+                "                        if (completionStatuses[i].OperationType == OperationType.Signal)"
+            ],
+            [
+                137,
+                "                        {"
+            ],
+            [
+                138,
+                "                            cancel = true;"
+            ],
+            [
+                139,
+                "                        }"
+            ],
+            [
+                140,
+                "                        else if (completionStatuses[i].SocketError == SocketError.Success)"
+            ],
+            [
+                141,
+                "                        {"
+            ],
+            [
+                142,
+                "                            EventWaitHandle manualResetEvent = (EventWaitHandle)completionStatuses[i].State;"
+            ],
+            [
+                143,
+                "                            manualResetEvent.Set();"
+            ],
+            [
+                144,
+                "                        }"
+            ],
+            [
+                145,
+                "                        else"
+            ],
+            [
+                146,
+                "                        {"
+            ],
+            [
+                147,
+                "                            exception = true;"
+            ],
+            [
+                148,
+                "                        }"
+            ],
+            [
+                149,
+                "                    }"
+            ],
+            [
+                150,
+                "                }"
+            ],
+            [
+                151,
+                "            });"
+            ],
+            [
+                152,
+                ""
+            ],
+            [
+                153,
+                "            AutoResetEvent clientEvent = new AutoResetEvent(false);"
+            ],
+            [
+                154,
+                "            AutoResetEvent acceptedEvent = new AutoResetEvent(false);"
+            ],
+            [
+                155,
+                ""
+            ],
+            [
+                156,
+                "            AsyncSocket listener = AsyncSocket.CreateIPv4Tcp();"
+            ],
+            [
+                157,
+                "            completionPort.AssociateSocket(listener, acceptedEvent);"
+            ],
+            [
+                158,
+                "            listener.Bind(IPAddress.Any, 5553);"
+            ],
+            [
+                159,
+                "            listener.Listen(1);"
+            ],
+            [
+                160,
+                ""
+            ],
+            [
+                161,
+                "            AsyncSocket serverSocket = AsyncSocket.CreateIPv4Tcp();"
+            ],
+            [
+                162,
+                "            listener.Accept(serverSocket);"
+            ],
+            [
+                163,
+                ""
+            ],
+            [
+                164,
+                "            AsyncSocket clientSocket = AsyncSocket.CreateIPv4Tcp();"
+            ],
+            [
+                165,
+                "            completionPort.AssociateSocket(clientSocket, clientEvent);"
+            ],
+            [
+                166,
+                "            clientSocket.Bind(IPAddress.Any,0);"
+            ],
+            [
+                167,
+                "            clientSocket.Connect(\"localhost\", 5553);"
+            ],
+            [
+                168,
+                ""
+            ],
+            [
+                169,
+                "            clientEvent.WaitOne();"
+            ],
+            [
+                170,
+                "            acceptedEvent.WaitOne();"
+            ],
+            [
+                171,
+                ""
+            ],
+            [
+                172,
+                "            AutoResetEvent serverEvent = new AutoResetEvent(false);"
+            ],
+            [
+                173,
+                "            completionPort.AssociateSocket(serverSocket, serverEvent);"
+            ],
+            [
+                174,
+                ""
+            ],
+            [
+                175,
+                "            byte[] recv = new byte[1];"
+            ],
+            [
+                176,
+                "            serverSocket.Receive(recv);"
+            ],
+            [
+                177,
+                ""
+            ],
+            [
+                178,
+                "            byte[] data = new[] {(byte)1};"
+            ],
+            [
+                179,
+                ""
+            ],
+            [
+                180,
+                "            clientSocket.Send(data);"
+            ],
+            [
+                181,
+                "            clientEvent.WaitOne(); // wait for data to be send"
+            ],
+            [
+                182,
+                ""
+            ],
+            [
+                183,
+                "            serverEvent.WaitOne(); // wait for data to be received"
+            ],
+            [
+                184,
+                ""
+            ],
+            [
+                185,
+                "            Assert.AreEqual(1, recv[0]);"
+            ],
+            [
+                186,
+                ""
+            ],
+            [
+                187,
+                "            completionPort.Signal(null);"
+            ],
+            [
+                188,
+                "            task.Wait();"
+            ],
+            [
+                189,
+                ""
+            ],
+            [
+                190,
+                "            Assert.IsFalse(exception);"
+            ],
+            [
+                192,
+                "            completionPort.Dispose();"
+            ],
+            [
+                193,
+                "            listener.Dispose();"
+            ],
+            [
+                194,
+                "            serverSocket.Dispose();"
+            ],
+            [
+                195,
+                "            clientSocket.Dispose();"
+            ]
+        ],
+        "deleted": []
+    },
+    "num_lines_added": 87,
+    "num_lines_removed": 0
+}

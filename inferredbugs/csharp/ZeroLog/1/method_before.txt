@@ -1,0 +1,25 @@
+    private void OpenStream()
+    {
+        Debug.Assert(Stream is null);
+
+        if (_currentFileNumber == _initializeOnFirstAppend)
+        {
+            Directory.CreateDirectory(FileDirectory);
+
+            _currentDate = DateTime.UtcNow.Date;
+            _currentFileNumber = FindLastRollingFileNumber(DateOnly.FromDateTime(_currentDate));
+        }
+
+        var fileName = Path.Combine(FileDirectory, GetFileName(DateOnly.FromDateTime(_currentDate), _currentFileNumber));
+
+        try
+        {
+            Stream = new FileStream(fileName, FileMode.Append, FileAccess.Write, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
+        }
+        catch (Exception ex)
+        {
+            throw new IOException($"Could not open log file '{fileName}'", ex);
+        }
+
+        FileOpened();
+    }

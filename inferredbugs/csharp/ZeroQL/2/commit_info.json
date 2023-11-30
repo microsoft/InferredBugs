@@ -1,0 +1,461 @@
+{
+    "hash": "5dcaec652bfe4eed625498e0507e90937e14e2a8",
+    "message": "Add initial support for Upload.",
+    "file_num_lines": 237,
+    "diff_parsed": {
+        "added": [
+            [
+                58,
+                "        var variablesTypeName = GetVariableTypename(lambdaSymbol);"
+            ],
+            [
+                60,
+                ""
+            ],
+            [
+                61,
+                ""
+            ],
+            [
+                62,
+                "        if (context.CancellationToken.IsCancellationRequested)"
+            ],
+            [
+                63,
+                "        {"
+            ],
+            [
+                64,
+                "            return;"
+            ],
+            [
+                65,
+                "        }"
+            ],
+            [
+                66,
+                ""
+            ],
+            [
+                67,
+                "        var executeRequest = GetPrepareRequest(lambdaSymbol, semanticModel);"
+            ],
+            [
+                68,
+                ""
+            ],
+            [
+                106,
+                "            GraphQLQueryStore<{queryTypeName}>.Query[{SyntaxFactory.Literal(key).Text}] = Execute;"
+            ],
+            [
+                109,
+                "        public static async Task<GraphQLResult<{queryTypeName}>> Execute(HttpClient httpClient, string? operationName, object variablesObject)"
+            ],
+            [
+                112,
+                "            var variables = ({variablesTypeName})variablesObject;"
+            ],
+            [
+                113,
+                ""
+            ],
+            [
+                129,
+                "            {executeRequest}"
+            ],
+            [
+                170,
+                "    private string GetPrepareRequest(IMethodSymbol lambdaSymbol, SemanticModel semanticModel)"
+            ],
+            [
+                171,
+                "    {"
+            ],
+            [
+                172,
+                "        if (lambdaSymbol.Parameters.Length == 1)"
+            ],
+            [
+                173,
+                "        {"
+            ],
+            [
+                174,
+                "            return RequestWithoutVariables();"
+            ],
+            [
+                175,
+                "        }"
+            ],
+            [
+                176,
+                ""
+            ],
+            [
+                177,
+                "        var inputType = lambdaSymbol.Parameters"
+            ],
+            [
+                178,
+                "            .First()"
+            ],
+            [
+                179,
+                "            .GetNamedTypeSymbol();"
+            ],
+            [
+                180,
+                ""
+            ],
+            [
+                181,
+                "        var upload = semanticModel.Compilation.GetTypeByMetadataName(\"ZeroQL.Core.Upload\");"
+            ],
+            [
+                182,
+                "        {"
+            ],
+            [
+                183,
+                "            var isFile = SymbolEqualityComparer.Default.Equals(inputType, upload);"
+            ],
+            [
+                184,
+                "            if (isFile)"
+            ],
+            [
+                185,
+                "            {"
+            ],
+            [
+                186,
+                "                return RequestWithSingleStream();"
+            ],
+            [
+                187,
+                "            }"
+            ],
+            [
+                188,
+                "        }"
+            ],
+            [
+                189,
+                ""
+            ],
+            [
+                190,
+                "        var streamProperties = inputType"
+            ],
+            [
+                191,
+                "            .GetRealProperties()"
+            ],
+            [
+                192,
+                "            .Select(o =>"
+            ],
+            [
+                193,
+                "            {"
+            ],
+            [
+                194,
+                "                var isFile = SymbolEqualityComparer.Default.Equals(o.Type, upload);"
+            ],
+            [
+                195,
+                "                return (File: isFile, o.Name, o.Type);"
+            ],
+            [
+                196,
+                "            })"
+            ],
+            [
+                197,
+                "            .Where(o => o.File)"
+            ],
+            [
+                198,
+                "            .ToArray();"
+            ],
+            [
+                199,
+                ""
+            ],
+            [
+                200,
+                "        if (!streamProperties.Any())"
+            ],
+            [
+                201,
+                "        {"
+            ],
+            [
+                202,
+                "            return RequestWithoutVariables();"
+            ],
+            [
+                203,
+                "        }"
+            ],
+            [
+                204,
+                ""
+            ],
+            [
+                205,
+                "        return RequestWithMultipleStreams(streamProperties);"
+            ],
+            [
+                206,
+                "    }"
+            ],
+            [
+                207,
+                ""
+            ],
+            [
+                208,
+                "    private static string RequestWithMultipleStreams("
+            ],
+            [
+                209,
+                "        (bool Stream, string Name, ITypeSymbol Type)[] streamProperties)"
+            ],
+            [
+                210,
+                "    {"
+            ],
+            [
+                211,
+                "        var executeRequest = $@\""
+            ],
+            [
+                212,
+                "            var form = new MultipartFormDataContent();"
+            ],
+            [
+                213,
+                ""
+            ],
+            [
+                214,
+                "            var queryJson = JsonSerializer.Serialize(queryRequest, ZeroQLJsonOptions.Options);"
+            ],
+            [
+                215,
+                "            form.Add(new StringContent(queryJson), \"\"operations\"\");"
+            ],
+            [
+                216,
+                ""
+            ],
+            [
+                217,
+                "            var map = @\"\"{{ {streamProperties.Select((o, i) => $@\"\"\"\"\"{i}\"\"\"\": [\"\"\"\"variables.{o.Name.FirstToLower()}\"\"\"\"]\").Join()} }}\"\";"
+            ],
+            [
+                218,
+                "            form.Add(new StringContent(map), \"\"map\"\");"
+            ],
+            [
+                219,
+                "{streamProperties"
+            ],
+            [
+                220,
+                "    .Select((o, i) =>"
+            ],
+            [
+                221,
+                "        $@\"form.Add(new StreamContent(variables.{o.Name}.Stream), \"\"{i}\"\", variables.{o.Name}.FileName);\").JoinWithNewLine()}"
+            ],
+            [
+                222,
+                ""
+            ],
+            [
+                223,
+                "            var response = await httpClient.PostAsync(\"\"\"\", form);\";"
+            ],
+            [
+                224,
+                ""
+            ],
+            [
+                225,
+                "        return executeRequest;"
+            ],
+            [
+                226,
+                "    }"
+            ],
+            [
+                227,
+                ""
+            ],
+            [
+                228,
+                "    private static string RequestWithSingleStream()"
+            ],
+            [
+                229,
+                "    {"
+            ],
+            [
+                230,
+                "        return \"\";"
+            ],
+            [
+                231,
+                "    }"
+            ],
+            [
+                232,
+                ""
+            ],
+            [
+                233,
+                "    private static string RequestWithoutVariables()"
+            ],
+            [
+                234,
+                "    {"
+            ],
+            [
+                235,
+                "        var executeRequest = @\""
+            ],
+            [
+                236,
+                "            var requestJson = JsonSerializer.Serialize(queryRequest, ZeroQLJsonOptions.Options);"
+            ],
+            [
+                237,
+                "            var response = await httpClient.PostAsync(\"\"\"\", new StringContent(requestJson, Encoding.UTF8, \"\"application/json\"\"));\";"
+            ],
+            [
+                238,
+                ""
+            ],
+            [
+                239,
+                "        return executeRequest;"
+            ],
+            [
+                240,
+                "    }"
+            ],
+            [
+                241,
+                ""
+            ],
+            [
+                242,
+                "    private static string GetVariableTypename(IMethodSymbol lambdaSymbol)"
+            ],
+            [
+                243,
+                "    {"
+            ],
+            [
+                244,
+                "        if (lambdaSymbol.Parameters.Length == 1)"
+            ],
+            [
+                245,
+                "        {"
+            ],
+            [
+                246,
+                "            return \"global::ZeroQL.Core.Unit\";"
+            ],
+            [
+                247,
+                "        }"
+            ],
+            [
+                248,
+                ""
+            ],
+            [
+                249,
+                "        var namedSymbol = lambdaSymbol.Parameters.First().GetNamedTypeSymbol();"
+            ],
+            [
+                250,
+                "        return namedSymbol switch"
+            ],
+            [
+                251,
+                "        {"
+            ],
+            [
+                252,
+                "            { IsAnonymousType: true } anonymous => anonymous.BaseType!.ToGlobalName(),"
+            ],
+            [
+                253,
+                "            _ => namedSymbol.ToGlobalName()"
+            ],
+            [
+                254,
+                "        };"
+            ],
+            [
+                255,
+                "    }"
+            ],
+            [
+                256,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                58,
+                ""
+            ],
+            [
+                59,
+                "        var variablesTypeName = lambdaSymbol.Parameters.Length > 1"
+            ],
+            [
+                60,
+                "            ? lambdaSymbol.Parameters.First().GetNamedTypeSymbol().ToGlobalName()"
+            ],
+            [
+                61,
+                "            : \"global::ZeroQL.Core.Unit\";"
+            ],
+            [
+                62,
+                ""
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                102,
+                "            GraphQLQueryStore<object?, {queryTypeName}>.Query[{SyntaxFactory.Literal(key).Text}] = Execute;"
+            ],
+            [
+                105,
+                "        public static async Task<GraphQLResult<{queryTypeName}>> Execute(HttpClient httpClient, string? operationName, object? variables)"
+            ],
+            [
+                123,
+                "            var requestJson = JsonSerializer.Serialize(queryRequest, ZeroQLJsonOptions.Options);"
+            ],
+            [
+                124,
+                "            var response = await httpClient.PostAsync(\"\"\"\", new StringContent(requestJson, Encoding.UTF8, \"\"application/json\"\"));"
+            ]
+        ]
+    },
+    "num_lines_added": 102,
+    "num_lines_removed": 10
+}

@@ -1,0 +1,34 @@
+        [Test]
+        public void ShouldDeleteNodeOnly()
+        {
+            var testHarness = new RestTestHarness
+            {
+                {
+                    MockRequest.Get(""),
+                    new NeoHttpResponse
+                    {
+                        StatusCode = HttpStatusCode.OK,
+                        ContentType = "application/json",
+                        TestContent = @"{
+                          'batch' : 'http://foo/db/data/batch',
+                          'node' : 'http://foo/db/data/node',
+                          'node_index' : 'http://foo/db/data/index/node',
+                          'relationship_index' : 'http://foo/db/data/index/relationship',
+                          'reference_node' : 'http://foo/db/data/node/0',
+                          'extensions_info' : 'http://foo/db/data/ext',
+                          'extensions' : {
+                          }
+                        }".Replace('\'', '"')
+                    }
+                },
+                {
+                    new NeoHttpRequest { Resource = "/node/456", Method = Method.DELETE },
+                    new NeoHttpResponse { StatusCode = HttpStatusCode.NoContent }
+                }
+            };
+
+            var graphClient = testHarness.CreateAndConnectGraphClient();
+            graphClient.Delete(456, DeleteMode.NodeOnly);
+
+            testHarness.AssertAllRequestsWereReceived();
+        }

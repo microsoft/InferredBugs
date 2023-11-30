@@ -1,0 +1,43 @@
+        public static bool AreEqual(MidiEvent event1, MidiEvent event2, bool compareDeltaTimes)
+        {
+            if (ReferenceEquals(event1, event2))
+                return true;
+
+            if (ReferenceEquals(null, event1) || ReferenceEquals(null, event2))
+                return false;
+
+            if (compareDeltaTimes && event1.DeltaTime != event2.DeltaTime)
+                return false;
+
+            if (event1.GetType() != event2.GetType())
+                return false;
+
+            if (event1 is SystemRealTimeEvent)
+                return true;
+
+            if (event1 is ChannelEvent)
+            {
+                var parametersField = typeof(ChannelEvent).GetField("_parameters", BindingFlags.Instance | BindingFlags.NonPublic);
+                var e1Parameters = (SevenBitNumber[])parametersField.GetValue(event1);
+                var e2Parameters = (SevenBitNumber[])parametersField.GetValue(event2);
+                return e1Parameters.SequenceEqual(e2Parameters) && ((ChannelEvent)event1).Channel == ((ChannelEvent)event2).Channel;
+            }
+
+            var sysExEvent1 = event1 as SysExEvent;
+            if (sysExEvent1 != null)
+            {
+                var sysExEvent2 = event2 as SysExEvent;
+                return sysExEvent1.Completed == sysExEvent2.Completed &&
+                       ArrayEquality.AreEqual(sysExEvent1.Data, sysExEvent2.Data);
+            }
+
+            var baseTextEvent = event1 as BaseTextEvent;
+            if (baseTextEvent != null)
+                return baseTextEvent.Text == ((BaseTextEvent)event2).Text;
+
+            Func<MidiEvent, MidiEvent, bool> comparer;
+            if (Comparers.TryGetValue(event1.GetType(), out comparer))
+                return comparer(event1, event2);
+
+            throw new NotImplementedException("Events comparing is not implemented.");
+        }

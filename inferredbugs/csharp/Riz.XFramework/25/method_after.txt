@@ -1,0 +1,22 @@
+        protected override Expression VisitMemberInit(MemberInitExpression node)
+        {
+            if (node.Bindings == null || node.Bindings.Count == 0)
+                throw new XFrameworkException("The Update<T> method requires at least one field to be updated.");
+
+            for (int index = 0; index < node.Bindings.Count; index++)
+            {
+                MemberAssignment m = node.Bindings[index] as MemberAssignment;
+                _builder.AppendMember("t0", m.Member.Name);
+                _builder.Append(" = ");
+
+                Type newType = node.Type;
+                this.VisitWithoutRemark(x => this.VisitMemberAssignmentImpl(newType, m));
+
+                if (index < node.Bindings.Count - 1)
+                {
+                    _builder.Append(",");
+                    _builder.AppendNewLine();
+                }
+            }
+            return node;
+        }

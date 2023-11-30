@@ -1,0 +1,39 @@
+        internal static StringBuilder AppendMethod(this StringBuilder sb, MethodInfo method, 
+            bool stripNamespace = false, Func<Type, string, string> printType = null)
+        {
+            sb.Append("/*").Append(method.Name).Append("*/");
+
+            var type = method.DeclaringType;
+            sb.AppendTypeof(type, stripNamespace, printType);
+
+            if (method.IsPublic) 
+            {
+                var pubIndex = type.GetMethods().GetFirstIndex(method);
+                if (pubIndex == -1) 
+                {
+                    if (method.IsGenericMethod) 
+                    {
+                        var openGenMethod = method.GetGenericMethodDefinition();
+                        var openGenIndex = type.GetMethods().GetFirstIndex(openGenMethod);
+                        if (openGenIndex != -1) 
+                        {
+                            return sb.Append(".GetMethods()[").Append(openGenIndex)
+                                .Append("].MakeGenericMethod(")
+                                .AppendTypeofList(method.GetGenericArguments())
+                                .Append(')');
+                        }
+                    }
+                }
+                return sb.Append(".GetMethods()[").Append(pubIndex).Append(']');
+            }
+
+            var flags = BindingFlags.NonPublic;
+            flags |= method.IsStatic ? BindingFlags.Static : BindingFlags.Instance;
+            var nonPubIndex = type.GetMethods(flags).GetFirstIndex(method);
+            if (nonPubIndex == -1) 
+            {
+                 // todo: @incomplete to implement it
+            }
+            sb.Append(method.IsStatic ? _nonPubStatMethods : _nonPubInstMethods);
+            return sb.Append(nonPubIndex).Append("]");
+        }

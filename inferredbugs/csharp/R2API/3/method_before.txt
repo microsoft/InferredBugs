@@ -1,0 +1,24 @@
+        private static GetDelegateRef<TInstance, TReturn> CreateGetDelegate<TInstance, TReturn>(this PropertyInfo property) where TInstance : struct {
+            if (property == null) {
+                throw new ArgumentException("Property cannot be null.", nameof(property));
+            }
+
+            if (!typeof(TReturn).IsAssignableFrom(property.PropertyType)) {
+                throw new Exception($"Field type {property.PropertyType} does not match the requested type {typeof(TReturn)}.");
+            }
+
+            var method = new DynamicMethodDefinition($"{property} Getter", typeof(TReturn), new[] { typeof(TInstance).MakeByRefType() });
+            var il = method.GetILProcessor();
+
+            // Cache this as well?
+            var getMethod = property.GetGetMethod(nonPublic: true);
+
+            if (!getMethod.IsStatic) {
+                il.Emit(OpCodes.Ldarg_0);
+            }
+
+            il.Emit(OpCodes.Call, getMethod);
+            il.Emit(OpCodes.Ret);
+
+            return (GetDelegateRef<TInstance, TReturn>)method.Generate().CreateDelegate(typeof(GetDelegateRef<TInstance, TReturn>));
+        }

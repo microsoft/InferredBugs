@@ -1,0 +1,29 @@
+        public override bool Visit(Identifier node)
+        {
+            if (node.Name.Equals("this"))
+            {
+                currentExpr = new BoogieIdentifierExpr("this");
+            }
+            else // explicitly defined identifiers
+            {
+                VeriSolAssert(context.HasASTNodeId(node.ReferencedDeclaration), $"Unknown node: {node}");
+                VariableDeclaration varDecl = context.GetASTNodeById(node.ReferencedDeclaration) as VariableDeclaration;
+                VeriSolAssert(varDecl != null);
+
+                if (varDecl.StateVariable)
+                {
+                    string name = TransUtils.GetCanonicalStateVariableName(varDecl, context);
+
+                    BoogieIdentifierExpr mapIdentifier = new BoogieIdentifierExpr(name);
+                    BoogieMapSelect mapSelect = new BoogieMapSelect(mapIdentifier, new BoogieIdentifierExpr("this"));
+                    currentExpr = mapSelect;
+                }
+                else
+                {
+                    string name = TransUtils.GetCanonicalLocalVariableName(varDecl);
+                    BoogieIdentifierExpr identifier = new BoogieIdentifierExpr(name);
+                    currentExpr = identifier;
+                }
+            }
+            return false;
+        }

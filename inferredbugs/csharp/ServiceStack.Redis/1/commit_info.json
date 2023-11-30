@@ -1,0 +1,173 @@
+{
+    "hash": "31f4629baa5d9823e87efb185b360be1bca227da",
+    "message": "Add runtime workaround for Mono not supporting EncryptionPolicy with SslStream",
+    "file_num_lines": 267,
+    "diff_parsed": {
+        "added": [
+            [
+                5,
+                "using System.Linq;"
+            ],
+            [
+                17,
+                "    //[Ignore(\"Requires ~/azureconfig.txt\")]"
+            ],
+            [
+                124,
+                "            SslStream sslStream;"
+            ],
+            [
+                125,
+                ""
+            ],
+            [
+                126,
+                "            if (Env.IsMono)"
+            ],
+            [
+                127,
+                "            {"
+            ],
+            [
+                128,
+                "                //Mono doesn't support EncryptionPolicy"
+            ],
+            [
+                129,
+                "                sslStream = new SslStream(networkStream,"
+            ],
+            [
+                130,
+                "                    leaveInnerStreamOpen: false,"
+            ],
+            [
+                131,
+                "                    userCertificateValidationCallback: RedisConfig.CertificateValidationCallback,"
+            ],
+            [
+                132,
+                "                    userCertificateSelectionCallback: RedisConfig.CertificateSelectionCallback);"
+            ],
+            [
+                133,
+                "            }"
+            ],
+            [
+                134,
+                "            else"
+            ],
+            [
+                135,
+                "            {"
+            ],
+            [
+                136,
+                "                var ctor = typeof(SslStream).GetConstructors()"
+            ],
+            [
+                137,
+                "                    .First(x => x.GetParameters().Length == 5);"
+            ],
+            [
+                138,
+                ""
+            ],
+            [
+                139,
+                "                var policyType = AssemblyUtils.FindType(\"System.Net.Security.EncryptionPolicy\");"
+            ],
+            [
+                140,
+                "                var policyValue = Enum.Parse(policyType, \"RequireEncryption\");"
+            ],
+            [
+                141,
+                ""
+            ],
+            [
+                142,
+                "                sslStream = (SslStream)ctor.Invoke(new [] {"
+            ],
+            [
+                143,
+                "                        networkStream,"
+            ],
+            [
+                144,
+                "                        false,"
+            ],
+            [
+                145,
+                "                        RedisConfig.CertificateValidationCallback,"
+            ],
+            [
+                146,
+                "                        RedisConfig.CertificateSelectionCallback,"
+            ],
+            [
+                147,
+                "                        policyValue,"
+            ],
+            [
+                148,
+                "                    });"
+            ],
+            [
+                149,
+                ""
+            ],
+            [
+                150,
+                "                //sslStream = new SslStream(networkStream,"
+            ],
+            [
+                151,
+                "                //    leaveInnerStreamOpen: false,"
+            ],
+            [
+                152,
+                "                //    userCertificateValidationCallback: null,"
+            ],
+            [
+                153,
+                "                //    userCertificateSelectionCallback: null,"
+            ],
+            [
+                154,
+                "                //    encryptionPolicy: EncryptionPolicy.RequireEncryption);"
+            ],
+            [
+                155,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                16,
+                "    [Ignore(\"Requires ~/azureconfig.txt\")]"
+            ],
+            [
+                123,
+                "            var sslStream = new SslStream(networkStream,"
+            ],
+            [
+                124,
+                "                leaveInnerStreamOpen: false,"
+            ],
+            [
+                125,
+                "                userCertificateValidationCallback: null,"
+            ],
+            [
+                126,
+                "                userCertificateSelectionCallback: null,"
+            ],
+            [
+                127,
+                "                encryptionPolicy: EncryptionPolicy.RequireEncryption);"
+            ]
+        ]
+    },
+    "num_lines_added": 34,
+    "num_lines_removed": 6
+}

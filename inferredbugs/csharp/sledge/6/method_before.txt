@@ -1,0 +1,29 @@
+        private void RenderViewport(IViewport viewport, Frame frame)
+        {
+            if (_activeScene == null) return;
+
+            var vpData = GetViewportData(viewport);
+            var scData = GetSceneData(_activeScene);
+
+            InitialiseRenderer();
+            InitialiseViewport(viewport, vpData);
+            scData.Array.ApplyChanges();
+            
+            // Set up FBO
+            vpData.Framebuffer.Bind();
+            
+            GL.ClearColor(Color.Black);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            if (viewport.Camera is PerspectiveCamera)
+                ((PerspectiveCamera)viewport.Camera).Position -= new Vector3(-0.002f, -0.002f, -0.002f);
+            if (viewport.Camera is OrthographicCamera)
+                ((OrthographicCamera)viewport.Camera).Zoom *= 0.998f;
+
+            scData.Array.Render(this, _shaderProgram, _modelShaderProgram, viewport);
+
+            // Blit FBO
+            vpData.Framebuffer.Unbind();
+            vpData.Framebuffer.Render();
+
+        }

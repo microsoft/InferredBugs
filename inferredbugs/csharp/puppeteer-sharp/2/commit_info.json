@@ -1,0 +1,89 @@
+{
+    "hash": "d5044c6fe45542290e83810b9cfd9f49828dc775",
+    "message": "Addresses deadlock, thread-safety in mixed sync/async apps (#1549)\n\n* Fixed deadlock, thread-safety in mixed sync/async apps\r\n\r\nwhere if a continuation from CDP.SendAsync in returns calls CDP.SendAsync but uses .GetResult(), then deadlock.\r\nCDP event messages are still delivered like before, since their order must be preserved. There's potential for deadlock here, but this is still the caller's responsibility to handle events correctly.\r\n\r\n* Using expr body like before\r\n\r\n* Reverted queue change, added test\r\n\r\n* Fixed race in test\r\n\r\n* Reverted if branch change\r\n\r\n* Reverted change to test\r\n\r\n* Reverted dropped unused using\r\n\r\n* Added lost BOM from my previous commits to this\r\n\r\n* Refactored new SendAsync response handling into its own place\r\n\r\n* Possible solution for ensuring async tasks are done\r\n\r\n* Addressed false positive disposal warning\r\n\r\n* Simplified new task queue\r\n\r\nImportant part is really only DrainAsync\r\n\r\n* Added EnqueueSendAsyncResponses option\r\n\r\nsimilar to EnqueueTransportMessages, to at least provide a way to turn this new async behavior off\r\n\r\n* Implemented handling for new EnqueueSendAsyncResponses option\r\n\r\n* Temp disabling EnqueueSendAsyncResponses for test run\r\n\r\n* Reverted temp change\r\n\r\n* Temp reverting CSSCoverage changes\r\n\r\nwhich could be causing tests to hang\r\n\r\n* Reverted previous commit\r\n\r\n* Ensuring canceled task is handled\r\n\r\n* Fixed null ref founding during local test run\r\n\r\n* Attempting to roll back regression causing deadlock\r\n\r\n* Reverted previous, only logging unhandled exception\r\n\r\n* Reverted cancel token param\r\n\r\n* Using alternate dispose impl\r\n\r\n* Reverted accidental whitespace and BOM changes\r\n\r\n* Renames, code cleanup, defaulting new async option to false\r\n\r\n* Consolidated into single ConcurrentDictionary\r\n\r\n* Renamed test var to match renamed option name\r\n\r\n* Modified test to more closely match what was reported in #1354\r\n\r\n* Added ENQUEUE_ASYNC_MESSAGES variation\r\n\r\n* Second attempt on appveyor matrix\r\n\r\n* Ignoring test unless required option is set\r\n\r\n* Update lib/PuppeteerSharp/CDPSession.cs\r\n\r\n* Update appveyor.yml\r\n\r\nCo-authored-by: Jeff Peirson <Jeff.Peirson@a2ius.com>\r\nCo-authored-by: Dar\u00edo Kondratiuk <dariokondratiuk@gmail.com>",
+    "file_num_lines": 216,
+    "diff_parsed": {
+        "added": [
+            [
+                24,
+                "        internal Connection(string url, int delay, bool enqueueAsyncMessages, IConnectionTransport transport, ILoggerFactory loggerFactory = null)"
+            ],
+            [
+                37,
+                "            MessageQueue = new AsyncMessageQueue(enqueueAsyncMessages, _logger);"
+            ],
+            [
+                89,
+                "        internal AsyncMessageQueue MessageQueue { get; }"
+            ],
+            [
+                90,
+                ""
+            ],
+            [
+                182,
+                "            MessageQueue.Dispose();"
+            ],
+            [
+                252,
+                "                session?.OnMessage(obj);"
+            ],
+            [
+                260,
+                "                    MessageQueue.Enqueue(callback, obj);"
+            ],
+            [
+                296,
+                "            return new Connection(url, connectionOptions.SlowMo, connectionOptions.EnqueueAsyncMessages, transport, loggerFactory);"
+            ]
+        ],
+        "deleted": [
+            [
+                24,
+                "        internal Connection(string url, int delay, IConnectionTransport transport, ILoggerFactory loggerFactory = null)"
+            ],
+            [
+                248,
+                "                session.OnMessage(obj);"
+            ],
+            [
+                256,
+                "                    if (obj.Error != null)"
+            ],
+            [
+                257,
+                "                    {"
+            ],
+            [
+                258,
+                "                        callback.TaskWrapper.TrySetException(new MessageException(callback, obj.Error));"
+            ],
+            [
+                259,
+                "                    }"
+            ],
+            [
+                260,
+                "                    else"
+            ],
+            [
+                261,
+                "                    {"
+            ],
+            [
+                262,
+                "                        callback.TaskWrapper.TrySetResult(obj.Result);"
+            ],
+            [
+                263,
+                "                    }"
+            ],
+            [
+                299,
+                "            return new Connection(url, connectionOptions.SlowMo, transport, loggerFactory);"
+            ]
+        ]
+    },
+    "num_lines_added": 8,
+    "num_lines_removed": 11
+}

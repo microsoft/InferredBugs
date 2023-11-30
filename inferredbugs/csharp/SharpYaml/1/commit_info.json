@@ -1,0 +1,913 @@
+{
+    "hash": "bc48c5db0f30a80d7e70da49a1fca92efee93197",
+    "message": "Migrate more tests to Deserializer.",
+    "file_num_lines": 540,
+    "diff_parsed": {
+        "added": [
+            [
+                79,
+                "\tpublic class DeserializerSkeleton"
+            ],
+            [
+                81,
+                "\t\tpublic IList<INodeDeserializer> Deserializers { get; private set; }"
+            ],
+            [
+                82,
+                "\t\tpublic IList<INodeTypeResolver> TypeResolvers { get; private set; }"
+            ],
+            [
+                84,
+                "\t\tpublic DeserializerSkeleton()"
+            ],
+            [
+                86,
+                "\t\t\tDeserializers = new List<INodeDeserializer>();"
+            ],
+            [
+                87,
+                "\t\t\tTypeResolvers = new List<INodeTypeResolver>();"
+            ],
+            [
+                128,
+                "\t\t\tvar result = DeserializeValue(reader, type);"
+            ],
+            [
+                143,
+                "\t\tprivate object DeserializeValue(EventReader reader, Type expectedType)"
+            ],
+            [
+                149,
+                "\t\t\tforeach (var deserializer in Deserializers)"
+            ],
+            [
+                152,
+                "\t\t\t\tif (deserializer.Deserialize(reader, nodeType, DeserializeValue, out value))"
+            ],
+            [
+                181,
+                "\t\tprivate Type GetTypeFromEvent(NodeEvent nodeEvent, Type currentType)"
+            ],
+            [
+                183,
+                "\t\t\tforeach (var typeResolver in TypeResolvers)"
+            ],
+            [
+                194,
+                "\t/// <summary>"
+            ],
+            [
+                195,
+                "\t/// A faade for the YAML library with the standard configuration."
+            ],
+            [
+                196,
+                "\t/// </summary>"
+            ],
+            [
+                197,
+                "\tpublic class Deserializer : DeserializerSkeleton"
+            ],
+            [
+                198,
+                "\t{"
+            ],
+            [
+                199,
+                "\t\tprivate static readonly Dictionary<string, Type> predefinedTagMappings = new Dictionary<string, Type>"
+            ],
+            [
+                200,
+                "\t\t{"
+            ],
+            [
+                201,
+                "\t\t\t{ \"tag:yaml.org,2002:map\", typeof(Dictionary<object, object>) },"
+            ],
+            [
+                202,
+                "\t\t\t{ \"tag:yaml.org,2002:bool\", typeof(bool) },"
+            ],
+            [
+                203,
+                "\t\t\t{ \"tag:yaml.org,2002:float\", typeof(double) },"
+            ],
+            [
+                204,
+                "\t\t\t{ \"tag:yaml.org,2002:int\", typeof(int) },"
+            ],
+            [
+                205,
+                "\t\t\t{ \"tag:yaml.org,2002:str\", typeof(string) },"
+            ],
+            [
+                206,
+                "\t\t\t{ \"tag:yaml.org,2002:timestamp\", typeof(DateTime) },"
+            ],
+            [
+                207,
+                "\t\t};"
+            ],
+            [
+                208,
+                ""
+            ],
+            [
+                209,
+                "\t\tprivate readonly Dictionary<string, Type> tagMappings;"
+            ],
+            [
+                210,
+                "\t\tprivate readonly List<IYamlTypeConverter> converters;"
+            ],
+            [
+                211,
+                ""
+            ],
+            [
+                212,
+                "\t\tpublic Deserializer()"
+            ],
+            [
+                213,
+                "\t\t\t: this(new DefaultObjectFactory())"
+            ],
+            [
+                214,
+                "\t\t{"
+            ],
+            [
+                215,
+                "\t\t}"
+            ],
+            [
+                216,
+                ""
+            ],
+            [
+                217,
+                "\t\tpublic Deserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                218,
+                "\t\t{"
+            ],
+            [
+                219,
+                "\t\t\tconverters = new List<IYamlTypeConverter>();"
+            ],
+            [
+                220,
+                "\t\t\tDeserializers.Add(new TypeConverterNodeDeserializer(converters));"
+            ],
+            [
+                221,
+                "\t\t\tDeserializers.Add(new NullNodeDeserializer());"
+            ],
+            [
+                222,
+                "\t\t\tDeserializers.Add(new ScalarNodeDeserializer());"
+            ],
+            [
+                223,
+                "\t\t\tDeserializers.Add(new ArrayNodeDeserializer());"
+            ],
+            [
+                224,
+                "\t\t\tDeserializers.Add(new GenericDictionaryNodeDeserializer(objectFactory));"
+            ],
+            [
+                225,
+                "\t\t\tDeserializers.Add(new NonGenericDictionaryNodeDeserializer(objectFactory));"
+            ],
+            [
+                226,
+                "\t\t\tDeserializers.Add(new GenericCollectionNodeDeserializer(objectFactory));"
+            ],
+            [
+                227,
+                "\t\t\tDeserializers.Add(new NonGenericListNodeDeserializer(objectFactory));"
+            ],
+            [
+                228,
+                "\t\t\tDeserializers.Add(new EnumerableNodeDeserializer());"
+            ],
+            [
+                229,
+                "\t\t\tDeserializers.Add(new ObjectNodeDeserializer(objectFactory));"
+            ],
+            [
+                230,
+                ""
+            ],
+            [
+                231,
+                "\t\t\ttagMappings = new Dictionary<string, Type>(predefinedTagMappings);"
+            ],
+            [
+                232,
+                "\t\t\tTypeResolvers.Add(new TagNodeTypeResolver(tagMappings));"
+            ],
+            [
+                233,
+                "\t\t\tTypeResolvers.Add(new TypeNameInTagNodeTypeResolver());"
+            ],
+            [
+                234,
+                "\t\t\tTypeResolvers.Add(new DefaultContainersNodeTypeResolver());"
+            ],
+            [
+                235,
+                "\t\t}"
+            ],
+            [
+                236,
+                ""
+            ],
+            [
+                237,
+                "\t\tpublic void RegisterTagMapping(string tag, Type type)"
+            ],
+            [
+                238,
+                "\t\t{"
+            ],
+            [
+                239,
+                "\t\t\ttagMappings.Add(tag, type);"
+            ],
+            [
+                240,
+                "\t\t}"
+            ],
+            [
+                241,
+                ""
+            ],
+            [
+                242,
+                "\t\tpublic void RegisterTypeConverter(IYamlTypeConverter typeConverter)"
+            ],
+            [
+                243,
+                "\t\t{"
+            ],
+            [
+                244,
+                "\t\t\tconverters.Add(typeConverter);"
+            ],
+            [
+                245,
+                "\t\t}"
+            ],
+            [
+                246,
+                "\t}"
+            ],
+            [
+                247,
+                ""
+            ],
+            [
+                262,
+                "\tpublic sealed class TagNodeTypeResolver : INodeTypeResolver"
+            ],
+            [
+                264,
+                "\t\tprivate readonly IDictionary<string, Type> tagMappings;"
+            ],
+            [
+                265,
+                ""
+            ],
+            [
+                266,
+                "\t\tpublic TagNodeTypeResolver(IDictionary<string, Type> tagMappings)"
+            ],
+            [
+                268,
+                "\t\t\tif (tagMappings == null)"
+            ],
+            [
+                269,
+                "\t\t\t{"
+            ],
+            [
+                270,
+                "\t\t\t\tthrow new ArgumentNullException(\"tagMappings\");"
+            ],
+            [
+                271,
+                "\t\t\t}"
+            ],
+            [
+                273,
+                "\t\t\tthis.tagMappings = tagMappings;"
+            ],
+            [
+                274,
+                "\t\t}"
+            ],
+            [
+                275,
+                ""
+            ],
+            [
+                279,
+                "\t\t\tif (!string.IsNullOrEmpty(nodeEvent.Tag) && tagMappings.TryGetValue(nodeEvent.Tag, out predefinedType))"
+            ],
+            [
+                516,
+                "\tpublic sealed class GenericDictionaryNodeDeserializer : INodeDeserializer"
+            ],
+            [
+                520,
+                "\t\tpublic GenericDictionaryNodeDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                546,
+                "\t\tprivate static MethodInfo _deserializeHelperMethod = typeof(GenericDictionaryNodeDeserializer)"
+            ],
+            [
+                560,
+                "\tpublic sealed class NonGenericDictionaryNodeDeserializer : INodeDeserializer"
+            ],
+            [
+                564,
+                "\t\tpublic NonGenericDictionaryNodeDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                594,
+                "\tpublic sealed class GenericCollectionNodeDeserializer : INodeDeserializer"
+            ],
+            [
+                598,
+                "\t\tpublic GenericCollectionNodeDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                613,
+                "\t\t\t_deserializeHelper.InvokeStatic(iCollection.GetGenericArguments(), reader, expectedType, nestedObjectDeserializer, value);"
+            ],
+            [
+                618,
+                "\t\tprivate static readonly GenericMethod _deserializeHelper = new GenericMethod(() => DeserializeHelper<object>(null, null, null, null));"
+            ],
+            [
+                620,
+                "\t\tinternal static void DeserializeHelper<TItem>(EventReader reader, Type expectedType, Func<EventReader, Type, object> nestedObjectDeserializer, ICollection<TItem> result)"
+            ],
+            [
+                622,
+                "\t\t\treader.Expect<SequenceStart>();"
+            ],
+            [
+                628,
+                "\t\t\treader.Expect<SequenceEnd>();"
+            ],
+            [
+                632,
+                "\tpublic sealed class NonGenericListNodeDeserializer : INodeDeserializer"
+            ],
+            [
+                636,
+                "\t\tpublic NonGenericListNodeDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                665,
+                "\tpublic sealed class EnumerableNodeDeserializer : INodeDeserializer"
+            ],
+            [
+                692,
+                "\tpublic sealed class ArrayNodeDeserializer : INodeDeserializer"
+            ],
+            [
+                693,
+                "\t{"
+            ],
+            [
+                694,
+                "\t\tbool INodeDeserializer.Deserialize(EventReader reader, Type expectedType, Func<EventReader, Type, object> nestedObjectDeserializer, out object value)"
+            ],
+            [
+                695,
+                "\t\t{"
+            ],
+            [
+                696,
+                "\t\t\tif (!expectedType.IsArray)"
+            ],
+            [
+                697,
+                "\t\t\t{"
+            ],
+            [
+                698,
+                "\t\t\t\tvalue = false;"
+            ],
+            [
+                699,
+                "\t\t\t\treturn false;"
+            ],
+            [
+                700,
+                "\t\t\t}"
+            ],
+            [
+                701,
+                ""
+            ],
+            [
+                702,
+                "\t\t\tvalue = _deserializeHelper.InvokeStatic(new[] { expectedType.GetElementType() }, reader, expectedType, nestedObjectDeserializer);"
+            ],
+            [
+                703,
+                "\t\t\treturn true;"
+            ],
+            [
+                704,
+                "\t\t}"
+            ],
+            [
+                705,
+                ""
+            ],
+            [
+                706,
+                "\t\tprivate static readonly GenericMethod _deserializeHelper = new GenericMethod(() => DeserializeHelper<object>(null, null, null));"
+            ],
+            [
+                707,
+                ""
+            ],
+            [
+                708,
+                "\t\tprivate static TItem[] DeserializeHelper<TItem>(EventReader reader, Type expectedType, Func<EventReader, Type, object> nestedObjectDeserializer)"
+            ],
+            [
+                709,
+                "\t\t{"
+            ],
+            [
+                710,
+                "\t\t\tvar items = new List<TItem>();"
+            ],
+            [
+                711,
+                "\t\t\tGenericCollectionNodeDeserializer.DeserializeHelper(reader, expectedType, nestedObjectDeserializer, items);"
+            ],
+            [
+                712,
+                "\t\t\treturn items.ToArray();"
+            ],
+            [
+                713,
+                "\t\t}"
+            ],
+            [
+                714,
+                "\t}"
+            ],
+            [
+                715,
+                ""
+            ],
+            [
+                716,
+                "\tpublic sealed class TypeConverterNodeDeserializer : INodeDeserializer"
+            ],
+            [
+                717,
+                "\t{"
+            ],
+            [
+                718,
+                "\t\tprivate readonly IEnumerable<IYamlTypeConverter> converters;"
+            ],
+            [
+                719,
+                ""
+            ],
+            [
+                720,
+                "\t\tpublic TypeConverterNodeDeserializer(IEnumerable<IYamlTypeConverter> converters)"
+            ],
+            [
+                721,
+                "\t\t{"
+            ],
+            [
+                722,
+                "\t\t\tif (converters == null)"
+            ],
+            [
+                723,
+                "\t\t\t{"
+            ],
+            [
+                724,
+                "\t\t\t\tthrow new ArgumentNullException(\"converters\");"
+            ],
+            [
+                725,
+                "\t\t\t}"
+            ],
+            [
+                726,
+                ""
+            ],
+            [
+                727,
+                "\t\t\tthis.converters = converters;"
+            ],
+            [
+                728,
+                "\t\t}"
+            ],
+            [
+                729,
+                ""
+            ],
+            [
+                730,
+                "\t\tbool INodeDeserializer.Deserialize(EventReader reader, Type expectedType, Func<EventReader, Type, object> nestedObjectDeserializer, out object value)"
+            ],
+            [
+                731,
+                "\t\t{"
+            ],
+            [
+                732,
+                "\t\t\tvar converter = converters.FirstOrDefault(c => c.Accepts(expectedType));"
+            ],
+            [
+                733,
+                "\t\t\tif (converter == null)"
+            ],
+            [
+                734,
+                "\t\t\t{"
+            ],
+            [
+                735,
+                "\t\t\t\tvalue = null;"
+            ],
+            [
+                736,
+                "\t\t\t\treturn false;"
+            ],
+            [
+                737,
+                "\t\t\t}"
+            ],
+            [
+                738,
+                ""
+            ],
+            [
+                739,
+                "\t\t\tvalue = converter.ReadYaml(reader.Parser, expectedType);"
+            ],
+            [
+                740,
+                "\t\t\treturn true;"
+            ],
+            [
+                741,
+                "\t\t}"
+            ],
+            [
+                742,
+                "\t}"
+            ]
+        ],
+        "deleted": [
+            [
+                79,
+                "\tpublic class Deserializer"
+            ],
+            [
+                81,
+                "\t\tprivate readonly IEnumerable<INodeDeserializer> _deserializers;"
+            ],
+            [
+                82,
+                "\t\tprivate readonly IEnumerable<INodeTypeResolver> _typeResolvers;"
+            ],
+            [
+                84,
+                "\t\tpublic Deserializer()"
+            ],
+            [
+                86,
+                "\t\t\t// TODO: Allow to override the object factory"
+            ],
+            [
+                87,
+                "\t\t\tvar objectFactory = new DefaultObjectFactory();"
+            ],
+            [
+                88,
+                ""
+            ],
+            [
+                89,
+                "\t\t\t_deserializers = new INodeDeserializer[]"
+            ],
+            [
+                90,
+                "\t\t\t{"
+            ],
+            [
+                91,
+                "\t\t\t\tnew NullNodeDeserializer(),"
+            ],
+            [
+                92,
+                "\t\t\t\tnew ScalarNodeDeserializer(),"
+            ],
+            [
+                93,
+                "\t\t\t\tnew GenericDictionaryDeserializer(objectFactory),"
+            ],
+            [
+                94,
+                "\t\t\t\tnew NonGenericDictionaryDeserializer(objectFactory),"
+            ],
+            [
+                95,
+                "\t\t\t\tnew GenericCollectionDeserializer(objectFactory),"
+            ],
+            [
+                96,
+                "\t\t\t\tnew NonGenericListDeserializer(objectFactory),"
+            ],
+            [
+                97,
+                "\t\t\t\tnew EnumerableDeserializer(),"
+            ],
+            [
+                98,
+                "\t\t\t\tnew ObjectNodeDeserializer(objectFactory),"
+            ],
+            [
+                99,
+                "\t\t\t};"
+            ],
+            [
+                100,
+                ""
+            ],
+            [
+                101,
+                "\t\t\t_typeResolvers = new INodeTypeResolver[]"
+            ],
+            [
+                102,
+                "\t\t\t{"
+            ],
+            [
+                103,
+                "\t\t\t\tnew PredefinedTagsNodeTypeResolver(),"
+            ],
+            [
+                104,
+                "\t\t\t\tnew TypeNameInTagNodeTypeResolver(),"
+            ],
+            [
+                105,
+                "\t\t\t\tnew DefaultContainersNodeTypeResolver(),"
+            ],
+            [
+                106,
+                "\t\t\t};"
+            ],
+            [
+                147,
+                "\t\t\tobject result = DeserializeValue(reader, type, null);"
+            ],
+            [
+                162,
+                "\t\tprivate object DeserializeValue(EventReader reader, Type expectedType, object context)"
+            ],
+            [
+                168,
+                "\t\t\tforeach (var deserializer in _deserializers)"
+            ],
+            [
+                171,
+                "\t\t\t\tif (deserializer.Deserialize(reader, nodeType, (r, t) => DeserializeValue(r, t, context), out value))"
+            ],
+            [
+                200,
+                "\t\t//private bool IsNull(NodeEvent nodeEvent)"
+            ],
+            [
+                201,
+                "\t\t//{"
+            ],
+            [
+                202,
+                "\t\t//\tif (nodeEvent.Tag == \"tag:yaml.org,2002:null\")"
+            ],
+            [
+                203,
+                "\t\t//\t{"
+            ],
+            [
+                204,
+                "\t\t//\t\treturn true;"
+            ],
+            [
+                205,
+                "\t\t//\t}"
+            ],
+            [
+                206,
+                ""
+            ],
+            [
+                207,
+                "\t\t//\tif (JsonCompatible)"
+            ],
+            [
+                208,
+                "\t\t//\t{"
+            ],
+            [
+                209,
+                "\t\t//\t\tvar scalar = nodeEvent as Scalar;"
+            ],
+            [
+                210,
+                "\t\t//\t\tif (scalar != null && scalar.Style == Core.ScalarStyle.Plain && scalar.Value == \"null\")"
+            ],
+            [
+                211,
+                "\t\t//\t\t{"
+            ],
+            [
+                212,
+                "\t\t//\t\t\treturn true;"
+            ],
+            [
+                213,
+                "\t\t//\t\t}"
+            ],
+            [
+                214,
+                "\t\t//\t}"
+            ],
+            [
+                215,
+                ""
+            ],
+            [
+                216,
+                "\t\t//\treturn false;"
+            ],
+            [
+                217,
+                "\t\t//}"
+            ],
+            [
+                218,
+                ""
+            ],
+            [
+                219,
+                ""
+            ],
+            [
+                220,
+                "\t\tprivate Type GetTypeFromEvent(NodeEvent nodeEvent, Type currentType)//, TagMappings mappings)"
+            ],
+            [
+                222,
+                "\t\t\tforeach (var typeResolver in _typeResolvers)"
+            ],
+            [
+                247,
+                "\tpublic sealed class PredefinedTagsNodeTypeResolver : INodeTypeResolver"
+            ],
+            [
+                249,
+                "\t\tprivate static readonly Dictionary<string, Type> predefinedTypes = new Dictionary<string, Type>"
+            ],
+            [
+                251,
+                "\t\t\t{ \"tag:yaml.org,2002:map\", typeof(Dictionary<object, object>) },"
+            ],
+            [
+                252,
+                "\t\t\t{ \"tag:yaml.org,2002:bool\", typeof(bool) },"
+            ],
+            [
+                253,
+                "\t\t\t{ \"tag:yaml.org,2002:float\", typeof(double) },"
+            ],
+            [
+                254,
+                "\t\t\t{ \"tag:yaml.org,2002:int\", typeof(int) },"
+            ],
+            [
+                255,
+                "\t\t\t{ \"tag:yaml.org,2002:str\", typeof(string) },"
+            ],
+            [
+                256,
+                "\t\t\t{ \"tag:yaml.org,2002:timestamp\", typeof(DateTime) },"
+            ],
+            [
+                257,
+                "\t\t};"
+            ],
+            [
+                262,
+                "\t\t\tif (!string.IsNullOrEmpty(nodeEvent.Tag) && predefinedTypes.TryGetValue(nodeEvent.Tag, out predefinedType))"
+            ],
+            [
+                499,
+                "\tpublic sealed class GenericDictionaryDeserializer : INodeDeserializer"
+            ],
+            [
+                503,
+                "\t\tpublic GenericDictionaryDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                529,
+                "\t\tprivate static MethodInfo _deserializeHelperMethod = typeof(GenericDictionaryDeserializer)"
+            ],
+            [
+                543,
+                "\tpublic sealed class NonGenericDictionaryDeserializer : INodeDeserializer"
+            ],
+            [
+                547,
+                "\t\tpublic NonGenericDictionaryDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                577,
+                "\tpublic sealed class GenericCollectionDeserializer : INodeDeserializer"
+            ],
+            [
+                581,
+                "\t\tpublic GenericCollectionDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                595,
+                "\t\t\treader.Expect<SequenceStart>();"
+            ],
+            [
+                596,
+                ""
+            ],
+            [
+                598,
+                "\t\t\t_deserializeHelperMethod"
+            ],
+            [
+                599,
+                "\t\t\t\t.MakeGenericMethod(iCollection.GetGenericArguments())"
+            ],
+            [
+                600,
+                "\t\t\t\t.Invoke(null, new object[] { reader, expectedType, nestedObjectDeserializer, value });"
+            ],
+            [
+                601,
+                ""
+            ],
+            [
+                602,
+                "\t\t\treader.Expect<SequenceEnd>();"
+            ],
+            [
+                607,
+                "\t\tprivate static MethodInfo _deserializeHelperMethod = typeof(GenericCollectionDeserializer)"
+            ],
+            [
+                608,
+                "\t\t\t.GetMethod(\"DeserializeHelper\", BindingFlags.Static | BindingFlags.NonPublic);"
+            ],
+            [
+                610,
+                "\t\tprivate static void DeserializeHelper<TItem>(EventReader reader, Type expectedType, Func<EventReader, Type, object> nestedObjectDeserializer, ICollection<TItem> result)"
+            ],
+            [
+                620,
+                "\tpublic sealed class NonGenericListDeserializer : INodeDeserializer"
+            ],
+            [
+                624,
+                "\t\tpublic NonGenericListDeserializer(IObjectFactory objectFactory)"
+            ],
+            [
+                653,
+                "\tpublic sealed class EnumerableDeserializer : INodeDeserializer"
+            ]
+        ]
+    },
+    "num_lines_added": 144,
+    "num_lines_removed": 81
+}

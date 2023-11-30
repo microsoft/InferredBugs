@@ -1,0 +1,56 @@
+        public DetectedFaces DetectFaces(System.IO.FileStream imagesFile = null, string url = null, string acceptLanguage = null, string imagesFileContentType = null, Dictionary<string, object> customData = null)
+        {
+
+            if (string.IsNullOrEmpty(VersionDate))
+                throw new ArgumentNullException("versionDate cannot be null.");
+
+            DetectedFaces result = null;
+
+            try
+            {
+                var formData = new MultipartFormDataContent();
+
+                if (imagesFile != null)
+                {
+                    var imagesFileContent = new ByteArrayContent((imagesFile as Stream).ReadAllBytes());
+                    System.Net.Http.Headers.MediaTypeHeaderValue contentType;
+                    System.Net.Http.Headers.MediaTypeHeaderValue.TryParse(imagesFileContentType, out contentType);
+                    imagesFileContent.Headers.ContentType = contentType;
+                    formData.Add(imagesFileContent, "images_file", imagesFile.Name);
+                }
+
+                if (url != null)
+                {
+                    var urlContent = new StringContent(url, Encoding.UTF8, HttpMediaType.TEXT_PLAIN);
+                    urlContent.Headers.ContentType = null;
+                    formData.Add(urlContent, "url");
+                }
+
+                IClient client;
+                if(_tokenManager == null)
+                {
+                }
+                else
+                {
+                    client = this.Client.WithAuthentication(_tokenManager.GetToken());
+                }
+                var restRequest = client.PostAsync($"{this.Endpoint}/v3/detect_faces");
+
+                restRequest.WithArgument("version", VersionDate);
+                if (!string.IsNullOrEmpty(acceptLanguage))
+                    restRequest.WithHeader("Accept-Language", acceptLanguage);
+                restRequest.WithBodyContent(formData);
+                if (customData != null)
+                    restRequest.WithCustomData(customData);
+                result = restRequest.As<DetectedFaces>().Result;
+                if(result == null)
+                    result = new DetectedFaces();
+                result.CustomData = restRequest.CustomData;
+            }
+            catch(AggregateException ae)
+            {
+                throw ae.Flatten();
+            }
+
+            return result;
+        }

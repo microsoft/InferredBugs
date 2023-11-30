@@ -1,0 +1,86 @@
+        private void AppendLfInJoin(ISqlBuilder jf, ISqlBuilder wf, ISqlBuilder on, DbExpression exp, TableAliasCache aliases)
+        {
+            bool useExists = false;
+            LambdaExpression left = exp.Expressions[1] as LambdaExpression;
+            LambdaExpression right = exp.Expressions[2] as LambdaExpression;
+            NewExpression body1 = left.Body as NewExpression;
+            NewExpression body2 = right.Body as NewExpression;
+
+            // t0(t1)
+            string alias = body1 == null
+                ? aliases.GetTableAlias(exp.Expressions[2])
+                : aliases.GetTableAlias(right.Parameters[0]);//(body2.Arguments[0]);
+
+            IDbQueryable sQuery = (IDbQueryable)((exp.Expressions[0] as ConstantExpression).Value);
+            if (sQuery.DbExpressions.Count == 1 && sQuery.DbExpressions[0].DbExpressionType == DbExpressionType.GetTable)
+            {
+                useExists = true;
+                if ((wf != null && wf.Length > 0) || (on != null && on.Length > 0))
+                {
+                    wf.AppendNewLine();
+                    if (wf != null && wf.Length > 0) wf.Append("AND ");
+                }
+
+                wf.Append("EXISTS(");
+                wf.Indent += 1;
+                wf.AppendNewLine();
+                wf.Append("SELECT 1 FROM ");
+
+                Type type = exp.Expressions[0].Type.GetGenericArguments()[0];
+                var typeRuntime = TypeRuntimeInfoCache.GetRuntimeInfo(type);
+                wf.AppendMember(typeRuntime.TableName, !typeRuntime.IsTemporary);
+                wf.Append(' ');
+                wf.Append(alias);
+
+                wf.AppendNewLine();
+                wf.Append("WHERE ");
+            }
+            else
+            {
+                useExists = true;
+                if ((wf != null && wf.Length > 0) || (on != null && on.Length > 0))
+                {
+                    wf.AppendNewLine();
+                    if (wf != null && wf.Length > 0) wf.Append("AND ");
+                }
+
+                wf.Append("EXISTS(");
+                wf.Indent += 1;
+                wf.AppendNewLine();
+                wf.Append("SELECT 1 FROM(");
+                var cmd2 = sQuery.Resolve(wf.Indent + 1, false, wf.Token);
+                wf.Append(cmd2.CommandText);
+                wf.AppendNewLine();
+                wf.Append(')');
+                wf.Append(' ');
+                wf.Append(alias);
+                wf.Append(" WHERE ");
+            }
+
+            ISqlBuilder builder = useExists ? wf : on;
+            if (body1 == null)
+            {
+                builder.AppendMember(aliases, left.Body.ReduceUnary());
+                builder.Append(" = ");
+                builder.AppendMember(aliases, right.Body.ReduceUnary());
+            }
+            else
+            {
+                for (int index = 0; index < body1.Arguments.Count; ++index)
+                {
+                    builder.AppendMember(aliases, body1.Arguments[index]);
+                    builder.Append(" = ");
+                    builder.AppendMember(aliases, body2.Arguments[index]);
+                    if (index < body1.Arguments.Count - 1) builder.Append(" AND ");
+                }
+            }
+
+            //if (_where != null && _where.Expressions != null) this.AppendWhere(builder, right);
+
+            if (useExists)
+            {
+                wf.Indent -= 1;
+                wf.AppendNewLine();
+                wf.Append(')');
+            }
+        }

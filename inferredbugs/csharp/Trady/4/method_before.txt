@@ -1,0 +1,26 @@
+        private void BuyAsset(IIndexedOhlcv indexedCandle, decimal premium, IDictionary<IEnumerable<IOhlcv>, decimal> assetCashMap, IList<Transaction> transactions)
+        {
+            if (assetCashMap.TryGetValue(indexedCandle.BackingList, out decimal availableQuoteCurrency))
+            {
+                var nextCandle = indexedCandle.Next;
+                decimal baseCurrencyQte = (availableQuoteCurrency - premium) / nextCandle.Open;
+
+                if (_buyCompleteBaseCurrencies)
+                {
+                    baseCurrencyQte = Math.Floor(baseCurrencyQte);
+                }
+
+                decimal quoteCurrencyQte = nextCandle.Open * baseCurrencyQte + premium;
+
+                // EUR/USD (1€ = 1000$) ; flat exchange fee ratio percent = 0.1
+                // you buy 2000$
+                // Total 2€, fee = 2 * 0.001 = 0.002, net = 2 - 0.002 = 1.998 €
+                baseCurrencyQte -= _flatExchangeFee * baseCurrencyQte;
+                var quoteCurrencyFee = _flatExchangeFee * nextCandle.Open;
+
+                assetCashMap[indexedCandle.BackingList] -= quoteCurrencyQte;
+                
+                transactions.Add(new Transaction(indexedCandle.BackingList, nextCandle.Index, nextCandle.DateTime, TransactionType.Buy, baseCurrencyQte, quoteCurrencyQte));
+                OnBought?.Invoke(indexedCandle.BackingList, nextCandle.Index, nextCandle.DateTime, nextCandle.Open, baseCurrencyQte, quoteCurrencyQte, assetCashMap[indexedCandle.BackingList]);
+            }
+        }

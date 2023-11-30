@@ -1,0 +1,45 @@
+        private static void PerformMatch(string patternFile)
+        {
+            TextReader instrm = new StreamReader(Console.OpenStandardInput());
+            string input = instrm.ReadToEnd();
+
+            string pattern = File.ReadAllText(patternFile);
+
+            var lines = new List<string>(pattern.Split(new [] {'`'}));
+
+            var options = new Options();
+            if (lines.Count() > 1)
+            {
+                string optionString = lines[0];
+                lines.RemoveAt(0);
+
+                options = ParseOptions(optionString);
+            }
+
+            Regex regex = new Regex(String.Join("`", lines), options.RegexOptions);
+
+            string line;
+            switch (options.Mode)
+            {
+            case Modes.Match:
+                MatchCollection matches = regex.Matches(input);
+                Console.WriteLine(matches.Count);
+                break;
+            case Modes.Grep:
+            case Modes.AntiGrep:
+                var stringReader = new StringReader(input);
+                
+                while ((line = stringReader.ReadLine()) != null)
+                {
+                    if (regex.IsMatch(line) ^ (options.Mode == Modes.AntiGrep))
+                        Console.WriteLine(line);
+                }
+                break;
+            case Modes.Split:
+                foreach (var part in regex.Split(input))
+                    Console.WriteLine(part);
+                break;
+            default:
+                throw new NotImplementedException();
+            }
+        }

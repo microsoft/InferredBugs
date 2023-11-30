@@ -1,0 +1,1445 @@
+{
+    "hash": "cd168f7a9f9e8810d6b63c095495d8cc50b0c47b",
+    "message": "Name manager working to prevent generated collisions. Beginning to generate Prt decls.",
+    "file_num_lines": 355,
+    "diff_parsed": {
+        "added": [
+            [
+                1,
+                "\ufeffusing System;"
+            ],
+            [
+                2,
+                "using System.Collections.Generic;"
+            ],
+            [
+                4,
+                "using System.Linq;"
+            ],
+            [
+                8,
+                "using Microsoft.Pc.TypeChecker.AST.Declarations;"
+            ],
+            [
+                9,
+                "using Microsoft.Pc.TypeChecker.AST.States;"
+            ],
+            [
+                10,
+                "using Microsoft.Pc.TypeChecker.Types;"
+            ],
+            [
+                16,
+                "        private static readonly Dictionary<Type, string> DeclNameParts = new Dictionary<Type, string>"
+            ],
+            [
+                17,
+                "        {"
+            ],
+            [
+                18,
+                "            {typeof(EnumElem), \"ENUMELEM\"},"
+            ],
+            [
+                19,
+                "            {typeof(Function), \"FUNCTION\"},"
+            ],
+            [
+                20,
+                "            {typeof(Implementation), \"IMPL\"},"
+            ],
+            [
+                21,
+                "            {typeof(Interface), \"I\"},"
+            ],
+            [
+                22,
+                "            {typeof(Machine), \"MACHINE\"},"
+            ],
+            [
+                23,
+                "            {typeof(NamedEventSet), \"EVENTSET\"},"
+            ],
+            [
+                24,
+                "            {typeof(NamedModule), \"MODULE\"},"
+            ],
+            [
+                25,
+                "            {typeof(PEnum), \"ENUM\"},"
+            ],
+            [
+                26,
+                "            {typeof(PEvent), \"EVENT\"},"
+            ],
+            [
+                27,
+                "            {typeof(RefinementTest), \"REFINEMENT_TEST\"},"
+            ],
+            [
+                28,
+                "            {typeof(SafetyTest), \"SAFETY_TEST\"},"
+            ],
+            [
+                29,
+                "            {typeof(State), \"STATE\"},"
+            ],
+            [
+                30,
+                "            {typeof(StateGroup), \"STATEGROUP\"},"
+            ],
+            [
+                31,
+                "            {typeof(TypeDef), \"TYPEDEF\"},"
+            ],
+            [
+                32,
+                "            {typeof(Variable), \"VAR\"}"
+            ],
+            [
+                33,
+                "        };"
+            ],
+            [
+                34,
+                ""
+            ],
+            [
+                42,
+                "            var cHeader = new CompiledFile(context.HeaderFileName);"
+            ],
+            [
+                43,
+                "            var cSource = new CompiledFile(context.SourceFileName);"
+            ],
+            [
+                55,
+                "            // Write includes and common macros, if any"
+            ],
+            [
+                56,
+                "            WriteSourcePrologue(context, cSource.Stream);"
+            ],
+            [
+                57,
+                ""
+            ],
+            [
+                58,
+                "            // Write the machine and function bodies into temporary buffer"
+            ],
+            [
+                59,
+                "            var bodyWriter = new StringWriter();"
+            ],
+            [
+                60,
+                "            foreach (IPDecl decl in globalScope.AllDecls)"
+            ],
+            [
+                61,
+                "            {"
+            ],
+            [
+                62,
+                "                WriteSourceDecl(context, decl, bodyWriter);"
+            ],
+            [
+                63,
+                "            }"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                65,
+                "            // Write all the type definitions and function implementation prototypes"
+            ],
+            [
+                66,
+                "            cSource.Stream.WriteLine(\"// Type universe for program:\");"
+            ],
+            [
+                67,
+                "            foreach (PLanguageType type in context.UsedTypes)"
+            ],
+            [
+                68,
+                "            {"
+            ],
+            [
+                69,
+                "                WriteTypeDefinition(context, type, cSource.Stream);"
+            ],
+            [
+                70,
+                "            }"
+            ],
+            [
+                71,
+                ""
+            ],
+            [
+                72,
+                "            cSource.Stream.WriteLine();"
+            ],
+            [
+                73,
+                ""
+            ],
+            [
+                74,
+                "            cSource.Stream.WriteLine(\"// Function implementation prototypes:\");"
+            ],
+            [
+                75,
+                "            foreach (Function function in AllMethods(globalScope))"
+            ],
+            [
+                76,
+                "            {"
+            ],
+            [
+                77,
+                "                string functionName = context.Names.GetNameForFunctionImpl(function);"
+            ],
+            [
+                78,
+                "                cSource.Stream.WriteLine($\"PRT_VALUE* {functionName}(PRT_MACHINEINST *context);\");"
+            ],
+            [
+                79,
+                "            }"
+            ],
+            [
+                80,
+                ""
+            ],
+            [
+                81,
+                "            cSource.Stream.WriteLine();"
+            ],
+            [
+                82,
+                ""
+            ],
+            [
+                83,
+                "            // Append all the function bodies and declaration structs (which have forward declarations in the header)"
+            ],
+            [
+                84,
+                "            cSource.Stream.GetStringBuilder().Append(bodyWriter);"
+            ],
+            [
+                90,
+                "        private IEnumerable<Function> AllMethods(Scope scope)"
+            ],
+            [
+                91,
+                "        {"
+            ],
+            [
+                92,
+                "            foreach (Function function in scope.Functions)"
+            ],
+            [
+                93,
+                "            {"
+            ],
+            [
+                94,
+                "                yield return function;"
+            ],
+            [
+                95,
+                "            }"
+            ],
+            [
+                96,
+                ""
+            ],
+            [
+                97,
+                "            foreach (Machine machine in scope.Machines)"
+            ],
+            [
+                98,
+                "            {"
+            ],
+            [
+                99,
+                "                // includes anonymous functions"
+            ],
+            [
+                100,
+                "                foreach (Function method in machine.Methods)"
+            ],
+            [
+                101,
+                "                {"
+            ],
+            [
+                102,
+                "                    yield return method;"
+            ],
+            [
+                103,
+                "                }"
+            ],
+            [
+                104,
+                "            }"
+            ],
+            [
+                105,
+                "        }"
+            ],
+            [
+                106,
+                ""
+            ],
+            [
+                107,
+                "        private void WriteSourceDecl(CompilationContext context, IPDecl decl, TextWriter bodyWriter)"
+            ],
+            [
+                108,
+                "        {"
+            ],
+            [
+                109,
+                "            switch (decl)"
+            ],
+            [
+                110,
+                "            {"
+            ],
+            [
+                111,
+                "                case EnumElem enumElem:"
+            ],
+            [
+                112,
+                "                    return;"
+            ],
+            [
+                113,
+                "                case PEnum pEnum:"
+            ],
+            [
+                114,
+                "                    return;"
+            ],
+            [
+                115,
+                "                case Function function:"
+            ],
+            [
+                116,
+                "                    NamedTupleType functionLocalsType = function.LocalVariables.Any()"
+            ],
+            [
+                117,
+                "                        ? new NamedTupleType(function.LocalVariables.Select(v => new NamedTupleEntry {Name = v.Name, Type = v.Type})"
+            ],
+            [
+                118,
+                "                                                     .ToList())"
+            ],
+            [
+                119,
+                "                        : null;"
+            ],
+            [
+                120,
+                "                    string localsTypeName = functionLocalsType == null ? \"NULL\" : context.Names.GetNameForType(functionLocalsType);"
+            ],
+            [
+                121,
+                "                    bodyWriter.WriteLine($\"PRT_FUNDECL {GetPrtNameForDecl(context, function)} =\");"
+            ],
+            [
+                122,
+                "                    bodyWriter.WriteLine(\"{\");"
+            ],
+            [
+                123,
+                "                    bodyWriter.WriteLine($\"  \\\"{function.Name}\\\",\"); // name of function in original program"
+            ],
+            [
+                124,
+                "                    bodyWriter.WriteLine($\"  &{context.Names.GetNameForFunctionImpl(function)},\"); // pointer to implementation"
+            ],
+            [
+                125,
+                "                    bodyWriter.WriteLine($\"  {function.Signature.Parameters.Count}U,\"); // number of parameters"
+            ],
+            [
+                126,
+                "                    bodyWriter.WriteLine("
+            ],
+            [
+                127,
+                "                        $\"  {function.LocalVariables.Count()}U,\"); // number of local variables TODO: count variables inside receive / remove this field"
+            ],
+            [
+                128,
+                "                    bodyWriter.WriteLine(\"  0U,\"); // number of local variables in enclosing scopes"
+            ],
+            [
+                129,
+                "                    bodyWriter.WriteLine(\"  NULL,\"); // payload type for anonymous functions: always NULL."
+            ],
+            [
+                130,
+                "                    bodyWriter.WriteLine("
+            ],
+            [
+                131,
+                "                        $\"  {localsTypeName},\"); // type of local variables tuple (not including nested scopes)"
+            ],
+            [
+                132,
+                "                    bodyWriter.WriteLine(\"  0U,\"); // number of receive statements in body: always 0"
+            ],
+            [
+                133,
+                "                    bodyWriter.WriteLine(\"  NULL,\"); // array of receive decls in body: always NULL."
+            ],
+            [
+                134,
+                "                    bodyWriter.WriteLine(\"  0U,\"); // number of annotations"
+            ],
+            [
+                135,
+                "                    bodyWriter.WriteLine(\"  NULL\"); // array of annotations: always NULL."
+            ],
+            [
+                136,
+                "                    bodyWriter.WriteLine(\"};\");"
+            ],
+            [
+                137,
+                "                    break;"
+            ],
+            [
+                138,
+                "                case Implementation implementation:"
+            ],
+            [
+                139,
+                "                    return;"
+            ],
+            [
+                140,
+                "                case Interface @interface:"
+            ],
+            [
+                141,
+                "                    return;"
+            ],
+            [
+                142,
+                "                case Machine machine:"
+            ],
+            [
+                143,
+                "                    break;"
+            ],
+            [
+                144,
+                "                case NamedEventSet namedEventSet:"
+            ],
+            [
+                145,
+                "                    break;"
+            ],
+            [
+                146,
+                "                case NamedModule namedModule:"
+            ],
+            [
+                147,
+                "                    return;"
+            ],
+            [
+                148,
+                "                case PEvent pEvent when !pEvent.IsBuiltIn:"
+            ],
+            [
+                149,
+                "                    bodyWriter.WriteLine($\"PRT_EVENTDECL {GetPrtNameForDecl(context, pEvent)} = \");"
+            ],
+            [
+                150,
+                "                    bodyWriter.WriteLine(\"{\");"
+            ],
+            [
+                151,
+                "                    bodyWriter.WriteLine(\"  { PRT_VALUE_KIND_EVENT, 0U },\");"
+            ],
+            [
+                152,
+                "                    bodyWriter.WriteLine($\"  \\\"{pEvent.Name}\\\",\");"
+            ],
+            [
+                153,
+                "                    long eventBound = Math.Min(pEvent.Assert == -1 ? uint.MaxValue : (uint) pEvent.Assert,"
+            ],
+            [
+                154,
+                "                                               pEvent.Assume == -1 ? uint.MaxValue : (uint) pEvent.Assume);"
+            ],
+            [
+                155,
+                "                    bodyWriter.WriteLine($\"  {eventBound}U,\");"
+            ],
+            [
+                156,
+                "                    bodyWriter.WriteLine($\"  &{context.Names.GetNameForType(pEvent.PayloadType)}\");"
+            ],
+            [
+                157,
+                "                    bodyWriter.WriteLine(\"  0U,\");"
+            ],
+            [
+                158,
+                "                    bodyWriter.WriteLine(\"  NULL\");"
+            ],
+            [
+                159,
+                "                    bodyWriter.WriteLine(\"};\");"
+            ],
+            [
+                160,
+                "                    break;"
+            ],
+            [
+                161,
+                "                case PEvent pEvent when pEvent.IsBuiltIn:"
+            ],
+            [
+                162,
+                "                    return;"
+            ],
+            [
+                163,
+                "                case RefinementTest refinementTest:"
+            ],
+            [
+                164,
+                "                    return;"
+            ],
+            [
+                165,
+                "                case SafetyTest safetyTest:"
+            ],
+            [
+                166,
+                "                    return;"
+            ],
+            [
+                167,
+                "                case TypeDef typeDef:"
+            ],
+            [
+                168,
+                "                    return;"
+            ],
+            [
+                169,
+                "                case Variable variable:"
+            ],
+            [
+                170,
+                "                    return;"
+            ],
+            [
+                171,
+                "                case State state:"
+            ],
+            [
+                172,
+                "                    break;"
+            ],
+            [
+                173,
+                "                case StateGroup stateGroup:"
+            ],
+            [
+                174,
+                "                    break;"
+            ],
+            [
+                175,
+                "            }"
+            ],
+            [
+                176,
+                ""
+            ],
+            [
+                177,
+                "            bodyWriter.WriteLine();"
+            ],
+            [
+                178,
+                "        }"
+            ],
+            [
+                179,
+                ""
+            ],
+            [
+                180,
+                "        private string WriteTypeDefinition(CompilationContext context, PLanguageType type, TextWriter writer)"
+            ],
+            [
+                181,
+                "        {"
+            ],
+            [
+                182,
+                "            string typeGenName = context.Names.GetNameForType(type);"
+            ],
+            [
+                183,
+                ""
+            ],
+            [
+                184,
+                "            if (context.WrittenTypes.Contains(type))"
+            ],
+            [
+                185,
+                "            {"
+            ],
+            [
+                186,
+                "                return typeGenName;"
+            ],
+            [
+                187,
+                "            }"
+            ],
+            [
+                188,
+                ""
+            ],
+            [
+                189,
+                "            switch (type.Canonicalize())"
+            ],
+            [
+                190,
+                "            {"
+            ],
+            [
+                191,
+                "                case BoundedType boundedType:"
+            ],
+            [
+                192,
+                "                    writer.WriteLine($\"// TODO: implement types like {boundedType.CanonicalRepresentation}\");"
+            ],
+            [
+                193,
+                "                    break;"
+            ],
+            [
+                194,
+                "                case EnumType _:"
+            ],
+            [
+                195,
+                "                    writer.WriteLine($\"static PRT_TYPE {typeGenName} = {{ PRT_KIND_INT, {{ NULL }} }};\");"
+            ],
+            [
+                196,
+                "                    break;"
+            ],
+            [
+                197,
+                "                case ForeignType foreignType:"
+            ],
+            [
+                198,
+                "                    writer.WriteLine($\"// TODO: implement types like {foreignType.CanonicalRepresentation}\");"
+            ],
+            [
+                199,
+                "                    break;"
+            ],
+            [
+                200,
+                "                case MapType mapType:"
+            ],
+            [
+                201,
+                "                    string mapKeyTypeName = WriteTypeDefinition(context, mapType.KeyType, writer);"
+            ],
+            [
+                202,
+                "                    string mapValueTypeName = WriteTypeDefinition(context, mapType.ValueType, writer);"
+            ],
+            [
+                203,
+                "                    string mapTypeDeclName = context.Names.GetTemporaryName(\"MAPTYPE\");"
+            ],
+            [
+                204,
+                "                    writer.WriteLine($\"static PRT_MAPTYPE {mapTypeDeclName} = {{ &{mapKeyTypeName}, &{mapValueTypeName} }};\");"
+            ],
+            [
+                205,
+                "                    writer.WriteLine($\"static PRT_TYPE {typeGenName} = {{ PRT_KIND_MAP, {{ &{mapTypeDeclName} }} }};\");"
+            ],
+            [
+                206,
+                "                    break;"
+            ],
+            [
+                207,
+                "                case NamedTupleType namedTupleType:"
+            ],
+            [
+                208,
+                "                    string ntNamesArrayName = context.Names.GetTemporaryName(\"NMDTUP_N\");"
+            ],
+            [
+                209,
+                "                    string ntTypesArrayName = context.Names.GetTemporaryName(\"NMDTUP_T\");"
+            ],
+            [
+                210,
+                "                    string ntStructName = context.Names.GetTemporaryName(\"NMDTUP\");"
+            ],
+            [
+                211,
+                "                    var typeDeclNames = namedTupleType.Types.Select(t => WriteTypeDefinition(context, t, writer));"
+            ],
+            [
+                212,
+                "                    writer.WriteLine("
+            ],
+            [
+                213,
+                "                        $\"static PRT_STRING {ntNamesArrayName}[] = {{ {string.Join(\", \", namedTupleType.Names.Select(name => \"\\\"\" + name + \"\\\"\"))} }};\");"
+            ],
+            [
+                214,
+                "                    writer.WriteLine("
+            ],
+            [
+                215,
+                "                        $\"static PRT_TYPE* {ntTypesArrayName}[] = {{ {string.Join(\", \", typeDeclNames.Select(name => \"&\" + name))} }};\");"
+            ],
+            [
+                216,
+                "                    writer.WriteLine("
+            ],
+            [
+                217,
+                "                        $\"static PRT_NMDTUPTYPE {ntStructName} = {{ {namedTupleType.Types.Count}, {ntNamesArrayName}, {ntTypesArrayName} }};\");"
+            ],
+            [
+                218,
+                "                    writer.WriteLine($\"static PRT_TYPE {typeGenName} = {{ PRT_KIND_NMDTUP, {{ &{ntStructName} }} }};\");"
+            ],
+            [
+                219,
+                "                    break;"
+            ],
+            [
+                220,
+                "                case PermissionType permissionType:"
+            ],
+            [
+                221,
+                "                    writer.WriteLine($\"// TODO: implement types like {permissionType.CanonicalRepresentation}\");"
+            ],
+            [
+                222,
+                "                    break;"
+            ],
+            [
+                223,
+                "                case PrimitiveType primitiveType when primitiveType == PrimitiveType.Null:"
+            ],
+            [
+                224,
+                "                    writer.WriteLine($\"static PRT_TYPE {typeGenName} = {{ PRT_KIND_NULL, {{ NULL }} }};\");"
+            ],
+            [
+                225,
+                "                    break;"
+            ],
+            [
+                226,
+                "                case PrimitiveType primitiveType when primitiveType == PrimitiveType.Int:"
+            ],
+            [
+                227,
+                "                    writer.WriteLine($\"static PRT_TYPE {typeGenName} = {{ PRT_KIND_INT, {{ NULL }} }};\");"
+            ],
+            [
+                228,
+                "                    break;"
+            ],
+            [
+                229,
+                "                case PrimitiveType primitiveType when primitiveType == PrimitiveType.Float:"
+            ],
+            [
+                230,
+                "                    writer.WriteLine($\"static PRT_TYPE {typeGenName} = {{ PRT_KIND_FLOAT, {{ NULL }} }};\");"
+            ],
+            [
+                231,
+                "                    break;"
+            ],
+            [
+                232,
+                "                case PrimitiveType primitiveType:"
+            ],
+            [
+                233,
+                "                    writer.WriteLine($\"// TODO: implement types like {primitiveType.CanonicalRepresentation}\");"
+            ],
+            [
+                234,
+                "                    break;"
+            ],
+            [
+                235,
+                "                case SequenceType sequenceType:"
+            ],
+            [
+                236,
+                "                    string seqElementTypeName = WriteTypeDefinition(context, sequenceType.ElementType, writer);"
+            ],
+            [
+                237,
+                "                    string seqTypeDeclName = context.Names.GetTemporaryName(\"SEQTYPE\");"
+            ],
+            [
+                238,
+                "                    writer.WriteLine($\"static PRT_SEQTYPE {seqTypeDeclName} = {{ &{seqElementTypeName} }};\");"
+            ],
+            [
+                239,
+                "                    writer.WriteLine($\"static PRT_TYPE {typeGenName} = {{ PRT_KIND_SEQ, {{ &{seqTypeDeclName} }} }};\");"
+            ],
+            [
+                240,
+                "                    break;"
+            ],
+            [
+                241,
+                "                case TupleType tupleType:"
+            ],
+            [
+                242,
+                "                    writer.WriteLine($\"// TODO: implement types like {tupleType.CanonicalRepresentation}\");"
+            ],
+            [
+                243,
+                "                    break;"
+            ],
+            [
+                244,
+                "                case TypeDefType typeDefType:"
+            ],
+            [
+                245,
+                "                    throw new ArgumentException(\"typedefs shouldn't be possible after canonicalization\", nameof(type));"
+            ],
+            [
+                246,
+                "            }"
+            ],
+            [
+                247,
+                ""
+            ],
+            [
+                248,
+                "            context.WrittenTypes.Add(type);"
+            ],
+            [
+                249,
+                "            return typeGenName;"
+            ],
+            [
+                250,
+                "        }"
+            ],
+            [
+                251,
+                ""
+            ],
+            [
+                252,
+                "        private void WriteSourcePrologue(CompilationContext context, TextWriter cSourceStream)"
+            ],
+            [
+                253,
+                "        {"
+            ],
+            [
+                254,
+                "            cSourceStream.WriteLine($\"#include \\\"{context.HeaderFileName}\\\"\");"
+            ],
+            [
+                255,
+                "            cSourceStream.WriteLine();"
+            ],
+            [
+                256,
+                "        }"
+            ],
+            [
+                257,
+                ""
+            ],
+            [
+                258,
+                "        private static string GetPrtNameForDecl(CompilationContext context, IPDecl decl)"
+            ],
+            [
+                259,
+                "        {"
+            ],
+            [
+                260,
+                "            if (decl == null)"
+            ],
+            [
+                261,
+                "            {"
+            ],
+            [
+                262,
+                "                throw new ArgumentNullException(nameof(decl));"
+            ],
+            [
+                263,
+                "            }"
+            ],
+            [
+                264,
+                ""
+            ],
+            [
+                265,
+                "            var computedPrefix = \"\";"
+            ],
+            [
+                266,
+                "            switch (decl)"
+            ],
+            [
+                267,
+                "            {"
+            ],
+            [
+                268,
+                "                case EnumElem enumElem:"
+            ],
+            [
+                269,
+                "                    computedPrefix = $\"{enumElem.ParentEnum.Name}_\";"
+            ],
+            [
+                270,
+                "                    break;"
+            ],
+            [
+                271,
+                "                case PEvent pEvent:"
+            ],
+            [
+                272,
+                "                    if (pEvent.IsNullEvent)"
+            ],
+            [
+                273,
+                "                    {"
+            ],
+            [
+                274,
+                "                        return \"<<prt:null-event>>\";"
+            ],
+            [
+                275,
+                "                    }"
+            ],
+            [
+                276,
+                ""
+            ],
+            [
+                277,
+                "                    if (pEvent.IsHaltEvent)"
+            ],
+            [
+                278,
+                "                    {"
+            ],
+            [
+                279,
+                "                        return \"<<prt:halt-event>>\";"
+            ],
+            [
+                280,
+                "                    }"
+            ],
+            [
+                281,
+                ""
+            ],
+            [
+                282,
+                "                    break;"
+            ],
+            [
+                283,
+                "                case State state:"
+            ],
+            [
+                284,
+                "                    // TODO: merge names of state groups."
+            ],
+            [
+                285,
+                "                    break;"
+            ],
+            [
+                286,
+                "            }"
+            ],
+            [
+                287,
+                ""
+            ],
+            [
+                288,
+                "            if (DeclNameParts.TryGetValue(decl.GetType(), out string prefix))"
+            ],
+            [
+                289,
+                "            {"
+            ],
+            [
+                290,
+                "                prefix += \"_\";"
+            ],
+            [
+                291,
+                "            }"
+            ],
+            [
+                292,
+                "            else"
+            ],
+            [
+                293,
+                "            {"
+            ],
+            [
+                294,
+                "                prefix = \"\";"
+            ],
+            [
+                295,
+                "            }"
+            ],
+            [
+                296,
+                ""
+            ],
+            [
+                297,
+                "            return context.Names.GetNameForNode(decl, prefix + computedPrefix);"
+            ],
+            [
+                298,
+                "        }"
+            ],
+            [
+                299,
+                ""
+            ],
+            [
+                300,
+                "        private class CompilationContext"
+            ],
+            [
+                301,
+                "        {"
+            ],
+            [
+                302,
+                "            public CompilationContext(string projectName)"
+            ],
+            [
+                303,
+                "            {"
+            ],
+            [
+                304,
+                "                ProjectName = projectName;"
+            ],
+            [
+                305,
+                "                HeaderFileName = $\"{projectName}.h\";"
+            ],
+            [
+                306,
+                "                SourceFileName = $\"{projectName}.c\";"
+            ],
+            [
+                307,
+                "                Names = new NameManager($\"P_{projectName.ToUpperInvariant()}_\");"
+            ],
+            [
+                308,
+                "            }"
+            ],
+            [
+                309,
+                ""
+            ],
+            [
+                310,
+                "            public string ProjectName { get; }"
+            ],
+            [
+                311,
+                "            public string HeaderFileName { get; }"
+            ],
+            [
+                312,
+                "            public string SourceFileName { get; }"
+            ],
+            [
+                313,
+                "            public NameManager Names { get; }"
+            ],
+            [
+                314,
+                "            public IEnumerable<PLanguageType> UsedTypes => Names.UsedTypes;"
+            ],
+            [
+                315,
+                "            public HashSet<PLanguageType> WrittenTypes { get; } = new HashSet<PLanguageType>();"
+            ],
+            [
+                316,
+                "            public int IndentationLevel { get; set; } = 0;"
+            ],
+            [
+                317,
+                "        }"
+            ],
+            [
+                318,
+                ""
+            ],
+            [
+                337,
+                "            string declName = GetPrtNameForDecl(context, decl);"
+            ],
+            [
+                338,
+                "            switch (decl)"
+            ],
+            [
+                339,
+                "            {"
+            ],
+            [
+                340,
+                "                case EnumElem enumElem:"
+            ],
+            [
+                341,
+                "                    // TODO: do we write enum elements here?"
+            ],
+            [
+                342,
+                "                    break;"
+            ],
+            [
+                343,
+                "                case Function _:"
+            ],
+            [
+                344,
+                "                    output.WriteLine($\"extern PRT_FUNDECL {declName};\");"
+            ],
+            [
+                345,
+                "                    break;"
+            ],
+            [
+                346,
+                "                case Implementation implementation:"
+            ],
+            [
+                347,
+                "                    break;"
+            ],
+            [
+                348,
+                "                case Interface _:"
+            ],
+            [
+                349,
+                "                    output.WriteLine($\"extern PRT_UINT32 {declName};\");"
+            ],
+            [
+                350,
+                "                    break;"
+            ],
+            [
+                351,
+                "                case Machine _:"
+            ],
+            [
+                352,
+                "                    output.WriteLine($\"extern PRT_MACHINEDECL {declName};\");"
+            ],
+            [
+                353,
+                "                    break;"
+            ],
+            [
+                354,
+                "                case NamedEventSet namedEventSet:"
+            ],
+            [
+                355,
+                "                    output.WriteLine($\"// DECL(NamedEventSet, {decl.Name}) => {declName}\");"
+            ],
+            [
+                356,
+                "                    break;"
+            ],
+            [
+                357,
+                "                case NamedModule namedModule:"
+            ],
+            [
+                358,
+                "                    output.WriteLine($\"// DECL(NamedModule, {decl.Name}) => {declName}\");"
+            ],
+            [
+                359,
+                "                    break;"
+            ],
+            [
+                360,
+                "                case PEnum pEnum:"
+            ],
+            [
+                361,
+                "                    output.WriteLine("
+            ],
+            [
+                362,
+                "                        $\"typedef enum {declName} {{ {string.Join(\", \", pEnum.Values.Select(val => $\"{GetPrtNameForDecl(context, val)} = {val.Value}\"))} }} {declName};\");"
+            ],
+            [
+                363,
+                "                    output.WriteLine();"
+            ],
+            [
+                364,
+                "                    break;"
+            ],
+            [
+                365,
+                "                case PEvent pEvent:"
+            ],
+            [
+                366,
+                "                    if (!pEvent.IsBuiltIn)"
+            ],
+            [
+                367,
+                "                    {"
+            ],
+            [
+                368,
+                "                        output.WriteLine($\"extern PRT_EVENTDECL {declName};\");"
+            ],
+            [
+                369,
+                "                    }"
+            ],
+            [
+                370,
+                ""
+            ],
+            [
+                371,
+                "                    break;"
+            ],
+            [
+                372,
+                "                case RefinementTest refinementTest:"
+            ],
+            [
+                373,
+                "                    output.WriteLine($\"// DECL(RefinementTest, {decl.Name}) => {declName}\");"
+            ],
+            [
+                374,
+                "                    break;"
+            ],
+            [
+                375,
+                "                case SafetyTest safetyTest:"
+            ],
+            [
+                376,
+                "                    output.WriteLine($\"// DECL(SafetyTest, {decl.Name}) => {declName}\");"
+            ],
+            [
+                377,
+                "                    break;"
+            ],
+            [
+                378,
+                "                case TypeDef typeDef:"
+            ],
+            [
+                379,
+                "                    output.WriteLine($\"// no need to generate typedef {typeDef.Name} = {typeDef.Type.OriginalRepresentation}\");"
+            ],
+            [
+                380,
+                "                    break;"
+            ],
+            [
+                381,
+                "                case Variable variable:"
+            ],
+            [
+                382,
+                "                    throw new ArgumentException(\"can't have global P variables\", nameof(decl));"
+            ],
+            [
+                383,
+                "                case State state:"
+            ],
+            [
+                384,
+                "                    output.WriteLine($\"// DECL(State, {decl.Name}) => {declName}\");"
+            ],
+            [
+                385,
+                "                    break;"
+            ],
+            [
+                386,
+                "                case StateGroup stateGroup:"
+            ],
+            [
+                387,
+                "                    output.WriteLine($\"// DECL(StateGroup, {decl.Name}) => {declName}\");"
+            ],
+            [
+                388,
+                "                    break;"
+            ],
+            [
+                389,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                1,
+                "\ufeffusing System.Collections.Generic;"
+            ],
+            [
+                18,
+                "            var cHeader = new CompiledFile($\"{projectName}.h\");"
+            ],
+            [
+                19,
+                "            var cSource = new CompiledFile($\"{projectName}.c\");"
+            ],
+            [
+                31,
+                "            // TODO: write the source"
+            ],
+            [
+                55,
+                "            string declName = context.Names.GetNameForNode(decl);"
+            ],
+            [
+                56,
+                "            output.WriteLine($\"DECL({decl.GetType().Name}, {decl.Name}) => {declName}\");"
+            ],
+            [
+                71,
+                ""
+            ],
+            [
+                72,
+                "        private class CompilationContext"
+            ],
+            [
+                73,
+                "        {"
+            ],
+            [
+                74,
+                "            public string ProjectName { get; }"
+            ],
+            [
+                75,
+                "            public NameManager Names { get; }"
+            ],
+            [
+                76,
+                "            public int IndentationLevel { get; set; } = 0;"
+            ],
+            [
+                77,
+                ""
+            ],
+            [
+                78,
+                "            public CompilationContext(string projectName)"
+            ],
+            [
+                79,
+                "            {"
+            ],
+            [
+                80,
+                "                ProjectName = projectName;"
+            ],
+            [
+                81,
+                "                Names = new NameManager($\"P_{projectName.ToUpperInvariant()}_\");"
+            ],
+            [
+                82,
+                "            }"
+            ],
+            [
+                83,
+                "        }"
+            ]
+        ]
+    },
+    "num_lines_added": 339,
+    "num_lines_removed": 19
+}

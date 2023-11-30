@@ -1,0 +1,213 @@
+{
+    "hash": "f850c558dcd19fc5ababca5c909183a742f989b4",
+    "message": "Removing option to save string content to files for streaming, converting async-based content methods back to non-async since no longer working with system IO",
+    "file_num_lines": 89,
+    "diff_parsed": {
+        "added": [
+            [
+                45,
+                "            // Special case if this is a string stream"
+            ],
+            [
+                46,
+                "            if (stream is StringStream stringStream)"
+            ],
+            [
+                47,
+                "            {"
+            ],
+            [
+                48,
+                "                return new StringContent(stringStream.String, mediaType);"
+            ],
+            [
+                49,
+                "            }"
+            ],
+            [
+                50,
+                ""
+            ],
+            [
+                51,
+                "            // Special case if this is a memory stream"
+            ],
+            [
+                62,
+                "            using (MemoryStream bufferStream = stream.CanSeek ? new MemoryStream((int)stream.Length) : executionContext.MemoryStreamFactory.GetStream())"
+            ],
+            [
+                65,
+                ""
+            ],
+            [
+                66,
+                "                // First try getting a buffer segment"
+            ],
+            [
+                67,
+                "                if (bufferStream.TryGetBuffer(out ArraySegment<byte> bufferSegment))"
+            ],
+            [
+                69,
+                "                    return new MemoryContent(bufferSegment.Array, bufferSegment.Offset, bufferSegment.Count, mediaType);"
+            ],
+            [
+                71,
+                ""
+            ],
+            [
+                72,
+                "                // If that fails, copy it to an array"
+            ],
+            [
+                73,
+                "                byte[] buffer = bufferStream.ToArray();"
+            ],
+            [
+                74,
+                "                return new MemoryContent(buffer, mediaType);"
+            ],
+            [
+                125,
+                "        public static IContentProvider GetContentProvider("
+            ],
+            [
+                128,
+                "            executionContext.GetContentProvider(content, null);"
+            ],
+            [
+                130,
+                "        public static IContentProvider GetContentProvider("
+            ],
+            [
+                133,
+                "            string mediaType) => content is null ? new NullContent() : (IContentProvider)new StringContent(content, mediaType);"
+            ]
+        ],
+        "deleted": [
+            [
+                45,
+                "            // Use the stream outright if it's a memory stream and the memory is exposed"
+            ],
+            [
+                56,
+                "            using (MemoryStream bufferStream = stream.CanSeek ? new MemoryStream((int)stream.Length) : new MemoryStream())"
+            ],
+            [
+                59,
+                "                if (!bufferStream.TryGetBuffer(out ArraySegment<byte> bufferSegment))"
+            ],
+            [
+                61,
+                "                    throw new Exception(\"Unexpected inability to get stream buffer\");"
+            ],
+            [
+                63,
+                "                return new MemoryContent(bufferSegment.Array, bufferSegment.Offset, bufferSegment.Count, mediaType);"
+            ],
+            [
+                114,
+                "        public static Task<IContentProvider> GetContentProviderAsync("
+            ],
+            [
+                117,
+                "            executionContext.GetContentProviderAsync(content, null);"
+            ],
+            [
+                119,
+                "        public static async Task<IContentProvider> GetContentProviderAsync("
+            ],
+            [
+                122,
+                "            string mediaType)"
+            ],
+            [
+                123,
+                "        {"
+            ],
+            [
+                124,
+                "            if (content is null)"
+            ],
+            [
+                125,
+                "            {"
+            ],
+            [
+                126,
+                "                return new NullContent();"
+            ],
+            [
+                127,
+                "            }"
+            ],
+            [
+                128,
+                ""
+            ],
+            [
+                129,
+                "            // How should the string be stored?"
+            ],
+            [
+                130,
+                "            if (executionContext.Settings.GetBool(Keys.UseStringContentFiles))"
+            ],
+            [
+                131,
+                "            {"
+            ],
+            [
+                132,
+                "                // Use a temp file for strings"
+            ],
+            [
+                133,
+                "                IFile tempFile = executionContext.FileSystem.GetTempFile();"
+            ],
+            [
+                134,
+                "                if (!string.IsNullOrEmpty(content))"
+            ],
+            [
+                135,
+                "                {"
+            ],
+            [
+                136,
+                "                    await tempFile.WriteAllTextAsync(content, cancellationToken: executionContext.CancellationToken);"
+            ],
+            [
+                137,
+                "                }"
+            ],
+            [
+                138,
+                "                return new FileContent(tempFile, mediaType);"
+            ],
+            [
+                139,
+                "            }"
+            ],
+            [
+                140,
+                ""
+            ],
+            [
+                141,
+                "            // Otherwise use the string that's already in memory"
+            ],
+            [
+                142,
+                "            return new StringContent(content, mediaType);"
+            ],
+            [
+                143,
+                "        }"
+            ]
+        ]
+    },
+    "num_lines_added": 20,
+    "num_lines_removed": 30
+}

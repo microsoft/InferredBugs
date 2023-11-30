@@ -1,0 +1,47 @@
+        [SetUp]
+        public void SetUp()
+        {
+            var mockSupplier = new SyncKafkaSupplier();
+            var consumerConfig = new ConsumerConfig();
+            consumerConfig.GroupId = "global-consulmer";
+            var globalConsumer = mockSupplier.GetConsumer(consumerConfig, null);
+            
+            streamConfigMock = new Mock<IStreamConfig>();
+            streamConfigMock.Setup(c => c.StateDir).Returns(".");
+            streamConfigMock.Setup(c => c.ApplicationId).Returns("app");
+
+            kvStoreMock = CreateMockStore<IKeyValueStore<object, object>>(kvStoreName);
+            otherStoreMock = CreateMockStore<IKeyValueStore<object, object>>(otherStoreName);
+            var globalStateStores = new Dictionary<string, IStateStore>() {
+                { kvStoreMock.Object.Name, kvStoreMock.Object },
+                { otherStoreMock.Object.Name, otherStoreMock.Object }
+            };
+            var storesToTopics = new Dictionary<string, string>() {
+                { kvStoreMock.Object.Name, kvStoreTopic },
+                { otherStoreMock.Object.Name, otherStoreTopic }
+            };
+
+            topology = new ProcessorTopology(
+                    null,
+                    new Dictionary<string, IProcessor>(),
+                    new Dictionary<string, IProcessor>(),
+                    new Dictionary<string, IProcessor>(),
+                    new Dictionary<string, IStateStore>(),
+                    globalStateStores,
+                    storesToTopics);
+
+            adminClientMock = new Mock<IAdminClient>();
+            RegisterPartitionInAdminClient(kvStoreTopic);
+            RegisterPartitionInAdminClient(otherStoreTopic);
+
+            stateManager = new GlobalStateManager(globalConsumer, topology,
+                    adminClientMock.Object,
+                    streamConfigMock.Object
+                );
+
+            context = new GlobalProcessorContext(
+                streamConfigMock.Object,
+                stateManager);
+            
+            stateManager.SetGlobalProcessorContext(context);
+        }

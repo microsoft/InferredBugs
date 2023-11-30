@@ -1,0 +1,253 @@
+{
+    "hash": "6054733a445ba5259c4c9ea98f693470adacda5c",
+    "message": "Use Unreflect instead of MemberInvoker",
+    "file_num_lines": 257,
+    "diff_parsed": {
+        "added": [
+            [
+                25,
+                "        private Method(MethodInfo method, Expression<D> lambda)"
+            ],
+            [
+                26,
+                "        {"
+            ],
+            [
+                27,
+                "            this.method = method;"
+            ],
+            [
+                28,
+                "            invoker = lambda.Compile();"
+            ],
+            [
+                29,
+                "        }"
+            ],
+            [
+                30,
+                ""
+            ],
+            [
+                216,
+                "        private static Method<D> Unreflect(MethodInfo method, ParameterExpression thisParam, Type argumentsType, Type returnType)"
+            ],
+            [
+                217,
+                "        {"
+            ],
+            [
+                218,
+                "            var (_, arglist, input) = Signature.Reflect(argumentsType);"
+            ],
+            [
+                219,
+                "            var postExpressions = new LinkedList<Expression>();"
+            ],
+            [
+                220,
+                "            var locals = new LinkedList<ParameterExpression>();"
+            ],
+            [
+                221,
+                "            //adjust THIS"
+            ],
+            [
+                222,
+                "            Expression thisArg;"
+            ],
+            [
+                223,
+                "            if(thisParam is null)"
+            ],
+            [
+                224,
+                "                thisArg = null;"
+            ],
+            [
+                225,
+                "            else if(method.DeclaringType.IsImplicitlyConvertibleFrom(method.DeclaringType))"
+            ],
+            [
+                226,
+                "                thisArg = thisParam;"
+            ],
+            [
+                227,
+                "            else if(thisParam.Type == typeof(object))"
+            ],
+            [
+                228,
+                "                thisArg = Expression.Convert(thisParam, method.DeclaringType);"
+            ],
+            [
+                229,
+                "            else"
+            ],
+            [
+                230,
+                "                return null;"
+            ],
+            [
+                231,
+                "            //adjust arguments"
+            ],
+            [
+                232,
+                "            if(!Signature.NormalizeParameters(method.GetParameterTypes(), arglist, locals, postExpressions))"
+            ],
+            [
+                233,
+                "                return null;"
+            ],
+            [
+                234,
+                "            Expression body = Expression.Call(thisArg, method, arglist);"
+            ],
+            [
+                235,
+                "            postExpressions.AddFirst(body);"
+            ],
+            [
+                236,
+                "            //adjust return type"
+            ],
+            [
+                237,
+                "            if(returnType == typeof(void) || returnType.IsImplicitlyConvertibleFrom(method.ReturnType))"
+            ],
+            [
+                238,
+                "            {"
+            ],
+            [
+                239,
+                "                //nothing to do"
+            ],
+            [
+                240,
+                "            }"
+            ],
+            [
+                241,
+                "            else if(returnType == typeof(object))"
+            ],
+            [
+                242,
+                "                body = Expression.Convert(body, method.ReturnType);"
+            ],
+            [
+                243,
+                "            else"
+            ],
+            [
+                244,
+                "                return null;"
+            ],
+            [
+                245,
+                "            body = postExpressions.Count == 1 ? postExpressions.First.Value : Expression.Block(locals, postExpressions);"
+            ],
+            [
+                246,
+                "            return new Method<D>(method, thisParam is null ? Expression.Lambda<D>(body, input) : Expression.Lambda<D>(body, thisParam, input));"
+            ],
+            [
+                247,
+                "        }"
+            ],
+            [
+                248,
+                ""
+            ],
+            [
+                253,
+                "                return Unreflect(method, null, argumentsType, returnType);"
+            ],
+            [
+                255,
+                "                return Unreflect(method, null, delegateType.GetGenericArguments()[0], typeof(void));"
+            ],
+            [
+                266,
+                "                return Unreflect(method, Expression.Parameter(thisParam.MakeByRefType()), argumentsType, returnType);"
+            ],
+            [
+                268,
+                "                return Unreflect(method, Expression.Parameter(thisParam.MakeByRefType()), argumentsType, typeof(void));"
+            ]
+        ],
+        "deleted": [
+            [
+                214,
+                "            {"
+            ],
+            [
+                215,
+                "                var (parameters, arglist, input) = Signature.Reflect(argumentsType);"
+            ],
+            [
+                216,
+                "                return returnType == method.ReturnType && method.SignatureEquals(parameters) ? new Method<D>(method, arglist, new[]{ input }) : null;"
+            ],
+            [
+                217,
+                "            }"
+            ],
+            [
+                219,
+                "            {"
+            ],
+            [
+                220,
+                "                argumentsType = delegateType.GetGenericArguments()[0];"
+            ],
+            [
+                221,
+                "                var (parameters, arglist, input) = Signature.Reflect(argumentsType);"
+            ],
+            [
+                222,
+                "                return typeof(void) == method.ReturnType && method.SignatureEquals(parameters) ? new Method<D>(method, arglist, new[]{ input }) : null;"
+            ],
+            [
+                223,
+                "            }"
+            ],
+            [
+                234,
+                "            {"
+            ],
+            [
+                235,
+                "                var (parameters, arglist, input) = Signature.Reflect(argumentsType);"
+            ],
+            [
+                236,
+                "                return thisParam.IsAssignableFrom(method.DeclaringType) && returnType == method.ReturnType && method.SignatureEquals(parameters) ? new Method<D>(method, Expression.Parameter(thisParam.MakeByRefType(), \"this\"), arglist, new[]{ input }) : null;"
+            ],
+            [
+                237,
+                "            }"
+            ],
+            [
+                239,
+                "            {"
+            ],
+            [
+                240,
+                "                var (parameters, arglist, input) = Signature.Reflect(argumentsType);"
+            ],
+            [
+                241,
+                "                return thisParam.IsAssignableFrom(method.DeclaringType) && typeof(void) == method.ReturnType && method.SignatureEquals(parameters) ? new Method<D>(method, Expression.Parameter(thisParam.MakeByRefType(), \"this\"), arglist, new[]{ input }) : null;"
+            ],
+            [
+                242,
+                "            }"
+            ]
+        ]
+    },
+    "num_lines_added": 43,
+    "num_lines_removed": 17
+}

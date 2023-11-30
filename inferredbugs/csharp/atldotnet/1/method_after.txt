@@ -1,0 +1,23 @@
+        public static MemoryStream FixBrokenJPEG(ref MemoryStream s)
+        {
+            MemoryStream mem = new MemoryStream(s.Capacity);
+
+            using(BinaryReader r = new BinaryReader(s))
+            using (BinaryWriter w = new BinaryWriter(mem))
+            {
+                byte prevB = 0;
+                byte b;
+
+                s.Seek(0, SeekOrigin.Begin);
+                while (s.Position < s.Length)
+                {
+                    b = r.ReadByte();
+                    if ((0xFF == prevB) && (0x00 == b)) b = r.ReadByte();
+
+                    w.Write(b);
+                    prevB = b;
+                }
+            }
+
+            return mem;
+        }

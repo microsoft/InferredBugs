@@ -1,0 +1,44 @@
+        private static void ReadTextureInfo(IFile file, BinaryReader br, ModelData data, DataStructures.Models.Model model, int numTextures, int textureIndex)
+        {
+            if (data.Version == MDLVersionGoldsource)
+            {
+                var tempBr = br;
+                if (numTextures == 0)
+                {
+                    var texFile = file.Parent.GetFile(file.NameWithoutExtension + "T." + file.Extension);
+                    tempBr = new BinaryReader(texFile.Open());
+                    // TODO: read texture header, etc, etc?
+                    br.BaseStream.Position = 180;
+                    numTextures = br.ReadInt32();
+                    textureIndex = br.ReadInt32();
+                }
+                tempBr.BaseStream.Position = textureIndex;
+                for (var i = 0; i < numTextures; i++)
+                {
+                    var name = br.ReadFixedLengthString(Encoding.ASCII, 64);
+                    var flags = br.ReadInt32();
+                    var width = br.ReadInt32();
+                    var height = br.ReadInt32();
+                    var index = br.ReadInt32();
+
+                    var savedPosition = br.BaseStream.Position;
+                    br.BaseStream.Position = index;
+
+                    var indices = br.ReadBytes(width * height);
+                    var paletteSize = indices.Max();
+                    var palette = br.ReadBytes(paletteSize * 3);
+
+                    br.BaseStream.Position = savedPosition;
+                }
+                //
+                if (numTextures == 0)
+                {
+                    tempBr.BaseStream.Dispose();
+                    tempBr.Dispose();
+                }
+            }
+            else if (data.Version >= MDLVersionSource2006)
+            {
+                
+            }
+        }

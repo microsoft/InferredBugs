@@ -1,0 +1,20 @@
+        IConfigurationSection IConfiguration.GetSection(string key)
+        {
+            int firstSeparator = key.IndexOf(':');
+            string rootKey = firstSeparator >= 0 ? key[..firstSeparator] : key;
+            if (TryGetRaw(rootKey, out object rawValue))
+            {
+                // The rawValue will always be a SettingsValue so unwrap it
+                rawValue = ((SettingsValue)rawValue).Get(default, default);
+                IConfigurationSection section = GetConfigurationSection(rootKey, rawValue);
+                if (firstSeparator >= 0)
+                {
+                    // This is a nested key
+                    section = section.GetSection(key[(firstSeparator + 1) ..]);
+                }
+                return section;
+            }
+
+            // This isn't a valid root key, so return a blank section
+            return new SettingsConfigurationSection(key[(key.LastIndexOf(':') + 1) ..], key, default);
+        }

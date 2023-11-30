@@ -1,0 +1,50 @@
+        public void DeleteEntry(String myLuceneQuery, Predicate<LuceneEntry> select = null)
+        {
+            if (myLuceneQuery == null)
+            {
+                throw new InvalidOperationException("myLuceneQuery parameter cannot be null!");
+            }
+
+            if (select != null)
+            {
+                // if predicate is given, we need to query first
+                LuceneReturn ret = null;
+
+                ret = GetEntries(1, myLuceneQuery);
+                if (ret.TotalHits > 1)
+                {
+                    ret.Close();
+                    ret = GetEntries(ret.TotalHits, myLuceneQuery);
+                }
+
+                List<Term> delterms = new List<Term>();
+
+                foreach (var entry in ret)
+                {
+                    if (select(entry))
+                    {
+                        delterms.Add(new Term(LuceneIndex.FieldNames[LuceneIndex.Fields.ID], entry.Id));
+                    }
+                }
+                ret.Close();
+
+                _IndexWriter.DeleteDocuments(delterms.ToArray());
+            }
+            else
+            {
+                var queryparser = new QueryParser(Lucene.Net.Util.Version.LUCENE_29, FieldNames[Fields.TEXT], new StandardAnalyzer(Lucene.Net.Util.Version.LUCENE_29));
+                Query parsedquery;
+                try
+                {
+                    parsedquery = queryparser.Parse(myLuceneQuery);
+                }
+                catch (ParseException)
+                {
+                    return;
+                }
+
+                _IndexWriter.DeleteDocuments(parsedquery);
+            }
+
+            _IndexWriter.Commit();
+        }

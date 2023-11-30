@@ -1,0 +1,25 @@
+        public IReadOnlyList<CompiledFile> GenerateCode(ITranslationErrorHandler handler, ICompilerOutput log, string projectName,
+                                                        Scope globalScope)
+        {
+            // Manages job-specific state so that jobs can be parallelized
+            var context = new CompilationContext(projectName);
+
+            // Create header and source files.
+            var cHeader = new CompiledFile($"{projectName}.h");
+            var cSource = new CompiledFile($"{projectName}.c");
+
+            // Write the header file
+            WriteGenericHeader(context, cHeader.Stream);
+
+            foreach (IPDecl decl in globalScope.AllDecls)
+            {
+                WriteForwardDeclaration(context, cHeader.Stream, decl);
+            }
+
+            WriteGenericFooter(context, cHeader.Stream);
+
+            // TODO: write the source
+
+            // All done! Return the compiled files.
+            return new List<CompiledFile> {cHeader, cSource};
+        }

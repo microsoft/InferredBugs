@@ -1,0 +1,697 @@
+{
+    "hash": "0e9411cf2e11d52fda47ce6c8c87875eed1c2bde",
+    "message": "Added client TCP support",
+    "file_num_lines": 292,
+    "diff_parsed": {
+        "added": [
+            [
+                8,
+                "using System.IO;"
+            ],
+            [
+                18,
+                "        private IRequestResolver resolver;"
+            ],
+            [
+                57,
+                "        public Client(IPEndPoint dns, IRequestResolver resolver = null) {"
+            ],
+            [
+                59,
+                "            this.resolver = resolver == null ? new UdpRequestResolver(new TcpRequestResolver()) : resolver;"
+            ],
+            [
+                62,
+                "        public Client(IPAddress ip, int port = DEFAULT_PORT, IRequestResolver resolver = null) :"
+            ],
+            [
+                63,
+                "            this(new IPEndPoint(ip, port), resolver) {}"
+            ],
+            [
+                64,
+                "        public Client(string ip, int port = DEFAULT_PORT, IRequestResolver resolver = null) :"
+            ],
+            [
+                65,
+                "            this(IPAddress.Parse(ip), port, resolver) { }"
+            ],
+            [
+                69,
+                "            return new ClientRequest(dns, request, resolver);"
+            ],
+            [
+                73,
+                "            return new ClientRequest(dns, request, resolver);"
+            ],
+            [
+                148,
+                "    public interface IRequestResolver {"
+            ],
+            [
+                149,
+                "        ClientResponse Request(ClientRequest request);"
+            ],
+            [
+                150,
+                "    }"
+            ],
+            [
+                151,
+                ""
+            ],
+            [
+                152,
+                "    public class NullRequestResolver : IRequestResolver {"
+            ],
+            [
+                153,
+                "        public ClientResponse Request(ClientRequest request) {"
+            ],
+            [
+                154,
+                "            throw new ResponseException(\"Request failed\");"
+            ],
+            [
+                155,
+                "        }"
+            ],
+            [
+                156,
+                "    }"
+            ],
+            [
+                157,
+                ""
+            ],
+            [
+                158,
+                "    public class UdpRequestResolver : IRequestResolver {"
+            ],
+            [
+                159,
+                "        private IRequestResolver fallback;"
+            ],
+            [
+                160,
+                ""
+            ],
+            [
+                161,
+                "        public UdpRequestResolver(IRequestResolver fallback) {"
+            ],
+            [
+                162,
+                "            this.fallback = fallback;"
+            ],
+            [
+                163,
+                "        }"
+            ],
+            [
+                164,
+                ""
+            ],
+            [
+                165,
+                "        public UdpRequestResolver() {"
+            ],
+            [
+                166,
+                "            this.fallback = new NullRequestResolver();"
+            ],
+            [
+                167,
+                "        }"
+            ],
+            [
+                168,
+                ""
+            ],
+            [
+                169,
+                "        public ClientResponse Request(ClientRequest request) {"
+            ],
+            [
+                170,
+                "            UdpClient udp = new UdpClient();"
+            ],
+            [
+                171,
+                "            IPEndPoint dns = request.Dns;"
+            ],
+            [
+                172,
+                ""
+            ],
+            [
+                173,
+                "            try {"
+            ],
+            [
+                174,
+                "                udp.Connect(dns);"
+            ],
+            [
+                175,
+                "                udp.Send(request.ToArray(), request.Size);"
+            ],
+            [
+                176,
+                ""
+            ],
+            [
+                177,
+                "                byte[] buffer = udp.Receive(ref dns);"
+            ],
+            [
+                178,
+                "                Response response = Response.FromArray(buffer); //null;"
+            ],
+            [
+                179,
+                ""
+            ],
+            [
+                180,
+                "                if (response.Truncated) {"
+            ],
+            [
+                181,
+                "                    return fallback.Request(request);"
+            ],
+            [
+                182,
+                "                }"
+            ],
+            [
+                183,
+                ""
+            ],
+            [
+                184,
+                "                //try {"
+            ],
+            [
+                185,
+                "                //    response = Response.FromArray(buffer);"
+            ],
+            [
+                186,
+                "                /*} catch (ArgumentException e) {"
+            ],
+            [
+                187,
+                "                    throw new ResponseException(\"Invalid response\", e);"
+            ],
+            [
+                188,
+                "                }*/"
+            ],
+            [
+                189,
+                ""
+            ],
+            [
+                190,
+                "                /*if (response.Id != request.Id) {"
+            ],
+            [
+                191,
+                "                    throw new ResponseException(response, \"Mismatching request/response IDs\");"
+            ],
+            [
+                192,
+                "                }"
+            ],
+            [
+                193,
+                "                if (response.ResponseCode != ResponseCode.NoError) {"
+            ],
+            [
+                194,
+                "                    throw new ResponseException(response);"
+            ],
+            [
+                195,
+                "                }*/"
+            ],
+            [
+                196,
+                ""
+            ],
+            [
+                197,
+                "                return new ClientResponse(request, response, buffer);"
+            ],
+            [
+                198,
+                "            } finally {"
+            ],
+            [
+                199,
+                "                udp.Close();"
+            ],
+            [
+                200,
+                "            }"
+            ],
+            [
+                201,
+                "        }"
+            ],
+            [
+                202,
+                "    }"
+            ],
+            [
+                203,
+                ""
+            ],
+            [
+                204,
+                "    public class TcpRequestResolver : IRequestResolver {"
+            ],
+            [
+                205,
+                "        public ClientResponse Request(ClientRequest request) {"
+            ],
+            [
+                206,
+                "            TcpClient tcp = new TcpClient();"
+            ],
+            [
+                207,
+                ""
+            ],
+            [
+                208,
+                "            try {"
+            ],
+            [
+                209,
+                "                tcp.Connect(request.Dns);"
+            ],
+            [
+                210,
+                ""
+            ],
+            [
+                211,
+                "                Stream stream = tcp.GetStream();"
+            ],
+            [
+                212,
+                "                byte[] buffer = request.ToArray(true);"
+            ],
+            [
+                213,
+                ""
+            ],
+            [
+                214,
+                "                stream.Write(buffer, 0, buffer.Length);"
+            ],
+            [
+                215,
+                ""
+            ],
+            [
+                216,
+                "                buffer = new byte[2];"
+            ],
+            [
+                217,
+                "                Read(stream, buffer);"
+            ],
+            [
+                218,
+                ""
+            ],
+            [
+                219,
+                "                if (BitConverter.IsLittleEndian) {"
+            ],
+            [
+                220,
+                "                    Array.Reverse(buffer);"
+            ],
+            [
+                221,
+                "                }"
+            ],
+            [
+                222,
+                ""
+            ],
+            [
+                223,
+                "                buffer = new byte[BitConverter.ToUInt16(buffer, 0)];"
+            ],
+            [
+                224,
+                "                Read(stream, buffer);"
+            ],
+            [
+                225,
+                ""
+            ],
+            [
+                226,
+                "                Response response = Response.FromArray(buffer);"
+            ],
+            [
+                227,
+                ""
+            ],
+            [
+                228,
+                "                return new ClientResponse(request, response, buffer);"
+            ],
+            [
+                229,
+                "            } finally {"
+            ],
+            [
+                230,
+                "                tcp.Close();"
+            ],
+            [
+                231,
+                "            }"
+            ],
+            [
+                232,
+                "        }"
+            ],
+            [
+                233,
+                ""
+            ],
+            [
+                234,
+                "        private static void Read(Stream stream, byte[] buffer) {"
+            ],
+            [
+                235,
+                "            int length = buffer.Length;"
+            ],
+            [
+                236,
+                "            int offset = 0;"
+            ],
+            [
+                237,
+                "            int size = 0;"
+            ],
+            [
+                238,
+                ""
+            ],
+            [
+                239,
+                "            while (length > 0 && (size = stream.Read(buffer, offset, length)) > 0) {"
+            ],
+            [
+                240,
+                "                offset += size;"
+            ],
+            [
+                241,
+                "                length -= size;"
+            ],
+            [
+                242,
+                "            }"
+            ],
+            [
+                243,
+                ""
+            ],
+            [
+                244,
+                "            if (length > 0) {"
+            ],
+            [
+                245,
+                "                throw new IOException(\"Unexpected end of stream\");"
+            ],
+            [
+                246,
+                "            }"
+            ],
+            [
+                247,
+                "        }"
+            ],
+            [
+                248,
+                "    }"
+            ],
+            [
+                249,
+                ""
+            ],
+            [
+                267,
+                "            OriginalMessage = response.ToArray(false);"
+            ],
+            [
+                321,
+                "        public bool Truncated {"
+            ],
+            [
+                322,
+                "            get { return response.Truncated; }"
+            ],
+            [
+                323,
+                "            set { }"
+            ],
+            [
+                324,
+                "        }"
+            ],
+            [
+                325,
+                ""
+            ],
+            [
+                344,
+                "        public byte[] ToArray(bool lengthPrefix = false) {"
+            ],
+            [
+                345,
+                "            return response.ToArray(lengthPrefix);"
+            ],
+            [
+                357,
+                "        private IRequestResolver resolver;"
+            ],
+            [
+                369,
+                "        public ClientRequest(IPEndPoint dns, IRequest request = null, IRequestResolver resolver = null) {"
+            ],
+            [
+                372,
+                "            this.resolver = resolver == null ? new UdpRequestResolver() : resolver;"
+            ],
+            [
+                375,
+                "        public ClientRequest(IPAddress ip, int port = DEFAULT_PORT, IRequest request = null, IRequestResolver resolver = null) :"
+            ],
+            [
+                376,
+                "            this(new IPEndPoint(ip, port), request, resolver) {}"
+            ],
+            [
+                378,
+                "        public ClientRequest(string ip, int port = DEFAULT_PORT, IRequest request = null, IRequestResolver resolver = null) :"
+            ],
+            [
+                379,
+                "            this(IPAddress.Parse(ip), port, request, resolver) {}"
+            ],
+            [
+                417,
+                "        public byte[] ToArray(bool lengthPrefix = false) {"
+            ],
+            [
+                418,
+                "            return request.ToArray(lengthPrefix);"
+            ],
+            [
+                430,
+                "        /// <summary>"
+            ],
+            [
+                431,
+                "        /// Resolves this request into a response using the provided DNS information. The given"
+            ],
+            [
+                432,
+                "        /// request strategy is used to retrieve the response."
+            ],
+            [
+                433,
+                "        /// </summary>"
+            ],
+            [
+                434,
+                "        /// <exception cref=\"ResponseException\">Throw if a malformed response is received from the server</exception>"
+            ],
+            [
+                435,
+                "        /// <exception cref=\"IOException\">Thrown if a IO error occurs</exception>"
+            ],
+            [
+                436,
+                "        /// <exception cref=\"SocketException\">Thrown if a the reading or writing to the socket fials</exception>"
+            ],
+            [
+                437,
+                "        /// <returns>The response received from server</returns>"
+            ],
+            [
+                439,
+                "            try {"
+            ],
+            [
+                440,
+                "                ClientResponse response = resolver.Request(this);"
+            ],
+            [
+                441,
+                ""
+            ],
+            [
+                442,
+                "                if (response.Id != this.Id) {"
+            ],
+            [
+                443,
+                "                    throw new ResponseException(response, \"Mismatching request/response IDs\");"
+            ],
+            [
+                444,
+                "                }"
+            ],
+            [
+                445,
+                "                if (response.ResponseCode != ResponseCode.NoError) {"
+            ],
+            [
+                446,
+                "                    throw new ResponseException(response);"
+            ],
+            [
+                447,
+                "                }"
+            ],
+            [
+                448,
+                ""
+            ],
+            [
+                449,
+                "                return response;"
+            ],
+            [
+                450,
+                "            } catch (ArgumentException e) {"
+            ],
+            [
+                451,
+                "                throw new ResponseException(\"Invalid response\", e);"
+            ],
+            [
+                452,
+                "            }"
+            ],
+            [
+                453,
+                ""
+            ],
+            [
+                454,
+                "            /*UdpClient udp = new UdpClient();"
+            ],
+            [
+                479,
+                "            }*/"
+            ]
+        ],
+        "deleted": [
+            [
+                55,
+                "        public Client(IPEndPoint dns) {"
+            ],
+            [
+                59,
+                "        public Client(IPAddress ip, int port = DEFAULT_PORT) : this(new IPEndPoint(ip, port)) {}"
+            ],
+            [
+                60,
+                "        public Client(string ip, int port = DEFAULT_PORT) : this(IPAddress.Parse(ip), port) {}"
+            ],
+            [
+                64,
+                "            return new ClientRequest(dns, request);"
+            ],
+            [
+                68,
+                "            return new ClientRequest(dns, request);"
+            ],
+            [
+                160,
+                "            OriginalMessage = response.ToArray();"
+            ],
+            [
+                232,
+                "        public byte[] ToArray() {"
+            ],
+            [
+                233,
+                "            return response.ToArray();"
+            ],
+            [
+                256,
+                "        public ClientRequest(IPEndPoint dns, IRequest request = null) {"
+            ],
+            [
+                261,
+                "        public ClientRequest(IPAddress ip, int port = DEFAULT_PORT, IRequest request = null) :"
+            ],
+            [
+                262,
+                "            this(new IPEndPoint(ip, port), request) {}"
+            ],
+            [
+                264,
+                "        public ClientRequest(string ip, int port = DEFAULT_PORT, IRequest request = null) :"
+            ],
+            [
+                265,
+                "            this(IPAddress.Parse(ip), port, request) {}"
+            ],
+            [
+                303,
+                "        public byte[] ToArray() {"
+            ],
+            [
+                304,
+                "            return request.ToArray();"
+            ],
+            [
+                317,
+                "            UdpClient udp = new UdpClient();"
+            ],
+            [
+                342,
+                "            }"
+            ]
+        ]
+    },
+    "num_lines_added": 154,
+    "num_lines_removed": 17
+}

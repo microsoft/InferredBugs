@@ -1,0 +1,55 @@
+        private bool Verify(Stream inputStream, Stream publicKeyStream)
+        {
+            PgpPublicKey publicKey = Utilities.ReadPublicKey(publicKeyStream);
+            bool verified = false;
+
+            System.IO.Stream encodedFile = PgpUtilities.GetDecoderStream(inputStream);
+            PgpObjectFactory factory = new PgpObjectFactory(encodedFile);
+            PgpObject pgpObject = factory.NextPgpObject();
+
+            if (pgpObject is PgpCompressedData)
+            {
+                PgpPublicKeyEncryptedData publicKeyED = Utilities.ExtractPublicKeyEncryptedData(encodedFile);
+
+                if (publicKeyED.KeyId == publicKey.KeyId)
+                {
+                    verified = true;
+                }
+                else
+                {
+                    verified = false;
+                }
+            }
+            else if (pgpObject is PgpEncryptedDataList)
+            {
+                PgpEncryptedDataList encryptedDataList = (PgpEncryptedDataList)pgpObject;
+                PgpPublicKeyEncryptedData publicKeyED = Utilities.ExtractPublicKey(encryptedDataList);
+
+                if (publicKeyED.KeyId == publicKey.KeyId)
+                {
+                    verified = true;
+                }
+                else
+                {
+                    verified = false;
+                }
+            }
+            else if (pgpObject is PgpOnePassSignatureList)
+            {
+                PgpOnePassSignatureList pgpOnePassSignatureList = (PgpOnePassSignatureList)pgpObject;
+                PgpOnePassSignature pgpOnePassSignature = pgpOnePassSignatureList[0];
+
+                if (pgpOnePassSignature.KeyId == publicKey.KeyId)
+                {
+                    verified = true;
+                }
+                else
+                {
+                    verified = false;
+                }
+            }
+            else
+                throw new PgpException("Message is not a encrypted and signed file or simple signed file.");
+
+            return verified;
+        }

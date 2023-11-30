@@ -1,0 +1,46 @@
+        [Test]
+        public void ShouldAcceptQuestionMarkInIndexValue()
+        {
+            //Arrange
+            var indexKeyValues = new Dictionary<string, object>
+                {
+                    {"FooKey", "foo?bar"}
+                };
+            var indexEntries = new List<IndexEntry>
+                {
+                    new IndexEntry
+                        {
+                            Name = "my_nodes",
+                            KeyValues = indexKeyValues,
+                        }
+                };
+
+            using (var testHarness = new RestTestHarness
+                {
+                    {
+                        MockRequest.PostObjectAsJson("/index/node/my_nodes",
+                                                     new
+                                                         {
+                                                             key = "FooKey",
+                                                             value = "foo?bar",
+                                                             uri = "http://foo/db/data/node/123"
+                                                         }),
+                        MockResponse.Json(HttpStatusCode.Created,
+                                          @"Location: http://foo/db/data/index/node/my_nodes/FooKey/%3f/123")
+                    },
+                    {
+                        MockRequest.Delete("/index/node/my_nodes/123"),
+                        MockResponse.Http((int) HttpStatusCode.NoContent)
+                    }
+                })
+            {
+                var graphClient = testHarness.CreateAndConnectGraphClient();
+
+                //Act
+                var nodeReference = new NodeReference<TestNode>(123);
+                graphClient.ReIndex(nodeReference, indexEntries);
+
+                // Assert
+                Assert.Pass("Success.");
+            }
+        }

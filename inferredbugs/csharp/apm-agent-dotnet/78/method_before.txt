@@ -1,0 +1,23 @@
+  [Fact]
+		public void ParseHttpResponse_ShouldLogUnknownKeys()
+		{
+			// Arrange
+			var testLogger = new TestLogger(LogLevel.Information);
+			var parser = new CentralConfigResponseParser(testLogger);
+
+			var response = new HttpResponseMessage
+			{
+				StatusCode = HttpStatusCode.OK,
+				Headers = { ETag = new EntityTagHeaderValue("\"33a64df551425fcc55e4d42a148795d9f25f89d4\"") }
+			};
+
+			// Act
+			parser.ParseHttpResponse(response, "{\"unknownKey\": \"value\"}");
+
+			// Assert
+			testLogger.Lines.Count.Should().Be(1);
+			testLogger.Lines[0]
+				.Should()
+				.Contain(
+					"Central configuration response contains keys that are not in the list of options that can be changed after Agent start: `[unknownKey, value]'");
+		}

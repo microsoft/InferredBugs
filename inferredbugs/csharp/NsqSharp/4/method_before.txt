@@ -1,0 +1,57 @@
+        [Test]
+        public void TestProducerHeartbeat()
+        {
+            var topicName = "heartbeat" + DateTime.Now.Unix();
+
+            var config = new Config();
+            config.HeartbeatInterval = TimeSpan.FromMilliseconds(100);
+            var w = new Producer("127.0.0.1:4150", config);
+            w.SetLogger(new ConsoleLogger(), LogLevel.Debug);
+
+            try
+            {
+                ErrIdentify errIdentify = null;
+                try
+                {
+                    w.Publish(topicName, "publish_test_case");
+                }
+                catch (ErrIdentify ex)
+                {
+                    errIdentify = ex;
+                }
+
+                Assert.IsNotNull(errIdentify, "ErrIdentify not thrown");
+                Assert.AreEqual("E_BAD_BODY IDENTIFY heartbeat interval (100) is invalid", errIdentify.Reason);
+            }
+            finally
+            {
+                w.Stop();
+            }
+
+            try
+            {
+                config = new Config();
+                config.HeartbeatInterval = TimeSpan.FromMilliseconds(1000);
+                w = new Producer("127.0.0.1:4150", config);
+                w.SetLogger(new ConsoleLogger(), LogLevel.Debug);
+
+                w.Publish(topicName, "publish_test_case");
+
+                // TODO: what are we testing here?
+                Thread.Sleep(1100);
+
+                const int msgCount = 10;
+                for (int i = 0; i < msgCount; i++)
+                {
+                    w.Publish(topicName, "publish_test_case");
+                }
+
+                w.Publish(topicName, "bad_test_case");
+
+                readMessages(topicName, msgCount + 1);
+            }
+            finally
+            {
+                w.Stop();
+            }
+        }

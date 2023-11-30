@@ -1,0 +1,57 @@
+        void DrawClicks(IBitmapEditor Editor, Func<Point, Point> Transform)
+        {
+            if (_mouseClicked && _currentMouseRatio < MouseRatioMax)
+            {
+                _currentMouseRatio += MouseRatioDeltaUp;
+
+                if (_currentMouseRatio > MouseRatioMax)
+                {
+                    _currentMouseRatio = MouseRatioMax;
+                }
+            }
+            else if (!_mouseClicked && _currentMouseRatio > MouseRatioMin)
+            {
+                _currentMouseRatio -= MouseRatioDeltaDown;
+
+                if (_currentMouseRatio < MouseRatioMin)
+                {
+                    _currentMouseRatio = MouseRatioMin;
+                }
+            }
+
+            if (_currentMouseRatio > MouseRatioMin)
+            {
+                var clickRadius = _mouseClickSettings.Radius * _currentMouseRatio;
+
+                var curPos = MouseCursor.CursorPosition;
+
+                if (Transform != null)
+                    curPos = Transform(curPos);
+
+                var d = clickRadius * 2;
+                
+                var x = curPos.X - clickRadius;
+                var y = curPos.Y - clickRadius;
+
+                var color = GetClickCircleColor();
+
+                color = Color.FromArgb(ToByte(color.A * _currentMouseRatio), color);
+
+                Editor.FillEllipse(new SolidBrush(color), new RectangleF(x, y, d, d));
+
+                var border = _mouseClickSettings.BorderThickness * _currentMouseRatio;
+
+                if (border > 0)
+                {
+                    x -= border / 2f;
+                    y -= border / 2f;
+                    d += border;
+
+                    var borderColor = _mouseClickSettings.BorderColor;
+
+                    borderColor = Color.FromArgb(ToByte(borderColor.A * _currentMouseRatio), borderColor);
+
+                    Editor.DrawEllipse(new Pen(borderColor, border), new RectangleF(x, y, d, d));
+                }
+            }
+        }

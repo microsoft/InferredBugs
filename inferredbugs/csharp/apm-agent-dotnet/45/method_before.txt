@@ -1,0 +1,18 @@
+  private MockPayloadSender AssertWith1Transaction(Action<ApmAgent> action)
+		{
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			action(agent);
+
+			payloadSender.Payloads.Should().NotBeEmpty();
+			payloadSender.Payloads[0].Transactions.Should().NotBeEmpty();
+
+			payloadSender.Payloads[0].Transactions[0].Name.Should().Be(TransactionName);
+			payloadSender.Payloads[0].Transactions[0].Type.Should().Be(TransactionType);
+
+			var duration = payloadSender.Payloads[0].Transactions[0].Duration;
+			duration.Should().BeGreaterOrEqualToMinimumSleepLength();
+
+			return payloadSender;
+		}

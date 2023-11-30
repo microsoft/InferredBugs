@@ -1,0 +1,254 @@
+        private void MoveFocus(string direction, int fromGroupIndex, int fromItemIndex)
+        {
+            Tizen.Log.Fatal("NUI", ">>>>>>>>> direction: " + direction + " fromGroupIndex: " + fromGroupIndex + " fromItemIndex: " + fromItemIndex);
+            Cell curFocusedCell = GetCellByItemIndex(fromGroupIndex, fromItemIndex);
+            //change reference line of focus move
+            if (refXForFocusMove == -1)
+            {
+                refXForFocusMove = curFocusedCell.rect.X;
+            }
+
+            if (refYForFocusMove == -1)
+            {
+                refYForFocusMove = curFocusedCell.rect.Y;
+            }
+            
+            //adjust focused column index based on reference line
+            Group focusedGroup = groupList.ElementAt(fromGroupIndex);
+            int focusedColumnIndex = curFocusedCell.columnIndex;
+
+            Column focusedColumn = focusedGroup.columnList.ElementAt(focusedColumnIndex);
+
+            int destFocusGroupIndex = -2, destFocusItemIndex = -2;
+            int destFocusColumnIndex = -1;
+            switch (direction)
+            {
+                case "Up":
+                    destFocusGroupIndex = fromGroupIndex;
+                    if (curFocusedCell.index == 0)
+                    {
+                        destFocusItemIndex = -1;
+                    }
+                    else
+                    {
+                        Cell nextCell = focusedColumn.cellList.ElementAt(curFocusedCell.index - 1);
+                        {
+                            destFocusItemIndex = nextCell.itemIndex;
+                            if (destFocusItemIndex >= 0 && destFocusItemIndex < groupList.ElementAt(destFocusGroupIndex).itemList.Count)
+                            {
+                                if (GridType.Horizontal == gridType)
+                                {
+                                    refYForFocusMove = nextCell.rect.Y;
+                                }
+                                else
+                                {
+                                    refXForFocusMove = nextCell.rect.X;
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+                case "Down":
+                    destFocusGroupIndex = fromGroupIndex;
+                    int destCellIndex = curFocusedCell.index + 1;
+                    if (destCellIndex >= focusedColumn.cellList.Count || fromItemIndex == focusedGroup.itemList.Count - 1)
+                    {
+                        destFocusItemIndex = -1;
+                        if (fromItemIndex == focusedGroup.itemList.Count - 1)
+                        {
+                            destFocusColumnIndex = focusedColumnIndex - 1;
+                            Cell cellBelow = FindCellBelow(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex);
+                            if (cellBelow != null)
+                            {
+                                destFocusItemIndex = cellBelow.itemIndex;
+                                refXForFocusMove = cellBelow.rect.X;
+                                refYForFocusMove = cellBelow.rect.Y;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Cell nextCell = null;
+                        for (; destCellIndex < focusedColumn.cellList.Count; destCellIndex++)
+                        {
+                            nextCell = focusedColumn.cellList.ElementAt(destCellIndex);
+                            {
+                                break;
+                            }
+                        }
+
+                        if (destCellIndex >= focusedColumn.cellList.Count)
+                        {
+                            destFocusItemIndex = -1;
+                        }
+                        else
+                        {
+                            destFocusItemIndex = nextCell.itemIndex;
+                            if (destFocusItemIndex >= 0 && destFocusItemIndex < groupList.ElementAt(destFocusGroupIndex).itemList.Count)
+                            {
+                                if (GridType.Horizontal == gridType)
+                                {
+                                    refYForFocusMove = nextCell.rect.Y;
+                                }
+                                else
+                                {
+                                    refXForFocusMove = nextCell.rect.X;
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+                case "Left":
+                    if (curFocusedCell.columnIndex == 0)
+                    {
+                        if (fromGroupIndex == 0)
+                        {
+                            if (StateLeftCircularEnable && true/*check whether  allow to loop*/)
+                            {
+                                destFocusGroupIndex = groupList.Count - 1;
+                                destFocusColumnIndex = groupList.ElementAt(destFocusGroupIndex).columnList.Count - 1;
+
+                                GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                                int itemCount = groupList.ElementAt(destFocusGroupIndex).itemList.Count;
+                                while (destFocusItemIndex >= itemCount)
+                                {
+                                    destFocusColumnIndex--;
+                                    GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                                }
+
+                                bool bEnabled = gridBridge.IsItemEnabled(destFocusGroupIndex, destFocusItemIndex);
+                                while (bEnabled == false)
+                                {
+                                    destFocusColumnIndex--;
+                                    GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                                    bEnabled = gridBridge.IsItemEnabled(destFocusGroupIndex, destFocusItemIndex);
+                                }
+
+                                /*ToDo Left Circular*/
+                                SetFocus(destFocusGroupIndex, destFocusItemIndex);
+                                return;
+                            }
+                            else
+                            {
+                                destFocusItemIndex = -1;
+                            }
+
+                        }
+                        else
+                        {
+                            destFocusGroupIndex = fromGroupIndex - 1;
+                            destFocusColumnIndex = groupList.ElementAt(destFocusGroupIndex).columnList.Count - 1;
+
+                            GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                            int itemCount = groupList.ElementAt(destFocusGroupIndex).itemList.Count;
+                            while (destFocusItemIndex >= itemCount)
+                            {
+                                destFocusColumnIndex--;
+                                GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        destFocusGroupIndex = fromGroupIndex;
+                        destFocusColumnIndex = curFocusedCell.columnIndex - 1;
+
+                        GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                    }
+
+                    break;
+                case "Right":
+                    {
+                        focusedColumnIndex = curFocusedCell.columnIndex;
+                    }
+
+                    Tizen.Log.Fatal("NUI", ">>>>>>>>> focusedColumnIndex: " + focusedColumnIndex);
+                    if (focusedColumnIndex == focusedGroup.columnList.Count - 1 || focusedColumnIndex == focusedGroup.lastFilledColumnIndex)
+                    {
+                        if (fromGroupIndex == groupList.Count - 1)
+                        {
+                            if (StateRightCircularEnable && true/*check whether allow right circular*/)
+                            {
+                                destFocusGroupIndex = 0;
+                                destFocusColumnIndex = 0;
+
+                                GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+
+                                bool bEnabled = gridBridge.IsItemEnabled(destFocusGroupIndex, destFocusItemIndex);
+                                while (bEnabled == false && destFocusColumnIndex < focusedGroup.columnList.Count - 1)
+                                {
+                                    destFocusColumnIndex++;
+                                    GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                                    bEnabled = gridBridge.IsItemEnabled(destFocusGroupIndex, destFocusItemIndex);
+
+                                    refXForFocusMove = refYForFocusMove = -1;
+                                }
+
+                                /*ToDo Left Circular*/
+                                SetFocus(destFocusGroupIndex, destFocusItemIndex);
+                                return;
+                            }
+                            else
+                            {
+                                destFocusItemIndex = -1;
+                            }
+                        }
+                        else
+                        {
+                            destFocusGroupIndex = fromGroupIndex + 1;
+                            destFocusColumnIndex = 0;
+
+                            GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                        }
+                    }
+                    else
+                    {
+                        destFocusGroupIndex = fromGroupIndex;
+                        destFocusColumnIndex = focusedColumnIndex + 1;
+
+                        Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusGroupIndex: " + destFocusGroupIndex + " destFocusColumnIndex:" + destFocusColumnIndex);
+                        GetNearestItem(curFocusedCell, destFocusGroupIndex, destFocusColumnIndex, ref destFocusItemIndex, true);
+                        Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusItemIndex: " + destFocusItemIndex);
+
+                        if (StateRightCircularEnable)
+                        {
+                            if (destFocusItemIndex >= groupList.ElementAt(destFocusGroupIndex).itemList.Count)
+                            {
+                                MoveFocus(direction, destFocusGroupIndex, destFocusItemIndex);
+                                return;
+                            }
+                        }
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+
+
+            Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusGroupIndex: " + destFocusGroupIndex + " destFocusColumnIndex:" + destFocusColumnIndex);
+            if (destFocusGroupIndex >= 0 && destFocusItemIndex >= groupList.ElementAt(destFocusGroupIndex).itemList.Count)
+            {
+                destFocusItemIndex = -1;
+            }
+
+            Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusItemIndex: " + destFocusItemIndex);
+            if (destFocusItemIndex == -1)
+            {
+                //notify event focus move out
+                return;
+            }
+
+            if (gridBridge.IsItemEnabled(destFocusGroupIndex, destFocusItemIndex) == false)
+            {
+                MoveFocus(direction, destFocusGroupIndex, destFocusItemIndex);
+            }
+            else
+            {
+                PushFocus(destFocusGroupIndex, destFocusItemIndex);
+            }
+
+            Tizen.Log.Fatal("NUI", ">>>>>>>>> ");
+        }

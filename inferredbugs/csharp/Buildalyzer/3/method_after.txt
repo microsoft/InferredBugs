@@ -1,0 +1,31 @@
+        [TestCaseSource(nameof(_repositories))]
+        public void CompilesProject(string repository)
+        {
+            // Given
+            string[] solutionFiles = CloneOrFetchRepository(repository);
+            foreach (string solutionFile in solutionFiles)
+            {
+                StringWriter log = new StringWriter();
+                AnalyzerManager manager = new AnalyzerManager(solutionFile, new AnalyzerManagerOptions
+                {
+                    LogWriter = log,
+                    LoggerVerbosity = Verbosity
+                });
+
+                foreach (ProjectAnalyzer analyzer in manager.Projects.Values)
+                {
+                    // When
+                    Console.WriteLine(analyzer.ProjectFile.Path);
+                    if (BinaryLog)
+                    {
+                        analyzer.AddBinaryLogger($@"E:\Temp\{Path.GetFileNameWithoutExtension(solutionFile)}.{Path.GetFileNameWithoutExtension(analyzer.ProjectFile.Path)}.integration.core.binlog");
+                    }
+                    AnalyzerResults results = analyzer.Build();
+
+                    // Then
+                    results.Count.ShouldBeGreaterThan(0, log.ToString());
+                    results.First().OverallSuccess.ShouldBeTrue(log.ToString());
+                    results.First().ProjectInstance.ShouldNotBeNull(log.ToString());
+                }
+            }
+        }

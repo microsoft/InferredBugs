@@ -1,0 +1,25 @@
+        [Test]
+        public void TheSnippet()
+        {
+            MsSqlTestHelper.DropTable("events");
+            MsSqlTestHelper.DropTable("counters");
+
+            var eventStore = new MsSqlEventStore(MsSqlTestHelper.ConnectionString, "events", automaticallyCreateSchema: true);
+            var aggregateRootRepository = new DefaultAggregateRootRepository(eventStore);
+            var viewManager = new MsSqlViewManager<CounterView>(MsSqlTestHelper.ConnectionString, "counters", automaticallyCreateSchema: true);
+
+            var eventDispatcher = new ViewManagerEventDispatcher(aggregateRootRepository, eventStore, viewManager);
+
+            var processor = new CommandProcessor(eventStore, aggregateRootRepository, eventDispatcher);
+
+            RegisterForDisposal(processor);
+
+            processor.Initialize();
+
+            var aggregateRootId = Guid.NewGuid();
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 1));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 2));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 3));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 5));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 8));
+        }

@@ -1,0 +1,27 @@
+        [Fact]
+        public void Send_Multiline_Email()
+        {
+            var expectedBody = $"this is the body{Environment.NewLine}line2{Environment.NewLine}line3";
+
+            using (SmtpClient client = new SmtpClient())
+            {
+                client.Connect("localhost", this.server.Configuration.Port, false);
+                var from = new MailboxAddress("carlos@netdumbster.com");
+                var to = new MailboxAddress("karina@netdumbster.com");
+
+                var message = new MimeMessage();
+
+                message.From.Add(from);
+                message.To.Add(to);
+                message.Subject = "test";
+
+                var builder = new BodyBuilder();
+                builder.TextBody = expectedBody;
+
+                message.Body = builder.ToMessageBody();
+                client.Send(message);
+            }
+
+            Assert.Equal(1, this.server.ReceivedEmailCount);
+            Assert.Equal(expectedBody, this.server.ReceivedEmail[0].MessageParts[0].BodyData);
+        }

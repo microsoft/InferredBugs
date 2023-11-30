@@ -1,0 +1,41 @@
+        private static void SessionApi()
+        {
+            // We mimic the learn operations performed above with the simple API.
+
+            // I. Learn CSV or FW program
+            var session = new Session();
+            session.AddInput(CsvSampleInput);
+            Program prog1 = session.Learn();
+            PrintProgramProperties(prog1);
+            PrintProgramOutput(prog1, CsvSampleInput);
+
+            // II. Learn FW program (learn on a buffer instead of a string)
+            // Note: We are re-using the session, but we could have also created a new one.
+            session.Inputs.Clear();
+            using (var reader = new StringReader(FwSampleInput))
+            {
+                // Override the number of lines to use for learning (the default was 200).
+                session.AddInput(reader, linesToLearn: 30);
+            }
+            // Add constraint to learn *only* FW programs
+            session.Constraints.Add(new FixedWidth());
+            // Specify a timeout for learning.
+            CancellationToken timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
+            Program prog2 = session.Learn(cancel: timeout);
+            PrintProgramProperties(prog2);
+            using (var reader = new StringReader(FwSampleInput))
+            {
+                PrintProgramOutput(prog2, reader);
+            }
+
+            // III. Learn CSV program with manually set delimiter
+            session.Inputs.Clear();
+            session.Constraints.Clear();
+            session.AddInput(CsvOverrideSampleInput);
+            // Add constraint to manually specify the column delimiter
+            //  (implies that the learned program will be a CSV program).
+            session.Constraints.Add(new Delimiter(";"));
+            Program prog3 = session.Learn();
+            PrintProgramProperties(prog3);
+            PrintProgramOutput(prog3, CsvOverrideSampleInput);
+        }

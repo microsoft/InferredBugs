@@ -1,0 +1,23 @@
+        [Fact]
+        public void PlatformErrorWithoutMessage()
+        {
+            var json = @"{
+                ""error"": {
+                    ""status"": ""INVALID_ARGUMENT"",
+                }
+            }";
+            var resp = new HttpResponseMessage()
+            {
+                StatusCode = HttpStatusCode.ServiceUnavailable,
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            };
+
+            var error = ErrorHandler.HandleHttpErrorResponse(resp, json);
+
+            Assert.Equal(ErrorCode.InvalidArgument, error.ErrorCode);
+            Assert.Equal(
+                $"Unexpected HTTP response with status: 503 (ServiceUnavailable)\n{json}",
+                error.Message);
+            Assert.Same(resp, error.HttpResponse);
+            Assert.Null(error.InnerException);
+        }

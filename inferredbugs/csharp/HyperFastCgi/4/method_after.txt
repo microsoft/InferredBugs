@@ -1,0 +1,46 @@
+  private void AddHeader(string name, string value, bool isHeader, object userData)
+		{
+			TransportRequest req = userData as TransportRequest;
+
+			//if we did not find a route yet
+			if (req.Host == IntPtr.Zero) {
+				req.tempKeys.Add (new KeyValuePair () {
+					Key = name,
+					Value = value,
+					IsHeader = isHeader
+				});
+
+				if (req.VHost == null && name == "SERVER_NAME") {
+					req.VHost = value;
+				}
+				if (req.VPort == -1 && name == "SERVER_PORT") {
+					int.TryParse (value, out req.VPort);
+				}
+				if (req.VPath == null && name == "SCRIPT_NAME") {
+					req.VPath = value;
+				}
+
+				if (req.VHost != null && req.VPort != -1 && req.VPath != null) {
+					req.Host = GetRoute (req.VHost, req.VPort, req.VPath);
+
+					if (req.Host != IntPtr.Zero) {
+						AppHostTransportCreateRequest (req.Host, req.Hash, req.RequestNumber);
+
+						foreach (KeyValuePair pair in req.tempKeys) {
+							if (pair.IsHeader)
+								AppHostTransportAddHeader (req.Host, req.Hash, req.RequestNumber, pair.Key, pair.Value);
+							else
+								AppHostTransportAddServerVariable (req.Host, req.Hash, req.RequestNumber, pair.Key, pair.Value);
+						}
+					} else {
+						Logger.Write (LogLevel.Error, "Can't find app {0}:{1} {2}", req.VHost, req.VPort, req.VPath);
+						//TODO: send EndRequest with error message
+					}
+				}
+			} else {
+				if (isHeader)
+					AppHostTransportAddHeader (req.Host, req.Hash, req.RequestNumber, name, value);
+				else
+					AppHostTransportAddServerVariable (req.Host, req.Hash, req.RequestNumber, name, value);
+			}
+		}

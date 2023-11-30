@@ -1,0 +1,23 @@
+        private static Type CreateFor(Type t)
+        {
+            var provider = new CSharpCodeProvider();
+            CompilerParameters cp = new CompilerParameters();
+            cp.GenerateInMemory = true;
+            CodeCompileUnit cu = new CodeCompileUnit();
+            AddAssemblyReference(cu, t);
+            cu.Namespaces.Add(CreateNamespace(t));
+
+#if DEBUG
+            StringWriter sw = new StringWriter();
+            provider.GenerateCodeFromCompileUnit(cu,sw , new CodeGeneratorOptions() { BracingStyle="C" });
+            var s = sw.GetStringBuilder().ToString();
+            Trace.WriteLine(s);
+#endif
+
+            CompilerResults cr = provider.CompileAssemblyFromDom(cp,cu);
+            if (cr.Errors.Count > 0)
+            {
+                ThrowErrors(cr.Errors);
+            }
+            return cr.CompiledAssembly.GetTypes()[0];
+        }

@@ -1,0 +1,29 @@
+        public static IApplicationBuilder UsePluginCore(this IApplicationBuilder app)
+        {
+            app.UsePluginCoreAdminUI();
+
+            // 由于没办法在运行时, 动态 UseStaticFiles(), 因此不再为每一个插件都 UseStaticFiles(),
+            // 而是统一在一个文件夹下, 插件启用时, 将插件的wwwroot复制到 Plugins_wwwroot/{PluginId}, 禁用时, 再删除
+            string pluginwwwrootDir = PluginPathProvider.PluginsWwwRootDir();
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(
+                    pluginwwwrootDir),
+                RequestPath = "/Plugins"
+            });
+
+
+            // 发现 UseAuthentication 认证中间件重复添加, 也只会执行一次 认证
+            // 但 UseAuthorization 重复添加2次, 则会执行 2次 授权
+            app.UseAuthentication();
+            app.UseAuthorization();
+
+
+            Config.PluginCoreConfig pluginCoreConfig = Config.PluginCoreConfigFactory.Create();
+
+            Utils.LogUtil.Info("启动成功:");
+            Utils.LogUtil.Info($"前端模式: {pluginCoreConfig.FrontendMode}");
+            Utils.LogUtil.Info($"注意: 更新前端模式 需要 重启站点");
+
+            return app;
+        }

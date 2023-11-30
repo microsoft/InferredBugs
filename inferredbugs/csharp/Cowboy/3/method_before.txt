@@ -1,0 +1,28 @@
+        private void ProcessAccept(SocketAsyncEventArgs saea)
+        {
+            if (saea.SocketError != SocketError.Success)
+            {
+                StartAccept();
+
+                saea.AcceptSocket.Close();
+                saea.AcceptSocket = null;
+                _sessionAcceptSaeaPool.Push(saea);
+
+                return;
+            }
+
+            SocketAsyncEventArgs sessionHandleSaea = null;
+            if (!_sessionHandleSaeaPool.TryPop(out sessionHandleSaea))
+            {
+                throw new Exception();
+            }
+
+            sessionHandleSaea.AcceptSocket = saea.AcceptSocket;
+
+            saea.AcceptSocket = null;
+            _sessionAcceptSaeaPool.Push(saea);
+
+            StartReceive(sessionHandleSaea);
+
+            StartAccept();
+        }

@@ -1,0 +1,24 @@
+        private void CreateAndOpen()
+        {
+            var connectionString = string.Empty;
+            var settings = DataSettings.Default;
+
+            // 获取连接
+#if ASP_NET_CORE
+            var connectionSetting = settings.Get(_configuration, _isMaster, _dbStoreKey, _connectionFunc);
+            connectionString = connectionSetting.Item1;
+            _dbFactory = GetFactory(connectionSetting.Item2);
+#else
+            var connectionSetting = settings.Get(_isMaster, _dbStoreKey, _connectionFunc);
+            connectionString = connectionSetting?.ConnectionString;
+            _dbFactory = DbProviderFactories.GetFactory(connectionSetting?.ProviderName);
+#endif
+
+            if (string.IsNullOrEmpty(connectionString))
+                throw new Exception($"连接字符串获取为空，请检查Repository是否指定了dbStoreKey以及检查配置文件是否存在");
+
+            DbConnection = _dbFactory.CreateConnection();
+            DbConnection.ConnectionString = connectionString;
+            if (DbConnection.State != ConnectionState.Open)
+                DbConnection.Open();
+        }

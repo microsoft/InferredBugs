@@ -1,0 +1,185 @@
+{
+    "hash": "2c8b0884edba4c863ec358d0992d651afc501562",
+    "message": "Reverted back to previous implementation as the encryptionKeys class gets the first secret key instead of checking",
+    "file_num_lines": 908,
+    "diff_parsed": {
+        "added": [
+            [
+                934,
+                "            // find secret key"
+            ],
+            [
+                935,
+                "            PgpSecretKeyRingBundle pgpSec = new PgpSecretKeyRingBundle(PgpUtilities.GetDecoderStream(privateKeyStream));"
+            ],
+            [
+                936,
+                "            PgpEncryptedDataList encryptedDataList = Utilities.GetEncryptedDataList(PgpUtilities.GetDecoderStream(inputStream));"
+            ],
+            [
+                937,
+                ""
+            ],
+            [
+                938,
+                "            // decrypt"
+            ],
+            [
+                939,
+                "            PgpPrivateKey privateKey = null;"
+            ],
+            [
+                940,
+                "            PgpPublicKeyEncryptedData pbe = null;"
+            ],
+            [
+                941,
+                "            foreach (PgpPublicKeyEncryptedData pked in encryptedDataList.GetEncryptedDataObjects())"
+            ],
+            [
+                942,
+                "            {"
+            ],
+            [
+                943,
+                "                privateKey = FindSecretKey(pgpSec, pked.KeyId, passPhrase.ToCharArray());"
+            ],
+            [
+                945,
+                "                if (privateKey != null)"
+            ],
+            [
+                946,
+                "                {"
+            ],
+            [
+                947,
+                "                    pbe = pked;"
+            ],
+            [
+                948,
+                "                    break;"
+            ],
+            [
+                949,
+                "                }"
+            ],
+            [
+                950,
+                "            }"
+            ],
+            [
+                952,
+                "            var publicKey = Utilities.ReadPublicKey(publicKeyStream);"
+            ],
+            [
+                953,
+                "            if (pbe == null || pbe.KeyId != publicKey.KeyId)"
+            ],
+            [
+                955,
+                ""
+            ],
+            [
+                956,
+                "            if (privateKey == null)"
+            ],
+            [
+                957,
+                "                throw new ArgumentException(\"Secret key for message not found.\");"
+            ],
+            [
+                958,
+                ""
+            ],
+            [
+                959,
+                "            PgpObjectFactory plainFact = null;"
+            ],
+            [
+                960,
+                ""
+            ],
+            [
+                961,
+                "            using (Stream clear = pbe.GetDataStream(privateKey))"
+            ],
+            [
+                962,
+                "            {"
+            ],
+            [
+                963,
+                "                plainFact = new PgpObjectFactory(clear);"
+            ],
+            [
+                964,
+                "            }"
+            ],
+            [
+                965,
+                ""
+            ],
+            [
+                966,
+                "            PgpObject message = plainFact.NextPgpObject();"
+            ],
+            [
+                968,
+                "            if (message is PgpOnePassSignatureList)"
+            ],
+            [
+                969,
+                "            {"
+            ],
+            [
+                970,
+                "                message = plainFact.NextPgpObject();"
+            ],
+            [
+                971,
+                "            }"
+            ],
+            [
+                1008,
+                "                if (pbe.IsIntegrityProtected())"
+            ],
+            [
+                1010,
+                "                    if (!pbe.Verify())"
+            ]
+        ],
+        "deleted": [
+            [
+                934,
+                "            EncryptionKeys encryptionKeys = new EncryptionKeys(publicKeyStream, privateKeyStream, passPhrase);"
+            ],
+            [
+                936,
+                "            var encodedFile = PgpUtilities.GetDecoderStream(inputStream);"
+            ],
+            [
+                937,
+                "            PgpPublicKeyEncryptedData publicKeyED = Utilities.ExtractPublicKeyEncryptedData(encodedFile);"
+            ],
+            [
+                939,
+                "            if (publicKeyED.KeyId != encryptionKeys.PublicKey.KeyId)"
+            ],
+            [
+                942,
+                "            PgpObject message = Utilities.GetClearCompressedMessage(publicKeyED, encryptionKeys);"
+            ],
+            [
+                979,
+                "                if (publicKeyED.IsIntegrityProtected())"
+            ],
+            [
+                981,
+                "                    if (!publicKeyED.Verify())"
+            ]
+        ]
+    },
+    "num_lines_added": 36,
+    "num_lines_removed": 7
+}

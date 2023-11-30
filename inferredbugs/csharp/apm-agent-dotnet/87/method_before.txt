@@ -1,0 +1,26 @@
+  [Fact]
+		public void ReadLabelsWithMixedApiUsage()
+		{
+			var mockPayloadSender = new MockPayloadSender();
+			using var agent = new ApmAgent(new AgentComponents(payloadSender: mockPayloadSender));
+
+			var t = agent.Tracer.StartTransaction("test", "test");
+
+			t.SetLabel("foo", 42);
+			t.SetLabel("bar", false);
+
+			t.Labels["oldApi"] = "43";
+
+			t.TryGetLabel<int>("foo", out var fooVal).Should().BeTrue();
+			fooVal.Should().Be(42);
+			t.TryGetLabel<bool>("bar", out var barVal).Should().BeTrue();
+			barVal.Should().BeFalse();
+
+			// values from the Labels dictionary aren't visible through the new API
+			t.TryGetLabel<string>("oldApi", out _).Should().BeFalse();
+
+			t.End();
+
+			var spanJsonString = _payloadItemSerializer.Serialize(t);
+			spanJsonString.Should().Contain("\"tags\":{\"foo\":42,\"bar\":false,\"oldApi\":\"43\"");
+		}

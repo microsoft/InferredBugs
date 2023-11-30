@@ -1,0 +1,44 @@
+  public static Stream ParseStream(TextReader reader, int context)
+		{
+			var cur = reader.Read();
+			if (cur == ',' || cur == ')')
+				return null;
+			var cms = ChunkedMemoryStream.Create();
+			var sw = cms.GetWriter();
+			if (cur != '"' && cur != '\\')
+			{
+				while (cur != -1 && cur != ',' && cur != ')')
+				{
+					sw.Write((char)cur);
+					cur = reader.Read();
+				}
+			}
+			else
+			{
+				for (int i = 0; i < context; i++)
+					cur = reader.Read();
+				while (cur != -1)
+				{
+					if (cur == '\\' || cur == '"')
+					{
+						for (int i = 0; i < context; i++)
+							cur = reader.Read();
+						if (cur == ',' || cur == ')')
+						{
+							sw.Flush();
+							cms.Position = 0;
+							return cms;
+						}
+						for (int i = 0; i < context - 1; i++)
+							cur = reader.Read();
+					}
+					sw.Write((char)cur);
+					cur = reader.Read();
+				}
+				for (int i = 0; i < context; i++)
+					reader.Read();
+			}
+			sw.Flush();
+			cms.Position = 0;
+			return cms;
+		}

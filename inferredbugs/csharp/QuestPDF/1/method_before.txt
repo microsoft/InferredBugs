@@ -1,0 +1,31 @@
+        internal override void Draw(ICanvas canvas, Size availableSpace)
+        {
+            Initialize();
+            
+            var topOffset = 0f;
+
+            while (ChildrenQueue.Any())
+            {
+                var child = ChildrenQueue.Peek();
+                
+                var restSpace = new Size(availableSpace.Width, availableSpace.Height - topOffset);
+                var space = child.Measure(restSpace);
+                
+                if (space is Wrap)
+                    break;
+
+                var size = space as Size;
+                
+                canvas.Translate(new Position(0, topOffset));
+                child.Draw(canvas, new Size(availableSpace.Width, size.Height));
+                canvas.Translate(new Position(0, -topOffset));
+                
+                if (size.Height > Size.Epsilon)
+                    topOffset += size.Height + Spacing;
+
+                if (space is PartialRender)
+                    break;
+                
+                ChildrenQueue.Dequeue();
+            }
+        }

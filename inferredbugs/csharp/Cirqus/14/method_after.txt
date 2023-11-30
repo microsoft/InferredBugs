@@ -1,0 +1,24 @@
+        [Test, Category(TestCategories.MongoDb)]
+        public void NoProblemoWithRealSetup()
+        {
+            // arrange
+            var eventStore = new MongoDbEventStore(MongoHelper.InitializeTestDatabase(), "events");
+
+            var commandProcessor = CommandProcessor.With()
+                .EventStore(e => e.Registrar.Register<IEventStore>(c => eventStore))
+                .EventDispatcher(e => e.Registrar.Register<IEventDispatcher>(c => new ConsoleOutEventDispatcher()))
+                .Create();
+
+            RegisterForDisposal(commandProcessor);
+
+            // make sure all roots exist
+            Console.WriteLine("Processing initial two commands");
+            commandProcessor.ProcessCommand(new DoSomethingToABunchOfRootsCommand("id1"));
+            commandProcessor.ProcessCommand(new DoSomethingToABunchOfRootsCommand("id2"));
+
+            // act
+            Console.WriteLine("\r\n\r\nActing...");
+            commandProcessor.ProcessCommand(new DoSomethingToABunchOfRootsCommand("id1", "id2"));
+
+            // assert
+        }

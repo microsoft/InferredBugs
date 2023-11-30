@@ -1,0 +1,20 @@
+        private void Write(string docId, string field, string token, object postingData)
+        {
+            if (docId == null) throw new ArgumentNullException("docId");
+            if (field == null) throw new ArgumentNullException("field");
+            if (token == null) throw new ArgumentNullException("token");
+            if (postingData == null) throw new ArgumentNullException("postingData");
+
+            if (!_ix.Fields.ContainsKey(field))
+            {
+                _ix.Fields.Add(field, new Dictionary<string, object>());
+            }
+            _ix.Fields[field][docId] = null;
+
+            var trie = GetTrie(field);
+            trie.Add(token);
+
+            var postingsFile = GetPostingsFile(field, token);
+            postingsFile.Postings[docId] = postingData;
+            _postingsWorker.Enqueue(postingsFile);
+        }

@@ -1,0 +1,149 @@
+{
+    "hash": "96f612e0e1469313459383f121c28106f34b73af",
+    "message": "Added caching for Razor partials, but not efficient and needs tests (#205)",
+    "file_num_lines": 28,
+    "diff_parsed": {
+        "added": [
+            [
+                1,
+                "\ufeffusing System.IO;"
+            ],
+            [
+                9,
+                "    public class StreamContent : LockingStreamWrapper, IContentProvider"
+            ],
+            [
+                17,
+                "            : base(stream, false)"
+            ],
+            [
+                23,
+                "        public TextReader GetTextReader() => Stream is null ? TextReader.Null : new StreamReader(GetStream());"
+            ],
+            [
+                30,
+                "            new StreamContent(Stream, mediaType);"
+            ]
+        ],
+        "deleted": [
+            [
+                1,
+                "\ufeffusing System;"
+            ],
+            [
+                2,
+                "using System.IO;"
+            ],
+            [
+                3,
+                "using System.Threading;"
+            ],
+            [
+                11,
+                "    public class StreamContent : IContentProvider"
+            ],
+            [
+                13,
+                "        private readonly AutoResetEvent _resetEvent = new AutoResetEvent(true);"
+            ],
+            [
+                14,
+                "        private readonly Stream _stream;"
+            ],
+            [
+                15,
+                ""
+            ],
+            [
+                23,
+                "            _stream = stream;"
+            ],
+            [
+                24,
+                "            if (_stream is object && !_stream.CanSeek)"
+            ],
+            [
+                25,
+                "            {"
+            ],
+            [
+                26,
+                "                throw new ArgumentException(\"Stream should be seekable\", nameof(stream));"
+            ],
+            [
+                27,
+                "            }"
+            ],
+            [
+                32,
+                "        public Stream GetStream()"
+            ],
+            [
+                33,
+                "        {"
+            ],
+            [
+                34,
+                "            if (_stream is null)"
+            ],
+            [
+                35,
+                "            {"
+            ],
+            [
+                36,
+                "                return Stream.Null;"
+            ],
+            [
+                37,
+                "            }"
+            ],
+            [
+                38,
+                "            _resetEvent.WaitOne();"
+            ],
+            [
+                39,
+                "            _stream.Position = 0; // Reset the position for each read"
+            ],
+            [
+                40,
+                "            return new SignalingStream(_stream, _resetEvent);"
+            ],
+            [
+                41,
+                "        }"
+            ],
+            [
+                42,
+                ""
+            ],
+            [
+                43,
+                "        /// <inheritdoc />"
+            ],
+            [
+                44,
+                "        public TextReader GetTextReader() => _stream is null ? TextReader.Null : new StreamReader(GetStream());"
+            ],
+            [
+                45,
+                ""
+            ],
+            [
+                46,
+                "        /// <inheritdoc />"
+            ],
+            [
+                47,
+                "        public long GetLength() => _stream?.Length ?? 0;"
+            ],
+            [
+                54,
+                "            new StreamContent(_stream, mediaType);"
+            ]
+        ]
+    },
+    "num_lines_added": 5,
+    "num_lines_removed": 29
+}

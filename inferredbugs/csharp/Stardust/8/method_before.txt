@@ -1,0 +1,27 @@
+        public void TraceNode(RedisNode node)
+        {
+            using var span = _tracer?.NewSpan($"RedisService-TraceNode", node);
+
+            if (!_servers.TryGetValue(node.Id, out var rds)) _servers[node.Id] = rds = new FullRedis();
+
+            // 可能后面更新了服务器地址和密码
+            rds.Server = node.Server;
+            rds.Password = node.Password;
+            rds.Tracer = _tracer;
+
+            //var inf = rds.GetInfo(true);
+            var inf = rds.GetInfo(false);
+            node.Fill(inf);
+            node.SaveAsync();
+
+            var data = new RedisData
+            {
+                RedisId = node.Id,
+                Name = node.Name,
+            };
+            var dbs = data.Fill(inf);
+            data.Insert();
+
+            // 扫描队列
+            if (node.ScanQueue && dbs != null) ScanQueue(node, dbs);
+        }

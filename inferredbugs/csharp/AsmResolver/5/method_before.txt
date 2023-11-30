@@ -1,0 +1,24 @@
+        public static MemberRange<T> CreateRange<T>(MetaDataMember member, int mdrowIndex, MetaDataTable targetTable) where T : MetaDataMember
+        {
+            MemberRange<T> range = new MemberRange<T>();
+            range.Start = Convert.ToInt32(member.MetaDataRow.Parts[mdrowIndex]) - 1; 
+            range.TargetTable = targetTable;
+
+            MetaDataTable currentTable = member.NETHeader.TablesHeap.GetTable(member.TableType, false);
+            int memberIndex = (int)(member.metadatatoken | (0xFF << 24)) - (0xFF << 24);
+            if (currentTable != null)
+            {
+                if (memberIndex == currentTable.AmountOfRows)
+                    range.Length = targetTable.AmountOfRows - range.Start;
+                else
+                {
+                    int nextIndex = Convert.ToInt32(currentTable.Members[memberIndex].MetaDataRow.parts[mdrowIndex]) - 1;
+                    range.Length = nextIndex - range.Start;
+                }
+            }
+            if (range.Length > targetTable.AmountOfRows - range.Start)
+                range.Length = 0;
+
+            return range;
+
+        }

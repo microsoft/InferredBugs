@@ -1,0 +1,94 @@
+        private void DoBuildAcceptedSequenceList(
+            State state,
+            ArrayDictionary<bool> stateLabels,
+            List<Simplification.WeightedSequence> weightedSequences,
+            List<Simplification.GeneralizedElement> currentSequenceElements,
+            Weight currentWeight)
+        {
+            var stack = new Stack<StackItem>();
+            stack.Push(new StateWeight(state, currentWeight));
+
+            while (stack.Count > 0)
+            {
+                var stackItem = stack.Pop();
+                var elementItem = stackItem as ElementItem;
+
+                if (elementItem != null)
+                {
+                    if (elementItem.Element != null)
+                        currentSequenceElements.Add(elementItem.Element.Value);
+                    else
+                        currentSequenceElements.RemoveAt(currentSequenceElements.Count - 1);
+                    continue;
+                }
+
+                var stateAndWeight = stackItem as StateWeight;
+
+                state = stateAndWeight.State;
+                currentWeight = stateAndWeight.Weight;
+
+                // Find a non-epsilon self-loop if there is one
+                var selfLoopIndex = -1;
+                for (var i = 0; i < state.TransitionCount; ++i)
+                {
+                    var transition = state.GetTransition(i);
+                    if (transition.DestinationStateIndex != state.Index) continue;
+                    if (selfLoopIndex == -1)
+                    {
+                        selfLoopIndex = i;
+                    }
+                    else
+                    {
+                        Debug.Fail("Multiple self-loops should have been merged by MergeParallelTransitions()");
+                    }
+                }
+
+                // Push the found self-loop to the end of the current sequence
+                if (selfLoopIndex != -1)
+                {
+                    var transition = state.GetTransition(selfLoopIndex);
+                    currentSequenceElements.Add(new Simplification.GeneralizedElement(
+                        transition.ElementDistribution, transition.Group, transition.Weight));
+                    stack.Push(new ElementItem(null));
+                }
+
+                // Can this state produce a sequence?
+                if (state.CanEnd && stateLabels[state.Index])
+                {
+                    var sequence = new Simplification.GeneralizedSequence(currentSequenceElements);
+                        // TODO: use immutable data structure instead of copying sequences
+                    weightedSequences.Add(new Simplification.WeightedSequence(sequence, Weight.Product(currentWeight, state.EndWeight)));
+                }
+
+                // Traverse the outgoing transitions
+                for (var i = 0; i < state.TransitionCount; ++i)
+                {
+                    var transition = state.GetTransition(i);
+
+                    // Skip self-loops & disallowed states
+                    if (transition.DestinationStateIndex == state.Index ||
+                        !stateLabels[transition.DestinationStateIndex])
+                    {
+                        continue;
+                    }
+
+                    if (!transition.IsEpsilon)
+                    {
+                        // Non-epsilon transitions contribute to the sequence
+                        stack.Push(new ElementItem(null));
+                    }
+
+                    stack.Push(
+                        new StateWeight(
+                            States[transition.DestinationStateIndex],
+                            Weight.Product(currentWeight, transition.Weight)));
+
+                    if (!transition.IsEpsilon)
+                    {
+                        stack.Push(
+                            new ElementItem(new Simplification.GeneralizedElement(transition.ElementDistribution,
+                                transition.Group, null)));
+                    }
+                }
+            }
+        }

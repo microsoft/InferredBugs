@@ -1,0 +1,69 @@
+        private static void ReadTextureInfo(IFile file, BinaryReader br, ModelData data, DataStructures.Models.Model model, int numTextures, int textureIndex)
+        {
+            if (data.Version == MDLVersionGoldsource)
+            {
+                var tempBr = br;
+                if (numTextures == 0)
+                {
+                    var texFile = file.Parent.GetFile(file.NameWithoutExtension + "T." + file.Extension);
+                    br = new BinaryReader(texFile.Open());
+                    br.BaseStream.Position = 180; // skip all the unused nonsense in the T file
+                    numTextures = br.ReadInt32();
+                    textureIndex = br.ReadInt32();
+                    var textureDataIndex = br.ReadInt32();
+                    var numSkinRef = br.ReadInt32();
+                    var numSkinFamilies = br.ReadInt32();
+                    var skinIndex = br.ReadInt32();
+                }
+                br.BaseStream.Position = textureIndex;
+                for (var i = 0; i < numTextures; i++)
+                {
+                    var name = br.ReadFixedLengthString(Encoding.ASCII, 64);
+                    var flags = br.ReadInt32();
+                    var width = br.ReadInt32();
+                    var height = br.ReadInt32();
+                    var index = br.ReadInt32();
+
+                    var savedPosition = br.BaseStream.Position;
+                    br.BaseStream.Position = index;
+
+                    var indices = br.ReadBytes(width * height);
+                    var palette = br.ReadBytes((byte.MaxValue + 1) * 3);
+                    var bmp = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
+                    var pal = bmp.Palette;
+                    for (var j = 0; j <= byte.MaxValue; j++)
+                    {
+                        var k = j * 3;
+                        pal.Entries[j] = Color.FromArgb(255, palette[k], palette[k + 1], palette[k + 2]);
+                    }
+                    bmp.Palette = pal;
+                    var bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, bmp.PixelFormat);
+                    Marshal.Copy(indices, 0, bmpData.Scan0, indices.Length);
+                    bmp.UnlockBits(bmpData);
+
+                    var tex = new DataStructures.Models.Texture
+                                  {
+                                      Name = name,
+                                      Index = i,
+                                      Width = width,
+                                      Height = height,
+                                      Flags = flags,
+                                      Image = bmp
+                                  };
+                    model.Textures.Add(tex);
+
+                    br.BaseStream.Position = savedPosition;
+                }
+                //
+                if (numTextures == 0)
+                {
+                    br.BaseStream.Dispose();
+                    br.Dispose();
+                    br = tempBr;
+                }
+            }
+            else if (data.Version >= MDLVersionSource2006)
+            {
+                
+            }
+        }

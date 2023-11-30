@@ -1,0 +1,31 @@
+        public List<Group> GetGroupList ()
+        {
+            string result = CQP.CQ_getGroupList (_authCode);
+            if (string.IsNullOrEmpty (result))
+            {
+                return null;
+            }
+            List<Group> groups = new List<Group> ();
+            #region --其他_转换_文本到群列表信息a--
+            using (BinaryReader binary = new BinaryReader (new MemoryStream (Convert.FromBase64String (result))))
+            {
+                for (int i = 0, len = binary.ReadInt32_Ex (); i < len; i++)
+                {
+                    if (binary.Length () <= 0)
+                    {
+                        return null;
+                    }
+                    #region --其他_转换_ansihex到群信息--
+                    using (BinaryReader tempBinary = new BinaryReader (new MemoryStream (binary.ReadToken_Ex ())))
+                    {
+                        Group group = new Group ();
+                        group.Id = tempBinary.ReadInt64_Ex ();
+                        group.Name = tempBinary.ReadString_Ex (_defaultEncoding);
+                        groups.Add (group);
+                    }
+                    #endregion
+                }
+                return groups;
+            }
+            #endregion
+        }

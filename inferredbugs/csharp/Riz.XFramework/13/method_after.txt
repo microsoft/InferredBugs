@@ -1,0 +1,24 @@
+        public static string GetKeyWidthoutAnonymous(this MemberExpression node, bool isDesciptor = false)
+        {
+            List<string> segs = new List<string>();
+            segs.Add(node.Member.Name);
+
+            Expression expression = node.Expression;
+            while (expression.Acceptable())
+            {
+                MemberExpression memberExpression = null;
+                if (expression.NodeType == ExpressionType.MemberAccess) memberExpression = (MemberExpression)expression;
+                else if (expression.NodeType == ExpressionType.Call) memberExpression = (expression as MethodCallExpression).Object as MemberExpression;
+
+                segs.Add(memberExpression.Member.Name);
+                expression = memberExpression.Expression;
+            }
+
+            // 如果读取
+            if (expression.NodeType == ExpressionType.Parameter) segs.Add(isDesciptor ? expression.Type.Name : (expression as ParameterExpression).Name);
+            else if (expression.NodeType == ExpressionType.MemberAccess) segs.Add((expression as MemberExpression).Member.Name);
+
+            segs.Reverse();
+            string result = string.Join(".", segs);
+            return result;
+        }

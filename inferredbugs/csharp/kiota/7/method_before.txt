@@ -1,0 +1,20 @@
+        [Fact]
+        public void ReplacesImportsSubNamespace() {
+            var rootNS = parentClass.Parent as CodeNamespace;
+            rootNS.RemoveChildElement(parentClass);
+            graphNS.AddClass(parentClass);
+            var declaration = parentClass.StartBlock as CodeClass.Declaration;
+            var subNS = graphNS.AddNamespace($"{graphNS.Name}.messages");
+            var messageClassDef = new CodeClass(subNS) {
+                Name = "Message",
+            };
+            declaration.Usings.Add(new (parentClass) {
+                Name = "graph",
+                Declaration = new(parentClass) {
+                    Name = "Message",
+                    TypeDefinition = messageClassDef,
+                }
+            });
+            ILanguageRefiner.Refine(new GenerationConfiguration { Language = GenerationLanguage.TypeScript }, root);
+            Assert.Equal("./messages/message", declaration.Usings.First().Declaration.Name);
+        }

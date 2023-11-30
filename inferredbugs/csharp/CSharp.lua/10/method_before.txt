@@ -1,0 +1,32 @@
+    private void AddRefInvocationVariableMapping(InvocationExpressionSyntax expression, LuaInvocationExpressionSyntax invocation, VariableDeclaratorSyntax node) {
+      var symbol = (IMethodSymbol)semanticModel_.GetSymbolInfo(expression).Symbol;
+      var methodDeclaration = (MethodDeclarationSyntax)symbol.GetDeclaringSyntaxNode();
+      RefExpressionSyntax refExpression;
+      if (methodDeclaration.Body != null) {
+        var lastReturn = (ReturnStatementSyntax)methodDeclaration.Body.Statements.Last();
+        refExpression = (RefExpressionSyntax)lastReturn.Expression;
+      } else {
+        refExpression = (RefExpressionSyntax)methodDeclaration.ExpressionBody.Expression;
+      }
+      var fieldSymbol = (IFieldSymbol)semanticModel_.GetSymbolInfo(refExpression.Expression).Symbol;
+      if (fieldSymbol == null) {
+        return;
+      }
+
+      var name = GetMemberName(fieldSymbol);
+      LuaIdentifierNameSyntax target;
+      if (invocation.Expression is LuaMemberAccessExpressionSyntax memberAccess) {
+        if (memberAccess.Expression is LuaIdentifierNameSyntax targetName) {
+          target = targetName;
+        } else {
+          var temp = GetTempIdentifier();
+          CurBlock.AddStatement(new LuaLocalVariableDeclaratorSyntax(temp, memberAccess.Expression));
+          memberAccess.UpdateExpression(temp);
+          target = temp;
+        }
+      } else {
+        target = LuaIdentifierNameSyntax.This;
+      }
+
+      AddLocalVariableMapping(new LuaSymbolNameSyntax(target.MemberAccess(name)), node);
+    }
