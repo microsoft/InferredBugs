@@ -1,0 +1,115 @@
+ public void run() {
+		synchronized ( this ) {
+			if( selectorthread != null )
+				throw new IllegalStateException( getClass().getName() + " can only be started once." );
+			selectorthread = Thread.currentThread();
+			if( isclosed.get() ) {
+				return;
+			}
+		}
+		selectorthread.setName( "WebsocketSelector" + selectorthread.getId() );
+		try {
+			server = ServerSocketChannel.open();
+			server.configureBlocking( false );
+			ServerSocket socket = server.socket();
+			socket.setReceiveBufferSize( WebSocket.RCVBUF );
+			socket.bind( address );
+			selector = Selector.open();
+			server.register( selector, server.validOps() );
+		} catch ( IOException ex ) {
+			onWebsocketError( null, ex );
+			return;
+		}
+		try {
+			while ( !selectorthread.isInterrupted() ) {
+				SelectionKey key = null;
+				WebSocketImpl conn = null;
+				try {
+					selector.select();
+					registerWrite();
+
+					Set<SelectionKey> keys = selector.selectedKeys();
+					Iterator<SelectionKey> i = keys.iterator();
+
+					while ( i.hasNext() ) {
+						key = i.next();
+
+						if( !key.isValid() ) {
+							// Object o = key.attachment();
+							continue;
+						}
+
+						if( key.isAcceptable() ) {
+							if( !onConnect( key ) ) {
+								key.cancel();
+								continue;
+							}
+
+							SocketChannel channel = server.accept();
+							channel.configureBlocking( false );
+							WebSocketImpl w = wsf.createWebSocket( this, drafts, channel.socket() );
+							w.key = channel.register( selector, SelectionKey.OP_READ, w );
+							w.channel = wsf.wrapChannel( w.key );
+							i.remove();
+							allocateBuffers( w );
+							continue;
+						}
+
+						if( key.isReadable() ) {
+							conn = (WebSocketImpl) key.attachment();
+							ByteBuffer buf = takeBuffer();
+							try {
+								if( SocketChannelIOHelper.read( buf, conn, (ByteChannel) conn.channel ) ) {
+									conn.inQueue.put( buf );
+									queue( conn );
+									i.remove();
+									if( conn.channel instanceof WrappedByteChannel ) {
+										if( ( (WrappedByteChannel) conn.channel ).isNeedRead() ) {
+											iqueue.add( conn );
+										}
+									}
+								} else {
+									pushBuffer( buf );
+								}
+							} catch ( IOException e ) {
+								pushBuffer( buf );
+								throw e;
+							} catch ( RuntimeException e ) {
+								pushBuffer( buf );
+								throw e;
+							}
+						}
+						if( key.isWritable() ) {
+							conn = (WebSocketImpl) key.attachment();
+							if( SocketChannelIOHelper.batch( conn, (ByteChannel) conn.channel ) ) {
+								if( key.isValid() )
+									key.interestOps( SelectionKey.OP_READ );
+							}
+						}
+					}
+					while ( !iqueue.isEmpty() ) {
+						conn = iqueue.remove( 0 );
+						WrappedByteChannel c = ( (WrappedByteChannel) conn.channel );
+						ByteBuffer buf = takeBuffer();
+						if( SocketChannelIOHelper.readMore( buf, conn, c ) )
+							iqueue.add( conn );
+						conn.inQueue.put( buf );
+						queue( conn );
+
+					}
+				} catch ( CancelledKeyException e ) {
+					// an other thread may cancel the key
+				} catch ( IOException ex ) {
+					if( key != null )
+						key.cancel();
+					handleIOException( conn, ex );
+				} catch ( InterruptedException e ) {
+					return;// FIXME controlled shutdown
+				}
+			}
+
+		} catch ( RuntimeException e ) {
+			// should hopefully never occur
+			handleFatal( null, e );
+		}
+	}

@@ -1,0 +1,34 @@
+        public LuceneReturn GetEntries(int myMaxResultsCount, String myQuery, String myInnerQuery = null)
+        {
+            var queryparser = new QueryParser(Lucene.Net.Util.Version.LUCENE_29, "text", new StandardAnalyzer(Lucene.Net.Util.Version.LUCENE_29));
+            Query outerquery = null;
+            Query innerquery = null;
+            Query query = null;
+            try
+            {
+                outerquery = queryparser.Parse(myQuery);
+                if (myInnerQuery != null)
+                {
+                    innerquery = queryparser.Parse(myInnerQuery);
+                    BooleanQuery boolquery = new BooleanQuery();
+                    boolquery.Add(outerquery, BooleanClause.Occur.MUST);
+                    boolquery.Add(innerquery, BooleanClause.Occur.MUST);
+                    query = (Query)boolquery;
+                }
+                else
+                {
+                    query = outerquery;
+                }
+            }
+            catch (ParseException)
+            {
+                return null;
+            }
+
+            var _IndexSearcher = new IndexSearcher(_IndexDirectory, true);
+            var _Collector = TopScoreDocCollector.create(myMaxResultsCount, true);
+
+            _IndexSearcher.Search(query, _Collector);
+
+            return new LuceneReturn(_Collector, _IndexSearcher);
+        }

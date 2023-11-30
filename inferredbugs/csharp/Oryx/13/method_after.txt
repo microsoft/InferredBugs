@@ -1,0 +1,21 @@
+        [Fact]
+        public void Detect_ReutrnsResult_WhenNoPyFileExists_ButRuntimeTextFileExists_HavingPythonVersionInIt()
+        {
+            // Arrange
+            var detector = CreatePythonLanguageDetector(
+                supportedPythonVersions: new[] { Common.PythonVersions.Python37Version });
+            var sourceDir = IOHelpers.CreateTempDir(_tempDirRoot);
+            // No file with a '.py' extension
+            IOHelpers.CreateFile(sourceDir, "", PythonConstants.RequirementsFileName);
+            IOHelpers.CreateFile(sourceDir, $"python-{Common.PythonVersions.Python37Version}", "runtime.txt");
+            var repo = new LocalSourceRepo(sourceDir, NullLoggerFactory.Instance);
+            var context = CreateContext(repo);
+
+            // Act
+            var result = detector.Detect(context);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal("python", result.Language);
+            Assert.Equal(Common.PythonVersions.Python37Version, result.LanguageVersion);
+        }

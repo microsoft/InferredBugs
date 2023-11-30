@@ -1,0 +1,28 @@
+    DeliverResponse[] sendDeliver(Common.Envelope transaction) throws TransactionException {
+
+        if (shutdown) {
+            throw new TransactionException(format("Orderer %s was shutdown.", name));
+        }
+
+        OrdererClient localOrdererClient = ordererClient;
+
+        logger.debug(format("Order.sendDeliver name: %s, url: %s", name, url));
+        if (localOrdererClient == null || !localOrdererClient.isChannelActive()) {
+            localOrdererClient = new OrdererClient(this, new Endpoint(url, properties).getChannelBuilder());
+            ordererClient = localOrdererClient;
+        }
+
+        try {
+            DeliverResponse[] response = localOrdererClient.sendDeliver(transaction);
+
+            return response;
+        } catch (TransactionException e) { //For any error lets start with a fresh connection.
+            ordererClient = null;
+            throw e;
+        } catch (Throwable t) {
+            ordererClient = null;
+            throw t;
+
+        }
+
+    }

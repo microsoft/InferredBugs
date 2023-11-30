@@ -1,0 +1,18 @@
+    public boolean downloadedBlock(String nodeId, Block block) {
+        System.out.println("downloaded:" + block.getHeader().getHeight());
+        NodeDownloadingStatus status = nodeStatusMap.get(nodeId);
+        if (null == status) {
+            return false;
+        }
+        if (!status.containsHeight(block.getHeader().getHeight())) {
+            return false;
+        }
+        blockMap.put(block.getHeader().getHeight(), block);
+        status.downloaded(block.getHeader().getHeight());
+        status.setUpdateTime(System.currentTimeMillis());
+        if (status.finished()) {
+            this.queueService.offer(queueId, nodeId);
+        }
+        verify();
+        return true;
+    }

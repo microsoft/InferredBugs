@@ -1,0 +1,45 @@
+  @Test(timeout = 1000)
+  public void testMultipleTasks() throws Exception {
+    final TimeoutScheduler scheduler = TimeoutScheduler.newInstance(1);
+    final TimeDuration grace = TimeDuration.valueOf(100, TimeUnit.MILLISECONDS);
+    scheduler.setGracePeriod(grace);
+    Assert.assertFalse(scheduler.hasScheduler());
+
+    final ErrorHandler errorHandler = new ErrorHandler();
+
+    final AtomicBoolean[] fired = new AtomicBoolean[3];
+    for(int i = 0; i < fired.length; i++) {
+      final AtomicBoolean f = fired[i] = new AtomicBoolean(false);
+      scheduler.onTimeout(TimeDuration.valueOf(100*i + 50, TimeUnit.MILLISECONDS), () -> {
+        Assert.assertFalse(f.get());
+        f.set(true);
+      }, errorHandler);
+      Assert.assertTrue(scheduler.hasScheduler());
+    }
+
+    Thread.sleep(100);
+    Assert.assertTrue(fired[0].get());
+    Assert.assertFalse(fired[1].get());
+    Assert.assertFalse(fired[2].get());
+    Assert.assertTrue(scheduler.hasScheduler());
+
+    Thread.sleep(100);
+    Assert.assertTrue(fired[0].get());
+    Assert.assertTrue(fired[1].get());
+    Assert.assertFalse(fired[2].get());
+    Assert.assertTrue(scheduler.hasScheduler());
+
+    Thread.sleep(100);
+    Assert.assertTrue(fired[0].get());
+    Assert.assertTrue(fired[1].get());
+    Assert.assertTrue(fired[2].get());
+    Assert.assertTrue(scheduler.hasScheduler());
+
+    Thread.sleep(100);
+    Assert.assertTrue(fired[0].get());
+    Assert.assertTrue(fired[1].get());
+    Assert.assertTrue(fired[2].get());
+    Assert.assertFalse(scheduler.hasScheduler());
+
+    errorHandler.assertNoError();
+  }

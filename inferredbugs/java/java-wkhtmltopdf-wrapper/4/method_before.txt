@@ -1,0 +1,34 @@
+    public byte[] getPDF() throws IOException, InterruptedException {
+        Runtime runtime = Runtime.getRuntime();
+        if(htmlFromString && !this.params.contains(new Param("-"))) {
+            this.addParam(new Param("-"));
+        }
+        String command = this.commandWithParameters() + Symbol.separator + "-";
+        Process process = runtime.exec(command);
+        if(htmlFromString) {
+            OutputStream stdInStream = process.getOutputStream();
+            stdInStream.write(htmlInput.getBytes());
+            stdInStream.close();
+        }
+        InputStream stdOutStream = process.getInputStream();
+        InputStream stdErrStream = process.getErrorStream();
+        process.waitFor();
+
+        ByteArrayOutputStream stdOut = new ByteArrayOutputStream();
+        ByteArrayOutputStream stdErr = new ByteArrayOutputStream();
+
+        for(int i = 0; i < stdOutStream.available(); i++) {
+            stdOut.write((char) stdOutStream.read());
+        }
+        stdOutStream.close();
+        for(int i = 0; i < stdErrStream.available(); i++) {
+            stdErr.write((char) stdErrStream.read());
+        }
+        stdErrStream.close();
+
+        if(process.exitValue() != 0) {
+            throw new RuntimeException("Process (" + command + ") exited with status code " + process.exitValue() + ":\n"+new String(stdErr.toByteArray()));
+        }
+
+        return stdOut.toByteArray();
+    }

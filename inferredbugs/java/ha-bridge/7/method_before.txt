@@ -1,0 +1,32 @@
+ public HueError[] validateWhitelistUser(String aUser, String userDescription, boolean strict) {
+		String validUser = null;
+		boolean found = false;
+		if (aUser != null && !aUser.equalsIgnoreCase("undefined") && !aUser.equalsIgnoreCase("null")
+				&& !aUser.equalsIgnoreCase("")) {
+			if (securityDescriptor.getWhitelist() != null) {
+				Set<String> theUserIds = securityDescriptor.getWhitelist().keySet();
+				Iterator<String> userIterator = theUserIds.iterator();
+				while (userIterator.hasNext()) {
+					validUser = userIterator.next();
+					if (validUser.equals(aUser))
+						found = true;
+				}
+			}
+		}
+
+		if(!found && !strict) {
+			newWhitelistUser(aUser, userDescription);
+			
+			found = true;
+		}
+		
+		if (!found) {
+			return HueErrorResponse.createResponse("1", "/api/" + aUser, "unauthorized user", null, null, null).getTheErrors();
+		}
+
+		Object anUser = securityDescriptor.getWhitelist().remove(DEPRACATED_INTERNAL_USER);
+		if(anUser != null)
+			setSettingsChanged(true);
+		
+		return null;
+	}

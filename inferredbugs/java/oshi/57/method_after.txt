@@ -1,0 +1,22 @@
+    public static <T extends Enum<T>> Map<T, Long> queryValues(Class<T> propertyEnum, String perfObject,
+            String perfWmiClass) {
+        // Check without locking for performance
+        if (!failedQueryCache.contains(perfObject)) {
+            failedQueryCacheLock.lock();
+            try {
+                // Double check lock
+                if (!failedQueryCache.contains(perfObject)) {
+                    Map<T, Long> valueMap = queryValuesFromPDH(propertyEnum, perfObject);
+                    if (!valueMap.isEmpty()) {
+                        return valueMap;
+                    }
+                    // If we are here, query failed
+                    LOG.warn("Disabling further attempts to query {}.", perfObject);
+                    failedQueryCache.add(perfObject);
+                }
+            } finally {
+                failedQueryCacheLock.unlock();
+            }
+        }
+        return queryValuesFromWMI(propertyEnum, perfWmiClass);
+    }

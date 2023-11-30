@@ -1,0 +1,21 @@
+    public static Node deserializeNode(final byte[] serializedObj, final int length,
+            final boolean compressed) throws HiveException {
+        FastByteArrayInputStream bis = new FastByteArrayInputStream(serializedObj, length);
+        InputStream wrapped = compressed ? new InflaterInputStream(bis) : bis;
+
+        final Node root;
+        ObjectInputStream ois = null;
+        try {
+            ois = new ObjectInputStream(wrapped);
+            root = new Node();
+            root.readExternal(ois);
+        } catch (IOException ioe) {
+            throw new HiveException("IOException cause while deserializing DecisionTree object",
+                ioe);
+        } catch (Exception e) {
+            throw new HiveException("Exception cause while deserializing DecisionTree object", e);
+        } finally {
+            IOUtils.closeQuietly(ois);
+        }
+        return root;
+    }

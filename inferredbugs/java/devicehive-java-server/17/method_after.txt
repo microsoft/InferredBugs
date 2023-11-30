@@ -1,0 +1,24 @@
+    @Override
+    public List<Device> getDeviceList(List<String> guids, HivePrincipal principal) {
+        List<Device> deviceList = new ArrayList<>();
+        for (String guid : guids) {
+            Device device = findByUUID(guid);
+            if (device != null) {
+                deviceList.add(device);
+            }
+        }
+        if (principal != null && principal.getUser() != null && !principal.getRole().equals(HiveRoles.ADMIN)) {
+            Set<Long> networks = userNetworkDao.findNetworksForUser(principal.getUser().getId());
+            deviceList = deviceList
+                    .stream()
+                    .filter(d -> networks.contains(d.getNetwork().getId()))
+                    .collect(Collectors.toList());
+        } else if (principal != null && principal.getKey() != null && principal.getKey().getUser() != null) {
+            Set<Long> networks = userNetworkDao.findNetworksForUser(principal.getKey().getUser().getId());
+            deviceList = deviceList
+                    .stream()
+                    .filter(d -> networks.contains(d.getNetwork().getId()))
+                    .collect(Collectors.toList());
+        }
+        return deviceList;
+    }

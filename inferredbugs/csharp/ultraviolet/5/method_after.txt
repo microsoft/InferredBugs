@@ -1,0 +1,29 @@
+        public Boolean Destroy(IUltravioletWindow window)
+        {
+            Contract.Require(window, "window");
+
+            if (window == master)
+                throw new InvalidOperationException(UltravioletStrings.CannotDestroyMasterWindow);
+
+            if (!windows.Remove(window))
+                throw new InvalidOperationException(UltravioletStrings.InvalidResource);
+
+            if (window == current)
+                throw new InvalidOperationException();
+
+            OnWindowDestroyed(window);
+
+            if (window == primary)
+                DesignatePrimary(null);
+
+            if (window == glwin && glcontext != IntPtr.Zero)
+                DesignateCurrentOpenGLWindow(null, glcontext);
+
+            var sdlwin = (OpenGLUltravioletWindow)window;
+            Ultraviolet.Messages.Unsubscribe(sdlwin, SDL2UltravioletMessages.SDLEvent);
+
+            var native = sdlwin.Native;
+            sdlwin.Dispose();
+
+            return !native;
+        }

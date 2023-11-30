@@ -1,0 +1,25 @@
+ @Override
+	public void onHttpFinish(QQHttpResponse response) {
+		try {
+			LOG.debug(response.getContentType());
+			String type = response.getContentType();
+			if((type.startsWith("application/x-javascript")
+					|| type.startsWith("application/json")
+					|| type.indexOf("text") >= 0
+					) && response.getContentLength() > 0){
+				LOG.debug(response.getResponseString());
+			}
+
+			if(response.getResponseCode() == QQHttpResponse.S_OK){
+				onHttpStatusOK(response);
+			}else{
+				onHttpStatusError(response);
+			}
+		} catch (QQException e) {
+			notifyActionEvent(QQActionEvent.Type.EVT_ERROR, e);
+		} catch (JSONException e) {
+			notifyActionEvent(QQActionEvent.Type.EVT_ERROR, new QQException(QQErrorCode.JSON_ERROR, e));
+		} catch (Throwable e){
+			notifyActionEvent(QQActionEvent.Type.EVT_ERROR, new QQException(QQErrorCode.UNKNOWN_ERROR, e));
+		}
+	}

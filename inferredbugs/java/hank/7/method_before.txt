@@ -1,0 +1,31 @@
+  @Override
+  public void assign(RingGroup ringGroup, int ringNum, Domain domain) throws IOException {
+    ring = ringGroup.getRing(ringNum);
+    domainGroup = ringGroup.getDomainGroup();
+    domainId = domainGroup.getDomainId(domain.getName());
+    version = domainGroup.getLatestVersion().getVersionNumber();
+    random = new Random();
+
+    // make random assignments for any of the currently unassigned parts
+    for (Integer partNum : ring.getUnassignedPartitions(domain)) {
+      getMinHostDomain().addPartition(partNum, version);
+    }
+
+    while (!assignmentsBalanced()) {
+      HostDomain maxHostDomain = getMaxHostDomain();
+      HostDomain minHostDomain = getMinHostDomain();
+
+      // pick a random partition from the maxHost
+      ArrayList<HostDomainPartition> partitions = new ArrayList<HostDomainPartition>();
+      partitions.addAll(maxHostDomain.getPartitions());
+      final HostDomainPartition toMove = partitions.get(random.nextInt(partitions.size()));
+
+      // assign it to the min host. note that we assign it before we unassign it
+      // to ensure that if we fail at this point, we haven't left any parts
+      // unassigned.
+      minHostDomain.addPartition(toMove.getPartNum(), version);
+
+      // unassign it from the max host
+      unassign(toMove);
+    }
+  }

@@ -1,0 +1,53 @@
+    @Override
+    protected void decorateRequest(SofaRequest request) {
+        // 公共的设置
+        super.decorateRequest(request);
+
+        // 缓存是为了加快速度
+        request.setTargetServiceUniqueName(serviceName);
+        request.setSerializeType(serializeType == null ? 0 : serializeType);
+
+        if (!consumerConfig.isGeneric()) {
+            // 找到调用类型， generic的时候类型在filter里进行判断
+            request.setInvokeType(consumerConfig.getMethodInvokeType(request.getMethodName()));
+        }
+
+        RpcInvokeContext invokeCtx = RpcInvokeContext.peekContext();
+        RpcInternalContext internalContext = RpcInternalContext.getContext();
+        if (invokeCtx != null) {
+            // 如果用户设置了调用级别回调函数
+            SofaResponseCallback responseCallback = invokeCtx.getResponseCallback();
+            if (responseCallback != null) {
+                request.setSofaResponseCallback(responseCallback);
+                invokeCtx.setResponseCallback(null); // 一次性用完
+                invokeCtx.put(RemotingConstants.INVOKE_CTX_IS_ASYNC_CHAIN,
+                    isSendableResponseCallback(responseCallback));
+            }
+            // 如果用户设置了调用级别超时时间
+            Integer timeout = invokeCtx.getTimeout();
+            if (timeout != null) {
+                request.setTimeout(timeout);
+                invokeCtx.setTimeout(null);// 一次性用完
+            }
+            // 如果用户指定了调用的URL
+            String targetURL = invokeCtx.getTargetURL();
+            if (targetURL != null) {
+                internalContext.setAttachment(HIDDEN_KEY_PINPOINT, targetURL);
+                invokeCtx.setTargetURL(null);// 一次性用完
+            }
+            // 如果用户指定了透传数据
+            if (RpcInvokeContext.isBaggageEnable()) {
+                // 需要透传
+                BaggageResolver.carryWithRequest(invokeCtx, request);
+                internalContext.setAttachment(HIDDEN_KEY_INVOKE_CONTEXT, invokeCtx);
+            }
+        }
+        if (RpcInternalContext.isAttachmentEnable()) {
+            internalContext.setAttachment(INTERNAL_KEY_APP_NAME, consumerConfig.getAppName());
+            internalContext.setAttachment(INTERNAL_KEY_PROTOCOL_NAME, consumerConfig.getProtocol());
+        }
+
+        // 额外属性通过HEAD传递给服务端
+        request.addRequestProp(RemotingConstants.HEAD_APP_NAME, consumerConfig.getAppName());
+        request.addRequestProp(RemotingConstants.HEAD_PROTOCOL, consumerConfig.getProtocol());
+    }

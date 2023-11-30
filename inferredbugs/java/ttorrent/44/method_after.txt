@@ -1,0 +1,13 @@
+  public void removeTorrent(TorrentHash torrentHash) {
+    logger.info("Stopping seeding " + torrentHash.getHexInfoHash());
+    final TorrentsPair torrentsPair = torrentsStorage.removeActiveAndAnnounceableTorrent(torrentHash.getHexInfoHash());
+
+    SharedTorrent torrent = torrentsPair.getSharedTorrent();
+    if (torrent != null) {
+      torrent.setClientState(ClientState.DONE);
+      torrent.close();
+    } else {
+      logger.warn(String.format("Torrent %s already removed from myTorrents", torrentHash.getHexInfoHash()));
+    }
+    sendStopEvent(torrentsPair.getAnnounceableFileTorrent(), torrentHash.getHexInfoHash());
+  }

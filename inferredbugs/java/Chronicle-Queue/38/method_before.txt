@@ -1,0 +1,37 @@
+    protected void writeBytesInternal(final long index, @NotNull final BytesStore bytes, boolean metadata) {
+        final int cycle = queue.rollCycle().toCycle(index);
+        long headerNumber = wire.headerNumber();
+
+        if (wire == null) {
+            setCycle2(cycle, true);
+            headerNumber = wire.headerNumber();
+        } else if (queue.rollCycle().toCycle(headerNumber) != cycle) {
+            rollCycleTo(cycle);
+            headerNumber = wire.headerNumber();
+        }
+
+        boolean isNextIndex = index == headerNumber + 1;
+        if (!isNextIndex) {
+
+            // in case our cached headerNumber is incorrect.
+            if (resetPosition()) {
+
+                headerNumber = wire.headerNumber();
+
+                /// if the header number has changed then we will have roll
+                if (queue.rollCycle().toCycle(headerNumber) != cycle) {
+                    rollCycleTo(cycle);
+                    headerNumber = wire.headerNumber();
+                }
+            }
+
+            isNextIndex = index == headerNumber + 1;
+            if (!isNextIndex) {
+                if (index > headerNumber + 1)
+                    throw new IllegalStateException("Unable to move to index " + Long.toHexString(index) + " beyond the end of the queue, current: " + Long.toHexString(headerNumber));
+                Jvm.warn().on(getClass(), "Trying to overwrite index " + Long.toHexString(index) + " which is before the end of the queue");
+                return;
+            }
+        }
+        writeBytesInternal(bytes, metadata);
+    }

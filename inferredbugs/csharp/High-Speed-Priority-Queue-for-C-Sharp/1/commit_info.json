@@ -1,0 +1,769 @@
+{
+    "hash": "bb6a850e2540e10707b23bd5829030f389441960",
+    "message": "Added Try* methods for better multithreading support",
+    "file_num_lines": 248,
+    "diff_parsed": {
+        "added": [
+            [
+                62,
+                "            return null;"
+            ],
+            [
+                97,
+                "                    return _queue.First.Data;"
+            ],
+            [
+                122,
+                "                return GetExistingNode(item) != null;"
+            ],
+            [
+                145,
+                "        /// <summary>"
+            ],
+            [
+                146,
+                "        /// Enqueue the item with the given priority, without calling lock(_queue)"
+            ],
+            [
+                147,
+                "        /// </summary>"
+            ],
+            [
+                148,
+                "        private void EnqueueNoLock(TItem item, TPriority priority)"
+            ],
+            [
+                149,
+                "        {"
+            ],
+            [
+                150,
+                "            SimpleNode node = new SimpleNode(item);"
+            ],
+            [
+                151,
+                "            if(_queue.Count == _queue.MaxSize)"
+            ],
+            [
+                152,
+                "            {"
+            ],
+            [
+                153,
+                "                _queue.Resize(_queue.MaxSize * 2 + 1);"
+            ],
+            [
+                154,
+                "            }"
+            ],
+            [
+                155,
+                "            _queue.Enqueue(node, priority);"
+            ],
+            [
+                156,
+                "        }"
+            ],
+            [
+                157,
+                ""
+            ],
+            [
+                168,
+                "                EnqueueNoLock(item, priority);"
+            ],
+            [
+                169,
+                "            }"
+            ],
+            [
+                170,
+                "        }"
+            ],
+            [
+                171,
+                ""
+            ],
+            [
+                172,
+                "        /// <summary>"
+            ],
+            [
+                173,
+                "        /// Enqueue a node to the priority queue if it doesn't already exist.  Lower values are placed in front. Ties are broken by first-in-first-out."
+            ],
+            [
+                174,
+                "        /// This queue automatically resizes itself, so there's no concern of the queue becoming 'full'."
+            ],
+            [
+                175,
+                "        /// Returns true if the node was successfully enqueued; false if it already exists"
+            ],
+            [
+                176,
+                "        /// O(n)"
+            ],
+            [
+                177,
+                "        /// </summary>"
+            ],
+            [
+                178,
+                "        public bool EnqueueWithoutDuplicates(TItem item, TPriority priority)"
+            ],
+            [
+                179,
+                "        {"
+            ],
+            [
+                180,
+                "            lock(_queue)"
+            ],
+            [
+                181,
+                "            {"
+            ],
+            [
+                182,
+                "                if(this.Contains(item))"
+            ],
+            [
+                184,
+                "                    return false;"
+            ],
+            [
+                186,
+                "                EnqueueNoLock(item, priority);"
+            ],
+            [
+                187,
+                "                return true;"
+            ],
+            [
+                201,
+                "                SimpleNode removeMe = GetExistingNode(item);"
+            ],
+            [
+                202,
+                "                if (removeMe == null)"
+            ],
+            [
+                204,
+                "                    throw new InvalidOperationException(\"Cannot call Remove() on a node which is not enqueued: \" + item);"
+            ],
+            [
+                206,
+                "                _queue.Remove(removeMe);"
+            ],
+            [
+                222,
+                "                SimpleNode updateMe = GetExistingNode(item);"
+            ],
+            [
+                223,
+                "                if (updateMe == null)"
+            ],
+            [
+                225,
+                "                    throw new InvalidOperationException(\"Cannot call UpdatePriority() on a node which is not enqueued: \" + item);"
+            ],
+            [
+                227,
+                "                _queue.UpdatePriority(updateMe, priority);"
+            ],
+            [
+                243,
+                "                SimpleNode findMe = GetExistingNode(item);"
+            ],
+            [
+                244,
+                "                if(findMe == null)"
+            ],
+            [
+                245,
+                "                {"
+            ],
+            [
+                246,
+                "                    throw new InvalidOperationException(\"Cannot call GetPriority() on a node which is not enqueued: \" + item);"
+            ],
+            [
+                247,
+                "                }"
+            ],
+            [
+                248,
+                "                return findMe.Priority;"
+            ],
+            [
+                249,
+                "            }"
+            ],
+            [
+                250,
+                "        }"
+            ],
+            [
+                251,
+                ""
+            ],
+            [
+                252,
+                "        #region Try* methods for multithreading"
+            ],
+            [
+                253,
+                "        /// Get the head of the queue, without removing it (use TryDequeue() for that)."
+            ],
+            [
+                254,
+                "        /// Useful for multi-threading, where the queue may become empty between calls to Contains() and First"
+            ],
+            [
+                255,
+                "        /// Returns true if successful, false otherwise"
+            ],
+            [
+                256,
+                "        /// O(1)"
+            ],
+            [
+                257,
+                "        public bool TryFirst(out TItem first)"
+            ],
+            [
+                258,
+                "        {"
+            ],
+            [
+                259,
+                "            lock(_queue)"
+            ],
+            [
+                260,
+                "            {"
+            ],
+            [
+                261,
+                "                if(_queue.Count <= 0)"
+            ],
+            [
+                262,
+                "                {"
+            ],
+            [
+                263,
+                "                    first = default(TItem);"
+            ],
+            [
+                264,
+                "                    return false;"
+            ],
+            [
+                265,
+                "                }"
+            ],
+            [
+                266,
+                ""
+            ],
+            [
+                267,
+                "                first = _queue.First.Data;"
+            ],
+            [
+                268,
+                "                return true;"
+            ],
+            [
+                269,
+                "            }"
+            ],
+            [
+                270,
+                "        }"
+            ],
+            [
+                271,
+                ""
+            ],
+            [
+                272,
+                "        /// <summary>"
+            ],
+            [
+                273,
+                "        /// Removes the head of the queue (node with minimum priority; ties are broken by order of insertion), and sets it to first."
+            ],
+            [
+                274,
+                "        /// Useful for multi-threading, where the queue may become empty between calls to Contains() and Dequeue()"
+            ],
+            [
+                275,
+                "        /// Returns true if successful; false if queue was empty"
+            ],
+            [
+                276,
+                "        /// O(log n)"
+            ],
+            [
+                277,
+                "        /// </summary>"
+            ],
+            [
+                278,
+                "        public bool TryDequeue(out TItem first)"
+            ],
+            [
+                279,
+                "        {"
+            ],
+            [
+                280,
+                "            lock(_queue)"
+            ],
+            [
+                281,
+                "            {"
+            ],
+            [
+                282,
+                "                if(_queue.Count <= 0)"
+            ],
+            [
+                283,
+                "                {"
+            ],
+            [
+                284,
+                "                    first = default(TItem);"
+            ],
+            [
+                285,
+                "                    return false;"
+            ],
+            [
+                286,
+                "                }"
+            ],
+            [
+                287,
+                ""
+            ],
+            [
+                288,
+                "                SimpleNode node = _queue.Dequeue();"
+            ],
+            [
+                289,
+                "                first = node.Data;"
+            ],
+            [
+                290,
+                "                return true;"
+            ],
+            [
+                291,
+                "            }"
+            ],
+            [
+                292,
+                "        }"
+            ],
+            [
+                293,
+                ""
+            ],
+            [
+                294,
+                "        /// <summary>"
+            ],
+            [
+                295,
+                "        /// Attempts to remove an item from the queue.  The item does not need to be the head of the queue."
+            ],
+            [
+                296,
+                "        /// Useful for multi-threading, where the queue may become empty between calls to Contains() and Remove()"
+            ],
+            [
+                297,
+                "        /// Returns true if the item was successfully removed, false if it wasn't in the queue."
+            ],
+            [
+                298,
+                "        /// If multiple copies of the item are enqueued, only the first one is removed."
+            ],
+            [
+                299,
+                "        /// O(n)"
+            ],
+            [
+                300,
+                "        /// </summary>"
+            ],
+            [
+                301,
+                "        public bool TryRemove(TItem item)"
+            ],
+            [
+                302,
+                "        {"
+            ],
+            [
+                303,
+                "            lock(_queue)"
+            ],
+            [
+                304,
+                "            {"
+            ],
+            [
+                305,
+                "                SimpleNode removeMe = GetExistingNode(item);"
+            ],
+            [
+                306,
+                "                if(removeMe == null)"
+            ],
+            [
+                307,
+                "                {"
+            ],
+            [
+                308,
+                "                    return false;"
+            ],
+            [
+                309,
+                "                }"
+            ],
+            [
+                310,
+                "                _queue.Remove(removeMe);"
+            ],
+            [
+                311,
+                "                return true;"
+            ],
+            [
+                312,
+                "            }"
+            ],
+            [
+                313,
+                "        }"
+            ],
+            [
+                314,
+                ""
+            ],
+            [
+                315,
+                "        /// <summary>"
+            ],
+            [
+                316,
+                "        /// Call this method to change the priority of an item."
+            ],
+            [
+                317,
+                "        /// Useful for multi-threading, where the queue may become empty between calls to Contains() and UpdatePriority()"
+            ],
+            [
+                318,
+                "        /// If the item is enqueued multiple times, only the first one will be updated."
+            ],
+            [
+                319,
+                "        /// (If your requirements are complex enough that you need to enqueue the same item multiple times <i>and</i> be able"
+            ],
+            [
+                320,
+                "        /// to update all of them, please wrap your items in a wrapper class so they can be distinguished)."
+            ],
+            [
+                321,
+                "        /// Returns true if the item priority was updated, false otherwise."
+            ],
+            [
+                322,
+                "        /// O(n)"
+            ],
+            [
+                323,
+                "        /// </summary>"
+            ],
+            [
+                324,
+                "        public bool TryUpdatePriority(TItem item, TPriority priority)"
+            ],
+            [
+                325,
+                "        {"
+            ],
+            [
+                326,
+                "            lock(_queue)"
+            ],
+            [
+                327,
+                "            {"
+            ],
+            [
+                328,
+                "                SimpleNode updateMe = GetExistingNode(item);"
+            ],
+            [
+                329,
+                "                if(updateMe == null)"
+            ],
+            [
+                330,
+                "                {"
+            ],
+            [
+                331,
+                "                    return false;"
+            ],
+            [
+                332,
+                "                }"
+            ],
+            [
+                333,
+                "                _queue.UpdatePriority(updateMe, priority);"
+            ],
+            [
+                334,
+                "                return true;"
+            ],
+            [
+                335,
+                "            }"
+            ],
+            [
+                336,
+                "        }"
+            ],
+            [
+                337,
+                ""
+            ],
+            [
+                338,
+                "        /// <summary>"
+            ],
+            [
+                339,
+                "        /// Attempt to get the priority of the given item."
+            ],
+            [
+                340,
+                "        /// Useful for multi-threading, where the queue may become empty between calls to Contains() and GetPriority()"
+            ],
+            [
+                341,
+                "        /// If the item is enqueued multiple times, only the priority of the first will be returned."
+            ],
+            [
+                342,
+                "        /// (If your requirements are complex enough that you need to enqueue the same item multiple times <i>and</i> be able"
+            ],
+            [
+                343,
+                "        /// to query all their priorities, please wrap your items in a wrapper class so they can be distinguished)."
+            ],
+            [
+                344,
+                "        /// Returns true if the item was found in the queue, false otherwise"
+            ],
+            [
+                345,
+                "        /// O(n) (O(1) if item == queue.First)"
+            ],
+            [
+                346,
+                "        /// </summary>"
+            ],
+            [
+                347,
+                "        public bool TryGetPriority(TItem item, out TPriority priority)"
+            ],
+            [
+                348,
+                "        {"
+            ],
+            [
+                349,
+                "            lock(_queue)"
+            ],
+            [
+                350,
+                "            {"
+            ],
+            [
+                351,
+                "                SimpleNode findMe = GetExistingNode(item);"
+            ],
+            [
+                352,
+                "                if(findMe == null)"
+            ],
+            [
+                353,
+                "                {"
+            ],
+            [
+                354,
+                "                    priority = default(TPriority);"
+            ],
+            [
+                355,
+                "                    return false;"
+            ],
+            [
+                356,
+                "                }"
+            ],
+            [
+                357,
+                "                priority = findMe.Priority;"
+            ],
+            [
+                358,
+                "                return true;"
+            ],
+            [
+                361,
+                "        #endregion"
+            ]
+        ],
+        "deleted": [
+            [
+                62,
+                "            throw new InvalidOperationException(\"Item cannot be found in queue: \" + item);"
+            ],
+            [
+                97,
+                "                    SimpleNode first = _queue.First;"
+            ],
+            [
+                98,
+                "                    return (first != null ? first.Data : default(TItem));"
+            ],
+            [
+                123,
+                "                var comparer = EqualityComparer<TItem>.Default;"
+            ],
+            [
+                124,
+                "                foreach (var node in _queue)"
+            ],
+            [
+                125,
+                "                {"
+            ],
+            [
+                126,
+                "                    if (comparer.Equals(node.Data, item))"
+            ],
+            [
+                127,
+                "                    {"
+            ],
+            [
+                128,
+                "                        return true;"
+            ],
+            [
+                129,
+                "                    }"
+            ],
+            [
+                130,
+                "                }"
+            ],
+            [
+                131,
+                "                return false;"
+            ],
+            [
+                164,
+                "                SimpleNode node = new SimpleNode(item);"
+            ],
+            [
+                165,
+                "                if(_queue.Count == _queue.MaxSize)"
+            ],
+            [
+                167,
+                "                    _queue.Resize(_queue.MaxSize*2 + 1);"
+            ],
+            [
+                169,
+                "                _queue.Enqueue(node, priority);"
+            ],
+            [
+                183,
+                "                try"
+            ],
+            [
+                184,
+                "                {"
+            ],
+            [
+                185,
+                "                    _queue.Remove(GetExistingNode(item));"
+            ],
+            [
+                186,
+                "                }"
+            ],
+            [
+                187,
+                "                catch(InvalidOperationException ex)"
+            ],
+            [
+                189,
+                "                    throw new InvalidOperationException(\"Cannot call Remove() on a node which is not enqueued: \" + item, ex);"
+            ],
+            [
+                206,
+                "                try"
+            ],
+            [
+                208,
+                "                    SimpleNode updateMe = GetExistingNode(item);"
+            ],
+            [
+                209,
+                "                    _queue.UpdatePriority(updateMe, priority);"
+            ],
+            [
+                210,
+                "                }"
+            ],
+            [
+                211,
+                "                catch(InvalidOperationException ex)"
+            ],
+            [
+                212,
+                "                {"
+            ],
+            [
+                213,
+                "                    throw new InvalidOperationException(\"Cannot call UpdatePriority() on a node which is not enqueued: \" + item, ex);"
+            ],
+            [
+                230,
+                "                return GetExistingNode(item).Priority;"
+            ]
+        ]
+    },
+    "num_lines_added": 159,
+    "num_lines_removed": 30
+}

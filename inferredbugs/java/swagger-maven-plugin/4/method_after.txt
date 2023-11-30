@@ -1,0 +1,88 @@
+    public Swagger read(SpringResource resource) {
+        if (swagger == null) {
+            swagger = new Swagger();
+        }
+        String description;
+        List<Method> methods = resource.getMethods();
+        Map<String, Tag> tags = new HashMap<String, Tag>();
+
+        List<SecurityRequirement> resourceSecurities = new ArrayList<SecurityRequirement>();
+
+        // Add the description from the controller api
+        Class<?> controller = resource.getControllerClass();
+        RequestMapping controllerRM = controller.getAnnotation(RequestMapping.class);
+
+
+        String[] controllerProduces = new String[0];
+        String[] controllerConsumes = new String[0];
+        if (controllerRM != null) {
+            controllerConsumes = controllerRM.consumes();
+            controllerProduces = controllerRM.produces();
+        }
+
+        if (controller != null && controller.isAnnotationPresent(Api.class)) {
+            Api api = controller.getAnnotation(Api.class);
+            if (!canReadApi(false, api)) {
+                return swagger;
+            }
+            tags = updateTagsForApi(null, api);
+            resourceSecurities = getSecurityRequirements(api);
+            description = api.description();
+        }
+
+        resourcePath = resource.getControllerMapping();
+
+        //collect api from method with @RequestMapping
+        Map<String, List<Method>> apiMethodMap = collectApisByRequestMapping(methods);
+
+        for (String path : apiMethodMap.keySet()) {
+            for (Method method : apiMethodMap.get(path)) {
+
+                RequestMapping requestMapping = method.getAnnotation(RequestMapping.class);
+                if (requestMapping == null) {
+                    continue;
+                }
+                ApiOperation apiOperation = method.getAnnotation(ApiOperation.class);
+                if (apiOperation == null) {
+                    continue;
+                }
+                String httpMethod = null;
+
+
+                Map<String, String> regexMap = new HashMap<String, String>();
+                String operationPath = parseOperationPath(path, regexMap);
+
+                //http method
+                if (requestMapping.method() != null && requestMapping.method().length != 0) {
+                    httpMethod = requestMapping.method()[0].toString().toLowerCase();
+                    if (httpMethod == null) {
+                        continue;
+                    }
+                }
+
+                Operation operation = parseMethod(method);
+
+                updateOperationParameters(new ArrayList<Parameter>(), regexMap, operation);
+
+                updateOperationProtocols(apiOperation, operation);
+
+                String[] apiProduces = requestMapping.produces();
+                String[] apiConsumes = requestMapping.consumes();
+
+                apiProduces = (apiProduces == null || apiProduces.length == 0 ) ? controllerProduces : apiProduces;
+                apiConsumes = (apiConsumes == null || apiProduces.length == 0 ) ? controllerConsumes : apiConsumes;
+
+                apiConsumes = updateOperationConsumes(new String[0], apiConsumes, operation);
+                apiProduces = updateOperationProduces(new String[0], apiProduces, operation);
+
+                ApiOperation op = method.getAnnotation(ApiOperation.class);
+                updateTagsForOperation(operation, op);
+                updateOperation(apiConsumes, apiProduces, tags, resourceSecurities, operation);
+                updatePath(operationPath, httpMethod, operation);
+
+
+            }
+
+        }
+        return swagger;
+    }

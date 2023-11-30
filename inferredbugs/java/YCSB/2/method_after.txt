@@ -1,0 +1,26 @@
+    @Override
+    public int insert(String table, String key,
+            HashMap<String, ByteIterator> values) {
+        try {
+            MongoCollection<Document> collection = database
+                    .getCollection(table);
+            Document toInsert = new Document("_id", key);
+            for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
+                toInsert.put(entry.getKey(), entry.getValue().toArray());
+            }
+
+            bulkInserts.add(toInsert);
+            if (bulkInserts.size() == batchSize) {
+                collection.insertMany(bulkInserts, INSERT_MANY_OPTIONS);
+                bulkInserts.clear();
+            }
+            return 0;
+        }
+        catch (Exception e) {
+            System.err.println("Exception while trying bulk insert with "
+                               + bulkInserts.size());
+            e.printStackTrace();
+            return 1;
+        }
+
+    }

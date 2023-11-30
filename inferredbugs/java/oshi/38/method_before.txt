@@ -1,0 +1,38 @@
+    private List<OSFileStore> getWmiVolumes() {
+        Map<String, List<String>> drives;
+        List<OSFileStore> fs;
+        String volume;
+        long free;
+        long total;
+
+        fs = new ArrayList<>();
+
+        drives = WmiUtil.selectStringsFrom(null, "Win32_LogicalDisk",
+                "Name,Description,ProviderName,FileSystem,Freespace,Size", null);
+
+        for (int i = 0; i < drives.get("Name").size(); i++) {
+            free = ParseUtil.parseLongOrDefault(drives.get("Freespace").get(i), 0L);
+            total = ParseUtil.parseLongOrDefault(drives.get("Size").get(i), 0L);
+            String description = drives.get("Description").get(i);
+
+            long type = WmiUtil.selectUint32From(null, "Win32_LogicalDisk", "DriveType",
+                    "WHERE Name = '" + drives.get("Name").get(i) + "'");
+            if (type != 4) {
+                char[] chrVolume = new char[BUFSIZE];
+                Kernel32.INSTANCE.GetVolumeNameForVolumeMountPoint(drives.get("Name").get(i) + "\\", chrVolume,
+                        BUFSIZE);
+                volume = new String(chrVolume).trim();
+            } else {
+                volume = drives.get("ProviderName").get(i);
+                String[] split = volume.split("\\\\");
+                if (split.length > 1 && split[split.length - 1].length() > 0) {
+                    description = split[split.length - 1];
+                }
+            }
+
+            fs.add(new OSFileStore(String.format("%s (%s)", description, drives.get("Name").get(i)), volume,
+                    drives.get("Name").get(i) + "\\", getDriveType(drives.get("Name").get(i)),
+                    drives.get("FileSystem").get(i), "", free, total));
+        }
+        return fs;
+    }

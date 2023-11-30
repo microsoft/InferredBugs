@@ -1,0 +1,16 @@
+ @Override
+	public Flux<Payload> requestStream(Payload payload) {
+		List<String> metadata = getRoutingMetadata(payload);
+		RSocket service = findRSocket(metadata);
+
+		if (service != null) {
+			return service.requestStream(payload);
+		}
+
+		MonoProcessor<RSocket> processor = MonoProcessor.create();
+		this.registry.pendingRequest(metadata, processor);
+
+		return processor
+				.log("pending-request")
+				.flatMapMany(rSocket -> rSocket.requestStream(payload));
+	}

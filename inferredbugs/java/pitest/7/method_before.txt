@@ -1,0 +1,52 @@
+  public static void main(final String[] args) {
+
+    ExitCode exitCode = ExitCode.OK;
+    Socket s = null;
+    try {
+      final File input = new File(args[0]);
+
+      LOG.fine("Input file is " + input);
+
+      final BufferedReader br = new BufferedReader(new InputStreamReader(
+          new FileInputStream(input)));
+
+      final SlaveArguments paramsFromParent = (SlaveArguments) IsolationUtils
+          .fromTransportString(br.readLine());
+
+      System.setProperties(paramsFromParent.getSystemProperties());
+
+      Log.setVerbose(paramsFromParent.isVerbose());
+
+      br.close();
+
+      HotSwapAgent.addTransformer(new CoverageTransformer(paramsFromParent
+          .getFilter()));
+
+      s = new Socket("localhost", paramsFromParent.getPort());
+
+      final List<TestUnit> tus = getTestsFromParent(s);
+
+      LOG.info(tus.size() + " tests received");
+
+      final CoverageWorker worker = new CoverageWorker(s.getOutputStream(), tus);
+
+      worker.run();
+
+    } catch (final Throwable ex) {
+      LOG.log(Level.SEVERE, "Error calculating coverage. Process will exit.",
+          ex);
+      ex.printStackTrace();
+      exitCode = ExitCode.UNKNOWN_ERROR;
+    } finally {
+      try {
+        if (s != null) {
+          s.close();
+        }
+      } catch (final IOException e) {
+        throw translateCheckedException(e);
+      }
+    }
+
+    System.exit(exitCode.getCode());
+
+  }

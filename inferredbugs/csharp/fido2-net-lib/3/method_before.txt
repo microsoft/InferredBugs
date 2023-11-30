@@ -1,0 +1,52 @@
+        public static bool VerifySigWithCoseKey(byte[] data, PeterO.Cbor.CBORObject coseKey, byte[] sig)
+        {
+            // Validate that alg matches the algorithm of the credentialPublicKey in authenticatorData
+            var coseKty = coseKey[PeterO.Cbor.CBORObject.FromObject(1)].AsInt32();
+            var coseAlg = coseKey[PeterO.Cbor.CBORObject.FromObject(3)].AsInt32();
+            var packedCrv = 0;
+            if (1 == coseKty || 2 == coseKty) packedCrv = coseKey[PeterO.Cbor.CBORObject.FromObject(-1)].AsInt32();
+            var FidoAlg = CoseToFido(coseKty, coseAlg, packedCrv);
+            if (1 == coseKty)
+            {
+                if (true == FidoAlg.Equals("ALG_SIGN_ED25519_EDDSA_SHA512_RAW")) throw new Fido2VerificationException("ALG_SIGN_ED25519_EDDSA_SHA512_RAW support not yet implmented");
+                else throw new Fido2VerificationException("Unknown algorithm");
+            }
+            else if (2 == coseKty)
+            {
+                var curve = ECCurve.NamedCurves.nistP256;
+                if (FidoAlg.Equals("ALG_SIGN_SECP384R1_ECDSA_SHA384_RAW")) curve = ECCurve.NamedCurves.nistP384;
+                if (FidoAlg.Equals("ALG_SIGN_SECP521R1_ECDSA_SHA512_RAW")) curve = ECCurve.NamedCurves.nistP521;
+                var cng = ECDsaCng.Create(new ECParameters
+                {
+                    Curve = curve,
+                    Q = new ECPoint
+                    {
+                        X = coseKey[PeterO.Cbor.CBORObject.FromObject(-2)].GetByteString(),
+                        Y = coseKey[PeterO.Cbor.CBORObject.FromObject(-3)].GetByteString()
+                    }
+                });
+                if (FidoAlg.Equals("ALG_SIGN_SECP521R1_ECDSA_SHA512_RAW")) System.Diagnostics.Debug.WriteLine(BitConverter.ToString(sig).Replace("-", ""));
+                var ecsig = SigFromEcDsaSig(sig);
+                if (FidoAlg.Equals("ALG_SIGN_SECP521R1_ECDSA_SHA512_RAW")) System.Diagnostics.Debug.WriteLine(BitConverter.ToString(ecsig).Replace("-", ""));
+                // Verify that sig is a valid signature over the concatenation of authenticatorData and clientDataHash using the credential public key with alg
+                return cng.VerifyData(data, ecsig, algMap[coseAlg]);
+            }
+            else if (3 == coseKty)
+            {
+                RSACng rsa = new RSACng();
+                rsa.ImportParameters(
+                    new RSAParameters()
+                    {
+                        Modulus = coseKey[PeterO.Cbor.CBORObject.FromObject(-1)].GetByteString(),
+                        Exponent = coseKey[PeterO.Cbor.CBORObject.FromObject(-2)].GetByteString()
+                    }
+                );
+
+                if (FidoAlg.Contains("RSASSA_PKCSV15"))
+                    return rsa.VerifyData(data, sig, algMap[coseAlg], RSASignaturePadding.Pkcs1);
+                if (FidoAlg.Contains("RSASSA_PSS"))
+                    return rsa.VerifyData(data, sig, algMap[coseAlg], RSASignaturePadding.Pss);
+            }
+            else throw new Fido2VerificationException("Missing or unknown keytype");
+            return false;
+        }

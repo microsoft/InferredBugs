@@ -1,0 +1,38 @@
+    private void migrateIndexerApiAccesses(Map<Integer, IndexerEntity> oldIdToIndexersMap) throws SQLException {
+        Statement statement = connection.createStatement();
+        int countIndexerApiAccesses = getCount(statement, "INDEXERAPIACCESS");
+        logger.info("Migrating {} indexer API accesses from old database", countIndexerApiAccesses);
+        eventPublisher.publishEvent(new MigrationMessageEvent("Migrating " + countIndexerApiAccesses + " indexer API access entries"));
+        ResultSet oldIndexerApiAccesses = statement.executeQuery("SELECT * FROM INDEXERAPIACCESS");
+        int countMigrated = 1;
+        IndexerApiAccessEntity entity;
+        ProgressLogger progressLogger = new ProgressLogger(logger, 5, TimeUnit.SECONDS);
+        progressLogger.expectedUpdates = countIndexerApiAccesses;
+        progressLogger.start();
+
+        while (oldIndexerApiAccesses.next()) {
+            entity = new IndexerApiAccessEntity();
+            entity.setIndexer(oldIdToIndexersMap.get(oldIndexerApiAccesses.getInt("indexer_id")));
+            entity.setTime(oldIndexerApiAccesses.getTimestamp("time").toInstant());
+            Object responseTime = oldIndexerApiAccesses.getObject("response_time");
+            entity.setResponseTime(responseTime != null ? ((Integer) responseTime).longValue() : null);
+            String error = oldIndexerApiAccesses.getString("error");
+            entity.setError(error != null ? error.substring(0, Math.min(4000, error.length())) : null);
+            entity.setAccessType(null);
+            entity.setResult(oldIndexerApiAccesses.getBoolean("response_successful") ? IndexerAccessResult.SUCCESSFUL : IndexerAccessResult.CONNECTION_ERROR); //Close enough
+            entity.setAccessType(IndexerApiAccessType.valueOf(oldIndexerApiAccesses.getString("type").toUpperCase()));
+            entityManager.persist(entity);
+            progressLogger.lightUpdate();
+
+            if (countMigrated++ % 50 == 0) {
+                entityManager.flush();
+                entityManager.clear();
+            }
+        }
+        progressLogger.stop();
+        statement.close();
+        entityManager.flush();
+        entityManager.clear();
+        eventPublisher.publishEvent(new MigrationMessageEvent("Successfully migrated indexer API accesses from old database"));
+        logger.info("Successfully migrated indexer API accesses from old database");
+    }

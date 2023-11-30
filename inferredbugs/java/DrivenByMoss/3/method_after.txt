@@ -1,0 +1,42 @@
+    @Override
+    public void onFirstRow (final int index, final ButtonEvent event)
+    {
+        if (event == ButtonEvent.DOWN)
+            return;
+
+        if (event == ButtonEvent.UP)
+        {
+            final CursorDeviceProxy cd = this.model.getCursorDevice ();
+            if (!cd.hasSelectedDevice ())
+                return;
+
+            if (!this.showDevices)
+            {
+                cd.setSelectedParameterPageInBank (index);
+                return;
+            }
+
+            if (cd.getPositionInBank () != index)
+            {
+                cd.selectSibling (index);
+                return;
+            }
+
+            final ModeManager modeManager = this.surface.getModeManager ();
+            if (!cd.hasLayers ())
+            {
+                ((DeviceParamsMode) modeManager.getMode (Modes.MODE_DEVICE_PARAMS)).setShowDevices (false);
+                return;
+            }
+
+            final ChannelData layer = cd.getSelectedLayerOrDrumPad ();
+            if (layer == null)
+                cd.selectLayerOrDrumPad (0);
+            modeManager.setActiveMode (Modes.MODE_DEVICE_LAYER);
+            return;
+        }
+
+        // LONG press - move upwards
+        this.surface.setButtonConsumed (PushControlSurface.PUSH_BUTTON_ROW1_1 + index);
+        this.moveUp ();
+    }

@@ -1,0 +1,61 @@
+        [Test] public void ShouldDeserializePathsResultAsSetBased()
+        {
+            // Arrange
+            const string queryText = @"START d=node({p0}), e=node({p1})
+                                        MATCH p = allShortestPaths( d-[*..15]-e )
+                                        RETURN p";
+
+            var parameters = new Dictionary<string, object>
+                {
+                    {"p0", 215},
+                    {"p1", 219}
+                };
+
+            var cypherQuery = new CypherQuery(queryText, parameters, CypherResultMode.Set);
+            var cypherApiQuery = new CypherApiQuery(cypherQuery);
+
+            using (var testHarness = new RestTestHarness
+                {
+                    {
+                        MockRequest.Get(""),
+                        MockResponse.NeoRoot()
+                    },
+                    {
+                    MockRequest.PostObjectAsJson("/cypher", cypherApiQuery),
+                    MockResponse.Json(HttpStatusCode.OK,
+                    @"{
+                              'data' : [ [ {
+                                'start' : 'http://foo/db/data/node/215',
+                                'nodes' : [ 'http://foo/db/data/node/215', 'http://foo/db/data/node/0', 'http://foo/db/data/node/219' ],
+                                'length' : 2,
+                                'relationships' : [ 'http://foo/db/data/relationship/247', 'http://foo/db/data/relationship/257' ],
+                                'end' : 'http://foo/db/data/node/219'
+                              } ], [ {
+                                'start' : 'http://foo/db/data/node/215',
+                                'nodes' : [ 'http://foo/db/data/node/215', 'http://foo/db/data/node/1', 'http://foo/db/data/node/219' ],
+                                'length' : 2,
+                                'relationships' : [ 'http://foo/db/data/relationship/248', 'http://foo/db/data/relationship/258' ],
+                                'end' : 'http://foo/db/data/node/219'
+                              } ] ],
+                              'columns' : [ 'p' ]
+                            }")
+                    }
+                })
+            {
+                var graphClient = (GraphClient)testHarness.CreateAndConnectGraphClient();
+
+                //Act
+                var results = graphClient
+                    .ExecuteGetCypherResults<PathsResult>(cypherQuery)
+                    .ToArray();
+
+                //Assert
+                Assert.IsInstanceOf<IEnumerable<PathsResult>>(results);
+                Assert.AreEqual(results.First().Length, 2);
+                Assert.AreEqual(results.First().Start, "http://foo/db/data/node/215");
+                Assert.AreEqual(results.First().End, "http://foo/db/data/node/219");
+                Assert.AreEqual(results.Skip(1).First().Length, 2);
+                Assert.AreEqual(results.Skip(1).First().Start, "http://foo/db/data/node/215");
+                Assert.AreEqual(results.Skip(1).First().End, "http://foo/db/data/node/219");
+            }
+        }

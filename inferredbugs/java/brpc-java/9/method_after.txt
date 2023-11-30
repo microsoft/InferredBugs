@@ -1,0 +1,30 @@
+    public EventLoopGroup getOrCreateClientIoThreadPool(String serviceName, boolean isSharing,
+                                                  int threadNum, int ioEventType) {
+        if (isSharing) {
+            if (defaultIoThreadPool == null) {
+                synchronized (BrpcThreadPoolManager.class) {
+                    if (defaultIoThreadPool == null) {
+                        defaultIoThreadPool = createClientIoThreadPool(
+                                threadNum, "brpc-client-io-thread-default", ioEventType);
+                    }
+                }
+            }
+            return defaultIoThreadPool;
+        }
+
+        EventLoopGroup threadPool;
+        if ((threadPool = ioThreadPoolMap.get(serviceName)) == null) {
+            synchronized (serviceName.intern()) {
+                if ((threadPool = ioThreadPoolMap.get(serviceName)) == null) {
+                    threadPool = createClientIoThreadPool(
+                            threadNum, "brpc-client-io-thread-" + serviceName, ioEventType);
+                    EventLoopGroup prev = ioThreadPoolMap.putIfAbsent(serviceName, threadPool);
+                    if (prev != null) {
+                        log.warn("brpc io thread pool exist for service:{}", serviceName);
+                        threadPool.shutdownGracefully().awaitUninterruptibly();
+                    }
+                }
+            }
+        }
+        return threadPool;
+    }

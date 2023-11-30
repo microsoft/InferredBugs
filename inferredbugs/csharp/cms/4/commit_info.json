@@ -1,0 +1,417 @@
+{
+    "hash": "1943859a806e8c033ef0276b058e498929ac1d9d",
+    "message": "refactor index page cache",
+    "file_num_lines": 167,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "using System.Text;"
+            ],
+            [
+                5,
+                "using JR.Cms.Conf;"
+            ],
+            [
+                7,
+                "using JR.Cms.Core.Interface;"
+            ],
+            [
+                11,
+                "using JR.Stand.Core.Framework;"
+            ],
+            [
+                12,
+                "using JR.Stand.Core.Template;"
+            ],
+            [
+                21,
+                "        private static readonly object locker = new object();"
+            ],
+            [
+                22,
+                ""
+            ],
+            [
+                29,
+                "        private string SubPath(String path, string appPath)"
+            ],
+            [
+                37,
+                ""
+            ],
+            [
+                52,
+                "                ctx.Response.Redirect(site.Location, false); //302"
+            ],
+            [
+                55,
+                ""
+            ],
+            [
+                58,
+                "            if (!String.IsNullOrEmpty(site.AppPath) && path == \"/\")"
+            ],
+            [
+                60,
+                "                ctx.Response.Redirect(\"/\" + site.AppPath, false);"
+            ],
+            [
+                63,
+                ""
+            ],
+            [
+                72,
+                "            // \u5982\u679c\u542f\u7528\u4e86\u9759\u6001\u6587\u4ef6\u7f13\u5b58"
+            ],
+            [
+                73,
+                "            if (Settings.Opti_IndexCacheSeconds > 0)"
+            ],
+            [
+                74,
+                "            {"
+            ],
+            [
+                75,
+                "                var task = this.CheckStaticIndex(context, Settings.Opti_IndexCacheSeconds);"
+            ],
+            [
+                76,
+                "                if (task != null) return task;"
+            ],
+            [
+                77,
+                "            }"
+            ],
+            [
+                78,
+                ""
+            ],
+            [
+                87,
+                "            if (!this.CheckSiteUrl(context, site)) return SafetyTask.CompletedTask;"
+            ],
+            [
+                91,
+                "            {"
+            ],
+            [
+                94,
+                ""
+            ],
+            [
+                104,
+                ""
+            ],
+            [
+                105,
+                "        private Task CheckStaticIndex(ICompatibleHttpContext context, int seconds)"
+            ],
+            [
+                106,
+                "        {"
+            ],
+            [
+                107,
+                "            const string cacheKey = \"site:index:cache\";"
+            ],
+            [
+                108,
+                "            const string cacheUnixKey = \"site:index:last-create\";"
+            ],
+            [
+                109,
+                "            String html;"
+            ],
+            [
+                110,
+                "            // \u5982\u679c\u975e\u9996\u9875\u8bbf\u95ee, \u5219\u4f7f\u7528\u52a8\u6001\u7684\u7ad9\u70b9\u9996\u9875"
+            ],
+            [
+                111,
+                "            var req = context.Request;"
+            ],
+            [
+                112,
+                "            var path = context.Request.GetPath();"
+            ],
+            [
+                113,
+                "            var appPath = context.Request.GetApplicationPath();"
+            ],
+            [
+                114,
+                "            if (path.Length - 1 > appPath.Length) return null;"
+            ],
+            [
+                115,
+                "            // \u7f13\u5b58\u5931\u6548"
+            ],
+            [
+                116,
+                "            var last = Cms.Cache.GetInt(cacheUnixKey);"
+            ],
+            [
+                117,
+                "            var unix = TimeUtils.Unix(DateTime.Now);"
+            ],
+            [
+                118,
+                "            if (last < unix - seconds)"
+            ],
+            [
+                119,
+                "            {"
+            ],
+            [
+                120,
+                "#if DEBUG"
+            ],
+            [
+                121,
+                "                Console.WriteLine(\"[ cms][ Info]: update index page cache..\");"
+            ],
+            [
+                122,
+                "#endif"
+            ],
+            [
+                123,
+                "                html = GenerateCache(cacheKey);"
+            ],
+            [
+                124,
+                "                Cms.Cache.Insert(cacheUnixKey, unix);"
+            ],
+            [
+                125,
+                "            }"
+            ],
+            [
+                126,
+                "            else"
+            ],
+            [
+                127,
+                "            {"
+            ],
+            [
+                128,
+                "                html = Cms.Cache.Get(cacheKey) as String;"
+            ],
+            [
+                129,
+                "                if (String.IsNullOrEmpty(html))"
+            ],
+            [
+                130,
+                "                {"
+            ],
+            [
+                131,
+                "                    html = GenerateCache(cacheKey);"
+            ],
+            [
+                132,
+                "                    Cms.Cache.Insert(cacheUnixKey, unix);"
+            ],
+            [
+                133,
+                "                }"
+            ],
+            [
+                134,
+                "            }"
+            ],
+            [
+                135,
+                ""
+            ],
+            [
+                136,
+                "            context.Response.ContentType(\"text/html;charset=utf-8\");"
+            ],
+            [
+                137,
+                "            return context.Response.WriteAsync(html);"
+            ],
+            [
+                138,
+                "        }"
+            ],
+            [
+                139,
+                ""
+            ],
+            [
+                140,
+                "        private static string GenerateCache(string cacheKey)"
+            ],
+            [
+                141,
+                "        {"
+            ],
+            [
+                142,
+                "            String html;"
+            ],
+            [
+                143,
+                "            lock (locker)"
+            ],
+            [
+                144,
+                "            {"
+            ],
+            [
+                145,
+                "                ICmsPageGenerator cmsPage = new PageGeneratorObject(Cms.Context);"
+            ],
+            [
+                146,
+                "                html = cmsPage.GetIndex();"
+            ],
+            [
+                147,
+                "                Cms.Cache.Insert(cacheKey, html);"
+            ],
+            [
+                148,
+                "                TemplateUtils.SaveFile(html, Cms.PhysicPath + \"index.html\", Encoding.UTF8);"
+            ],
+            [
+                149,
+                "            }"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "            return html;"
+            ],
+            [
+                152,
+                "        }"
+            ],
+            [
+                153,
+                ""
+            ],
+            [
+                159,
+                "        {"
+            ],
+            [
+                162,
+                "            var task = this.CheckStaticFile(context, path);"
+            ],
+            [
+                173,
+                ""
+            ],
+            [
+                209,
+                ""
+            ],
+            [
+                234,
+                "                if (path == sitePath)"
+            ],
+            [
+                238,
+                ""
+            ],
+            [
+                240,
+                "                if (path == sitePath + \"/\")"
+            ],
+            [
+                245,
+                ""
+            ],
+            [
+                258,
+                ""
+            ],
+            [
+                259,
+                ""
+            ],
+            [
+                275,
+                "            return SafetyTask.CompletedTask;"
+            ]
+        ],
+        "deleted": [
+            [
+                22,
+                "        private string SubPath(String path,string appPath)"
+            ],
+            [
+                44,
+                "                ctx.Response.Redirect(site.Location,false);  //302"
+            ],
+            [
+                49,
+                "            if (!String.IsNullOrEmpty(site.AppPath) &&  path == \"/\")"
+            ],
+            [
+                51,
+                "                ctx.Response.Redirect(\"/\" + site.AppPath,false);"
+            ],
+            [
+                70,
+                "            if (!this.CheckSiteUrl(context,site)) return SafetyTask.CompletedTask;"
+            ],
+            [
+                74,
+                "            {"
+            ],
+            [
+                86,
+                ""
+            ],
+            [
+                92,
+                "        {"
+            ],
+            [
+                95,
+                "            var task = this.CheckStaticFile(context,path);"
+            ],
+            [
+                165,
+                "                if (path ==sitePath )"
+            ],
+            [
+                170,
+                "                if (path == sitePath+\"/\")"
+            ],
+            [
+                174,
+                ""
+            ],
+            [
+                188,
+                ""
+            ],
+            [
+                189,
+                ""
+            ],
+            [
+                204,
+                "            return SafetyTask.CompletedTask;"
+            ],
+            [
+                205,
+                ""
+            ]
+        ]
+    },
+    "num_lines_added": 85,
+    "num_lines_removed": 16
+}

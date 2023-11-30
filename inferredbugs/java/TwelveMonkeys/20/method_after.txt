@@ -1,0 +1,20 @@
+    private CompoundDirectory getExif() throws IOException {
+        List<Application> exifSegments = getAppSegments(JPEG.APP1, "Exif");
+
+        if (!exifSegments.isEmpty()) {
+            Application exif = exifSegments.get(0);
+            int offset = exif.identifier.length() + 2; // Incl. pad
+
+            if (exif.data.length <= offset) {
+                processWarningOccurred("Exif chunk has no data.");
+            }
+            else {
+                // TODO: Consider returning ByteArrayImageInputStream from Segment.data()
+                try (ImageInputStream stream = new ByteArrayImageInputStream(exif.data, offset, exif.data.length - offset)) {
+                    return (CompoundDirectory) new TIFFReader().read(stream);
+                }
+            }
+        }
+
+        return null;
+    }

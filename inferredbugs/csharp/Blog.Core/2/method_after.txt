@@ -1,0 +1,30 @@
+        public void OnException(ExceptionContext context)
+        {
+            var json = new MessageModel<string>();
+
+            json.msg = context.Exception.Message;//错误信息
+            json.status = 500;//500异常 
+            var errorAudit = "Unable to resolve service for";
+            if (!string.IsNullOrEmpty(json.msg) && json.msg.Contains(errorAudit))
+            {
+                json.msg = json.msg.Replace(errorAudit, $"（若新添加服务，需要重新编译项目）{errorAudit}");
+            }
+
+            if (_env.EnvironmentName.ObjToString().Equals("Development"))
+            {
+                json.msgDev = context.Exception.StackTrace;//堆栈信息
+            }
+            var res = new ContentResult();
+            res.Content = JsonHelper.GetJSON<MessageModel<string>>(json);
+
+            context.Result = res;
+
+            MiniProfiler.Current.CustomTiming("Errors：", json.msg);
+
+
+            //采用log4net 进行错误日志记录
+            _loggerHelper.LogError(json.msg + WriteLog(json.msg, context.Exception));
+
+            _hubContext.Clients.All.SendAsync("ReceiveUpdate", LogLock.GetLogData()).Wait();
+
+        }

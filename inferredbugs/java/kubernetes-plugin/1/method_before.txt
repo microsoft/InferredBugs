@@ -1,0 +1,46 @@
+    private Pod getPodTemplate(KubernetesSlave slave, Label label) {
+        DockerTemplate template = getTemplate(label);
+        String id = getIdForLabel(label);
+        Pod podTemplate = new Pod();
+        podTemplate.setId(slave.getNodeName());
+
+        // labels
+        podTemplate.setLabels(getLabelsFor(id));
+
+        Container container = new Container();
+        container.setName(CONTAINER_NAME);
+        container.setImage(template.image);
+
+        // environment
+        // List<EnvironmentVariable> env = new
+        // ArrayList<EnvironmentVariable>(template.environment.length + 3);
+        List<EnvironmentVariable> env = new ArrayList<EnvironmentVariable>(3);
+        // always add some env vars
+        env.add(new EnvironmentVariable("JENKINS_SECRET", slave.getComputer().getJnlpMac()));
+        env.add(new EnvironmentVariable("JENKINS_URL", JenkinsLocationConfiguration.get().getUrl()));
+        String url = StringUtils.isBlank(jenkinsUrl) ? JenkinsLocationConfiguration.get().getUrl() : jenkinsUrl;
+        url = url.endsWith("/") ? url : url + "/";
+        env.add(new EnvironmentVariable("JENKINS_JNLP_URL", url + slave.getComputer().getUrl() + "slave-agent.jnlp"));
+        if (!StringUtils.isBlank(jenkinsTunnel)) {
+            env.add(new EnvironmentVariable("JENKINS_TUNNEL", jenkinsTunnel));
+        }
+        // for (int i = 0; i < template.environment.length; i++) {
+        // String[] split = template.environment[i].split("=");
+        // env.add(new EnvironmentVariable(split[0], split[1]));
+        // }
+        container.setEnv(env);
+
+        // ports
+        // TODO open ports defined in template
+        // container.setPorts(new Port(22, RAND.nextInt((65535 - 49152) + 1) +
+        // 49152));
+
+        // command: SECRET SLAVE_NAME
+        List<String> cmd = parseDockerCommand(template.dockerCommand);
+        cmd.addAll(ImmutableList.of(slave.getComputer().getJnlpMac(), slave.getComputer().getName()));
+        container.setCommand(cmd);
+
+        Manifest manifest = new Manifest(Collections.singletonList(container), null);
+        podTemplate.setDesiredState(new State(manifest));
+        return podTemplate;
+    }

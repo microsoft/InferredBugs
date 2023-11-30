@@ -1,0 +1,23 @@
+ @RequestMapping("/logout")
+	public String logout(HttpServletRequest request) {
+		HttpSession session = request.getSession();
+		
+		// 注销本地会话
+		if (session != null) {
+			session.invalidate();
+		}
+		
+		// 如果是客户端发起的注销请求
+		String token = (String) session.getAttribute(AuthConst.TOKEN);
+		List<String> clientUrls = authService.remove(token);
+		if (clientUrls != null && clientUrls.size() > 0) {
+			Map<String, String> params = new HashMap<String, String>();
+			params.put(AuthConst.LOGOUT_REQUEST, AuthConst.LOGOUT_REQUEST);
+			params.put(AuthConst.TOKEN, token);
+			for (String url : clientUrls) {
+				AuthUtil.post(url, params);
+			}
+		}
+		// 重定向到登录页面
+		return "redirect:/";
+	}

@@ -1,0 +1,34 @@
+    public static byte[] decompressT4_1D(final byte[] compressed, final int width,
+            final int height, final boolean hasFill) throws ImageReadException {
+        final BitInputStreamFlexible inputStream = new BitInputStreamFlexible(new ByteArrayInputStream(compressed));
+        try (BitArrayOutputStream outputStream = new BitArrayOutputStream()) {
+            for (int y = 0; y < height; y++) {
+                int rowLength;
+                try {
+                    T4_T6_Tables.Entry entry = CONTROL_CODES.decode(inputStream);
+                    if (!isEOL(entry, hasFill)) {
+                        throw new ImageReadException("Expected EOL not found");
+                    }
+                    int color = WHITE;
+                    for (rowLength = 0; rowLength < width;) {
+                        final int runLength = readTotalRunLength(inputStream, color);
+                        for (int i = 0; i < runLength; i++) {
+                            outputStream.writeBit(color);
+                        }
+                        color = 1 - color;
+                        rowLength += runLength;
+                    }
+                } catch (final HuffmanTreeException huffmanException) {
+                    throw new ImageReadException("Decompression error", huffmanException);
+                }
+    
+                if (rowLength == width) {
+                    outputStream.flush();
+                } else if (rowLength > width) {
+                    throw new ImageReadException("Unrecoverable row length error in image row " + y);
+                }
+            }
+            final byte[] ret = outputStream.toByteArray();
+            return ret;
+        }
+    }

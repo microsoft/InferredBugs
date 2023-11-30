@@ -1,0 +1,30 @@
+ public static List<Long> getPidsFromFile(String executorName, String jobName, String jobItem) {
+		List<Long> pids = new ArrayList<Long>();
+		//兼容旧版PID目录
+		Long pid = _getPidFromFile(executorName, jobName, jobItem);
+		if(pid > 0){
+			pids.add(pid);
+		}
+		
+		String path = String.format(JOBITEMPIDSPATH, executorName, jobName, jobItem);
+
+		File dir = new File(path);
+		if (!dir.exists() || !dir.isDirectory()) {
+			return pids;
+		}
+		File[] files =  dir.listFiles();
+		
+		if(files.length == 0){
+			return pids;
+		}
+
+		for(File file:files){
+			try {
+				pids.add(Long.parseLong(file.getName()));
+			} catch (Exception e) {
+				log.error(String.format(SaturnConstant.ERROR_LOG_FORMAT, jobName, "Parsing the pid file error"), e);
+			}
+		}
+		
+		return pids;
+	}

@@ -1,0 +1,71 @@
+    @Override
+    public void onValueKnobTouch (final int index, final boolean isTouched)
+    {
+        final CursorDeviceProxy cd = this.model.getCursorDevice ();
+        final ChannelData l = cd.getSelectedLayerOrDrumPad ();
+        if (l == null)
+            return;
+
+        this.isKnobTouched[index] = isTouched;
+
+        if (isTouched)
+        {
+            if (this.surface.isDeletePressed ())
+            {
+                this.surface.setButtonConsumed (this.surface.getDeleteButtonId ());
+                switch (index)
+                {
+                    case 0:
+                        cd.resetLayerOrDrumPadVolume (l.getIndex ());
+                        break;
+                    case 1:
+                        cd.resetLayerOrDrumPadPan (l.getIndex ());
+                        break;
+                    default:
+                        if (this.isPush2 && index < 4)
+                            break;
+                        final int sendIndex = index - (this.isPush2 ? this.surface.getConfiguration ().isSendsAreToggled () ? 0 : 4 : 2);
+                        cd.resetLayerSend (l.getIndex (), sendIndex);
+                        break;
+                }
+                return;
+            }
+
+            switch (index)
+            {
+                case 0:
+                    this.surface.getDisplay ().notify ("Volume: " + l.getVolumeStr ());
+                    break;
+                case 1:
+                    this.surface.getDisplay ().notify ("Pan: " + l.getPanStr ());
+                    break;
+                default:
+                    if (this.isPush2 && index < 4)
+                        break;
+                    final int sendIndex = index - (this.isPush2 ? this.surface.getConfiguration ().isSendsAreToggled () ? 0 : 4 : 2);
+                    final EffectTrackBankProxy fxTrackBank = this.model.getEffectTrackBank ();
+                    final String name = fxTrackBank == null ? l.getSends ()[sendIndex].getName () : fxTrackBank.getTrack (sendIndex).getName ();
+                    if (!name.isEmpty ())
+                        this.surface.getDisplay ().notify ("Send " + name + ": " + l.getSends ()[sendIndex].getDisplayedValue ());
+                    break;
+            }
+        }
+
+        switch (index)
+        {
+            case 0:
+                cd.touchLayerOrDrumPadVolume (l.getIndex (), isTouched);
+                break;
+            case 1:
+                cd.touchLayerOrDrumPadPan (l.getIndex (), isTouched);
+                break;
+            default:
+                if (this.isPush2 && index < 4)
+                    break;
+                final int sendIndex = index - (this.isPush2 ? this.surface.getConfiguration ().isSendsAreToggled () ? 0 : 4 : 2);
+                cd.touchLayerOrDrumPadSend (l.getIndex (), sendIndex, isTouched);
+                break;
+        }
+
+        this.checkStopAutomationOnKnobRelease (isTouched);
+    }

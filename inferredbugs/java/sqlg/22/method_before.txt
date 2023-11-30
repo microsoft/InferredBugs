@@ -1,0 +1,15 @@
+    @Test
+    public void testLoadingLocalTime() throws Exception {
+        Vertex v = this.sqlgGraph.addVertex(T.label, "Person", "createOn", LocalTime.now());
+        this.sqlgGraph.tx().commit();
+        this.sqlgGraph.close();
+        //noinspection Duplicates
+        try (SqlgGraph sqlgGraph1 = SqlgGraph.open(configuration)) {
+            Vertex vv = sqlgGraph1.traversal().V(v.id()).next();
+            assertTrue(vv.property("createOn").isPresent());
+            Map<String, PropertyType> propertyTypeMap = sqlgGraph1.getTopology().getAllTables().get(SchemaTable.of(
+                    sqlgGraph1.getSqlDialect().getPublicSchema(), "V_Person").toString());
+            assertTrue(propertyTypeMap.containsKey("createOn"));
+            sqlgGraph1.tx().rollback();
+        }
+    }

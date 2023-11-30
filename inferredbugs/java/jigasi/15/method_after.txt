@@ -1,0 +1,40 @@
+    void onConferenceCallInvited(Call incomingCall)
+    {
+        // Incoming SIP connection mode sets common conference here
+        if (destination == null)
+        {
+            incomingCall.setConference(sipCall.getConference());
+
+            boolean useTranslator = incomingCall.getProtocolProvider()
+                .getAccountID().getAccountPropertyBoolean(
+                    ProtocolProviderFactory.USE_TRANSLATOR_IN_CONFERENCE,
+                    false);
+            CallPeer peer = incomingCall.getCallPeers().next();
+            // if use translator is enabled add a ssrc rewriter
+            if (useTranslator && !addSsrcRewriter(peer))
+            {
+                peer.addCallPeerListener(new CallPeerAdapter()
+                {
+                    @Override
+                    public void peerStateChanged(CallPeerChangeEvent evt)
+                    {
+                        CallPeer peer = evt.getSourceCallPeer();
+                        CallPeerState peerState = peer.getState();
+
+                        if (CallPeerState.CONNECTED.equals(peerState))
+                        {
+                            peer.removeCallPeerListener(this);
+                            addSsrcRewriter(peer);
+                        }
+                    }
+                });
+            }
+        }
+
+        Exception error = this.onConferenceCallStarted(incomingCall);
+
+        if (error != null)
+        {
+            logger.error(this.callContext + " " + error, error);
+        }
+    }

@@ -1,0 +1,15 @@
+  public List<Pair<String, Integer>> getColumns(String schema, String table) throws SQLException {
+    if (!columnsCache.isEmpty()){
+      return columnsCache;
+    }
+    DbmsQueryResult queryResult = connection.executeQuery(syntax.getColumnsCommand(schema, table));
+    JdbcResultSet jdbcQueryResult = new JdbcResultSet(queryResult);
+    while (queryResult.next()) {
+      String type = jdbcQueryResult.getString(syntax.getColumnTypeColumnIndex());
+      // remove the size of type
+      type = type.replaceAll("\\(.*\\)", "");
+      columnsCache.add(new ImmutablePair<>(jdbcQueryResult.getString(syntax.getColumnNameColumnIndex()),
+          DataTypeConverter.typeInt(type)));
+    }
+    return columnsCache;
+  }

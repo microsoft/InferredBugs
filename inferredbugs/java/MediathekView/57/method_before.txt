@@ -1,0 +1,27 @@
+    public synchronized boolean zeileSchreiben(String thema, String titel, String url) {
+        boolean ret = false;
+        String text;
+        listeErledigteAbos.add(url);
+        File f = new File(Daten.getBasisVerzeichnis(true) + Konstanten.LOG_DATEI_DOWNLOAD_ABOS);
+        if (f != null) {
+            OutputStreamWriter writer = null;
+            try {
+                writer = new OutputStreamWriter(new FileOutputStream(f, true));
+                thema = GuiFunktionen.textLaenge(25, putzen(thema), false /* mitte */, false /*addVorne*/);
+                titel = GuiFunktionen.textLaenge(30, putzen(titel), false /* mitte */, false /*addVorne*/);
+                text = DatumZeit.getHeute_dd_MM_yyyy() + PAUSE + thema + PAUSE + titel + TRENNER + url + "\n";
+                writer.write(text);
+                writer.close();
+                ret = true;
+            } catch (Exception ex) {
+                Log.fehlerMeldung(945258023, Log.FEHLER_ART_PROG, "LogDownload.zeileSchreiben-1", ex);
+            } finally {
+                try {
+                    writer.close();
+                } catch (Exception ex) {
+                }
+            }
+        }
+        ListenerMediathekView.notify(ListenerMediathekView.EREIGNIS_LISTE_ERLEDIGTE_ABOS, ErledigteAbos.class.getSimpleName());
+        return ret;
+    }

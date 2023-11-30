@@ -1,0 +1,29 @@
+        private void NotifyTrackChange()
+        {
+            var track = _ipc.GetFileTag(MusicBeeIPC.MetaData.TrackTitle);
+            var artist = _ipc.GetFileTag(MusicBeeIPC.MetaData.Artist);
+
+            var id = artist + track;
+            if (_currentId == id)
+            {
+                return;
+            }
+
+            _currentId = id;
+
+            Image albumArt = null;
+            var bytes = Convert.FromBase64String(_ipc.GetArtwork());
+            using (var ms = new MemoryStream(bytes))
+            {
+                albumArt = new Bitmap(ms);
+            }
+
+            TrackInfoChanged?.Invoke(this, new TrackInfoChangedEventArgs
+            {
+                Album = _ipc.GetFileTag(MusicBeeIPC.MetaData.Album),
+                Artist = artist,
+                AlbumArt = albumArt,
+                TrackLength =  ParseTimeFromIPC(),
+                TrackName = track
+            });
+        }

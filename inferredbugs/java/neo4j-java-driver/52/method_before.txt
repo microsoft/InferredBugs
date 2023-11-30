@@ -1,0 +1,20 @@
+    @Test
+    void shouldNotSendWriteAccessModeInStatementMetadata() throws Exception
+    {
+        StubServer server = StubServer.start( "hello_run_exit.script", 9001 );
+
+        Config config = Config.builder()
+                .withoutEncryption()
+                .build();
+
+        try ( Driver driver = GraphDatabase.driver( "bolt://localhost:9001", config );
+                Session session = driver.session( AccessMode.WRITE ) )
+        {
+            List<String> names = session.run( "MATCH (n) RETURN n.name" ).list( record -> record.get( 0 ).asString() );
+            assertEquals( asList( "Foo", "Bar" ), names );
+        }
+        finally
+        {
+            assertEquals( 0, server.exitStatus() );
+        }
+    }

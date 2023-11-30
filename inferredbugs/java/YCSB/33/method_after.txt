@@ -1,0 +1,33 @@
+  @Override
+  public Status delete(String table, String key) {
+
+    try {
+      PreparedStatement stmt = deleteStmt.get();
+
+      // Prepare statement on demand
+      if (stmt == null) {
+        stmt = session.prepare(QueryBuilder.delete().from(table)
+                               .where(QueryBuilder.eq(YCSB_KEY, QueryBuilder.bindMarker())));
+        stmt.setConsistencyLevel(writeConsistencyLevel);
+        if (trace) {
+          stmt.enableTracing();
+        }
+
+        PreparedStatement prevStmt = deleteStmt.getAndSet(stmt);
+        if (prevStmt != null) {
+          stmt = prevStmt;
+        }
+      }
+
+      logger.debug(stmt.getQueryString());
+      logger.debug("key = {}", key);
+
+      session.execute(stmt.bind(key));
+
+      return Status.OK;
+    } catch (Exception e) {
+      logger.error(MessageFormatter.format("Error deleting key: {}", key).getMessage(), e);
+    }
+
+    return Status.ERROR;
+  }

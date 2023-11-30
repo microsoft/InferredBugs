@@ -1,0 +1,35 @@
+    @Test
+    public void rendersDebts() throws Exception {
+        final Farm farm = FkFarm.props();
+        final Debts debts = new Debts(farm).bootstrap();
+        final String uid = "yegor256";
+        final String first = "details 1";
+        final String second = "details 2";
+        final String price = "$9.99";
+        final String amount = "$3.33";
+        final String reason = "reason";
+        debts.add(uid, new Cash.S(price), first, reason);
+        debts.add(uid, new Cash.S(amount), second, reason);
+        final String html = new View(farm, String.format("/u/%s", uid)).html();
+        MatcherAssert.assertThat(
+            html,
+            Matchers.allOf(
+                XhtmlMatchers.hasXPaths(
+                    new FormattedText(
+                        "//xhtml:td[.='%s (%s)']", first, reason
+                    ).asString()
+                ),
+                XhtmlMatchers.hasXPaths(
+                    new FormattedText(
+                        "//xhtml:td[.='%s (%s)']", second, reason
+                    ).asString()
+                ),
+                XhtmlMatchers.hasXPaths(
+                    new FormattedText("//xhtml:td[.='%s']", price).asString()
+                ),
+                XhtmlMatchers.hasXPaths(
+                    new FormattedText("//xhtml:td[.='%s']", amount).asString()
+                )
+            )
+        );
+    }

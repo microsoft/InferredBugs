@@ -1,0 +1,106 @@
+    public boolean evaluate(Node annotatedText, int iter, double damp, double threshold) {
+        Map<Long, Map<Long, CoOccurrenceItem>> coOccurrence = createCooccurrences(annotatedText);
+        PageRank pageRank = new PageRank(database);
+        if (useTfIdfWeights) {
+            pageRank.setNodeWeights(initializeNodeWeights_TfIdf(annotatedText, coOccurrence));
+        }
+        Map<Long, Double> pageRanks = pageRank.run(coOccurrence, iter, damp, threshold);
+
+        int n_oneThird = (int) (pageRanks.size() * phrasesTopxWords);
+        List<Long> topThird = getTopX(pageRanks, n_oneThird);
+
+        LOG.info("Top " + n_oneThird + " tags: " + topThird.stream().map(id -> idToValue.get(id)).collect(Collectors.joining(", ")));
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", annotatedText.getId());
+        params.put("nodeList", topThird);
+        params.put("posList", admittedPOSs);
+        List<KeywordExtractedItem> keywordsOccurrences = new ArrayList<>();
+        Map<Long, KeywordExtractedItem> keywordMap = new HashMap<>();
+        try (Transaction tx = database.beginTx()) {
+            Result res = database.execute(GET_TAG_QUERY, params);
+            while (res != null && res.hasNext()) {
+                Map<String, Object> next = res.next();
+                long tagId = (long) next.get("tagId");
+                KeywordExtractedItem item = new KeywordExtractedItem(tagId);
+                item.setStartPosition(((Number) next.get("sP")).intValue());
+                item.setValue(((String) next.get("tag")));
+                item.setEndPosition(((Number) next.get("eP")).intValue());
+                item.setRelatedTags(iterableToList((Iterable<String>) next.get("rel_tags")));
+                item.setRelTagStartingPoints(iterableToList((Iterable<Number>) next.get("rel_tos")));
+                item.setRelTagEndingPoints(iterableToList((Iterable<Number>) next.get("rel_toe")));
+                item.setRelevance(pageRanks.get(tagId));
+                keywordsOccurrences.add(item);
+                if (!keywordMap.containsKey(tagId)) {
+                    keywordMap.put(tagId, item);
+                }
+            }
+            if (res != null) {
+                res.close();
+            }
+            tx.success();
+        } catch (Exception e) {
+            LOG.error("Error while running TextRank evaluation: ", e);
+            return false;
+        }
+
+        Map<String, Keyword> results = new HashMap<>();
+
+        while (!keywordsOccurrences.isEmpty()) {
+            final AtomicReference<KeywordExtractedItem> keywordOccurrence
+                    = new AtomicReference<>(keywordsOccurrences.remove(0));
+            final AtomicReference<String> currValue = new AtomicReference<>(keywordOccurrence.get().getValue());
+            final AtomicReference<Double> currRelevance = new AtomicReference<>(keywordOccurrence.get().getRelevance());
+            //System.out.println("> " + currValue.get() + " - " + keywordOccurrence.get().getStartPosition());
+            Map<String, Keyword> localResults;
+            do {
+                long tagId = keywordOccurrence.get().getTagId();
+                //System.out.println("cur: " + currValue.get() + " examinating next level");
+                localResults = checkNextKeyword(tagId, keywordOccurrence.get(), coOccurrence, keywordMap);
+                if (localResults.size() > 0) {
+                    localResults.entrySet().stream().forEach((item) -> {
+                        KeywordExtractedItem nextKeyword = keywordsOccurrences.get(0);
+                        if (nextKeyword != null && nextKeyword.value.equalsIgnoreCase(item.getKey())) {
+                            String newCurrValue = currValue.get().split("_")[0] + " " + item.getKey();
+                            //System.out.println(">> " + newCurrValue);
+                            double newCurrRelevance = currRelevance.get() + item.getValue().getRelevance();
+                            currValue.set(newCurrValue);
+                            currRelevance.set(newCurrRelevance);
+                            keywordOccurrence.set(nextKeyword);
+                            keywordsOccurrences.remove(0);
+                        } else {
+                            LOG.warn("Next keyword not found!");
+                            keywordOccurrence.set(null);
+                        }
+                    });
+                }
+            } while (!localResults.isEmpty() && keywordOccurrence.get() != null);
+            addToResults(currValue.get(), currRelevance.get(), results, 1);
+            //System.out.println("< " + currValue.get());
+        }
+
+        // add named entities that contain at least some of the top 1/3 of words
+        /*neExpanded.entrySet().stream()
+            .filter(en -> {
+                long n = en.getValue().stream().filter(v -> topThird.contains(v)).count();
+                return n > 0;
+                //return n >= en.getValue().size() / 3.0f || (n > 0 && en.getValue().size() == 2);
+            })
+            .forEach(en -> {
+                final String key = idToValue.get(en.getKey()) + "_en"; // + lang;
+                results.put(key, new Keyword(key)); // TO DO: handle counters exactMatch and total
+            });*/
+        for (Long key: neExpanded.keySet()) {
+            if (neExpanded.get(key).stream().filter(v -> topThird.contains(v)).count() == 0)
+                continue;
+            String keystr = idToValue.get(key) + "_en"; // + lang;
+            results.put(keystr, new Keyword(keystr)); // TO DO: handle counters exactMatch and total
+        }
+
+        computeTotalOccurrence(results);
+        if (cleanSingleWordKeyword) {
+            results = cleanSingleWordKeyword(results);
+        }
+        peristKeyword(results, annotatedText);
+
+        return true;
+    }

@@ -1,0 +1,25 @@
+    @Bean(name = BEAN_NAME_EMBEDDED_SELENIUM, destroyMethod = "stop")
+    @ConditionalOnMissingBean
+    public BrowserWebDriverContainer selenium(
+            ConfigurableEnvironment environment,
+            SeleniumProperties properties,
+            MutableCapabilities capabilities
+    ) {
+
+        BrowserWebDriverContainer container = new BrowserWebDriverContainer<>().withCapabilities(capabilities);
+        container.withRecordingFileFactory(getRecordingFileFactory());
+
+        File recordingDirOrNull = null;
+        if (properties.getVnc().getMode().convert() != BrowserWebDriverContainer.VncRecordingMode.SKIP) {
+            recordingDirOrNull = getOrCreateTempDir(properties.getVnc().getRecordingDir());
+        }
+        container.withRecordingMode(properties.getVnc().getMode().convert(), recordingDirOrNull);
+
+
+        log.info("Starting Selenium. Docker image: {}", container.getDockerImageName());
+        ContainerUtils.configureCommonsAndStart(container, properties, log);
+
+        Map<String, Object> seleniumEnv = registerSeleniumEnvironment(environment, container, properties.getVnc().getMode().convert(), recordingDirOrNull);
+        log.info("Started Selenium server. Connection details: {}", seleniumEnv);
+        return container;
+    }

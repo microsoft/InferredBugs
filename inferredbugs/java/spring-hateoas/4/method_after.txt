@@ -1,0 +1,38 @@
+ public static void main(String... args) {
+
+		/*
+		 * If you run into github rate limiting issues, you can always use a Github Personal Token by adding
+		 * {@code .header(HttpHeaders.AUTHORIZATION, "token your-github-token")} to the webClient call.
+		 */
+
+		WebClient webClient = WebClient.create();
+
+		HttpEntity<String> response = webClient //
+				.get().uri(URI_TEMPLATE, MILESTONE_ID) //
+				.exchange() //
+				.flatMap(clientResponse -> clientResponse.toEntity(String.class)) //
+				.block(Duration.ofSeconds(10));
+
+		boolean keepChecking = true;
+		boolean printHeader = true;
+
+		while (keepChecking) {
+
+			readPage(response.getBody(), printHeader);
+			printHeader = false;
+
+			Links links = Links.parse(response.getHeaders().get(HttpHeaders.LINK).get(0));
+
+			if (links.getLink(IanaLinkRelations.NEXT).isPresent()) {
+
+				response = webClient //
+						.get().uri(links.getRequiredLink(IanaLinkRelations.NEXT).expand().getHref()) //
+						.exchange() //
+						.flatMap(clientResponse -> clientResponse.toEntity(String.class)) //
+						.block(Duration.ofSeconds(10));
+
+			} else {
+				keepChecking = false;
+			}
+		}
+	}

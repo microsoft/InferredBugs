@@ -1,0 +1,38 @@
+    @Test
+    public void testCSVCommonsUpsert_WithArray() throws Exception {
+        CSVParser parser = null;
+        PhoenixConnection conn = null;
+        try {
+
+            // Create table
+            String statements = "CREATE TABLE IF NOT EXISTS ARRAY_TABLE "
+                    + "(ID BIGINT NOT NULL PRIMARY KEY, VALARRAY INTEGER ARRAY);";
+            conn = DriverManager.getConnection(getUrl()).unwrap(
+                    PhoenixConnection.class);
+            PhoenixRuntime.executeStatements(conn,
+                    new StringReader(statements), null);
+
+            // Upsert CSV file
+            CSVCommonsLoader csvUtil = new CSVCommonsLoader(conn, "ARRAY_TABLE",
+                    ImmutableList.<String>of(), true, ',', '"', null, "!");
+            csvUtil.upsert(
+                    new StringReader("ID,VALARRAY\n"
+                            + "1,2!3!4\n"));
+
+            // Compare Phoenix ResultSet with CSV file content
+            PreparedStatement statement = conn
+                    .prepareStatement("SELECT ID, VALARRAY FROM ARRAY_TABLE");
+            ResultSet phoenixResultSet = statement.executeQuery();
+            assertTrue(phoenixResultSet.next());
+            assertEquals(1L, phoenixResultSet.getLong(1));
+            assertEquals(
+                    PArrayDataType.instantiatePhoenixArray(PInteger.INSTANCE, new Integer[]{2, 3, 4}),
+                    phoenixResultSet.getArray(2));
+            assertFalse(phoenixResultSet.next());
+        } finally {
+            if (parser != null)
+                parser.close();
+            if (conn != null)
+                conn.close();
+        }
+    }

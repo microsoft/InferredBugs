@@ -1,0 +1,25 @@
+  [Fact]
+		public void TransactionWithSpan()
+		{
+			const string transactionName = "TestTransaction";
+			const string transactionType = "UnitTest";
+			const string spanName = "TestSpan";
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			var transaction = agent.Tracer.StartTransaction(transactionName, transactionType);
+
+			var span = transaction.StartSpan(spanName, ApiConstants.TypeExternal);
+
+			Thread.Sleep(5); //Make sure we have duration > 0
+
+			span.End();
+			transaction.End();
+			payloadSender.Transactions.Should().NotBeEmpty();
+			payloadSender.SpansOnFirstTransaction.Should().NotBeEmpty();
+
+			payloadSender.SpansOnFirstTransaction[0].Name.Should().Be(spanName);
+			payloadSender.SpansOnFirstTransaction[0].Duration.Should().BeGreaterOrEqualTo(5);
+			//TODO:
+			//payloadSender.Payloads[0].Service.Should().NotBeNull();
+		}

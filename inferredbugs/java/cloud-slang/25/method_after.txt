@@ -1,0 +1,26 @@
+    @Test(timeout = DEFAULT_TIMEOUT)
+    public void doJavaActionSetKeyOnNonSerializableSessionTest() {
+        //prepare doAction arguments
+        RunEnvironment runEnv = new RunEnvironment();
+        HashMap<String, Object> nonSerializableExecutionData = new HashMap<>();
+        GlobalSessionObject<ContentTestActions.NonSerializableObject> sessionObject = new GlobalSessionObject<>();
+        ContentTestActions.NonSerializableObject employee = new ContentTestActions.NonSerializableObject("John");
+        sessionObject.setResource(new ContentTestActions.NonSerializableSessionResource(employee));
+        nonSerializableExecutionData.put("name", sessionObject);
+        Map<String, Serializable> initialCallArguments = new HashMap<>();
+        initialCallArguments.put("value", "David");
+        runEnv.putCallArguments(initialCallArguments);
+
+        //invoke doAction
+        actionSteps.doAction(runEnv, nonSerializableExecutionData, JAVA, ContentTestActions.class.getName(),
+                "setNameOnNonSerializableSession", executionRuntimeServicesMock, null, 2L);
+
+        Assert.assertTrue(nonSerializableExecutionData.containsKey("name"));
+
+        @SuppressWarnings("unchecked")
+        GlobalSessionObject<ContentTestActions.NonSerializableObject> updatedSessionObject =
+                (GlobalSessionObject<ContentTestActions.NonSerializableObject>) nonSerializableExecutionData.get("name");
+        ContentTestActions.NonSerializableObject nonSerializableObject = updatedSessionObject.get();
+        String actualName = nonSerializableObject.getName();
+        Assert.assertEquals("David", actualName);
+    }

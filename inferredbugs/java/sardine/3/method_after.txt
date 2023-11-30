@@ -1,0 +1,30 @@
+ @Test
+	public void testGetSingleFileGzip() throws Exception
+	{
+		final HttpClientBuilder client = HttpClientBuilder.create();
+		client.addInterceptorFirst(new HttpResponseInterceptor()
+		{
+			public void process(final HttpResponse r, final HttpContext context) throws HttpException, IOException
+			{
+				assertEquals(200, r.getStatusLine().getStatusCode());
+				assertNotNull(r.getHeaders(HttpHeaders.CONTENT_ENCODING));
+				assertEquals(1, r.getHeaders(HttpHeaders.CONTENT_ENCODING).length);
+				assertEquals("gzip", r.getHeaders(HttpHeaders.CONTENT_ENCODING)[0].getValue());
+			}
+		});
+		Sardine sardine = new SardineImpl(client);
+		sardine.enableCompression();
+//		final String url = "http://sardine.googlecode.com/svn/trunk/README.html";
+		final String url = "http://sudo.ch/dav/anon/sardine/single/file";
+		final InputStream in = sardine.get(url);
+		assertNotNull(in);
+		assertNotNull(in.read());
+		try
+		{
+			in.close();
+		}
+		catch (EOFException e)
+		{
+			fail("Issue https://issues.apache.org/jira/browse/HTTPCLIENT-1075 pending");
+		}
+	}

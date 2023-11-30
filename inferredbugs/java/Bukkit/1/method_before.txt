@@ -1,0 +1,102 @@
+    public Plugin loadPlugin(File file) throws InvalidPluginException, InvalidDescriptionException, UnknownDependencyException {
+        JavaPlugin result = null;
+        PluginDescriptionFile description = null;
+
+        if (!file.exists()) {
+            throw new InvalidPluginException(new FileNotFoundException(String.format("%s does not exist", file.getPath())));
+        }
+        try {
+            JarFile jar = new JarFile(file);
+            JarEntry entry = jar.getJarEntry("plugin.yml");
+
+            if (entry == null) {
+                throw new InvalidPluginException(new FileNotFoundException("Jar does not contain plugin.yml"));
+            }
+
+            InputStream stream = jar.getInputStream(entry);
+            description = new PluginDescriptionFile(stream);
+
+            stream.close();
+            jar.close();
+        } catch (IOException ex) {
+            throw new InvalidPluginException(ex);
+        } catch (YAMLException ex) {
+            throw new InvalidPluginException(ex);
+        }
+
+        File dataFolder = new File(file.getParentFile(), description.getName());
+        File oldDataFolder = getDataFolder(file);
+
+        // Found old data folder
+        if (dataFolder.equals(oldDataFolder)) {
+            // They are equal -- nothing needs to be done!
+        } else if (dataFolder.isDirectory() && oldDataFolder.isDirectory()) {
+            server.getLogger().log( Level.INFO, String.format(
+                "While loading %s (%s) found old-data folder: %s next to the new one: %s",
+                description.getName(),
+                file,
+                oldDataFolder,
+                dataFolder
+            ));
+        } else if (oldDataFolder.isDirectory() && !dataFolder.exists()) {
+            if (!oldDataFolder.renameTo(dataFolder)) {
+                throw new InvalidPluginException(new Exception("Unable to rename old data folder: '" + oldDataFolder + "' to: '" + dataFolder + "'"));
+            }
+            server.getLogger().log( Level.INFO, String.format(
+                "While loading %s (%s) renamed data folder: '%s' to '%s'",
+                description.getName(),
+                file,
+                oldDataFolder,
+                dataFolder
+            ));
+        }
+
+        if (dataFolder.exists() && !dataFolder.isDirectory()) {
+            throw new InvalidPluginException(new Exception(String.format(
+                "Projected datafolder: '%s' for %s (%s) exists and is not a directory",
+                dataFolder,
+                description.getName(),
+                file
+            )));
+        }
+
+        ArrayList<String> depend;
+        try {
+            depend = (ArrayList)description.getDepend();
+            if(depend == null) {
+                depend = new ArrayList<String>();
+            }
+        } catch (ClassCastException ex) {
+             throw new InvalidPluginException(ex);
+        }
+
+        for(String pluginName : depend) {
+            if(loaders == null) {
+                throw new UnknownDependencyException(pluginName);
+            }
+            PluginClassLoader current = loaders.get(pluginName);
+            if(current == null) {
+                throw new UnknownDependencyException(pluginName);
+            }
+        }
+
+        PluginClassLoader loader = null;
+        try {
+            URL[] urls = new URL[1];
+            urls[0] = file.toURI().toURL();
+            loader = new PluginClassLoader(this, urls, getClass().getClassLoader());
+            Class<?> jarClass = Class.forName(description.getMain(), true, loader);
+            Class<? extends JavaPlugin> plugin = jarClass.asSubclass(JavaPlugin.class);
+
+            Constructor<? extends JavaPlugin> constructor = plugin.getConstructor();
+            result = constructor.newInstance();
+
+            result.initialize(this, server, description, dataFolder, file, loader);
+        } catch (Throwable ex) {
+            throw new InvalidPluginException(ex);
+        }
+
+        loaders.put(description.getName(), (PluginClassLoader)loader);
+
+        return (Plugin)result;
+    }

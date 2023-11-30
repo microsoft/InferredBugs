@@ -1,0 +1,34 @@
+  public static ClientBuilder standard(boolean persistConfig) throws IOException {
+    final File kubeConfig = findConfigFromEnv();
+    if (kubeConfig != null) {
+      try (BufferedReader kubeConfigReader =
+          new BufferedReader(
+              new InputStreamReader(
+                  new FileInputStream(kubeConfig), StandardCharsets.UTF_8.name()))) {
+        KubeConfig kc = KubeConfig.loadKubeConfig(kubeConfigReader);
+        if (persistConfig) {
+          kc.setPersistConfig(new FilePersister(kubeConfig));
+        }
+        kc.setFile(kubeConfig);
+        return kubeconfig(kc);
+      }
+    }
+    final File config = findConfigInHomeDir();
+    if (config != null) {
+      try (BufferedReader configReader =
+          new BufferedReader(
+              new InputStreamReader(new FileInputStream(config), StandardCharsets.UTF_8.name()))) {
+        KubeConfig kc = KubeConfig.loadKubeConfig(configReader);
+        if (persistConfig) {
+          kc.setPersistConfig(new FilePersister(config));
+        }
+        kc.setFile(config);
+        return kubeconfig(kc);
+      }
+    }
+    final File clusterCa = new File(SERVICEACCOUNT_CA_PATH);
+    if (clusterCa.exists()) {
+      return cluster();
+    }
+    return new ClientBuilder();
+  }

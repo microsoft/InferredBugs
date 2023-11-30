@@ -1,0 +1,35 @@
+    @Test
+    public void testHeartbeatTimeout() throws IOException, InterruptedException
+    {
+        Ctx ctx = ZMQ.createContext();
+        assertThat(ctx, notNullValue());
+
+        SocketBase server = prepServerSocket(ctx, true, false);
+        assertThat(server, notNullValue());
+
+        SocketBase monitor = ZMQ.socket(ctx, ZMQ.ZMQ_PAIR);
+        boolean rc = monitor.connect("inproc://monitor");
+        assertThat(rc, is(true));
+
+        String endpoint = (String) ZMQ.getSocketOptionExt(server, ZMQ.ZMQ_LAST_ENDPOINT);
+        assertThat(endpoint, notNullValue());
+
+        Socket socket = new Socket("127.0.0.1", TestUtils.port(endpoint));
+
+        // Mock a ZMTP 3 client so we can forcibly time out a connection
+        mockHandshake(socket);
+
+        // By now everything should report as connected
+        ZMQ.Event event = ZMQ.Event.read(monitor);
+        assertThat(event.event, is(ZMQ.ZMQ_EVENT_ACCEPTED));
+
+        // We should have been disconnected
+        event = ZMQ.Event.read(monitor);
+        assertThat(event.event, is(ZMQ.ZMQ_EVENT_DISCONNECTED));
+
+        socket.close();
+
+        ZMQ.close(monitor);
+        ZMQ.close(server);
+        ZMQ.term(ctx);
+    }

@@ -1,0 +1,40 @@
+ public State generateState(String comment, File fimRepositoryRootDir) throws IOException, NoSuchAlgorithmException
+	{
+		Logger.info(String.format("Scanning recursively local files, %s, using %d thread", hashModeToString(), parameters.getThreadCount()));
+		System.out.printf("    (Hash progress legend: " + hashProgressLegend() + ")%n");
+
+		State state = new State();
+		state.setComment(comment);
+
+		long start = System.currentTimeMillis();
+		progressOutputInit();
+
+		BlockingDeque<File> filesToHash = new LinkedBlockingDeque<>(1000);
+
+		List<FileHasher> hashers = new ArrayList<>();
+		executorService = Executors.newFixedThreadPool(parameters.getThreadCount());
+		for (int index = 0; index < parameters.getThreadCount(); index++)
+		{
+			FileHasher hasher = new FileHasher(this, filesToHash, fimRepositoryRootDir.toString());
+			executorService.submit(hasher);
+			hashers.add(hasher);
+		}
+
+		scanFileTree(filesToHash, fimRepositoryRootDir);
+
+		waitAllFileHashed();
+
+		for (FileHasher hasher : hashers)
+		{
+			state.getFileStates().addAll(hasher.getFileStates());
+			totalFileContentLength += hasher.getTotalFileContentLength();
+			totalBytesHashed += hasher.getTotalBytesHashed();
+		}
+
+		Collections.sort(state.getFileStates(), fileNameComparator);
+
+		progressOutputStop();
+		displayStatistics(start, state);
+
+		return state;
+	}

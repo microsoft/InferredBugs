@@ -1,0 +1,345 @@
+{
+    "hash": "82d2a4b3c59642b456088187ad42b1c35ef71d45",
+    "message": "Python Extensibility: finalizing Python connection code",
+    "file_num_lines": 216,
+    "diff_parsed": {
+        "added": [
+            [
+                27,
+                "        /// <summary>"
+            ],
+            [
+                28,
+                "        /// Entry point for Python module initialization"
+            ],
+            [
+                29,
+                "        /// </summary>"
+            ],
+            [
+                42,
+                "                var threadAcquirer = context.AcquireCurrentThread();"
+            ],
+            [
+                44,
+                "                pythonSession.PythonHostThreadAcquirer = threadAcquirer;"
+            ],
+            [
+                52,
+                "        /// <summary>"
+            ],
+            [
+                53,
+                "        /// Entry point for Python module shutdown (releasing current session, optional)"
+            ],
+            [
+                54,
+                "        /// </summary>"
+            ],
+            [
+                55,
+                "        public static void PythonModuleShutdown()"
+            ],
+            [
+                56,
+                "        {"
+            ],
+            [
+                57,
+                "            var pythonSession = Current as PythonSession;"
+            ],
+            [
+                58,
+                "            pythonSession?.PythonHostThreadAcquirer?.Dispose();"
+            ],
+            [
+                59,
+                "        }"
+            ],
+            [
+                60,
+                ""
+            ],
+            [
+                66,
+                "        public bool IsPythonHost => PythonHostThreadAcquirer != null;"
+            ],
+            [
+                67,
+                "        public IDisposable PythonHostThreadAcquirer { get; private set; }"
+            ],
+            [
+                68,
+                ""
+            ],
+            [
+                105,
+                "                // [DM] PyErr_Print() is omitted"
+            ],
+            [
+                128,
+                "                // [DM] PyErr_Print() is omitted"
+            ],
+            [
+                148,
+                "                // [DM] PyErr_Print() is omitted"
+            ],
+            [
+                167,
+                "        /// <summary>"
+            ],
+            [
+                168,
+                "        /// Ported from value_t python_interpreter_t::python_command(call_scope_t& args)"
+            ],
+            [
+                169,
+                "        /// </summary>"
+            ],
+            [
+                177,
+                "            argv.Add(Environment.GetCommandLineArgs().FirstOrDefault());"
+            ],
+            [
+                188,
+                "                    //[DM] Commented piece of code below (...Runtime.Py_Main...) was initially ported from original Ledger."
+            ],
+            [
+                189,
+                "                    // However, Py_Main finalizes the context at the end of execution and the current AppDomain becomes unusable."
+            ],
+            [
+                190,
+                "                    // It is acceptable for a command-line utility but it is not a case for a software library."
+            ],
+            [
+                191,
+                "                    // The workaround is to execute the target script (w/o parameters) by means of Exec as a script block."
+            ],
+            [
+                192,
+                "                    // This solution works fine unless you have command-line arguments; they are not supported."
+            ],
+            [
+                206,
+                "                    // [DM] PyErr_Print() is omitted"
+            ],
+            [
+                213,
+                "                throw new Exception(status.ToString());"
+            ],
+            [
+                218,
+                "        /// <summary>"
+            ],
+            [
+                219,
+                "        /// Ported from value_t python_interpreter_t::server_command(call_scope_t& args)"
+            ],
+            [
+                220,
+                "        /// </summary>"
+            ],
+            [
+                223,
+                "            using (GIL())"
+            ],
+            [
+                224,
+                "            {"
+            ],
+            [
+                225,
+                "                PyModule serverModule = null;"
+            ],
+            [
+                226,
+                ""
+            ],
+            [
+                227,
+                "                try"
+            ],
+            [
+                228,
+                "                {"
+            ],
+            [
+                229,
+                "                    serverModule = MainModule.ModuleObject.Import(\"ledger.server\");"
+            ],
+            [
+                230,
+                "                }"
+            ],
+            [
+                231,
+                "                catch"
+            ],
+            [
+                232,
+                "                {"
+            ],
+            [
+                233,
+                "                    // [DM] PyErr_Print() is omitted"
+            ],
+            [
+                234,
+                "                    throw new RuntimeError(\"Could not import ledger.server; please check your PYTHONPATH\");"
+            ],
+            [
+                235,
+                "                }"
+            ],
+            [
+                236,
+                ""
+            ],
+            [
+                237,
+                "                if (serverModule == null)"
+            ],
+            [
+                238,
+                "                    throw new RuntimeError(\"Could not import ledger.server; please check your PYTHONPATH\");"
+            ],
+            [
+                239,
+                ""
+            ],
+            [
+                240,
+                "                using (serverModule)"
+            ],
+            [
+                241,
+                "                {"
+            ],
+            [
+                242,
+                "                    var mainFunction = serverModule.GetAttr(\"main\");"
+            ],
+            [
+                243,
+                "                    if (mainFunction == null)"
+            ],
+            [
+                244,
+                "                        throw new RuntimeError(\"The ledger.server module is missing its main() function!\");"
+            ],
+            [
+                245,
+                ""
+            ],
+            [
+                246,
+                "                    var func = new PythonFunctor(\"main\", mainFunction, PythonValueConverter);"
+            ],
+            [
+                247,
+                ""
+            ],
+            [
+                248,
+                "                    try"
+            ],
+            [
+                249,
+                "                    {"
+            ],
+            [
+                250,
+                "                        func.ExprFunctor(this);"
+            ],
+            [
+                251,
+                "                        return Value.True;"
+            ],
+            [
+                252,
+                "                    }"
+            ],
+            [
+                253,
+                "                    catch"
+            ],
+            [
+                254,
+                "                    {"
+            ],
+            [
+                255,
+                "                        // [DM] PyErr_Print() is omitted"
+            ],
+            [
+                256,
+                "                        throw new RuntimeError(\"Error while invoking ledger.server's main() function\");"
+            ],
+            [
+                257,
+                "                    }"
+            ],
+            [
+                258,
+                "                }"
+            ],
+            [
+                259,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                39,
+                "                context.AcquireCurrentThread(); // TODO - add release code."
+            ],
+            [
+                41,
+                "                pythonSession.IsPythonHost = true;"
+            ],
+            [
+                54,
+                "        public bool IsPythonHost { get; private set; }"
+            ],
+            [
+                132,
+                "                // TODO PyErr_Print();"
+            ],
+            [
+                158,
+                "            argv.Add(Environment.GetCommandLineArgs().FirstOrDefault());  // TODO"
+            ],
+            [
+                169,
+                "                    //[DM] TODO - Commented piece of code below (...Runtime.Py_Main...) is ported from original Ledger."
+            ],
+            [
+                170,
+                "                    // However, using Py_Main requires re-initialization of Python context when it finishes because Py_Main finalizes the context at the end."
+            ],
+            [
+                171,
+                "                    // It is acceptable for a command-line utility but cannot be followed in a software library."
+            ],
+            [
+                172,
+                "                    // The temporal workaround is just to execute target script (w/o parameters) by means of Exec as a script block."
+            ],
+            [
+                173,
+                "                    // Proper solution is to run this stuff (...Runtime.Py_Main...) in a separated app domain and will be considered further."
+            ],
+            [
+                193,
+                "                throw new Exception(status.ToString()); // TODO"
+            ],
+            [
+                200,
+                "            throw new NotImplementedException(\"TODO2\");"
+            ]
+        ]
+    },
+    "num_lines_added": 71,
+    "num_lines_removed": 12
+}

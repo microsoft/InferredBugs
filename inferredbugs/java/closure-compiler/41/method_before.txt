@@ -1,0 +1,170 @@
+  private FlowScope traverse(Node n, FlowScope scope) {
+    switch (n.getType()) {
+      case Token.ASSIGN:
+        scope = traverseAssign(n, scope);
+        break;
+
+      case Token.NAME:
+        scope = traverseName(n, scope);
+        break;
+
+      case Token.GETPROP:
+        scope = traverseGetProp(n, scope);
+        break;
+
+      case Token.AND:
+        scope = traverseAnd(n, scope).getJoinedFlowScope()
+            .createChildFlowScope();
+        break;
+
+      case Token.OR:
+        scope = traverseOr(n, scope).getJoinedFlowScope()
+            .createChildFlowScope();
+        break;
+
+      case Token.HOOK:
+        scope = traverseHook(n, scope);
+        break;
+
+      case Token.OBJECTLIT:
+        scope = traverseObjectLiteral(n, scope);
+        break;
+
+      case Token.CALL:
+        scope = traverseCall(n, scope);
+        break;
+
+      case Token.NEW:
+        scope = traverseNew(n, scope);
+        break;
+
+      case Token.ASSIGN_ADD:
+      case Token.ADD:
+        scope = traverseAdd(n, scope);
+        break;
+
+      case Token.POS:
+      case Token.NEG:
+        scope = traverse(n.getFirstChild(), scope);  // Find types.
+        n.setJSType(getNativeType(NUMBER_TYPE));
+        break;
+
+      case Token.ARRAYLIT:
+        scope = traverseArrayLiteral(n, scope);
+        break;
+
+      case Token.THIS:
+        n.setJSType(scope.getTypeOfThis());
+        break;
+
+      case Token.ASSIGN_LSH:
+      case Token.ASSIGN_RSH:
+      case Token.LSH:
+      case Token.RSH:
+      case Token.ASSIGN_URSH:
+      case Token.URSH:
+      case Token.ASSIGN_DIV:
+      case Token.ASSIGN_MOD:
+      case Token.ASSIGN_BITAND:
+      case Token.ASSIGN_BITXOR:
+      case Token.ASSIGN_BITOR:
+      case Token.ASSIGN_MUL:
+      case Token.ASSIGN_SUB:
+      case Token.DIV:
+      case Token.MOD:
+      case Token.BITAND:
+      case Token.BITXOR:
+      case Token.BITOR:
+      case Token.MUL:
+      case Token.SUB:
+      case Token.DEC:
+      case Token.INC:
+      case Token.BITNOT:
+        scope = traverseChildren(n, scope);
+        n.setJSType(getNativeType(NUMBER_TYPE));
+        break;
+
+      case Token.PARAM_LIST:
+        scope = traverse(n.getFirstChild(), scope);
+        n.setJSType(getJSType(n.getFirstChild()));
+        break;
+
+      case Token.COMMA:
+        scope = traverseChildren(n, scope);
+        n.setJSType(getJSType(n.getLastChild()));
+        break;
+
+      case Token.TYPEOF:
+        scope = traverseChildren(n, scope);
+        n.setJSType(getNativeType(STRING_TYPE));
+        break;
+
+      case Token.DELPROP:
+      case Token.LT:
+      case Token.LE:
+      case Token.GT:
+      case Token.GE:
+      case Token.NOT:
+      case Token.EQ:
+      case Token.NE:
+      case Token.SHEQ:
+      case Token.SHNE:
+      case Token.INSTANCEOF:
+      case Token.IN:
+        scope = traverseChildren(n, scope);
+        n.setJSType(getNativeType(BOOLEAN_TYPE));
+        break;
+
+      case Token.GETELEM:
+        scope = traverseGetElem(n, scope);
+        break;
+
+      case Token.EXPR_RESULT:
+        scope = traverseChildren(n, scope);
+        if (n.getFirstChild().isGetProp()) {
+          ensurePropertyDeclared(n.getFirstChild());
+        }
+        break;
+
+      case Token.SWITCH:
+        scope = traverse(n.getFirstChild(), scope);
+        break;
+
+      case Token.RETURN:
+        scope = traverseReturn(n, scope);
+        break;
+
+      case Token.VAR:
+      case Token.THROW:
+        scope = traverseChildren(n, scope);
+        break;
+
+      case Token.CATCH:
+        scope = traverseCatch(n, scope);
+        break;
+
+      case Token.CAST:
+        scope = traverseChildren(n, scope);
+        break;
+    }
+
+    // TODO(johnlenz): remove this after the CAST node change has shaken out.
+    if (!n.isFunction()) {
+      JSDocInfo info = n.getJSDocInfo();
+      if (info != null && info.hasType()) {
+        JSType castType = info.getType().evaluate(syntacticScope, registry);
+
+        // A stubbed type declaration on a qualified name should take
+        // effect for all subsequent accesses of that name,
+        // so treat it the same as an assign to that name.
+        if (n.isQualifiedName() &&
+            n.getParent().isExprResult()) {
+          updateScopeForTypeChange(scope, n, n.getJSType(), castType);
+        }
+
+        n.setJSType(castType);
+      }
+    }
+
+    return scope;
+  }

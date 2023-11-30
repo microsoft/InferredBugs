@@ -1,0 +1,30 @@
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+        if ((e.getMessage() instanceof CoapMessage) && receiveEnabled) {
+            CoapMessage coapMessage = (CoapMessage) e.getMessage();
+
+            receivedMessages.put(System.currentTimeMillis(), coapMessage);
+            log.info("Incoming (from " + e.getRemoteAddress() + ") # " +  getReceivedMessages().size() + ": "
+                    + coapMessage);
+
+            if(writeEnabled && (coapMessage instanceof CoapRequest)){
+                if (responsesToSend.isEmpty()) {
+                    fail("responsesToSend is empty. This could be caused by an unexpected request.");
+                }
+                MessageReceiverResponse responseToSend = responsesToSend.remove(0);
+
+                if (responseToSend == null) {
+                    throw new InternalError("Unexpected request received. No response for: " + coapMessage);
+                }
+
+                CoapResponse coapResponse = responseToSend;
+                if (responseToSend.getReceiverSetsMsgID()) {
+                    coapResponse.setMessageID(coapMessage.getMessageID());
+                }
+                if (responseToSend.getReceiverSetsToken()) {
+                    coapResponse.setToken(coapMessage.getToken());
+                }
+                Channels.write(channel, coapResponse, e.getRemoteAddress());
+            }
+        }
+    }

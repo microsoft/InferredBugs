@@ -1,0 +1,52 @@
+ private static InetAddress findLocalAddressViaNetworkInterface() {
+		// 如果hostname +/etc/hosts 得到的是127.0.0.1, 则首选这块网卡
+		String preferNamePrefix = SystemPropertiesUtil.getString("localhost.prefer.nic.prefix",
+				"LOCALHOST_PREFER_NIC_PREFIX", "bond0.");
+		// 如果hostname +/etc/hosts 得到的是127.0.0.1, 和首选网卡都不符合要求，则按顺序遍历下面的网卡
+		String defaultNicList = SystemPropertiesUtil.getString("localhost.default.nic.list", "LOCALHOST_DEFAULT_NIC_LIST",
+				"bond0,eth0,em0,br0");
+
+		InetAddress resultAddress = null;
+		Map<String, NetworkInterface> candidateInterfaces = MapUtil.newHashMap();
+
+		// 遍历所有网卡，找出所有可用网卡，尝试找出符合prefer前缀的网卡
+		try {
+			for (Enumeration<NetworkInterface> allInterfaces = NetworkInterface.getNetworkInterfaces(); allInterfaces
+					.hasMoreElements();) {
+				NetworkInterface nic = allInterfaces.nextElement();
+				// 检查网卡可用并支持广播
+				try {
+					if (!nic.isUp() || !nic.supportsMulticast()) {
+						continue;
+					}
+				} catch (SocketException e) {
+					continue;
+				}
+
+				// 检查是否符合prefer前缀
+				String name = nic.getName();
+				if (name.startsWith(preferNamePrefix)) {
+					// 检查有否非ipv6 非127.0.0.1的inetaddress
+					resultAddress = findAvailableInetAddress(nic);
+					if (resultAddress != null) {
+						return resultAddress;
+					}
+				} else {
+					// 不是Prefer前缀，先放入可选列表
+					candidateInterfaces.put(name, nic);
+				}
+			}
+
+			for (String nifName : defaultNicList.split(",")) {
+				NetworkInterface nic = candidateInterfaces.get(nifName);
+				resultAddress = findAvailableInetAddress(nic);
+				if (resultAddress != null) {
+					return resultAddress;
+				}
+			}
+		} catch (SocketException e) {
+			return null;
+		}
+		return null;
+
+	}

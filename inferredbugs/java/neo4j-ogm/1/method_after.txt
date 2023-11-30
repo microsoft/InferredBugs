@@ -1,0 +1,31 @@
+    public void scan(List<String> classPaths, ClassFileProcessor processor) {
+
+        this.classPaths = classPaths;
+        this.processor = processor;
+
+        Set<File> classPathElements = getUniqueClasspathElements(classPaths);
+
+        LOGGER.debug("Classpath elements:");
+        for (File classPathElement : classPathElements) {
+            LOGGER.debug(classPathElement.getPath());
+        }
+
+        try {
+            for (File classPathElement : classPathElements) {
+                String path = classPathElement.getPath();
+                if (classPathElement.isDirectory()) {
+                    scanFolder(classPathElement, path.length() + 1);
+                } else if (classPathElement.isFile()) {
+                    String pathLower = path.toLowerCase();
+                    if (pathLower.endsWith(".jar") || pathLower.endsWith(".zip")) {
+                        scanZipFile(new ZipFile(classPathElement));
+                    } else {
+                        scanFile(classPathElement, classPathElement.getName());
+                    }
+                }
+            }
+            processor.finish();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }

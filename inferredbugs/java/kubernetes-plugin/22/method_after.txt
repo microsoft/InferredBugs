@@ -1,0 +1,132 @@
+    @Override
+    @SuppressFBWarnings(value = "SWL_SLEEP_WITH_LOCK_HELD", justification = "This is fine")
+    public synchronized void launch(SlaveComputer computer, TaskListener listener) {
+        if (!(computer instanceof KubernetesComputer)) {
+            throw new IllegalArgumentException("This Launcher can be used only with KubernetesComputer");
+        }
+        KubernetesComputer kubernetesComputer = (KubernetesComputer) computer;
+        computer.setAcceptingTasks(false);
+        KubernetesSlave slave = kubernetesComputer.getNode();
+        if (slave == null) {
+            throw new IllegalStateException("Node has been removed, cannot launch " + computer.getName());
+        }
+        if (launched) {
+            LOGGER.log(INFO, "Agent has already been launched, activating: {0}", slave.getNodeName());
+            computer.setAcceptingTasks(true);
+            return;
+        }
+
+        final PodTemplate template = slave.getTemplate();
+        try {
+            KubernetesClient client = slave.getKubernetesCloud().connect();
+            Pod pod = template.build(slave);
+            slave.assignPod(pod);
+
+            String podName = pod.getMetadata().getName();
+
+            String namespace = Arrays.asList( //
+                    pod.getMetadata().getNamespace(),
+                    template.getNamespace(), client.getNamespace()) //
+                    .stream().filter(s -> StringUtils.isNotBlank(s)).findFirst().orElse(null);
+            slave.setNamespace(namespace);
+
+            LOGGER.log(Level.FINE, "Creating Pod: {0}/{1}", new Object[] { namespace, podName });
+            pod = client.pods().inNamespace(namespace).create(pod);
+            LOGGER.log(INFO, "Created Pod: {0}/{1}", new Object[] { namespace, podName });
+            listener.getLogger().printf("Created Pod: %s/%s%n", namespace, podName);
+
+            TaskListener runListener = template.getListener();
+            runListener.getLogger().printf("Created Pod: %s/%s%n", namespace, podName);
+
+            template.getWorkspaceVolume().createVolume(client, pod.getMetadata());
+            watcher = new AllContainersRunningPodWatcher(client, pod, runListener);
+            try (Watch w1 = client.pods().inNamespace(namespace).withName(podName).watch(watcher);
+                 Watch w2 = eventWatch(client, podName, namespace, runListener)) {
+                assert watcher != null; // assigned 3 lines above
+                watcher.await(template.getSlaveConnectTimeout(), TimeUnit.SECONDS);
+            }
+            LOGGER.log(INFO, "Pod is running: {0}/{1}", new Object[] { namespace, podName });
+
+            // We need the pod to be running and connected before returning
+            // otherwise this method keeps being called multiple times
+            List<String> validStates = ImmutableList.of("Running");
+
+            int waitForSlaveToConnect = template.getSlaveConnectTimeout();
+            int waitedForSlave;
+
+            // now wait for agent to be online
+            SlaveComputer slaveComputer = null;
+            String status = null;
+            List<ContainerStatus> containerStatuses = null;
+            long lastReportTimestamp = System.currentTimeMillis();
+            for (waitedForSlave = 0; waitedForSlave < waitForSlaveToConnect; waitedForSlave++) {
+                slaveComputer = slave.getComputer();
+                if (slaveComputer == null) {
+                    throw new IllegalStateException("Node was deleted, computer is null");
+                }
+                if (slaveComputer.isOnline()) {
+                    break;
+                }
+
+                // Check that the pod hasn't failed already
+                pod = client.pods().inNamespace(namespace).withName(podName).get();
+                if (pod == null) {
+                    throw new IllegalStateException("Pod no longer exists: " + podName);
+                }
+                status = pod.getStatus().getPhase();
+                if (!validStates.contains(status)) {
+                    break;
+                }
+
+                containerStatuses = pod.getStatus().getContainerStatuses();
+                List<ContainerStatus> terminatedContainers = new ArrayList<>();
+                for (ContainerStatus info : containerStatuses) {
+                    if (info != null) {
+                        if (info.getState().getTerminated() != null) {
+                            // Container has errored
+                            LOGGER.log(INFO, "Container is terminated {0} [{2}]: {1}",
+                                    new Object[] { podName, info.getState().getTerminated(), info.getName() });
+                            listener.getLogger().printf("Container is terminated %1$s [%3$s]: %2$s%n", podName,
+                                    info.getState().getTerminated(), info.getName());
+                            terminatedContainers.add(info);
+                        }
+                    }
+                }
+
+                checkTerminatedContainers(terminatedContainers, podName, namespace, slave, client);
+
+                if (lastReportTimestamp + REPORT_INTERVAL < System.currentTimeMillis()) {
+                    LOGGER.log(INFO, "Waiting for agent to connect ({1}/{2}): {0}",
+                            new Object[]{podName, waitedForSlave, waitForSlaveToConnect});
+                    listener.getLogger().printf("Waiting for agent to connect (%2$s/%3$s): %1$s%n", podName, waitedForSlave,
+                            waitForSlaveToConnect);
+                    lastReportTimestamp = System.currentTimeMillis();
+                }
+                Thread.sleep(1000);
+            }
+            if (slaveComputer == null || slaveComputer.isOffline()) {
+                logLastLines(containerStatuses, podName, namespace, slave, null, client);
+                throw new IllegalStateException(
+                        "Agent is not connected after " + waitedForSlave + " seconds, status: " + status);
+            }
+
+            computer.setAcceptingTasks(true);
+            launched = true;
+            try {
+                // We need to persist the "launched" setting...
+                slave.save();
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Could not save() agent: " + e.getMessage(), e);
+            }
+        } catch (Throwable ex) {
+            setProblem(ex);
+            LOGGER.log(Level.WARNING, String.format("Error in provisioning; agent=%s, template=%s", slave, template), ex);
+            LOGGER.log(Level.FINER, "Removing Jenkins node: {0}", slave.getNodeName());
+            try {
+                slave.terminate();
+            } catch (IOException | InterruptedException e) {
+                LOGGER.log(Level.WARNING, "Unable to remove Jenkins node", e);
+            }
+            throw Throwables.propagate(ex);
+        }
+    }

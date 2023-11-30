@@ -1,0 +1,78 @@
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+
+        ProtobufRPC protobufPRC = method.getAnnotation(ProtobufRPC.class);
+        if (protobufPRC == null) {
+            throw new IllegalAccessError("Target method is not marked annotation @ProtobufPRC. method name :"
+                    + method.getDeclaringClass().getName() + "." + method.getName());
+        }
+
+        String serviceName = protobufPRC.serviceName();
+        String methodName = protobufPRC.methodName();
+        if (StringUtils.isEmpty(methodName)) {
+            methodName = method.getName();
+        }
+        String methodSignature = serviceName + '!' + methodName;
+        RpcMethodInfo rpcMethodInfo = cachedRpcMethods.get(methodSignature);
+        if (rpcMethodInfo == null) {
+            throw new IllegalAccessError("Can not invoke method '" + method.getName() 
+                    + "' due to not a protbufRpc method.");
+        }
+        
+        long onceTalkTimeout = rpcMethodInfo.getOnceTalkTimeout();
+        if (onceTalkTimeout <= 0) {
+            // use default once talk timeout
+            onceTalkTimeout = rpcClient.getRpcClientOptions().getOnceTalkTimeout();
+        }
+        
+        BlockingRpcCallback callback = new BlockingRpcCallback();
+        RpcDataPackage rpcDataPackage = buildRequestDataPackage(rpcMethodInfo, args);
+        // set correlationId
+        rpcDataPackage.getRpcMeta().setCorrelationId(rpcClient.getNextCorrelationId());
+        
+        RpcChannel rpcChannel = rpcChannelMap.get(methodSignature);
+        if (rpcChannel == null) {
+            throw new RuntimeException("No rpcChannel bind with serviceSignature '" + methodSignature + "'");
+        }
+        
+        rpcChannel.doTransport(rpcDataPackage, callback, onceTalkTimeout);
+        
+        if (!callback.isDone()) {
+            synchronized (callback) {
+                while (!callback.isDone()) {
+                    try {
+                        callback.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        }
+        
+        RpcDataPackage message = callback.getMessage();
+        
+        RpcResponseMeta response = message.getRpcMeta().getResponse();
+        if (response != null) {
+            Integer errorCode = response.getErrorCode();
+            if (!ErrorCodes.isSuccess(errorCode)) {
+                String error = message.getRpcMeta().getResponse().getErrorText();
+                throw new Throwable("A error occurred: errorCode=" + errorCode + " errorMessage:" + error);
+            }
+        }
+        
+        
+        byte[] attachment = message.getAttachment();
+        if (attachment != null) {
+            ClientAttachmentHandler attachmentHandler = rpcMethodInfo.getClientAttachmentHandler();
+            if (attachmentHandler != null) {
+                attachmentHandler.handleResponse(attachment, serviceName, methodName, args);
+            }
+        }
+        
+        // handle response data
+        byte[] data = message.getData();
+        if (data == null) {
+            return null;
+        }
+        
+        return rpcMethodInfo.outputDecode(data);
+    }

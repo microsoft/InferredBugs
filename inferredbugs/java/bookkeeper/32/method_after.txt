@@ -1,0 +1,42 @@
+    @Test
+    public void testReadWriteSyncSingleClient() throws IOException {
+        try {
+            // Create a ledger
+            lh = bkc.createLedger(digestType, ledgerPassword);
+            // bkc.initMessageDigest("SHA1");
+            ledgerId = lh.getId();
+            LOG.info("Ledger ID: " + lh.getId());
+            for (int i = 0; i < numEntriesToWrite; i++) {
+                ByteBuffer entry = ByteBuffer.allocate(4);
+                entry.putInt(rng.nextInt(maxInt));
+                entry.position(0);
+                entries.add(entry.array());
+                lh.addEntry(entry.array());
+            }
+            lh.close();
+            lh = bkc.openLedger(ledgerId, digestType, ledgerPassword);
+            LOG.debug("Number of entries written: " + lh.getLastAddConfirmed());
+            assertTrue("Verifying number of entries written", lh.getLastAddConfirmed() == (numEntriesToWrite - 1));
+
+            Enumeration<LedgerEntry> ls = lh.readEntries(0, numEntriesToWrite - 1);
+            int i = 0;
+            while (ls.hasMoreElements()) {
+                ByteBuffer origbb = ByteBuffer.wrap(entries.get(i++));
+                Integer origEntry = origbb.getInt();
+                ByteBuffer result = ByteBuffer.wrap(ls.nextElement().getEntry());
+                LOG.debug("Length of result: " + result.capacity());
+                LOG.debug("Original entry: " + origEntry);
+
+                Integer retrEntry = result.getInt();
+                LOG.debug("Retrieved entry: " + retrEntry);
+                assertTrue("Checking entry " + i + " for equality", origEntry.equals(retrEntry));
+            }
+            lh.close();
+        } catch (BKException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to BookKeeper exception");
+        } catch (InterruptedException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to interruption");
+        }
+    }

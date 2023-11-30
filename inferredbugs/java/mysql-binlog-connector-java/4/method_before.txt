@@ -1,0 +1,52 @@
+    public void connect() throws IOException {
+        if (connected) {
+            throw new IllegalStateException("BinaryLogClient is already connected");
+        }
+        try {
+            try {
+                Socket socket = socketFactory != null ? socketFactory.createSocket() : new Socket();
+                socket.connect(new InetSocketAddress(hostname, port));
+                channel = new PacketChannel(socket);
+                if (channel.getInputStream().peek() == -1) {
+                    throw new EOFException();
+                }
+            } catch (IOException e) {
+                throw new IOException("Failed to connect to MySQL on " + hostname + ":" + port +
+                        ". Please make sure it's running.", e);
+            }
+            GreetingPacket greetingPacket = new GreetingPacket(channel.read());
+            authenticate(greetingPacket.getScramble(), greetingPacket.getServerCollation());
+            if (binlogFilename == null) {
+                fetchBinlogFilenameAndPosition();
+            }
+            if (binlogPosition < 4) {
+                if (logger.isLoggable(Level.WARNING)) {
+                    logger.warning("Binary log position adjusted from " + binlogPosition + " to " + 4);
+                }
+                binlogPosition = 4;
+            }
+            ChecksumType checksumType = fetchBinlogChecksum();
+            if (checksumType != ChecksumType.NONE) {
+                confirmSupportOfChecksum(checksumType);
+            }
+            channel.write(new DumpBinaryLogCommand(serverId, binlogFilename, binlogPosition));
+        } catch (IOException e) {
+            if (channel != null && channel.isOpen()) {
+                channel.close();
+            }
+            throw e;
+        }
+        connected = true;
+        if (logger.isLoggable(Level.INFO)) {
+            logger.info("Connected to " + hostname + ":" + port + " at " + binlogFilename + "/" + binlogPosition);
+        }
+        synchronized (lifecycleListeners) {
+            for (LifecycleListener lifecycleListener : lifecycleListeners) {
+                lifecycleListener.onConnect(this);
+            }
+        }
+        if (keepAlive && !isKeepAliveThreadRunning()) {
+            spawnKeepAliveThread();
+        }
+        listenForEventPackets();
+    }

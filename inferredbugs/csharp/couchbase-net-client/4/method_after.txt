@@ -1,0 +1,35 @@
+        private void ConfigChangedHandler(IBucketConfig bucketConfig)
+        {
+            //1-Compare previous with current
+            //2-if no change, then continue
+            //3-else update configuration references
+            //4-notify the listener that a new configuration is available
+
+            var listener = _listeners[bucketConfig.Name];
+
+            IConfigInfo configInfo;
+            if (_configs.ContainsKey(bucketConfig.Name))
+            {
+                configInfo = _configs[bucketConfig.Name];
+                if (configInfo.BucketConfig.Equals(bucketConfig))
+                {
+                    SignalCountdownEvent();
+                    return;
+                }
+                configInfo = CreateConfigInfo(bucketConfig);
+            }
+            else
+            {
+                configInfo = CreateConfigInfo(bucketConfig);
+                _configs.TryAdd(bucketConfig.Name, configInfo);
+            }
+            try
+            {
+                listener.NotifyConfigChanged(configInfo);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+            SignalCountdownEvent();
+        }

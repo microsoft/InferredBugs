@@ -1,0 +1,49 @@
+ @Override
+	public String getAllExecutors(String jobName, CuratorRepository.CuratorFrameworkOp curatorFrameworkOp) {
+		String executorsNodePath = SaturnExecutorsNode.getExecutorsNodePath();
+		if (!curatorFrameworkOp.checkExists(executorsNodePath)) {
+			return null;
+		}
+		StringBuilder allExecutorsBuilder = new StringBuilder();
+		StringBuilder offlineExecutorsBuilder = new StringBuilder();
+		List<String> executors = curatorFrameworkOp.getChildren(executorsNodePath);
+		if (executors != null && executors.size() > 0) {
+			for (String executor : executors) {
+				if (curatorFrameworkOp.checkExists(SaturnExecutorsNode.getExecutorTaskNodePath(executor))) {
+					continue;// 过滤容器中的Executor，容器资源只需要可以选择taskId即可
+				}
+				String ip = curatorFrameworkOp.getData(SaturnExecutorsNode.getExecutorIpNodePath(executor));
+				if (StringUtils.isNotBlank(ip)) {// if ip exists, means the executor is online
+					allExecutorsBuilder.append(executor + "(" + ip + ")").append(",");
+					continue;
+				}
+				offlineExecutorsBuilder.append(executor + "(该executor已离线)").append(",");// if ip is not exists,means the
+																						// executor is offline
+			}
+		}
+		StringBuilder containerTaskIdsBuilder = new StringBuilder();
+		String containerNodePath = ContainerNodePath.getDcosTasksNodePath();
+		if (curatorFrameworkOp.checkExists(containerNodePath)) {
+			List<String> containerTaskIds = curatorFrameworkOp.getChildren(containerNodePath);
+			if (!CollectionUtils.isEmpty(containerTaskIds)) {
+				for (String containerTaskId : containerTaskIds) {
+					containerTaskIdsBuilder.append(containerTaskId + "(容器资源)").append(",");
+				}
+			}
+		}
+		allExecutorsBuilder.append(containerTaskIdsBuilder.toString());
+		allExecutorsBuilder.append(offlineExecutorsBuilder.toString());
+		String preferListNodePath = JobNodePath.getConfigNodePath(jobName, "preferList");
+		if (curatorFrameworkOp.checkExists(preferListNodePath)) {
+			String preferList = curatorFrameworkOp.getData(preferListNodePath);
+			if (!Strings.isNullOrEmpty(preferList)) {
+				String[] preferExecutorList = preferList.split(",");
+				for (String preferExecutor : preferExecutorList) {
+					if (executors != null && !executors.contains(preferExecutor) && !preferExecutor.startsWith("@")) {
+						allExecutorsBuilder.append(preferExecutor + "(该executor已删除)").append(",");
+					}
+				}
+			}
+		}
+		return allExecutorsBuilder.toString();
+	}

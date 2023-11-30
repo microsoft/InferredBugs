@@ -1,0 +1,71 @@
+    @Test
+    public void testCreatePipelineAggregatedSharedTask() throws Exception {
+        FreeStyleProject build1 = jenkins.createFreeStyleProject("build1");
+        FreeStyleProject build2 = jenkins.createFreeStyleProject("build2");
+        FreeStyleProject sonar = jenkins.createFreeStyleProject("sonar1");
+        build1.getPublishersList().add(new BuildTrigger("sonar1", true));
+        build2.getPublishersList().add(new BuildTrigger("sonar1", true));
+        build1.save();
+        build2.save();
+        jenkins.getInstance().rebuildDependencyGraph();
+        jenkins.setQuietPeriod(0);
+        PipelineFactory factory = new PipelineFactory();
+        final Pipeline pipe1 = factory.extractPipeline("pipe1", build1);
+        final Pipeline pipe2 = factory.extractPipeline("pipe2", build2);
+
+        Pipeline aggregated1 = factory.createPipelineAggregated(pipe1);
+        Pipeline aggregated2 = factory.createPipelineAggregated(pipe2);
+
+        assertNull(aggregated1.getStages().get(0).getVersion());
+        assertNull(aggregated2.getStages().get(0).getVersion());
+
+        assertTrue(aggregated1.getStages().get(0).getTasks().get(0).getStatus().isIdle());
+        assertTrue(aggregated2.getStages().get(0).getTasks().get(0).getStatus().isIdle());
+
+
+
+        jenkins.buildAndAssertSuccess(build1);
+        jenkins.waitUntilNoActivity();
+        assertNotNull(sonar.getLastBuild());
+
+        assertEquals(pipe1.getStages().size(), 2);
+        assertEquals(pipe2.getStages().size(), 2);
+        assertNotNull(sonar.getBuild("1"));
+
+        aggregated1 = factory.createPipelineAggregated(pipe1);
+        aggregated2 = factory.createPipelineAggregated(pipe2);
+
+        assertEquals("#1", aggregated1.getStages().get(1).getVersion());
+        assertEquals(jenkins.getInstance().getRootUrl() + "job/sonar1/1/", aggregated1.getStages().get(1).getTasks().get(0).getLink());
+
+        assertEquals(true, aggregated2.getStages().get(1).getTasks().get(0).getStatus().isIdle());
+        assertEquals(jenkins.getInstance().getRootUrl() + "job/sonar1/", aggregated2.getStages().get(1).getTasks().get(0).getLink());
+
+        jenkins.buildAndAssertSuccess(build2);
+        jenkins.waitUntilNoActivity();
+
+        aggregated1 = factory.createPipelineAggregated(pipe1);
+        aggregated2 = factory.createPipelineAggregated(pipe2);
+
+        assertEquals("#1", aggregated1.getStages().get(1).getVersion());
+        assertEquals("#1", aggregated2.getStages().get(1).getVersion());
+
+        assertEquals(true, aggregated2.getStages().get(1).getTasks().get(0).getStatus().isSuccess());
+        assertEquals(jenkins.getInstance().getRootUrl() + "job/sonar1/2/", aggregated2.getStages().get(1).getTasks().get(0).getLink());
+
+
+        jenkins.buildAndAssertSuccess(build1);
+        jenkins.waitUntilNoActivity();
+
+        aggregated1 = factory.createPipelineAggregated(pipe1);
+        aggregated2 = factory.createPipelineAggregated(pipe2);
+
+
+        assertEquals("#2", aggregated1.getStages().get(1).getVersion());
+        assertEquals("#1", aggregated2.getStages().get(1).getVersion());
+
+        assertEquals(jenkins.getInstance().getRootUrl() + "job/sonar1/3/", aggregated1.getStages().get(1).getTasks().get(0).getLink());
+        assertEquals(jenkins.getInstance().getRootUrl() + "job/sonar1/2/", aggregated2.getStages().get(1).getTasks().get(0).getLink());
+
+
+    }

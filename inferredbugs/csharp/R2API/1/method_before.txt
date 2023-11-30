@@ -1,0 +1,25 @@
+        private static SetDelegateRef<TInstance, TValue> CreateSetDelegateRef<TInstance, TValue>(this PropertyInfo property) where TInstance : struct {
+            if (property == null) {
+                throw new ArgumentException("Property cannot be null.", nameof(property));
+            }
+
+            if (!property.PropertyType.IsAssignableFrom(typeof(TValue))) {
+                throw new Exception($"Value type type {typeof(TValue)} does not match the requested type {property.PropertyType}.");
+            }
+
+            var method = new DynamicMethodDefinition($"{property} SetterByRef", typeof(void),
+                new[] { typeof(TInstance).MakeByRefType(), typeof(TValue) });
+            var il = method.GetILProcessor();
+
+            var setMethod = property.GetSetMethod(true);
+
+            if (!setMethod.IsStatic) {
+                il.Emit(OpCodes.Ldarg_0);
+            }
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, setMethod);
+            il.Emit(OpCodes.Ret);
+
+            return (SetDelegateRef<TInstance, TValue>)method.Generate().CreateDelegate(typeof(SetDelegateRef<TInstance, TValue>));
+        }

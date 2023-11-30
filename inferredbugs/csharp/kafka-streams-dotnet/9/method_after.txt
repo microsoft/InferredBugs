@@ -1,0 +1,17 @@
+        public TestInputTopic<K, V> CreateInputTopic<K, V>(string topicName, ISerDes<K> keySerdes, ISerDes<V> valueSerdes)
+        {
+            var pipeBuilder = new SyncPipeBuilder(GetTask(topicName));
+            var pipeInput = pipeBuilder.Input(topicName, configuration);
+            
+            if (builder.IsRepartitionTopology())
+            {
+                var topicsLink = new List<string>();
+                builder.GetRepartitionLinkTopics(topicName, topicsLink);
+                var consumer = supplier.GetConsumer(topicConfiguration.ToConsumerConfig("consumer-repartition-forwarder"), null);
+                
+                foreach (var topic in topicsLink)
+                    pipeInput.Flushed += () => ForwardRepartitionTopic(consumer, topic);
+            }
+            
+            return new TestInputTopic<K, V>(pipeInput, configuration, keySerdes, valueSerdes);
+        }

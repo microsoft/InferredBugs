@@ -1,0 +1,73 @@
+ private InstanceSet buildInstanceList(String file) throws IOException {
+
+		System.out.print("生成训练数据 ...");
+
+		FNLPReader reader = new FNLPReader(file);
+		InstanceSet instset = new InstanceSet();
+		
+		LabelAlphabet la = factory.DefaultLabelAlphabet();
+		int count = 0;
+		while (reader.hasNext()) {
+			Sentence sent = (Sentence) reader.next();
+			//	int[] heads = (int[]) instance.getTarget();
+			String depClass = null;
+			Target targets = (Target)sent.getTarget();
+			JointParsingState state = new JointParsingState(sent);
+			
+			while (!state.isFinalState()) {
+				// 左右焦点词在句子中的位置
+				int[] lr = state.getFocusIndices();
+
+				ArrayList<String> features = state.getFeatures();
+				JointParsingState.Action action = getAction(lr[0], lr[1],
+						targets);
+				switch (action) {
+				case LEFT:
+					depClass = targets.getDepClass(lr[1]);
+					break;
+				case RIGHT:
+					depClass = targets.getDepClass(lr[0]);
+					break;
+				default:
+
+				}
+				state.next(action,depClass);
+				if (action == JointParsingState.Action.LEFT)
+					targets.setHeads(lr[1],-1);
+				if (action == JointParsingState.Action.RIGHT)
+					targets.setHeads(lr[0],-1);
+				String label = "";
+				switch (action) {
+				case LEFT:
+					label += "L"+sent.getDepClass(lr[1]);		
+					break;
+				case RIGHT:
+					label+="R"+sent.getDepClass(lr[0]);
+					break;
+				default:
+					label = "S";					
+				}
+				int id = la.lookupIndex(label);				
+				Instance inst = new Instance();
+				inst.setTarget(id);
+				inst.setData(features);
+				instset.add(inst);
+			}
+			count++;
+//			System.out.println(count);
+		}
+		la.setStopIncrement(true);
+		
+		//重新生成特征
+		int ysize = la.size();		
+		IFeatureAlphabet fa = factory.DefaultFeatureAlphabet();
+		
+		for(Instance inst:instset){
+			ArrayList<String> data = (ArrayList<String>) inst.getData();
+			int[] idx = JointParser.addFeature(fa, data, ysize);
+			inst.setData(idx);
+		}
+		instset.setAlphabetFactory(factory);
+		System.out.printf("共生成实例:%d个\n", count);
+		return instset;
+	}

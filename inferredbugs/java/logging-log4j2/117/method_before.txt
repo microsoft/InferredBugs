@@ -1,0 +1,25 @@
+    @Test
+    public void testTcpAppenderDeadlock() throws Exception {
+
+        // @formatter:off
+        final SocketAppender appender = SocketAppender.newBuilder()
+                .withHost("localhost")
+                .withPort(DYN_PORT)
+                .withReconnectDelayMillis(100)
+                .withName("test")
+                .withImmediateFail(false)
+                .build();
+        // @formatter:on
+        appender.start();
+        // set appender on root and set level to debug
+        root.addAppender(appender);
+        root.setAdditive(false);
+        root.setLevel(Level.DEBUG);
+
+        new TCPSocketServer(DYN_PORT).start();
+
+        root.debug("This message is written because a deadlock never.");
+
+        final LogEvent event = list.poll(3, TimeUnit.SECONDS);
+        assertNotNull("No event retrieved", event);
+    }

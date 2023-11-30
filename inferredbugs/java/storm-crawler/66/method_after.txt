@@ -1,0 +1,29 @@
+    @Override
+    public void execute(Tuple input) {
+        _collector.ack(input);
+
+        // this bolt can be connected to anything
+        // we just want to trigger a new search when the input is a tick tuple
+        if (!TupleUtils.isTick(input)) {
+            return;
+        }
+
+        for (StatusActionListener listener : listeners) {
+            // still waiting for results from previous request
+            if (!listener.isReady()) {
+                LOG.debug("Not ready to get counts for status {}",
+                        listener.name);
+                continue;
+            }
+            CountRequest request = new CountRequest(indexName);
+            if (!listener.name.equalsIgnoreCase("TOTAL")) {
+                SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+                sourceBuilder.query(
+                        QueryBuilders.termQuery("status", listener.name));
+                request.source(sourceBuilder);
+            }
+            listener.busy();
+            connection.getClient().countAsync(request, RequestOptions.DEFAULT,
+                    listener);
+        }
+    }

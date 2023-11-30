@@ -1,0 +1,36 @@
+ public void testBZip2Compression() throws Exception {
+		project.executeTarget("bzip2-compression");
+
+		File deb = new File("target/test-classes/test.deb");
+		assertTrue("package not build", deb.exists());
+
+		boolean found = false;
+
+		ArInputStream in = new ArInputStream(new FileInputStream(deb));
+		ArEntry entry;
+		while ((entry = in.getNextEntry()) != null) {
+			if (entry.getName().equals("data.tar.bz2")) {
+				found = true;
+
+				assertEquals("header 0", (byte) 'B', in.read());
+				assertEquals("header 1", (byte) 'Z', in.read());
+
+				TarInputStream tar = new TarInputStream(new CBZip2InputStream(in));
+				while ((tar.getNextEntry()) != null);
+				tar.close();
+				break;
+			} else {
+				// skip to the next entry
+				long skip = entry.getLength(); 
+				while(skip > 0) {
+					long skipped = in.skip(skip); 
+					if (skipped == -1) {
+						throw new IOException("Failed to skip");
+					}
+					skip -= skipped;
+				}
+			}
+		}
+
+		assertTrue("bz2 file not found", found);
+	}

@@ -1,0 +1,47 @@
+    @Override
+    @DbSession
+    public boolean saveBlock(Block block) throws IOException {
+        BlockLog.debug("save block height:" + block.getHeader().getHeight() + ", preHash:" + block.getHeader().getPreHash() + " , hash:" + block.getHeader().getHash() + ", address:" + Address.fromHashs(block.getHeader().getPackingAddress()));
+
+        BlockHeader bestBlockHeader = getLocalBestBlockHeader();
+        if(!bestBlockHeader.getHash().equals(block.getHeader().getPreHash())) {
+            throw new NulsRuntimeException(ErrorCode.FAILED, "save blcok error , prehash is error , height: " + block.getHeader().getHeight() + " , hash: " + block.getHeader().getHash());
+        }
+
+        List<Transaction> commitedList = new ArrayList<>();
+        for (int x = 0; x < block.getHeader().getTxCount(); x++) {
+            Transaction tx = block.getTxs().get(x);
+            tx.setIndex(x);
+            tx.setBlockHeight(block.getHeader().getHeight());
+            try {
+                tx.verifyWithException();
+                commitedList.add(tx);
+                ledgerService.commitTx(tx, block);
+            } catch (Exception e) {
+                Log.error(e);
+                this.rollback(commitedList);
+                throw new NulsRuntimeException(e);
+            }
+        }
+        ledgerService.saveTxList(block.getTxs());
+        blockStorageService.save(block);
+        List<Transaction> localTxList = null;
+        try {
+            localTxList = this.ledgerService.getWaitingTxList();
+        } catch (Exception e) {
+            Log.error(e);
+        }
+        if (null != localTxList && !localTxList.isEmpty()) {
+            for (Transaction tx : localTxList) {
+                try {
+                    ValidateResult result = ledgerService.conflictDetectTx(tx, block.getTxs());
+                    if (result.isFailed()) {
+                        ledgerService.deleteLocalTx(tx.getHash().getDigestHex());
+                    }
+                } catch (NulsException e) {
+                    Log.error(e);
+                }
+            }
+        }
+        return true;
+    }

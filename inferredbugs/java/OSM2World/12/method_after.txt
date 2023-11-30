@@ -1,0 +1,42 @@
+ private static final Collection<MapArea> createAreasForSimpleMultipolygon(OsmRelation relation,
+			TLongObjectMap<MapNode> nodeIdMap, OsmEntityProvider db) throws EntityNotFoundException {
+
+		assert isSimpleMultipolygon(relation, db);
+
+		OsmEntity tagSource = null;
+		List<MapNode> outerNodes = null;
+		List<List<MapNode>> holes = new ArrayList<List<MapNode>>();
+
+		for (OsmRelationMember member : membersAsList(relation)) {
+			if (member.getType() == EntityType.Way) {
+
+				OsmWay way = db.getWay(member.getId());
+
+				if ("inner".equals(member.getRole())) {
+
+					List<MapNode> hole = new ArrayList<MapNode>(way.getNumberOfNodes());
+
+					for (long nodeId : nodesAsList(way).toArray()) {
+						hole.add(nodeIdMap.get(nodeId));
+					}
+
+					holes.add(hole);
+
+				} else if ("outer".equals(member.getRole())) {
+
+					tagSource = relation.getNumberOfTags() > 1 ? relation : way;
+
+					outerNodes = new ArrayList<MapNode>(way.getNumberOfNodes());
+					for (long nodeId : nodesAsList(way).toArray()) {
+						outerNodes.add(nodeIdMap.get(nodeId));
+					}
+
+				}
+
+			}
+		}
+
+		return singleton(new MapArea(tagSource.getId(), tagSource instanceof OsmRelation,
+				OSMToMapDataConverter.tagsOfEntity(tagSource), outerNodes, holes));
+
+	}

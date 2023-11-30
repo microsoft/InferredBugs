@@ -1,0 +1,56 @@
+    @Test
+    public void testUnsafeCopy() {
+
+        IntHolder minKey = new IntHolder(0, new int[0]);
+
+        OakMapBuilder<IntHolder, IntHolder> builder =
+            new OakMapBuilder<IntHolder, IntHolder>(
+                new UnsafeTestComparator(),
+                new UnsafeTestSerializer(),new UnsafeTestSerializer(), minKey);
+
+        OakMap<IntHolder, IntHolder> oak = builder.build();
+
+        IntHolder key1 = new IntHolder(5, new int[]{1, 2, 3, 4, 5});
+        IntHolder value1 = new IntHolder(5, new int[]{1, 2, 3, 4, 5});
+
+        IntHolder key2 = new IntHolder(6, new int[]{10, 20, 30, 40, 50, 60});
+        IntHolder value2 = new IntHolder(6, new int[]{10, 20, 30, 40, 50, 60});
+
+        oak.put(key1, value1);
+        oak.put(key2, value2);
+
+
+        IntHolder resValue1 = oak.get(key1);
+        assertEquals(value1.size, resValue1.size);
+
+        for (int i = 0; i < value1.size; ++i) {
+            assertEquals(value1.array[i], resValue1.array[i]);
+        }
+        IntHolder resValue2 = oak.get(key2);
+        assertEquals(value2.size, resValue2.size);
+        for (int i = 0; i < value2.size; ++i) {
+            assertEquals(value2.array[i], resValue2.array[i]);
+        }
+
+        Iterator<Map.Entry<OakRBuffer, OakRBuffer>> iter = oak.zc().entrySet().iterator();
+        while (iter.hasNext()) {
+            Map.Entry<OakRBuffer, OakRBuffer> entry = iter.next();
+            int size = entry.getKey().getInt(0);
+            int[] dstArrayValue = new int[size];
+            int[] dstArrayKey = new int[size];
+            entry.getKey().unsafeCopyBufferToIntArray(Integer.BYTES, dstArrayKey, size);
+            entry.getValue().unsafeCopyBufferToIntArray(Integer.BYTES, dstArrayValue, size);
+            if (size == 5) {
+                //value1
+                assertArrayEquals(value1.array, dstArrayKey);
+                assertArrayEquals(value1.array, dstArrayValue);
+            } else if (size == 6) {
+                //value2
+                assertArrayEquals(value2.array, dstArrayKey);
+                assertArrayEquals(value2.array, dstArrayValue);
+            } else {
+                fail();
+            }
+        }
+
+    }

@@ -1,0 +1,46 @@
+    protected String resolveDriverVersion(String driverVersion) {
+        String preferenceKey = getKeyForPreferences();
+        Optional<String> browserVersion = empty();
+        browserVersion = getValueFromPreferences(preferenceKey, browserVersion);
+        if (!browserVersion.isPresent()) {
+            browserVersion = detectBrowserVersion();
+        }
+        if (browserVersion.isPresent()) {
+            preferenceKey = getKeyForPreferences() + browserVersion.get();
+            driverVersion = preferences.getValueFromPreferences(preferenceKey);
+
+            Optional<String> optionalDriverVersion = empty();
+            if (isUnknown(driverVersion)) {
+                optionalDriverVersion = getDriverVersionFromRepository(
+                        browserVersion);
+            }
+            if (isUnknown(driverVersion)) {
+                optionalDriverVersion = getDriverVersionFromProperties(
+                        preferenceKey);
+            }
+            if (optionalDriverVersion.isPresent()) {
+                driverVersion = optionalDriverVersion.get();
+            }
+            if (isUnknown(driverVersion)) {
+                log.debug(
+                        "The driver version for {} {} is unknown ... trying with latest",
+                        getDriverManagerType(), browserVersion.get());
+            } else if (!isUnknown(driverVersion)) {
+                log.info(
+                        "Using {} {} (since {} {} is installed in your machine)",
+                        getDriverName(), driverVersion, getDriverManagerType(),
+                        browserVersion.get());
+                storeInPreferences(preferenceKey, driverVersion,
+                        browserVersion.get());
+            }
+        }
+
+        // if driverVersion is still unknown, try with latest
+        if (isUnknown(driverVersion)) {
+            Optional<String> latestDriverVersionFromRepository = getLatestDriverVersionFromRepository();
+            if (latestDriverVersionFromRepository.isPresent()) {
+                driverVersion = latestDriverVersionFromRepository.get();
+            }
+        }
+        return driverVersion;
+    }

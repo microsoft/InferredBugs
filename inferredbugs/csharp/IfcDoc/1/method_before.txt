@@ -1,0 +1,142 @@
+  protected object ReadEntity(XmlReader reader, IDictionary<string, object> instances, string typename, QueuedObjects queuedObjects, bool nestedElementDefinition)
+		{
+			object o = null;
+			Type t = null;
+			if (string.IsNullOrEmpty(typename))
+				t = GetTypeByName(reader.LocalName);
+			else if (string.Compare(typename, "header", true) == 0)
+				t = typeof(header);
+			else
+				t = GetTypeByName(typename);
+
+			if (t != null)
+			{
+				if (t.IsAbstract)
+				{
+					reader.MoveToElement();
+					while (reader.Read())
+					{
+						switch (reader.NodeType)
+						{
+							case XmlNodeType.Element:
+								{
+									Type localType = this.GetTypeByName(reader.LocalName);
+									if (localType != null && localType.IsSubclassOf(t) && !localType.IsAbstract)
+										o = ReadEntity(reader, instances, reader.LocalName, queuedObjects, false);
+									break;
+								}
+
+							case XmlNodeType.Attribute:
+								break;
+
+							case XmlNodeType.EndElement:
+								//System.Diagnostics.Debug.WriteLine("!!ReadEntity: " + t.Name + "." + reader.LocalName);
+								return o;
+						}
+					}
+					//System.Diagnostics.Debug.WriteLine("<<ReadEntity: " + t.Name + "." + reader.LocalName);
+					return o;
+				}
+				//System.Diagnostics.Debug.WriteLine(">>ReadEntity: " + t.Name + "." + reader.LocalName);
+				// map instance id if used later
+				string sid = reader.GetAttribute("id");
+
+				if (t == this.ProjectType || t.IsSubclassOf(this.ProjectType))
+				{
+					if (!instances.TryGetValue(String.Empty, out o))
+					{
+						o = instances[String.Empty] = FormatterServices.GetUninitializedObject(t); // stash project using blank index
+						if (!string.IsNullOrEmpty(sid))
+							instances[sid] = o;
+					}
+				}
+				else if (!String.IsNullOrEmpty(sid) && !instances.TryGetValue(sid, out o))
+				{
+					o = FormatterServices.GetUninitializedObject(t);
+					instances.Add(sid, o);
+				}
+				if (o == null)
+				{
+					o = FormatterServices.GetUninitializedObject(t);
+					if (!String.IsNullOrEmpty(sid))
+					{
+						instances.Add(sid, o);
+					}
+				}
+				if (!string.IsNullOrEmpty(sid))
+				{
+					queuedObjects.DeQueue(sid, o);
+				}
+				// ensure all lists/sets are instantiated
+				Initialize(o, t);
+
+
+				// read attribute properties
+				for (int i = 0; i < reader.AttributeCount; i++)
+				{
+					reader.MoveToAttribute(i);
+					if (!reader.LocalName.Equals("id"))
+					{
+						string match = reader.LocalName;
+						PropertyInfo f = GetFieldByName(t, match);
+						if (f != null)
+						{
+							ReadValue(reader, o, f, f.PropertyType);
+						}
+					}
+				}
+
+				reader.MoveToElement();
+				// now read attributes or end of entity
+				if (reader.IsEmptyElement)
+				{
+					//	System.Diagnostics.Debug.WriteLine("<<ReadEntity: " + t.Name + "." + reader.LocalName);
+					return o;
+				}
+			}
+			bool isNested = reader.AttributeCount == 0 && nestedElementDefinition;
+			while (reader.Read())
+			{
+				switch (reader.NodeType)
+				{
+					case XmlNodeType.Element:
+						{
+							if (isNested)
+							{
+								if(t == null && !string.IsNullOrEmpty(reader.LocalName))
+								{
+									o = ReadEntity(reader, instances, reader.LocalName, queuedObjects, false);
+									break;
+								}
+								else if (string.Compare(reader.LocalName, t.Name) == 0)
+								{
+									o = ReadEntity(reader, instances, typename, queuedObjects, false);
+									break;
+								}
+								else
+								{
+									Type localType = this.GetNonAbstractTypeByName(reader.LocalName);
+									if (localType != null && localType.IsSubclassOf(t))
+									{
+										o = ReadEntity(reader, instances, reader.LocalName, queuedObjects, false);
+										break;
+									}
+								}
+							}
+							ReadElement(reader, o, instances, queuedObjects);
+							break;
+						}
+
+					case XmlNodeType.Attribute:
+						break;
+
+					case XmlNodeType.EndElement:
+						//System.Diagnostics.Debug.WriteLine("!!ReadEntity: " + t.Name + "." + reader.LocalName);
+						return o;
+				}
+			}
+			//System.Diagnostics.Debug.WriteLine("<<ReadEntity: " + t.Name + "." + reader.LocalName);
+
+
+			return o;
+		}

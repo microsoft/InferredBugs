@@ -1,0 +1,40 @@
+ @Override
+	public void load() throws ConfigurationException {
+		Collection<PluginConfig> plugins = configuration.getPlugins();
+		PluginConfig plugin = null;
+		Collection<File> jarsToLoad = new LinkedList<File>();
+		try {
+			if (plugins != null) {
+				Iterator<PluginConfig> it = plugins.iterator();
+				initIvy();
+				while (it.hasNext()) {
+					plugin = it.next();
+					addArtifact(plugin.getGroupId(), plugin.getArtifactId(),
+							plugin.getVersion());
+
+				}
+				jarsToLoad = resolveArtifacts();
+				URL[] urls = new URL[jarsToLoad.size()];
+				int i = 0;
+				for (File jar : jarsToLoad) {
+					urls[i] = jar.toURI().toURL();
+					i++;
+				}
+				URLClassLoader childClassLoader = new URLClassLoader(urls,
+						configuration.getClassLoader());
+				configuration.setClassLoader(childClassLoader);
+			}
+		} catch (ConfigurationException e) {
+			throw e;
+		} catch (Exception e) {
+			if (plugin == null) {
+				throw new ConfigurationException(
+						"Unable to initialize ivy configuration", e);
+			} else {
+				throw new ConfigurationException(
+						"Unable to resolve the plugin: " + plugin.getGroupId()
+								+ " : " + plugin.getArtifactId() + " : "
+								+ plugin.getVersion(), e);
+			}
+		}
+	}

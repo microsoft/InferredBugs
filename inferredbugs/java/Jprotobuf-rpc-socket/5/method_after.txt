@@ -1,0 +1,21 @@
+    @Override
+    public Object invoke(MethodInvocation invocation) throws Throwable {
+        Method method = invocation.getMethod();
+        ProtobufRPC protobufPRC = method.getAnnotation(ProtobufRPC.class);
+        if (protobufPRC == null) {
+            throw new IllegalAccessError("Target method is not marked annotation @ProtobufPRC. method name :"
+                    + method.getDeclaringClass().getName() + "." + method.getName());
+        }
+        String serviceName = protobufPRC.serviceName();
+        String methodName = protobufPRC.methodName();
+        if (StringUtils.isEmpty(methodName)) {
+            methodName = method.getName();
+        }
+        String methodSignature = serviceName + '!' + methodName;
+        Object instance = instancesMap.get(methodSignature);
+        if (instance == null) {
+            throw new NullPointerException("target instance is null may be not initial correct.");
+        }
+        Object result = invocation.getMethod().invoke(instance, invocation.getArguments());
+        return result;
+    }

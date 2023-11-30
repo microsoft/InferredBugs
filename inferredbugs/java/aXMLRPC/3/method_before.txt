@@ -1,0 +1,45 @@
+ public Object call(String method, Object[] params) throws XMLRPCException {
+
+		try {
+			
+			Call c = createCall(method, params);
+
+			URLConnection conn = this.url.openConnection();
+			if(!(conn instanceof HttpURLConnection)) {
+				throw new IllegalArgumentException("The URL is not for a http connection.");
+			}
+
+			HttpURLConnection http = (HttpURLConnection)conn;
+			http.setRequestMethod(HTTP_POST);
+			http.setDoOutput(true);
+			http.setDoInput(true);
+
+			// Set the request parameters
+			for(Map.Entry<String,String> param : httpParameters.entrySet()) {
+				http.setRequestProperty(param.getKey(), param.getValue());
+			}
+
+			OutputStreamWriter stream = new OutputStreamWriter(http.getOutputStream());
+			stream.write(c.getXML());
+			stream.flush();
+			stream.close();
+
+			InputStream istream = http.getInputStream();
+
+			if(http.getResponseCode() != HttpURLConnection.HTTP_OK) {
+				throw new XMLRPCException("The status code of the http response must be 200.");
+			}
+
+			// Check for strict parameters
+			if(isFlagSet(FLAGS_STRICT)) {
+				if(!http.getContentType().startsWith(TYPE_XML)) {
+					throw new XMLRPCException("The Content-Type of the response must be text/xml.");
+				}
+			}
+
+			return responseParser.parse(istream);
+		} catch (IOException ex) {
+			throw new XMLRPCException(ex);
+		}
+		
+	}

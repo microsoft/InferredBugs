@@ -1,0 +1,20 @@
+        public void UpdateConfig(IBucketConfig bucketConfig)
+        {
+            IConfigListener listener;
+            if (!_listeners.TryGetValue(bucketConfig.Name, out listener))
+            {
+                throw new ConfigListenerNotFoundException(bucketConfig.Name);
+            }
+
+            IConfigInfo oldConfigInfo;
+            if (!_configs.TryGetValue(bucketConfig.Name, out oldConfigInfo))
+            {
+                throw new ConfigNotFoundException(bucketConfig.Name);
+            }
+
+            var configInfo = GetConfig(bucketConfig);
+            if(_configs.TryUpdate(bucketConfig.Name, configInfo, oldConfigInfo))
+            {
+                listener.NotifyConfigChanged(configInfo);
+            }
+        }

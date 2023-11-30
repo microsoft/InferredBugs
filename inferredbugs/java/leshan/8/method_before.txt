@@ -1,0 +1,25 @@
+    public void createClient() {
+        // Create objects Enabler
+        ObjectsInitializer initializer = new ObjectsInitializer(new LwM2mModel(createObjectModels()));
+        initializer.setInstancesForObject(LwM2mId.SECURITY, Security.noSec(
+                "coap://" + server.getNonSecureAddress().getHostString() + ":" + server.getNonSecureAddress().getPort(),
+                12345));
+        initializer.setInstancesForObject(LwM2mId.SERVER, new Server(12345, LIFETIME, BindingMode.U, false));
+        initializer.setInstancesForObject(LwM2mId.DEVICE, new Device("Eclipse Leshan", MODEL_NUMBER, "12345", "U") {
+            @Override
+            public ExecuteResponse execute(int resourceid, String params) {
+                if (resourceid == 4) {
+                    return ExecuteResponse.success();
+                } else {
+                    return super.execute(resourceid, params);
+                }
+            }
+        });
+        List<LwM2mObjectEnabler> objects = initializer.createMandatory();
+        objects.addAll(initializer.create(2, 2000));
+
+        // Build Client
+        LeshanClientBuilder builder = new LeshanClientBuilder(currentEndpointIdentifier.get());
+        builder.setObjects(objects);
+        client = builder.build();
+    }

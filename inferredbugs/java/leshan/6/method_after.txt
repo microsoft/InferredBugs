@@ -1,0 +1,39 @@
+    @Test
+    public void can_observe_timestamped_resource() throws InterruptedException {
+        TestObservationListener listener = new TestObservationListener();
+        helper.server.getObservationService().addListener(listener);
+
+        // observe device timezone
+        ObserveResponse observeResponse = helper.server.send(helper.getCurrentRegistration(),
+                new ObserveRequest(3, 0, 15));
+        assertEquals(ResponseCode.CONTENT, observeResponse.getCode());
+        assertNotNull(observeResponse.getCoapResponse());
+        assertThat(observeResponse.getCoapResponse(), is(instanceOf(Response.class)));
+
+        // an observation response should have been sent
+        Observation observation = observeResponse.getObservation();
+        assertEquals("/3/0/15", observation.getPath().toString());
+        assertEquals(helper.getCurrentRegistration().getId(), observation.getRegistrationId());
+
+        // *** HACK send time-stamped notification as Leshan client does not support it *** //
+        // create time-stamped nodes
+        TimestampedLwM2mNode mostRecentNode = new TimestampedLwM2mNode(System.currentTimeMillis(),
+                LwM2mSingleResource.newStringResource(15, "Paris"));
+        List<TimestampedLwM2mNode> timestampedNodes = new ArrayList<>();
+        timestampedNodes.add(mostRecentNode);
+        timestampedNodes.add(new TimestampedLwM2mNode(mostRecentNode.getTimestamp() - 2,
+                LwM2mSingleResource.newStringResource(15, "Londres")));
+        byte[] payload = LwM2mNodeJsonEncoder.encodeTimestampedData(timestampedNodes, new LwM2mPath("/3/0/15"),
+                new LwM2mModel(helper.createObjectModels()), new DefaultLwM2mValueConverter());
+        Response firstCoapResponse = (Response) observeResponse.getCoapResponse();
+        sendNotification(payload, firstCoapResponse, ContentFormat.JSON_CODE);
+        // *** Hack End *** //
+
+        // verify result
+        listener.waitForNotification(2000);
+        assertTrue(listener.receivedNotify().get());
+        assertEquals(mostRecentNode.getNode(), listener.getResponse().getContent());
+        assertEquals(timestampedNodes, listener.getResponse().getTimestampedLwM2mNode());
+        assertNotNull(listener.getResponse().getCoapResponse());
+        assertThat(listener.getResponse().getCoapResponse(), is(instanceOf(Response.class)));
+    }

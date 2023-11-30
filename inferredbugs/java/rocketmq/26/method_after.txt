@@ -1,0 +1,23 @@
+    public void initialize() {
+        JSONObject accessControlTransport = AclUtils.getYamlDataObject(fileHome + fileName,
+            JSONObject.class);
+
+        if (accessControlTransport == null || accessControlTransport.isEmpty()) {
+            throw new AclException(String.format("%s file  is not data", fileHome + fileName));
+        }
+        log.info("BorkerAccessControlTransport data is : ", accessControlTransport.toString());
+        JSONArray globalWhiteRemoteAddressesList = accessControlTransport.getJSONArray("globalWhiteRemoteAddresses");
+        if (globalWhiteRemoteAddressesList != null && !globalWhiteRemoteAddressesList.isEmpty()) {
+            for (int i = 0; i < globalWhiteRemoteAddressesList.size(); i++) {
+                addGlobalWhiteRemoteAddress(globalWhiteRemoteAddressesList.getString(i));
+            }
+        }
+
+        JSONArray accounts = accessControlTransport.getJSONArray("accounts");
+        if (accounts != null && !accounts.isEmpty()) {
+            List<PlainAccessConfig> plainAccessList = accounts.toJavaList(PlainAccessConfig.class);
+            for (PlainAccessConfig plainAccess : plainAccessList) {
+                this.addPlainAccessResource(getPlainAccessResource(plainAccess));
+            }
+        }
+    }

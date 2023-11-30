@@ -1,0 +1,485 @@
+{
+    "hash": "ab4189c48a40f0c0e4e425b1c8e66fe92fad241f",
+    "message": "less code when writing",
+    "file_num_lines": 172,
+    "diff_parsed": {
+        "added": [
+            [
+                2,
+                "using System.Collections.Concurrent;"
+            ],
+            [
+                16,
+                "        private readonly TaskQueue<Document> _docWorker;"
+            ],
+            [
+                18,
+                "        private readonly ConcurrentDictionary<string, int> _docCount;"
+            ],
+            [
+                32,
+                "        private readonly Dictionary<string, DocumentFile> _docContainers;"
+            ],
+            [
+                46,
+                "            _docContainers = new Dictionary<string, DocumentFile>();"
+            ],
+            [
+                47,
+                "            _docWorker = new TaskQueue<Document>(1, PutDocInContainer);"
+            ],
+            [
+                50,
+                "            _docCount = new ConcurrentDictionary<string, int>();"
+            ],
+            [
+                69,
+                "            DocumentFile container;"
+            ],
+            [
+                74,
+                "                    container = new DocumentFile(_directory, containerId);"
+            ],
+            [
+                82,
+                "                    container = new DocumentFile(_directory, containerId);"
+            ],
+            [
+                91,
+                "        public void Write(IEnumerable<Dictionary<string, string>> docs)"
+            ],
+            [
+                93,
+                "            foreach (var doc in docs)"
+            ],
+            [
+                94,
+                "            {"
+            ],
+            [
+                95,
+                "                var d = new Document(doc);"
+            ],
+            [
+                96,
+                "                _docWorker.Enqueue(d);"
+            ],
+            [
+                97,
+                "                foreach (var field in d.Fields)"
+            ],
+            [
+                98,
+                "                {"
+            ],
+            [
+                99,
+                "                    Analyze(d.Id, field.Key, field.Value);"
+            ],
+            [
+                100,
+                "                }"
+            ],
+            [
+                101,
+                "            }"
+            ],
+            [
+                102,
+                ""
+            ],
+            [
+                103,
+                "            Parallel.ForEach(_tries, kvp =>"
+            ],
+            [
+                104,
+                "            {"
+            ],
+            [
+                105,
+                "                var field = kvp.Key;"
+            ],
+            [
+                106,
+                "                var trie = kvp.Value;"
+            ],
+            [
+                107,
+                "                using (var writer = new TrieWriter(field.ToTrieContainerId(), _directory))"
+            ],
+            [
+                108,
+                "                {"
+            ],
+            [
+                109,
+                "                    writer.Write(trie);"
+            ],
+            [
+                110,
+                "                }"
+            ],
+            [
+                111,
+                "            });"
+            ],
+            [
+                112,
+                ""
+            ],
+            [
+                113,
+                "            Parallel.ForEach(_postingsContainers.Values, container =>"
+            ],
+            [
+                114,
+                "            {"
+            ],
+            [
+                115,
+                "                if (container.Count > 0)"
+            ],
+            [
+                116,
+                "                {"
+            ],
+            [
+                117,
+                "                    container.Flush(_directory);"
+            ],
+            [
+                118,
+                "                    container.Dispose();"
+            ],
+            [
+                119,
+                "                }"
+            ],
+            [
+                120,
+                "                else"
+            ],
+            [
+                121,
+                "                {"
+            ],
+            [
+                122,
+                "                    container.Dispose();"
+            ],
+            [
+                123,
+                "                    File.Delete(Path.Combine(_directory, container.Id + \".pc\"));"
+            ],
+            [
+                124,
+                "                }"
+            ],
+            [
+                125,
+                "            });"
+            ],
+            [
+                126,
+                ""
+            ],
+            [
+                127,
+                "            Parallel.ForEach(_docContainers.Values, container => container.Dispose());"
+            ],
+            [
+                128,
+                ""
+            ],
+            [
+                129,
+                "            var ixInfo = new DocumentCountFile();"
+            ],
+            [
+                130,
+                "            foreach (var field in _docCount)"
+            ],
+            [
+                132,
+                "                ixInfo.DocCount[field.Key] = field.Value;"
+            ],
+            [
+                134,
+                "            ixInfo.Save(Path.Combine(_directory, \"0.ix\"));"
+            ],
+            [
+                154,
+                "            if (!_docCount.ContainsKey(field))"
+            ],
+            [
+                156,
+                "                _docCount.AddOrUpdate(field, 1, (s, count) => count+1);"
+            ],
+            [
+                203,
+                ""
+            ],
+            [
+                206,
+                "            _docWorker.Dispose();"
+            ],
+            [
+                207,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                15,
+                "        //private readonly TaskQueue<Document> _docWorker;"
+            ],
+            [
+                17,
+                "        private readonly IxFile _ix;"
+            ],
+            [
+                18,
+                "        private readonly Dictionary<string, Document> _docs;"
+            ],
+            [
+                32,
+                "        private readonly Dictionary<string, DocContainer> _docContainers;"
+            ],
+            [
+                46,
+                "            _docContainers = new Dictionary<string, DocContainer>();"
+            ],
+            [
+                47,
+                "            //_docWorker = new TaskQueue<Document>(1, PutDocInContainer);"
+            ],
+            [
+                50,
+                "            _docs = new Dictionary<string, Document>();"
+            ],
+            [
+                51,
+                ""
+            ],
+            [
+                52,
+                "            var ixFileName = Path.Combine(directory, \"1.ix\");"
+            ],
+            [
+                53,
+                "            _ix = File.Exists(ixFileName) ? IxFile.Load(ixFileName) : new IxFile();"
+            ],
+            [
+                72,
+                "            DocContainer container;"
+            ],
+            [
+                77,
+                "                    container = new DocContainer(_directory, containerId);"
+            ],
+            [
+                85,
+                "                    container = new DocContainer(_directory, containerId);"
+            ],
+            [
+                91,
+                "        }"
+            ],
+            [
+                93,
+                "        public void Write(Dictionary<string, string> doc)"
+            ],
+            [
+                94,
+                "        {"
+            ],
+            [
+                95,
+                "            Write(new Document(doc));"
+            ],
+            [
+                98,
+                "        public void Write(Document doc)"
+            ],
+            [
+                100,
+                "            _docs[doc.Id] = doc;"
+            ],
+            [
+                101,
+                "            foreach (var field in doc.Fields)"
+            ],
+            [
+                103,
+                "                Analyze(doc.Id, field.Key, field.Value);"
+            ],
+            [
+                124,
+                "            if (!_ix.Fields.ContainsKey(field))"
+            ],
+            [
+                126,
+                "                _ix.Fields.Add(field, new Dictionary<string, object>());"
+            ],
+            [
+                128,
+                "            _ix.Fields[field][docId] = null;"
+            ],
+            [
+                174,
+                "            Parallel.ForEach(_tries, kvp =>"
+            ],
+            [
+                175,
+                "            {"
+            ],
+            [
+                176,
+                "                var field = kvp.Key;"
+            ],
+            [
+                177,
+                "                var trie = kvp.Value;"
+            ],
+            [
+                178,
+                "                using (var writer = new TrieWriter(field.ToTrieContainerId(), _directory))"
+            ],
+            [
+                179,
+                "                {"
+            ],
+            [
+                180,
+                "                    writer.Write(trie);"
+            ],
+            [
+                181,
+                "                }"
+            ],
+            [
+                182,
+                "                trie.Dispose();"
+            ],
+            [
+                183,
+                "            });"
+            ],
+            [
+                186,
+                ""
+            ],
+            [
+                187,
+                "            Parallel.ForEach(_postingsContainers.Values, container =>"
+            ],
+            [
+                188,
+                "            {"
+            ],
+            [
+                189,
+                "                if (container.Count > 0)"
+            ],
+            [
+                190,
+                "                {"
+            ],
+            [
+                191,
+                "                    container.Flush(_directory);"
+            ],
+            [
+                192,
+                "                    container.Dispose();"
+            ],
+            [
+                193,
+                "                }"
+            ],
+            [
+                194,
+                "                else"
+            ],
+            [
+                195,
+                "                {"
+            ],
+            [
+                196,
+                "                    container.Dispose();"
+            ],
+            [
+                197,
+                "                    File.Delete(Path.Combine(_directory, container.Id + \".pc\"));"
+            ],
+            [
+                198,
+                "                }"
+            ],
+            [
+                199,
+                "            });"
+            ],
+            [
+                200,
+                ""
+            ],
+            [
+                201,
+                "            foreach (var doc in _docs.Values)"
+            ],
+            [
+                202,
+                "            {"
+            ],
+            [
+                203,
+                "                PutDocInContainer(doc);"
+            ],
+            [
+                204,
+                "            }"
+            ],
+            [
+                205,
+                "            Parallel.ForEach(_docContainers.Values, container => container.Dispose());"
+            ],
+            [
+                206,
+                ""
+            ],
+            [
+                207,
+                "            _ix.Save(Path.Combine(_directory, \"1.ix\"));"
+            ],
+            [
+                208,
+                "            var ixInfo = new IxInfo();"
+            ],
+            [
+                209,
+                "            foreach (var field in _ix.Fields)"
+            ],
+            [
+                210,
+                "            {"
+            ],
+            [
+                211,
+                "                ixInfo.DocCount[field.Key] = field.Value.Count;"
+            ],
+            [
+                212,
+                "            }"
+            ],
+            [
+                213,
+                "            ixInfo.Save(Path.Combine(_directory, \"0.ix\"));"
+            ]
+        ]
+    },
+    "num_lines_added": 56,
+    "num_lines_removed": 62
+}

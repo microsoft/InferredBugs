@@ -1,0 +1,39 @@
+  @Test
+  public void testDeleteInstanceIdError() throws Exception {
+    final MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+    MockHttpTransport transport = new MockHttpTransport.Builder()
+        .setLowLevelHttpResponse(response)
+        .build();
+    FirebaseOptions options = FirebaseOptions.builder()
+        .setCredentials(new MockGoogleCredentials("test-token"))
+        .setProjectId("test-project")
+        .setHttpTransport(transport)
+        .build();
+    FirebaseApp app = FirebaseApp.initializeApp(options);
+
+    // Disable retries by passing a regular HttpRequestFactory.
+    FirebaseInstanceId instanceId = new FirebaseInstanceId(app, transport.createRequestFactory());
+    TestResponseInterceptor interceptor = new TestResponseInterceptor();
+    instanceId.setInterceptor(interceptor);
+
+    try {
+      for (int statusCode : ERROR_CODES.keySet()) {
+        response.setStatusCode(statusCode).setContent("test error");
+
+        try {
+          instanceId.deleteInstanceIdAsync("test-iid").get();
+          fail("No error thrown for HTTP error");
+        } catch (ExecutionException e) {
+          assertTrue(e.getCause() instanceof FirebaseInstanceIdException);
+          checkFirebaseInstanceIdException((FirebaseInstanceIdException) e.getCause(), statusCode);
+        }
+
+        assertNotNull(interceptor.getResponse());
+        HttpRequest request = interceptor.getResponse().getRequest();
+        assertEquals(HttpMethods.DELETE, request.getRequestMethod());
+        assertEquals(TEST_URL, request.getUrl().toString());
+      }
+    } finally {
+      app.delete();
+    }
+  }

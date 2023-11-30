@@ -1,0 +1,26 @@
+        public Variable SetProperty(string propName, Variable value)
+        {
+            Variable result = Variable.EmptyInstance;
+            propName = Constants.ConvertName(propName);
+            string match = GetActualPropertyName(propName, GetAllProperties());
+
+            int ind = propName.IndexOf(".");
+            if (ind > 0)
+            { // The case a.b.c = ... is dealt here recursively
+                string varName = propName.Substring(0, ind);
+                string actualPropName = propName.Substring(ind + 1);
+                Variable property = GetProperty(varName);
+                result = property.SetProperty(actualPropName, value);
+                return result;
+            }
+
+            m_propertyMap[match] = value;
+            Type = VarType.OBJECT;
+
+            if (Object is ScriptObject)
+            {
+                ScriptObject obj = Object as ScriptObject;
+                result = obj.SetProperty(match, value).Result;
+            }
+            return result;
+        }

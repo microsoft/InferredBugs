@@ -1,0 +1,21 @@
+    public String getLatestDownloadedImage(String imageName) {
+        List<Image> images;
+        try {
+            images = dockerClient.listImages(DockerClient.ListImagesParam.byName(imageName));
+            if (images.isEmpty()) {
+                logger.error(nodeId + " A downloaded docker-selenium image was not found!");
+                return imageName;
+            }
+            for (int i = images.size() - 1; i >= 0; i--) {
+                if (images.get(i).repoTags() == null) {
+                    images.remove(i);
+                }
+            }
+            images.sort((o1, o2) -> o2.created().compareTo(o1.created()));
+            return images.get(0).repoTags().get(0);
+        } catch (DockerException | InterruptedException e) {
+            logger.warn(nodeId + " Error while executing the command", e);
+            ga.trackException(e);
+        }
+        return imageName;
+    }

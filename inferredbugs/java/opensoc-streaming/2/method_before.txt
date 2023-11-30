@@ -1,0 +1,45 @@
+ @Override
+	public JSONObject parse(byte[] raw_message) {
+		String toParse = "";
+		JSONObject toReturn;
+
+		try {
+
+			toParse = new String(raw_message, "UTF-8");
+
+			//System.out.println("Received message: " + toParse);
+
+			Match gm = grok.match(toParse);
+			gm.captures();
+
+			toReturn = new JSONObject();
+
+			toReturn.putAll(gm.toMap());
+
+			String id = toReturn.get("uid").toString();
+			
+			// We are not parsing the fedata for multi part message as we cannot determine how we can split the message and how many multi part messages can there be. 
+			// The message itself will be stored in the response. 
+			
+			
+			String[] tokens = id.split("\\.");
+			if(tokens.length == 1 ) {
+		     
+			String syslog = toReturn.get("syslog").toString();
+			
+			Multimap<String, String> multiMap =  formatMain(syslog) ;
+			
+			for(String key : multiMap.keySet()) {
+				toReturn.put(key, multiMap.get(key));
+			}
+			
+			}
+			
+			return toReturn;
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
+
+	}

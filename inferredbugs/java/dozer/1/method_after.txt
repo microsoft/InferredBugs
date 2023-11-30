@@ -1,0 +1,102 @@
+  protected void writeDeepDestinationValue(Object destObj, Object destFieldValue, FieldMap fieldMap) {
+    // follow deep field hierarchy. If any values are null along the way, then create a new instance
+    DeepHierarchyElement[] hierarchy = getDeepFieldHierarchy(destObj, fieldMap.getDestDeepIndexHintContainer());
+    // first, iteratate through hierarchy and instantiate any objects that are null
+    Object parentObj = destObj;
+    int hierarchyLength = hierarchy.length - 1;
+    int hintIndex = 0;
+    for (int i = 0; i < hierarchyLength; i++) {
+      DeepHierarchyElement hierarchyElement = hierarchy[i];
+      PropertyDescriptor pd = hierarchyElement.getPropDescriptor();
+      Object value = ReflectionUtils.invoke(pd.getReadMethod(), parentObj, null);
+      Class clazz;
+      if (value == null) {
+        clazz = pd.getPropertyType();
+        if (clazz.isInterface() && (i + 1) == hierarchyLength && fieldMap.getDestHintContainer() != null) {
+          // before setting the property on the destination object we should check for a destination hint. need to know
+          // that we are at the end of the line determine the property type
+          clazz = fieldMap.getDestHintContainer().getHint();
+        }
+        Object o = null;
+        if (clazz.isArray()) {
+          o = MappingUtils.prepareIndexedCollection(clazz, value, DestBeanCreator.create(clazz.getComponentType()),
+              hierarchyElement.getIndex());
+        } else if (Collection.class.isAssignableFrom(clazz)) {
+          Class collectionEntryType;
+          Class genericType = ReflectionUtils.determineGenericsType(pd);
+          if (genericType != null) {
+            collectionEntryType = genericType;
+          } else {
+            collectionEntryType = fieldMap.getDestDeepIndexHintContainer().getHint(hintIndex);
+            //hint index is used to handle multiple hints
+            hintIndex += 1;
+          }
+
+          o = MappingUtils.prepareIndexedCollection(clazz, value, DestBeanCreator.create(collectionEntryType), hierarchyElement
+              .getIndex());
+        } else {
+          try {
+            o = DestBeanCreator.create(clazz);
+          } catch (Exception e) {
+            //lets see if they have a factory we can try as a last ditch. If not...throw the exception:
+            if (fieldMap.getClassMap().getDestClassBeanFactory() != null) {
+              o = DestBeanCreator.create(null, fieldMap.getClassMap().getSrcClassToMap(), clazz, clazz, fieldMap.getClassMap()
+                  .getDestClassBeanFactory(), fieldMap.getClassMap().getDestClassBeanFactoryId(), null);
+            } else {
+              MappingUtils.throwMappingException(e);
+            }
+          }
+        }
+
+        ReflectionUtils.invoke(pd.getWriteMethod(), parentObj, new Object[] { o });
+        value = ReflectionUtils.invoke(pd.getReadMethod(), parentObj, null);
+      }
+
+      //Check to see if collection needs to be resized
+      if (MappingUtils.isSupportedCollection(value.getClass())) {
+        int currentSize = CollectionUtils.getLengthOfCollection(value);
+        if (currentSize < hierarchyElement.getIndex() + 1) {
+          value = MappingUtils.prepareIndexedCollection(pd.getPropertyType(), value, DestBeanCreator.create(pd.getPropertyType()
+              .getComponentType()), hierarchyElement.getIndex());
+          ReflectionUtils.invoke(pd.getWriteMethod(), parentObj, new Object[] { value });
+        }
+      }
+
+      if (value != null && value.getClass().isArray()) {
+        parentObj = Array.get(value, hierarchyElement.getIndex());
+      } else if (value != null && Collection.class.isAssignableFrom(value.getClass())) {
+        parentObj = MappingUtils.getIndexedValue(value, hierarchyElement.getIndex());
+      } else {
+        parentObj = value;
+      }
+    }
+    // second, set the very last field in the deep hierarchy
+    PropertyDescriptor pd = hierarchy[hierarchy.length - 1].getPropDescriptor();
+
+    Class type;
+    // For one-way mappings there could be no read method
+    if (pd.getReadMethod() != null) {
+      type = pd.getReadMethod().getReturnType();
+    } else {
+      type = pd.getWriteMethod().getParameterTypes()[0];
+    }
+
+    if (!type.isPrimitive() || destFieldValue != null) {
+      if (!isIndexed) {
+        Method method = null;
+        if (!isCustomSetMethod()) {
+          method = pd.getWriteMethod();
+        } else {
+          try {
+            method = ReflectionUtils.findAMethod(parentObj.getClass(), getSetMethodName());
+          } catch (NoSuchMethodException e) {
+            MappingUtils.throwMappingException(e);
+          }
+        } 
+
+        ReflectionUtils.invoke(method, parentObj, new Object[] { destFieldValue });
+      } else {
+        writeIndexedValue(parentObj, destFieldValue);
+      }
+    }
+  }

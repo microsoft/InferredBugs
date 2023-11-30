@@ -1,0 +1,21 @@
+        [Test]
+        public void RemoveField()
+        {
+            var dev = new CaptureFileReaderDevice("../../CaptureFiles/80211_ppi_multiplefields.pcap");
+            dev.Open();
+            var rawCapture = dev.GetNextPacket();
+            dev.Close();
+
+            var p = Packet.ParsePacket(rawCapture.LinkLayerType, rawCapture.Data) as PpiPacket;
+            var expectedLength = p.Length - p[1].Length - PpiHeaderFields.FieldHeaderLength;
+            p.Remove(p[1]);
+
+            var recreatedPacket = Packet.ParsePacket(LinkLayers.Ppi, p.Bytes) as PpiPacket;
+            Assert.AreEqual(expectedLength, recreatedPacket.Length);
+            Assert.IsTrue(recreatedPacket.Contains(PpiFieldType.PpiCommon));
+            Assert.IsFalse(recreatedPacket.Contains(PpiFieldType.PpiMacPhy));
+
+            var macFrame = recreatedPacket.PayloadPacket as MacFrame;
+            Assert.IsNotNull(macFrame);
+            Assert.IsTrue(macFrame.FcsValid);
+        }

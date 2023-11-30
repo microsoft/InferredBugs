@@ -1,0 +1,30 @@
+  @Override
+  public void triggerJob(String jobKey, JobDataMap data) throws SchedulerException {
+
+    validateState();
+
+    OperableTrigger operableTrigger = simpleScheduleBuilderBuilder().withIdentity(jobKey + "-trigger").forJob(jobKey).startAt(new Date()).build();
+
+    //    OperableTrigger operableTrigger = TriggerBuilder.newTriggerBuilder().withIdentity(jobKey + "-trigger").forJob(jobKey)
+    //        .withTriggerImplementation(SimpleScheduleBuilder.simpleScheduleBuilderBuilder().instantiate()).startAt(new Date()).build();
+
+    // TODO what does this accomplish??? Seems to sets it's next fire time internally
+    operableTrigger.computeFirstFireTime(null);
+
+    if (data != null) {
+      operableTrigger.setJobDataMap(data);
+    }
+
+    boolean collision = true;
+    while (collision) {
+      try {
+        quartzSchedulerResources.getJobStore().storeTrigger(operableTrigger, false);
+        collision = false;
+      } catch (ObjectAlreadyExistsException oaee) {
+        operableTrigger.setName(newTriggerId());
+      }
+    }
+
+    notifySchedulerThread(operableTrigger.getNextFireTime().getTime());
+    notifySchedulerListenersScheduled(operableTrigger);
+  }

@@ -1,0 +1,55 @@
+  @Test
+  public void testConnectWithDbProperty() {
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    SqlLine.Status status =
+        begin(sqlLine, os, false, "-e", "!set maxwidth 80");
+    assertThat(status, equalTo(SqlLine.Status.OK));
+    DispatchCallback dc = new DispatchCallback();
+
+    try {
+      sqlLine.runCommands(dc, "!set maxwidth 80");
+
+      // fail attempt
+      String fakeNonEmptyPassword = "nonEmptyPasswd";
+      sqlLine.runCommands(dc, "!connect \""
+            + ConnectionSpec.H2.url
+            + " ;PASSWORD_HASH=TRUE\" "
+            + ConnectionSpec.H2.username
+            + " \"" + fakeNonEmptyPassword + "\"");
+      String output = os.toString("UTF8");
+      final String expected0 = "Error:";
+      assertThat(output, containsString(expected0));
+      os.reset();
+
+      // success attempt
+      final byte[] bytes =
+          fakeNonEmptyPassword.getBytes(StandardCharsets.UTF_8);
+      sqlLine.runCommands(dc, "!connect \""
+            + ConnectionSpec.H2.url
+            + " ;PASSWORD_HASH=TRUE;ALLOW_LITERALS=NONE\" "
+            + ConnectionSpec.H2.username + " \""
+            + StringUtils.convertBytesToHex(bytes)
+            + "\"");
+      sqlLine.runCommands(dc, "!set incremental true");
+      sqlLine.runCommands(dc, "!tables");
+      output = os.toString("UTF8");
+      final String expected1 = "| TABLE_CAT | TABLE_SCHEM | "
+          + "TABLE_NAME | TABLE_TYPE | REMARKS | TYPE_CAT | TYP |";
+      assertThat(output, containsString(expected1));
+
+      sqlLine.runCommands(dc, "select 5;");
+      output = os.toString("UTF8");
+      final String expected2 = "Error:";
+      assertThat(output, containsString(expected2));
+      os.reset();
+
+      sqlLine.runCommands(new DispatchCallback(), "!quit");
+      output = os.toString("UTF8");
+      assertThat(output,
+          allOf(not(containsString("Error:")), containsString("!quit")));
+      assertTrue(sqlLine.isExit());
+    } catch (Exception e) {
+      // fail
+      throw new RuntimeException(e);
+    }
+  }

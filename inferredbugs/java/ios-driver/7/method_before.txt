@@ -1,0 +1,29 @@
+  public void setValueNative(String value) throws Exception {
+    UIAElement el = getNativeElement();
+    WorkingMode origin = session.getMode();
+    try {
+      session.setMode(WorkingMode.Native);
+      UIARect rect = el.getRect();
+      int x = rect.getX() + rect.getWidth() - 1;
+      int y = rect.getY() + rect.getHeight() / 2;
+      // TODO freynaud : tap() should take a param like middle, topLeft,
+      // bottomRight to save 1 call.
+      session.getNativeDriver().tap(x, y);
+      RemoteUIAKeyboard keyboard = (RemoteUIAKeyboard) session.getNativeDriver().getKeyboard();
+      if ("\n".equals(value)) {
+        keyboard.findElement(new NameCriteria("Return")).tap();
+      } else {
+        keyboard.sendKeys(value);
+      }
+
+      Criteria iphone = new NameCriteria("Done");
+      Criteria ipad = new NameCriteria("Hide keyboard");
+
+      UIAButton but = session.getNativeDriver().findElement(new OrCriteria(ipad, iphone));
+      but.tap();
+      // session.getNativeDriver().pinchClose(300, 400, 50, 100, 1);
+    } finally {
+      session.setMode(origin);
+    }
+
+  }

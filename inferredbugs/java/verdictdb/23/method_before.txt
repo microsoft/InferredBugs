@@ -1,0 +1,30 @@
+  @Override
+  public List<String> getPartitionColumns(String schema, String table) throws VerdictDBDbmsException {
+    List<String> partition = new ArrayList<>();
+    DbmsQueryResult queryResult = execute(syntax.getPartitionCommand(schema, table));
+    JdbcResultSet jdbcResultSet = new JdbcResultSet(queryResult);
+    // the result of postgresql is a vector of column index
+
+    try {
+      if (syntax instanceof PostgresqlSyntax) {
+        queryResult.next();
+        Object o = jdbcResultSet.getObject(1);
+        String[] arr = o.toString().split(" ");
+        List<Pair<String, String>> columns = getColumns(schema, table);
+        for (int i=0; i<arr.length; i++) {
+          partition.add(columns.get(Integer.valueOf(arr[i])-1).getKey());
+        }
+      }
+      else {
+        while (queryResult.next()) {
+          partition.add(jdbcResultSet.getString(1));
+        }
+      }
+    } catch (SQLException e) {
+      throw new VerdictDBDbmsException(e);
+    } finally {
+      jdbcResultSet.close();
+    }
+    jdbcResultSet.close();
+    return partition;
+  }

@@ -1,0 +1,43 @@
+ void updateOfSolutions(Solution indiv, int id, int type) {
+		// indiv: child solution
+		// id:   the id of current subproblem
+		// type: update solutions in - neighborhood (1) or whole population (otherwise)
+		int size;
+		int time;
+
+		time = 0;
+
+		if (type == 1) {
+			size = parentThread_.neighborhood_[id].length;
+		} else {
+			size = parentThread_.population_.size();
+		}
+		int[] perm = new int[size];
+
+		Utils.randomPermutation(perm, size);
+
+		for (int i = 0; i < size; i++) {
+			int k;
+			if (type == 1) {
+				k = parentThread_.neighborhood_[id][perm[i]];
+			} else {
+				k = perm[i];      // calculate the values of objective function regarding the current subproblem
+			}
+			double f1, f2;
+
+			f2 = fitnessFunction(indiv, parentThread_.lambda_[k]);
+			synchronized (parentThread_) {
+				f1 = fitnessFunction(parentThread_.population_.get(k), parentThread_.lambda_[k]);
+
+				if (f2 < f1) {
+					parentThread_.population_.replace(k, new Solution(indiv));
+					//population[k].indiv = indiv;
+					time++;
+				}
+			}
+			// the maximal number of solutions updated is not allowed to exceed 'limit'
+			if (time >= parentThread_.nr_) {
+				return;
+			}
+		}
+	}

@@ -1,0 +1,31 @@
+        private int UnregisterTableInternal(LuaState luaState)
+        {
+
+            if (!luaState.GetMetaTable(1))
+            {
+                ThrowError(luaState, "unregister_table: arg is not valid table");
+                return 0;
+            }
+
+            luaState.PushString("__index");
+            luaState.GetTable(-2);
+            object obj = GetRawNetObject(luaState, -1);
+
+            if (obj == null)
+                ThrowError(luaState, "unregister_table: arg is not valid table");
+
+            var luaTableField = obj.GetType().GetField("__luaInterface_luaTable");
+
+            if (luaTableField == null)
+                ThrowError(luaState, "unregister_table: arg is not valid table");
+
+            // ReSharper disable once PossibleNullReferenceException
+            luaTableField.SetValue(obj, null);
+            luaState.PushNil();
+            luaState.SetMetaTable(1);
+            luaState.PushString("base");
+            luaState.PushNil();
+            luaState.SetTable(1);
+
+            return 0;
+        }

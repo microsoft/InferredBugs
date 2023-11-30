@@ -1,0 +1,32 @@
+        private static ChannelBase ResolveConfiguration(GrpcClientOptions options)
+        {
+            var service = ResolveServiceConfiguration(options.ConfigPath);
+            if (string.IsNullOrWhiteSpace(options.ServiceName))
+                options.ServiceName = service.Name;
+            if (string.IsNullOrWhiteSpace(options.Scheme))
+                options.Scheme = service.Scheme;
+
+            options.GrpcChannelOptions ??= Constants.DefaultChannelOptions;
+
+            // 使用默认的
+            if ((options.GrpcChannelOptions.ServiceConfig?.LoadBalancingConfigs?.Count ?? 0) <= 0)
+            {
+                options.GrpcChannelOptions.ServiceConfig = new ServiceConfig();
+                options.GrpcChannelOptions.ServiceConfig.LoadBalancingConfigs.Add(new LoadBalancingConfig("random"));
+            }
+
+            ClientUtil.AddCache(options);
+
+            ChannelBase channel;
+            // 判断当前使用的
+            if (!string.IsNullOrWhiteSpace(options.Scheme))
+            {
+                channel = GrpcChannel.ForAddress($"{options.Scheme}:///{options.ServiceName}", options.GrpcChannelOptions);
+                return channel;
+            }
+
+
+            // 内置的
+            channel = GrpcChannel.ForAddress($"internal:///{options.ServiceName}", options.GrpcChannelOptions);
+            return channel;
+        }

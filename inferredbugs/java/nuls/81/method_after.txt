@@ -1,0 +1,32 @@
+    public boolean downloadedBlock(String nodeId, Block block) {
+        if(!this.working){
+            return false;
+        }
+        try {
+            NodeDownloadingStatus status = nodeStatusMap.get(nodeId);
+            if (null == status) {
+                return false;
+            }
+            if (!status.containsHeight(block.getHeader().getHeight())) {
+                return false;
+            }
+            ValidateResult result1 = block.verify();
+            if (result1.isFailed() && result1.getErrorCode() != ErrorCode.ORPHAN_TX && result1.getErrorCode() != ErrorCode.ORPHAN_BLOCK) {
+                Log.info("recieve a block wrong!:" + nodeId + ",blockHash:" + block.getHeader().getHash());
+                this.nodeIdList.remove(nodeId);
+                if (nodeIdList.isEmpty()) {
+                    working = false;
+                }
+                return true;
+            }
+            blockMap.put(block.getHeader().getHeight(), block);
+            status.downloaded(block.getHeader().getHeight());
+            status.setUpdateTime(TimeService.currentTimeMillis());
+            if (status.finished()) {
+                this.queueService.offer(queueId, nodeId);
+            }
+        } catch (Exception e) {
+            Log.error(e);
+        }
+        return true;
+    }

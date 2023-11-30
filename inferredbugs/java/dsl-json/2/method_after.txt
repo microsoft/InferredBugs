@@ -1,0 +1,42 @@
+ @Override
+	public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+		if (roundEnv.processingOver()) {
+			return false;
+		}
+		Set<? extends Element> jsonAnnotated = roundEnv.getElementsAnnotatedWith(jsonTypeElement);
+		if (!jsonAnnotated.isEmpty()) {
+			Map<String, StructInfo> structs = new HashMap<String, StructInfo>();
+			CompileOptions options = new CompileOptions();
+			for (Element el : jsonAnnotated) {
+				findStructs(structs, options, el, "CompiledJson requires public no argument constructor");
+			}
+			findRelatedReferences(structs, options);
+			String dsl = buildDsl(structs, options);
+
+			if (options.hasError) {
+				return false;
+			}
+
+			processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, dsl);
+
+			String fileContent;
+			try {
+				fileContent = AnnotationCompiler.buildExternalJson(dsl, options.toOptions(namespace));
+			} catch (Exception e) {
+				processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "DSL compilation error\n" + e.getMessage());
+				return false;
+			}
+			try {
+				String className = namespace + ".json.ExternalSerialization";
+				Writer writer = processingEnv.getFiler().createSourceFile(className).openWriter();
+				writer.write(fileContent);
+				writer.close();
+				writer = processingEnv.getFiler().createResource(StandardLocation.CLASS_OUTPUT, "", CONFIG).openWriter();
+				writer.write(className);
+				writer.close();
+			} catch (IOException e) {
+				processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "Failed saving compiled json serialization files");
+			}
+		}
+		return false;
+	}

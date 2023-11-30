@@ -1,0 +1,54 @@
+    public void release(RrdDb rrdDb) throws IOException {
+        // null pointer should not kill the thread, just ignore it
+        if (rrdDb == null) {
+            return;
+        }
+
+        String canonicalPath = rrdDb.getCanonicalPath();
+        RrdEntry ref;
+        try {
+            ref = getEntry(canonicalPath);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("release interrupted for " + rrdDb, e);
+        }
+
+        if (ref.count.get() <= 0) {
+            ref.inuse.unlock();
+            throw new IllegalStateException("Could not release [" + canonicalPath + "], the file was never requested");
+        }
+        if (ref.count.decrementAndGet() <= 0  && ref.rrdDb != null) {
+            ref.rrdDb.close();
+            ref.rrdDb = null;
+            capacity.release();
+            ref.count.set(0);
+            ref.empty.signal();
+            ref.inuse.unlock();
+        }
+
+        //Ok, the last referenced was removed
+        //try to avoid the Map to grow and remove the reference
+        if(ref.count.get() == 0) {
+            try {
+                //Got exclusive access to the pool
+                poolLock.writeLock().lockInterruptibly();
+                ref = pool.get(canonicalPath);
+                // Already removed
+                if(ref == null) {
+                    return;
+                }
+                ref.inuse.lockInterruptibly();                
+                //No one started to wait on it, still no use, remove from the map
+                if(! ref.inuse.hasWaiters(ref.empty) && ref.count.get() == 0) {
+                    pool.remove(canonicalPath);
+                }
+                ref.inuse.unlock();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("release interrupted for " + rrdDb, e);
+            } finally {
+                if (poolLock.isWriteLocked()) {
+                    poolLock.writeLock().unlock();
+                }
+            }
+
+        }
+    }

@@ -1,0 +1,60 @@
+    public NioSocketStreamConnection accept() throws IOException {
+        final WorkerThread current = WorkerThread.getCurrent();
+        if (current == null) {
+            return null;
+        }
+        final NioTcpServerHandle handle = handles[current.getNumber()];
+        if (! handle.getConnection()) {
+            return null;
+        }
+        final SocketChannel accepted;
+        boolean ok = false;
+        try {
+            accepted = channel.accept();
+            if (accepted != null) try {
+                final SocketAddress localAddress = accepted.getLocalAddress();
+                int hash;
+                if (localAddress instanceof InetSocketAddress) {
+                    final InetSocketAddress address = (InetSocketAddress) localAddress;
+                    hash = address.getAddress().hashCode() * 23 + address.getPort();
+                } else if (localAddress instanceof LocalSocketAddress) {
+                    hash = ((LocalSocketAddress) localAddress).getName().hashCode();
+                } else {
+                    hash = localAddress.hashCode();
+                }
+                final SocketAddress remoteAddress = accepted.getRemoteAddress();
+                if (remoteAddress instanceof InetSocketAddress) {
+                    final InetSocketAddress address = (InetSocketAddress) remoteAddress;
+                    hash = (address.getAddress().hashCode() * 23 + address.getPort()) * 23 + hash;
+                } else if (remoteAddress instanceof LocalSocketAddress) {
+                    hash = ((LocalSocketAddress) remoteAddress).getName().hashCode() * 23 + hash;
+                } else {
+                    hash = localAddress.hashCode() * 23 + hash;
+                }
+                accepted.configureBlocking(false);
+                final Socket socket = accepted.socket();
+                socket.setKeepAlive(keepAlive != 0);
+                socket.setOOBInline(oobInline != 0);
+                socket.setTcpNoDelay(tcpNoDelay != 0);
+                final int sendBuffer = this.sendBuffer;
+                if (sendBuffer > 0) socket.setSendBufferSize(sendBuffer);
+                final WorkerThread ioThread = worker.getIoThread(hash);
+                final SelectionKey selectionKey = ioThread.registerChannel(accepted);
+                final NioSocketStreamConnection newConnection = new NioSocketStreamConnection(ioThread, selectionKey, handle);
+                newConnection.setOption(Options.READ_TIMEOUT, Integer.valueOf(readTimeout));
+                newConnection.setOption(Options.WRITE_TIMEOUT, Integer.valueOf(writeTimeout));
+                ok = true;
+                return newConnection;
+            } finally {
+                if (! ok) safeClose(accepted);
+            }
+        } catch (IOException e) {
+            return null;
+        } finally {
+            if (! ok) {
+                handle.freeConnection();
+            }
+        }
+        // by contract, only a resume will do
+        return null;
+    }

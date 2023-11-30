@@ -1,0 +1,57 @@
+   @SuppressWarnings("unchecked")
+   protected void createBean(AbstractClassBean<?> bean, Set<AbstractBean<?, ?>> beans)
+   {
+      beans.add(bean);
+      manager.getResolver().addInjectionPoints(bean.getInjectionPoints());
+      for (AnnotatedMethod<Object> producerMethod : bean.getProducerMethods())
+      {
+         ProducerMethodBean<?> producerMethodBean = createProducerMethodBean(producerMethod, bean, manager);
+         beans.add(producerMethodBean);
+         manager.getResolver().addInjectionPoints(producerMethodBean.getInjectionPoints());
+         for (AnnotatedItem injectionPoint : producerMethodBean.getInjectionPoints())
+         {
+            if ( injectionPoint.isAnnotationPresent(Observable.class) )
+            {
+               EventBean<Object, Method> eventBean = createEventBean(injectionPoint, manager);
+               beans.add(eventBean);
+               log.info("Web Bean: " + eventBean);
+            }
+         }
+         log.info("Web Bean: " + producerMethodBean);
+      }
+      for (AnnotatedField<Object> producerField : bean.getProducerFields())
+      {
+         ProducerFieldBean<?> producerFieldBean = createProducerFieldBean(producerField, bean, manager);
+         beans.add(producerFieldBean);
+         log.info("Web Bean: " + producerFieldBean);
+      }
+      for (AnnotatedItem injectionPoint : bean.getInjectionPoints())
+      {
+         if ( injectionPoint.isAnnotationPresent(Observable.class) )  
+         {
+            EventBean<Object, Field> eventBean = createEventBean(injectionPoint, manager);
+            beans.add(eventBean);
+            log.info("Web Bean: " + eventBean);
+         }
+         if ( injectionPoint.isAnnotationPresent(Obtainable.class) )  
+         {
+            InstanceBean<Object, Field> instanceBean = createInstanceBean(injectionPoint, manager);
+            beans.add(instanceBean);
+            log.info("Web Bean: " + instanceBean);
+         }
+      }
+      for (AnnotatedMethod<Object> observerMethod : bean.getObserverMethods())
+      {
+         ObserverImpl<?> observer = createObserver(observerMethod, bean, manager);
+         if (observerMethod.getAnnotatedParameters(Observes.class).size() == 1)
+         {
+            registerObserver(observer, observerMethod.getAnnotatedParameters(Observes.class).get(0).getType(), observerMethod.getAnnotatedParameters(Observes.class).get(0).getBindingTypesAsArray());
+         }
+         else
+         {
+            throw new DefinitionException("Observer method can only have one parameter annotated @Observes " + observer);
+         }
+         
+      }
+      log.info("Web Bean: " + bean);
+   }

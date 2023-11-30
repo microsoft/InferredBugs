@@ -1,0 +1,23 @@
+    @Test
+    public void testRestoreChallenge() throws AcmeException {
+        Connection connection = new DummyConnection() {
+            @Override
+            public int sendRequest(URI uri) {
+                assertThat(uri, is(locationUri));
+                return HttpURLConnection.HTTP_ACCEPTED;
+            }
+
+            @Override
+            public Map<String, Object> readJsonResponse() {
+                return getJsonAsMap("updateHttpChallengeResponse");
+            }
+        };
+
+        TestableAbstractAcmeClient client = new TestableAbstractAcmeClient(connection);
+        client.putTestChallenge(Http01Challenge.TYPE, new Http01Challenge());
+
+        Challenge challenge = client.restoreChallenge(locationUri);
+
+        assertThat(challenge.getStatus(), is(Status.VALID));
+        assertThat(challenge.getLocation(), is(locationUri));
+    }

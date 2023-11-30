@@ -1,0 +1,27 @@
+    private JsonToken _handleNestedKey(int tag) throws IOException
+    {
+        int wireType = (tag & 0x7);
+        int id = (tag >> 3);
+
+        ProtobufField f;
+        if ((_currentField == null) || (f = _currentField.nextOrThisIf(id)) == null) {
+            f = _currentMessage.field(id);
+        }
+        _parsingContext.setCurrentName(f.name);
+        if (!f.isValidFor(wireType)) {
+            _reportIncompatibleType(f, wireType);
+        }
+
+        // array?
+        if (f.repeated) {
+            if (f.packed) {
+                _state = STATE_ARRAY_START_PACKED;
+            } else {
+                _state = STATE_ARRAY_START;
+            }                    
+        } else {
+            _state = STATE_NESTED_VALUE;
+        }
+        _currentField = f;
+        return (_currToken = JsonToken.FIELD_NAME);
+    }

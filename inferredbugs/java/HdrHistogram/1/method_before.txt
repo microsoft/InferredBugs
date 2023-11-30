@@ -1,0 +1,29 @@
+    @Test
+    public void testRawRecordingSpeed() throws Exception {
+        Histogram histogram = new Histogram(highestTrackableValue, numberOfSignificantValueDigits);
+        // Warm up:
+        long startTime = System.nanoTime();
+        recordLoop(histogram, warmupLoopLength);
+        long endTime = System.nanoTime();
+        long deltaUsec = (endTime - startTime) / 1000L;
+        long rate = 1000000 * warmupLoopLength / deltaUsec;
+        System.out.println("Warmup:\n" + warmupLoopLength + " value recordings completed in " +
+                deltaUsec + " usec, rate = " + rate + " value recording calls per sec.");
+        histogram.reset();
+        // Wait a bit to make sure compiler had a cache to do it's stuff:
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+        }
+        startTime = System.nanoTime();
+        recordLoop(histogram, timingLoopCount);
+        endTime = System.nanoTime();
+        deltaUsec = (endTime - startTime) / 1000L;
+        rate = 1000000 * timingLoopCount / deltaUsec;
+        System.out.println("Timing:");
+        System.out.println(timingLoopCount + " value recordings completed in " +
+                deltaUsec + " usec, rate = " + rate + " value recording calls per sec.");
+        rate = 1000000 * histogram.getHistogramData().getTotalCount() / deltaUsec;
+        System.out.println(histogram.getHistogramData().getTotalCount() + " raw recorded entries completed in " +
+                deltaUsec + " usec, rate = " + rate + " recorded values per sec.");
+    }

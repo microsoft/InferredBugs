@@ -1,0 +1,35 @@
+    public List<ColumnInfo> getMetaData(String tableName) throws Exception {
+        // 获取主键
+        ResultSet keyResultSet = connection.getMetaData().getPrimaryKeys(null, getSchema(connection), tableName.toUpperCase());
+        String primaryKey = null;
+        if (keyResultSet.next()) {
+            primaryKey = keyResultSet.getObject(4).toString();
+        }
+        // 获取表注释
+        ResultSet tableResultSet = connection.getMetaData().getTables(null, getSchema(connection), tableName.toUpperCase(), new String[]{"TABLE"});
+        String tableRemarks = null;
+        if (tableResultSet.next()) {
+            tableRemarks = tableResultSet.getString("REMARKS") == null ? "Unknown Table" : tableResultSet.getString("REMARKS");
+        }
+        // 获取列信息
+        List<ColumnInfo> columnInfos = new ArrayList<>();
+        ResultSet columnResultSet = connection.getMetaData().getColumns(null, getSchema(connection), tableName.toUpperCase(), "%");
+        while (columnResultSet.next()) {
+            boolean isPrimaryKey;
+            if (columnResultSet.getString("COLUMN_NAME").equals(primaryKey)) {
+                isPrimaryKey = true;
+            } else {
+                isPrimaryKey = false;
+            }
+            ColumnInfo info = new ColumnInfo(columnResultSet.getString("COLUMN_NAME"), columnResultSet.getString("TYPE_NAME").toUpperCase(), columnResultSet.getString("REMARKS"), tableRemarks, isPrimaryKey);
+            columnInfos.add(info);
+        }
+        columnResultSet.close();
+        if (columnInfos.size() == 0) {
+            throw new Exception("Can not find column information from table:" + tableName);
+        }
+        if (connection.getMetaData().getURL().contains("sqlserver")) { // SQLServer需要单独处理REMARKS
+            parseSqlServerColumnRemarks(tableName, columnInfos);
+        }
+        return columnInfos;
+    }

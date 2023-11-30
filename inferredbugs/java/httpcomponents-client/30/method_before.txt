@@ -1,0 +1,49 @@
+    public void releaseConnection(final ManagedClientConnection conn, long keepalive, TimeUnit tunit) {
+        assertNotShutdown();
+        if (!(conn instanceof ManagedClientConnectionImpl)) {
+            throw new IllegalArgumentException("Connection class mismatch, " +
+                 "connection not obtained from this manager");
+        }
+        if (this.log.isDebugEnabled()) {
+            this.log.debug("Releasing connection " + conn);
+        }
+        ManagedClientConnectionImpl managedConn = (ManagedClientConnectionImpl) conn;
+        synchronized (managedConn) {
+            if (managedConn.getPoolEntry() == null) {
+                return; // already released
+            }
+            ClientConnectionManager manager = managedConn.getManager();
+            if (manager != null && manager != this) {
+                throw new IllegalStateException("Connection not obtained from this manager");
+            }
+            synchronized (this) {
+                try {
+                    if (managedConn.isOpen() && !managedConn.isMarkedReusable()) {
+                        try {
+                            managedConn.shutdown();
+                        } catch (IOException iox) {
+                            if (this.log.isDebugEnabled()) {
+                                this.log.debug("I/O exception shutting down released connection", iox);
+                            }
+                        }
+                    }
+                    this.poolEntry.updateExpiry(keepalive, tunit != null ? tunit : TimeUnit.MILLISECONDS);
+                    if (this.log.isDebugEnabled()) {
+                        String s;
+                        if (keepalive > 0) {
+                            s = "for " + keepalive + " " + tunit;
+                        } else {
+                            s = "indefinitely";
+                        }
+                        this.log.debug("Connection can be kept alive " + s);
+                    }
+                } finally {
+                    managedConn.detach();
+                    this.conn = null;
+                    if (this.poolEntry.isClosed()) {
+                        this.poolEntry = null;
+                    }
+                }
+            }
+        }
+    }

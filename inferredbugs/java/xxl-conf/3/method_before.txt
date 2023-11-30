@@ -1,0 +1,67 @@
+ @Override
+	public ReturnT<String> add(XxlConfNode xxlConfNode, XxlConfUser loginUser, String loginEnv) {
+
+		// valid
+		if (StringUtils.isBlank(xxlConfNode.getAppname())) {
+			return new ReturnT<String>(500, "AppName不可为空");
+		}
+
+		// project permission
+		if (!ifHasProjectPermission(loginUser, loginEnv, xxlConfNode.getAppname())) {
+			return new ReturnT<String>(500, "您没有该项目的配置权限,请联系管理员开通");
+		}
+
+		// valid group
+		XxlConfProject group = xxlConfProjectDao.load(xxlConfNode.getAppname());
+		if (group==null) {
+			return new ReturnT<String>(500, "AppName非法");
+		}
+
+		// valid env
+		if (StringUtils.isBlank(xxlConfNode.getEnv())) {
+			return new ReturnT<String>(500, "配置Env不可为空");
+		}
+		XxlConfEnv xxlConfEnv = xxlConfEnvDao.load(xxlConfNode.getEnv());
+		if (xxlConfEnv == null) {
+			return new ReturnT<String>(500, "配置Env非法");
+		}
+
+		// valid key
+		if (StringUtils.isBlank(xxlConfNode.getKey())) {
+			return new ReturnT<String>(500, "配置Key不可为空");
+		}
+		xxlConfNode.setKey(xxlConfNode.getKey().trim());
+
+		XxlConfNode existNode = xxlConfNodeDao.load(xxlConfNode.getEnv(), xxlConfNode.getKey());
+		if (existNode != null) {
+			return new ReturnT<String>(500, "配置Key已存在，不可重复添加");
+		}
+		if (!xxlConfNode.getKey().startsWith(xxlConfNode.getAppname())) {
+			return new ReturnT<String>(500, "配置Key格式非法");
+		}
+
+		// valid title
+		if (StringUtils.isBlank(xxlConfNode.getTitle())) {
+			return new ReturnT<String>(500, "配置描述不可为空");
+		}
+
+		// value force null to ""
+		if (xxlConfNode.getValue() == null) {
+			xxlConfNode.setValue("");
+		}
+
+		// add node
+		xxlConfManager.set(xxlConfNode.getEnv(), xxlConfNode.getKey(), xxlConfNode.getValue());
+		xxlConfNodeDao.insert(xxlConfNode);
+
+		// node log
+		XxlConfNodeLog nodeLog = new XxlConfNodeLog();
+		nodeLog.setEnv(existNode.getEnv());
+		nodeLog.setKey(existNode.getKey());
+		nodeLog.setTitle(existNode.getTitle() + "(配置新增)" );
+		nodeLog.setValue(existNode.getValue());
+		nodeLog.setOptuser(loginUser.getUsername());
+		xxlConfNodeLogDao.add(nodeLog);
+
+		return ReturnT.SUCCESS;
+	}

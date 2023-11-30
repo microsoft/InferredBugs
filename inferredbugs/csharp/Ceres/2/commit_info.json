@@ -1,0 +1,273 @@
+{
+    "hash": "b89157104dee6e661438d7906702d9cb948d3f35",
+    "message": "Refine futillity pruning and instamove logic.",
+    "file_num_lines": 55,
+    "diff_parsed": {
+        "added": [
+            [
+                22,
+                "using Ceres.MCTS.Managers;"
+            ],
+            [
+                48,
+                "        && newRoot.N > 100"
+            ],
+            [
+                49,
+                "        && newRoot.NumChildrenExpanded > 1"
+            ],
+            [
+                57,
+                "        const int MAX_CONSECUTIVE_INSTAMOVES = 3;"
+            ],
+            [
+                63,
+                "        MCTSNode lastSearchRoot = priorManager.Root;"
+            ],
+            [
+                64,
+                "        float baselineTreeSize = lastSearchRoot.N;"
+            ],
+            [
+                65,
+                ""
+            ],
+            [
+                67,
+                "        float ratioNewToBaseline = ((float)newRoot.N + (float)estNewVisitsThisMove) / (float)baselineTreeSize;"
+            ],
+            [
+                68,
+                "        float thresholdRatioNewToCurrent = 1.4f - (0.10f * CountSearchContinuations);"
+            ],
+            [
+                69,
+                "        bool treeIsBigEnough = ratioNewToBaseline < thresholdRatioNewToCurrent;"
+            ],
+            [
+                70,
+                "        if (!treeIsBigEnough) return default;"
+            ],
+            [
+                72,
+                "        // Possibly veto the instamove if there is a second-best move that could"
+            ],
+            [
+                73,
+                "        // catch up to best move if the planned search were conducted."
+            ],
+            [
+                75,
+                "        if (bestMoveInfo.BestMove.IsNull) return default;"
+            ],
+            [
+                76,
+                ""
+            ],
+            [
+                77,
+                "        MCTSNode[] childrenSortedQ = newRoot.ChildrenSorted(n => (float)n.Q);"
+            ],
+            [
+                78,
+                "        MCTSNode[] childrenSortedN = newRoot.ChildrenSorted(n => -n.N);"
+            ],
+            [
+                79,
+                "        float nGap = Math.Abs(childrenSortedQ[0].N - childrenSortedQ[1].N);"
+            ],
+            [
+                80,
+                "        float qGap = (float)(Math.Abs(childrenSortedQ[0].Q - childrenSortedQ[1].Q));"
+            ],
+            [
+                81,
+                "        //float biggestN = Math.Max(bestMoveInfo.BestN, bestMoveInfo.BestNSecond);"
+            ],
+            [
+                82,
+                "        float minNRequiredToChange = nGap / ManagerChooseRootMove.MinFractionNToUseQ(newRoot, qGap);"
+            ],
+            [
+                83,
+                "        bool couldCatchUp = (estNewVisitsThisMove * 0.25f) > minNRequiredToChange;"
+            ],
+            [
+                84,
+                "        if (couldCatchUp)"
+            ],
+            [
+                85,
+                "          MCTSEventSource.TestCounter1++;"
+            ],
+            [
+                86,
+                "        else"
+            ],
+            [
+                87,
+                "          MCTSEventSource.TestMetric1++;"
+            ],
+            [
+                88,
+                ""
+            ],
+            [
+                89,
+                "        if (couldCatchUp) return default;"
+            ],
+            [
+                90,
+                "        //Console.WriteLine(\"catchup \" + couldCatchUp + \" visits: \" + estNewVisitsThisMove + \" \" + minNRequiredToChange);"
+            ],
+            [
+                91,
+                ""
+            ],
+            [
+                92,
+                "        // Log.Info($\"\\r\\nInstamove already {CountSearchContinuations} sureness {surenessFactor} \" +"
+            ],
+            [
+                93,
+                "        //          $\"Tree size factor {treeSizeFactor} N={bestMoveInfo.BestN} N2={bestMoveInfo.BestNSecond}\");"
+            ],
+            [
+                94,
+                "        InstamoveCount++;"
+            ],
+            [
+                95,
+                "        CountSearchContinuations++;"
+            ],
+            [
+                96,
+                ""
+            ],
+            [
+                97,
+                "        return (priorManager, newRoot.BestMoveInfo(false).BestMove, null);"
+            ]
+        ],
+        "deleted": [
+            [
+                54,
+                "        const int MAX_CONSECUTIVE_INSTAMOVES = 2;"
+            ],
+            [
+                61,
+                "        float treeSizeFactor = (float)newRoot.N / (float)estNewVisitsThisMove;"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                65,
+                "        // The \"sureness\" that a move is best and not needing more search"
+            ],
+            [
+                66,
+                "        // is the product of treeSizeFactor and TopMovesNRatio"
+            ],
+            [
+                67,
+                "        float topNRatio = bestMoveInfo.BestN / bestMoveInfo.BestNSecond;"
+            ],
+            [
+                68,
+                "        float surenessFactor = treeSizeFactor * MathF.Min(10, topNRatio);"
+            ],
+            [
+                69,
+                ""
+            ],
+            [
+                70,
+                "        // Don't instamove unless the tree size is"
+            ],
+            [
+                71,
+                "        // close to what we would expect after doing multiple searches"
+            ],
+            [
+                72,
+                "        float estExpectedTreeSize = estNewVisitsThisMove"
+            ],
+            [
+                73,
+                "                                 + (estNewVisitsThisMove * 0.15f * CountSearchContinuations);"
+            ],
+            [
+                74,
+                "        float ratioActualToExpected = newRoot.N / estExpectedTreeSize;"
+            ],
+            [
+                75,
+                ""
+            ],
+            [
+                76,
+                "        // Try to make sure the second best node could not likely catch up upon deeper search"
+            ],
+            [
+                77,
+                "        float optimisticNewSecondBestN = bestMoveInfo.BestNSecond + estNewVisitsThisMove * 0.75f;"
+            ],
+            [
+                78,
+                "        bool couldCatchUp = optimisticNewSecondBestN > bestMoveInfo.BestN;"
+            ],
+            [
+                79,
+                ""
+            ],
+            [
+                80,
+                "        bool qualifies = !couldCatchUp && ratioActualToExpected >= 0.75f;"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                82,
+                "        if (!bestMoveInfo.BestMove.IsNull && qualifies)"
+            ],
+            [
+                83,
+                "        {"
+            ],
+            [
+                84,
+                "          // Log.Info($\"\\r\\nInstamove already {CountSearchContinuations} sureness {surenessFactor} \" +"
+            ],
+            [
+                85,
+                "          //          $\"Tree size factor {treeSizeFactor} N={bestMoveInfo.BestN} N2={bestMoveInfo.BestNSecond}\");"
+            ],
+            [
+                86,
+                "          InstamoveCount++;"
+            ],
+            [
+                87,
+                "          CountSearchContinuations++;"
+            ],
+            [
+                88,
+                ""
+            ],
+            [
+                89,
+                "          return (priorManager, newRoot.BestMoveInfo(false).BestMove, null);"
+            ],
+            [
+                90,
+                "        }"
+            ]
+        ]
+    },
+    "num_lines_added": 36,
+    "num_lines_removed": 29
+}

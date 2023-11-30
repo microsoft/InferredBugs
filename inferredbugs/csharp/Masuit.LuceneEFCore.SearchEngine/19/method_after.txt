@@ -1,0 +1,21 @@
+        [Fact]
+        public void AContextCanBeSearchedUsingAContextProvider()
+        {
+            InitializeContext();
+
+            LuceneIndexerOptions options = new LuceneIndexerOptions()
+            {
+                Path = "lucene"
+            };
+            var memoryCache = new MemoryCache(new MemoryCacheOptions());
+            var directory = FSDirectory.Open(options.Path);
+            JieBaAnalyzer analyzer = new JieBaAnalyzer(TokenizerMode.Search);
+            SearchEngine<TestDbContext> searchProvider = new SearchEngine<TestDbContext>(_context, directory, analyzer, memoryCache);
+            searchProvider.CreateIndex();
+            SearchOptions searchOptions = new SearchOptions("John", "FirstName");
+
+            var results = searchProvider.ScoredSearch<User>(searchOptions);
+
+            Assert.Equal(5, results.TotalHits);
+            searchProvider.DeleteIndex();
+        }

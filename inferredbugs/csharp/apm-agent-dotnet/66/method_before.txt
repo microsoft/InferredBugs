@@ -1,0 +1,25 @@
+  [Fact]
+		public void StartEndTransaction()
+		{
+			const string transactionName = "TestTransaction";
+			const string transactionType = "UnitTest";
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			var transaction = agent.Tracer.StartTransaction(transactionName, transactionType);
+
+			Thread.Sleep(5); //Make sure we have duration > 0
+
+			transaction.End();
+
+			payloadSender.Transactions.Should().ContainSingle();
+
+			var capturedTransaction = payloadSender.Transactions[0];
+
+			capturedTransaction.Name.Should().Be(transactionName);
+			capturedTransaction.Type.Should().Be(transactionType);
+			capturedTransaction.Duration.Should().BeGreaterOrEqualTo(5);
+			capturedTransaction.Id.Should().NotBeEmpty();
+
+			agent.Service.Should().NotBeNull();
+		}

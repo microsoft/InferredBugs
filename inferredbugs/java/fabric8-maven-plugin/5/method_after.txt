@@ -1,0 +1,21 @@
+    private void portForward(Controller controller, String podName) throws MojoExecutionException {
+        File command = getKubeCtlExecutable(controller);
+        log.info("Port forwarding to port " + remoteDebugPort + " on pod " + podName + " using command " + command);
+
+        List<String> args = new ArrayList<>();
+        args.add("port-forward");
+        args.add(podName);
+        args.add(localDebugPort + ":" + remoteDebugPort);
+
+        String commandLine = command + " " + Strings.join(args, " ");
+        log.verbose("Executing command " + commandLine);
+        try {
+            log.info("");
+            log.info("Now you can start a Remote debug execution in your IDE by using localhost and the debug port " + localDebugPort);
+            log.info("");
+
+            ProcessUtil.runCommand(createExternalProcessLogger("[[B]]" + command.getName() + "[[B]] "), command, args, true);
+        } catch (Exception e) {
+            throw new MojoExecutionException("Failed to start port forwarding with " + commandLine + ": " + e, e);
+        }
+    }

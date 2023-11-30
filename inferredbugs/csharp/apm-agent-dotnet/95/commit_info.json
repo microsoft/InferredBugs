@@ -1,0 +1,277 @@
+{
+    "hash": "94781ab41049a835dacdcad0c45b1a45e54d3fcc",
+    "message": "Do not flow Activity for CaptureTransaction returning Tasks (#1553)\n\nThis commit updates CaptureTransaction that return Task/Task<T>\r\nto wrap inside Task.Run(). In doing so, the Activity created\r\nfor the transaction is contained to the delegate passed to\r\nTask.Run(), and does not erroneously flow to subsequent\r\nCaptureTransaction calls that return Task/Task<T>.\r\n\r\nFixes #1343",
+    "file_num_lines": 260,
+    "diff_parsed": {
+        "added": [
+            [
+                153,
+                "\t\tpublic Task CaptureTransaction(string name, string type, Func<Task> func, DistributedTracingData distributedTracingData = null) =>"
+            ],
+            [
+                154,
+                "\t\t\tTask.Run(() =>"
+            ],
+            [
+                155,
+                "\t\t\t{"
+            ],
+            [
+                156,
+                "\t\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                157,
+                "\t\t\t\tvar task = func();"
+            ],
+            [
+                158,
+                "\t\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                159,
+                "\t\t\t\treturn task;"
+            ],
+            [
+                160,
+                "\t\t\t});"
+            ],
+            [
+                161,
+                ""
+            ],
+            [
+                162,
+                "\t\tpublic Task CaptureTransaction(string name, string type, Func<ITransaction, Task> func, DistributedTracingData distributedTracingData = null) =>"
+            ],
+            [
+                163,
+                "\t\t\tTask.Run(() =>"
+            ],
+            [
+                164,
+                "\t\t\t{"
+            ],
+            [
+                165,
+                "\t\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                166,
+                "\t\t\t\tvar task = func(transaction);"
+            ],
+            [
+                167,
+                "\t\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                168,
+                "\t\t\t\treturn task;"
+            ],
+            [
+                169,
+                "\t\t\t});"
+            ],
+            [
+                170,
+                ""
+            ],
+            [
+                171,
+                "\t\tpublic Task<T> CaptureTransaction<T>(string name, string type, Func<Task<T>> func, DistributedTracingData distributedTracingData = null) =>"
+            ],
+            [
+                172,
+                "\t\t\tTask.Run(() =>"
+            ],
+            [
+                173,
+                "\t\t\t{"
+            ],
+            [
+                174,
+                "\t\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                175,
+                "\t\t\t\tvar task = func();"
+            ],
+            [
+                176,
+                "\t\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                177,
+                "\t\t\t\treturn task;"
+            ],
+            [
+                178,
+                "\t\t\t});"
+            ],
+            [
+                181,
+                "\t\t\tDistributedTracingData distributedTracingData = null) =>"
+            ],
+            [
+                182,
+                "\t\t\tTask.Run(() =>"
+            ],
+            [
+                183,
+                "\t\t\t{"
+            ],
+            [
+                184,
+                "\t\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                185,
+                "\t\t\t\tvar task = func(transaction);"
+            ],
+            [
+                186,
+                "\t\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                187,
+                "\t\t\t\treturn task;"
+            ],
+            [
+                188,
+                "\t\t\t});"
+            ]
+        ],
+        "deleted": [
+            [
+                153,
+                "\t\tpublic Task CaptureTransaction(string name, string type, Func<Task> func, DistributedTracingData distributedTracingData = null)"
+            ],
+            [
+                154,
+                "\t\t{"
+            ],
+            [
+                155,
+                "\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                156,
+                "\t\t\tvar task = func();"
+            ],
+            [
+                157,
+                "\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                158,
+                "\t\t\treturn task;"
+            ],
+            [
+                159,
+                "\t\t}"
+            ],
+            [
+                160,
+                ""
+            ],
+            [
+                161,
+                "\t\tpublic Task CaptureTransaction(string name, string type, Func<ITransaction, Task> func, DistributedTracingData distributedTracingData = null)"
+            ],
+            [
+                162,
+                "\t\t{"
+            ],
+            [
+                163,
+                "\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                164,
+                "\t\t\tvar task = func(transaction);"
+            ],
+            [
+                165,
+                "\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                166,
+                "\t\t\treturn task;"
+            ],
+            [
+                167,
+                "\t\t}"
+            ],
+            [
+                168,
+                ""
+            ],
+            [
+                169,
+                "\t\tpublic Task<T> CaptureTransaction<T>(string name, string type, Func<Task<T>> func, DistributedTracingData distributedTracingData = null)"
+            ],
+            [
+                170,
+                "\t\t{"
+            ],
+            [
+                171,
+                "\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                172,
+                "\t\t\tvar task = func();"
+            ],
+            [
+                173,
+                "\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                174,
+                ""
+            ],
+            [
+                175,
+                "\t\t\treturn task;"
+            ],
+            [
+                176,
+                "\t\t}"
+            ],
+            [
+                179,
+                "\t\t\tDistributedTracingData distributedTracingData = null"
+            ],
+            [
+                180,
+                "\t\t)"
+            ],
+            [
+                181,
+                "\t\t{"
+            ],
+            [
+                182,
+                "\t\t\tvar transaction = StartTransaction(name, type, distributedTracingData);"
+            ],
+            [
+                183,
+                "\t\t\tvar task = func(transaction);"
+            ],
+            [
+                184,
+                "\t\t\tRegisterContinuation(task, transaction);"
+            ],
+            [
+                185,
+                "\t\t\treturn task;"
+            ],
+            [
+                186,
+                "\t\t}"
+            ]
+        ]
+    },
+    "num_lines_added": 34,
+    "num_lines_removed": 32
+}

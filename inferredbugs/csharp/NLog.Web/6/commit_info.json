@@ -1,0 +1,605 @@
+{
+    "hash": "f9cf329c2daa59eca3ec355ff2229177506b99ac",
+    "message": "AspNetRequestPostedBody - Check ContentLength before using Body   + Added MaxContentLength (default 30Kib) + update build script (#401)\n\n* AspNetExtensions - Make use of AddHttpContextAccessor\r\n\r\n* AspNetRequestPostedBody - Check ContentLength before using Body\r\n\r\n* AppVeyor - Include PullRequest in nuget-package-build\r\n\r\n* AspNetRequestPostedBody - Added MaxContentLength protection\r\n\r\n* OpenCover - Attempt to mergeoutput with NLog.Web.AspNetCore.Tests\r\n\r\n* NLog.Web.AspNetCore.Tests - Removed unnecessary references\r\n\r\n* docs\r\n\r\n* refactor (#1)\r\n\r\n* refactor + docs\r\n\r\n* more refactor",
+    "file_num_lines": 132,
+    "diff_parsed": {
+        "added": [
+            [
+                11,
+                "using HttpRequest = System.Web.HttpRequestBase;"
+            ],
+            [
+                12,
+                "#else"
+            ],
+            [
+                13,
+                "using HttpRequest = Microsoft.AspNetCore.Http.HttpRequest;"
+            ],
+            [
+                31,
+                "        private const int Size64KiloBytes = 64 * 1024;"
+            ],
+            [
+                32,
+                "        private const int Size30Kilobytes = 30 * 1024;"
+            ],
+            [
+                33,
+                ""
+            ],
+            [
+                34,
+                "        /// <summary>"
+            ],
+            [
+                35,
+                "        /// Max size in bytes of the body. Skip logging of the body when larger."
+            ],
+            [
+                36,
+                "        /// Default 30720 Bytes = 30 KiB"
+            ],
+            [
+                37,
+                "        /// (0 = No limit, -1 = No Buffer Limit)"
+            ],
+            [
+                38,
+                "        /// </summary>"
+            ],
+            [
+                39,
+                "        public int MaxContentLength { get; set; } = Size30Kilobytes;"
+            ],
+            [
+                40,
+                ""
+            ],
+            [
+                54,
+                "            long? contentLength = httpRequest.ContentLength;"
+            ],
+            [
+                55,
+                "            if (!TryGetBody(httpRequest, contentLength, out var body))"
+            ],
+            [
+                56,
+                "            {"
+            ],
+            [
+                57,
+                "                return; // No Body to read"
+            ],
+            [
+                58,
+                "            }"
+            ],
+            [
+                59,
+                ""
+            ],
+            [
+                60,
+                "            var content = BodyToString(body);"
+            ],
+            [
+                61,
+                "            builder.Append(content);"
+            ],
+            [
+                62,
+                "        }"
+            ],
+            [
+                63,
+                ""
+            ],
+            [
+                64,
+                "        private static string BodyToString(Stream body)"
+            ],
+            [
+                65,
+                "        {"
+            ],
+            [
+                66,
+                "            var oldPosition = body.Position;"
+            ],
+            [
+                67,
+                "            body.Position = 0;"
+            ],
+            [
+                68,
+                "            try"
+            ],
+            [
+                69,
+                "            {"
+            ],
+            [
+                70,
+                "                // Note: don't dispose the StreamReader, it will close the stream and that's unwanted. You could pass that that"
+            ],
+            [
+                71,
+                "                // to the StreamReader in some platforms, but then the dispose will be a NOOP, so for platform compat just don't dispose"
+            ],
+            [
+                72,
+                "                var bodyReader = new StreamReader(body);"
+            ],
+            [
+                73,
+                "                var content = bodyReader.ReadToEnd();"
+            ],
+            [
+                74,
+                "                return content;"
+            ],
+            [
+                75,
+                "            }"
+            ],
+            [
+                76,
+                "            finally"
+            ],
+            [
+                77,
+                "            {"
+            ],
+            [
+                78,
+                "                //restore"
+            ],
+            [
+                79,
+                "                body.Position = oldPosition;"
+            ],
+            [
+                80,
+                "            }"
+            ],
+            [
+                81,
+                "        }"
+            ],
+            [
+                82,
+                ""
+            ],
+            [
+                83,
+                "        private bool TryGetBody(HttpRequest httpRequest, long? contentLength, out Stream body)"
+            ],
+            [
+                84,
+                "        {"
+            ],
+            [
+                85,
+                "            body = null;"
+            ],
+            [
+                86,
+                "            if (contentLength <= 0)"
+            ],
+            [
+                87,
+                "            {"
+            ],
+            [
+                88,
+                "                return false;"
+            ],
+            [
+                89,
+                "            }"
+            ],
+            [
+                90,
+                ""
+            ],
+            [
+                91,
+                "            if (MaxContentLength > 0 && contentLength > MaxContentLength)"
+            ],
+            [
+                92,
+                "            {"
+            ],
+            [
+                93,
+                "                InternalLogger.Debug(\"AspNetRequestPostedBody: body stream is too big. ContentLength={0}\", contentLength);"
+            ],
+            [
+                94,
+                "                return false;"
+            ],
+            [
+                95,
+                "            }"
+            ],
+            [
+                96,
+                ""
+            ],
+            [
+                97,
+                "            body = GetBodyStream(httpRequest);"
+            ],
+            [
+                98,
+                ""
+            ],
+            [
+                99,
+                "            if (body == null)"
+            ],
+            [
+                100,
+                "            {"
+            ],
+            [
+                101,
+                "                InternalLogger.Debug(\"AspNetRequestPostedBody: body stream was null\");"
+            ],
+            [
+                102,
+                "                return false;"
+            ],
+            [
+                103,
+                "            }"
+            ],
+            [
+                104,
+                ""
+            ],
+            [
+                105,
+                "            if (!body.CanRead)"
+            ],
+            [
+                106,
+                "            {"
+            ],
+            [
+                107,
+                "                InternalLogger.Debug(\"AspNetRequestPostedBody: body stream has been closed\");"
+            ],
+            [
+                108,
+                "                return false;"
+            ],
+            [
+                109,
+                "            }"
+            ],
+            [
+                110,
+                ""
+            ],
+            [
+                111,
+                "            if (!body.CanSeek)"
+            ],
+            [
+                112,
+                "            {"
+            ],
+            [
+                113,
+                "                var oldPosition = body.Position;"
+            ],
+            [
+                114,
+                "                if (oldPosition > 0 && oldPosition >= contentLength)"
+            ],
+            [
+                115,
+                "                {"
+            ],
+            [
+                116,
+                "                    InternalLogger.Debug(\"AspNetRequestPostedBody: body stream cannot seek and already read. StreamPosition={0}\", oldPosition);"
+            ],
+            [
+                117,
+                "                    return false;"
+            ],
+            [
+                118,
+                "                }"
+            ],
+            [
+                119,
+                ""
+            ],
+            [
+                120,
+                "                if (!TryEnableBuffering(httpRequest, contentLength, out body))"
+            ],
+            [
+                121,
+                "                    return false;"
+            ],
+            [
+                122,
+                "            }"
+            ],
+            [
+                123,
+                "            else"
+            ],
+            [
+                124,
+                "            {"
+            ],
+            [
+                125,
+                "                if (MaxContentLength > 0 && !contentLength.HasValue && body.Length > MaxContentLength)"
+            ],
+            [
+                126,
+                "                {"
+            ],
+            [
+                127,
+                "                    InternalLogger.Debug(\"AspNetRequestPostedBody: body stream too big. Body.Length={0}\", body.Length);"
+            ],
+            [
+                128,
+                "                    body = null;"
+            ],
+            [
+                129,
+                "                    return false;"
+            ],
+            [
+                130,
+                "                }"
+            ],
+            [
+                131,
+                "            }"
+            ],
+            [
+                132,
+                ""
+            ],
+            [
+                133,
+                "            return true;"
+            ],
+            [
+                134,
+                "        }"
+            ],
+            [
+                135,
+                ""
+            ],
+            [
+                136,
+                "        private static Stream GetBodyStream(HttpRequest httpRequest)"
+            ],
+            [
+                137,
+                "        {"
+            ],
+            [
+                143,
+                "            return body;"
+            ],
+            [
+                144,
+                "        }"
+            ],
+            [
+                146,
+                "        ///<returns>Can seek now?</returns>"
+            ],
+            [
+                147,
+                "        private bool TryEnableBuffering(HttpRequest httpRequest, long? contentLength, out Stream bodyStream)"
+            ],
+            [
+                148,
+                "        {"
+            ],
+            [
+                149,
+                "            bodyStream = null;"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "            if (MaxContentLength >= 0 && !contentLength.HasValue)"
+            ],
+            [
+                153,
+                "                InternalLogger.Debug(\"AspNetRequestPostedBody: body stream cannot seek with unknown ContentLength\");"
+            ],
+            [
+                154,
+                "                return false;"
+            ],
+            [
+                157,
+                "            int bufferThreshold = MaxContentLength <= 0 ? Size64KiloBytes : MaxContentLength;"
+            ],
+            [
+                158,
+                "            if (MaxContentLength == 0 && contentLength > bufferThreshold)"
+            ],
+            [
+                160,
+                "                InternalLogger.Debug(\"AspNetRequestPostedBody: body stream cannot seek and stream is too big. ContentLength={0}\", contentLength);"
+            ],
+            [
+                161,
+                "                return false;"
+            ],
+            [
+                164,
+                "            bodyStream = EnableRewind(httpRequest, bufferThreshold);"
+            ],
+            [
+                165,
+                "            if (bodyStream?.CanSeek != true)"
+            ],
+            [
+                167,
+                "                InternalLogger.Debug(\"AspNetRequestPostedBody: body stream cannot seek\");"
+            ],
+            [
+                168,
+                "                return false;"
+            ],
+            [
+                171,
+                "            return true;"
+            ],
+            [
+                172,
+                "        }"
+            ],
+            [
+                173,
+                ""
+            ],
+            [
+                174,
+                "        private static Stream EnableRewind(HttpRequest httpRequest, int bufferThreshold)"
+            ],
+            [
+                175,
+                "        {"
+            ],
+            [
+                176,
+                "#if ASP_NET_CORE2"
+            ],
+            [
+                177,
+                "            Microsoft.AspNetCore.Http.HttpRequestRewindExtensions.EnableBuffering(httpRequest, bufferThreshold);"
+            ],
+            [
+                178,
+                "            return httpRequest.Body;"
+            ],
+            [
+                179,
+                "#elif ASP_NET_CORE1"
+            ],
+            [
+                180,
+                "            Microsoft.AspNetCore.Http.Internal.BufferingHelper.EnableRewind(httpRequest, bufferThreshold);"
+            ],
+            [
+                181,
+                "            return httpRequest.Body;"
+            ],
+            [
+                182,
+                "#else"
+            ],
+            [
+                183,
+                "            return null;"
+            ],
+            [
+                184,
+                "#endif"
+            ],
+            [
+                187,
+                "}"
+            ]
+        ],
+        "deleted": [
+            [
+                47,
+                "            if (body == null)"
+            ],
+            [
+                49,
+                "                InternalLogger.Debug(\"AspNetRequestPostedBody: body stream was null\");"
+            ],
+            [
+                50,
+                "                return;"
+            ],
+            [
+                53,
+                "            long oldPosition = -1;"
+            ],
+            [
+                54,
+                ""
+            ],
+            [
+                55,
+                "            // reset if possible"
+            ],
+            [
+                56,
+                "            if (body.CanSeek)"
+            ],
+            [
+                58,
+                "                oldPosition = body.Position;"
+            ],
+            [
+                59,
+                "                body.Position = 0;"
+            ],
+            [
+                62,
+                "            //note: dispose of StreamReader isn't doing things besides closing the stream (which can be turn off, and then it's a NOOP)"
+            ],
+            [
+                63,
+                "            var bodyReader = new StreamReader(body);"
+            ],
+            [
+                64,
+                "            var content = bodyReader.ReadToEnd();"
+            ],
+            [
+                65,
+                ""
+            ],
+            [
+                66,
+                "            //restore"
+            ],
+            [
+                67,
+                "            if (body.CanSeek)"
+            ],
+            [
+                69,
+                "                body.Position = oldPosition;"
+            ],
+            [
+                72,
+                "            builder.Append(content);"
+            ],
+            [
+                75,
+                "}"
+            ]
+        ]
+    },
+    "num_lines_added": 130,
+    "num_lines_removed": 18
+}

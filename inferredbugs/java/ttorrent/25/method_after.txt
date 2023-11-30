@@ -1,0 +1,177 @@
+  @Override
+  public synchronized void handleMessage(PeerMessage msg) {
+//    logger.trace("Received msg {} from {}", msg.getType(), this);
+    switch (msg.getType()) {
+      case KEEP_ALIVE:
+        // Nothing to do, we're keeping the connection open anyways.
+        break;
+      case CHOKE:
+        this.choked = true;
+        this.firePeerChoked();
+        this.cancelPendingRequests();
+        break;
+      case UNCHOKE:
+        this.choked = false;
+        logger.trace("Peer {} is now accepting requests.", this);
+        this.firePeerReady();
+        break;
+      case INTERESTED:
+        this.interested = true;
+        break;
+      case NOT_INTERESTED:
+        this.interested = false;
+        break;
+      case HAVE:
+        // Record this peer has the given piece
+        PeerMessage.HaveMessage have = (PeerMessage.HaveMessage) msg;
+        Piece havePiece = this.torrent.getPiece(have.getPieceIndex());
+
+        synchronized (this.availablePiecesLock) {
+          this.availablePieces.set(havePiece.getIndex());
+          logger.trace("Peer {} now has {} [{}/{}].",
+            new Object[]{
+              this,
+              havePiece,
+              this.availablePieces.cardinality(),
+              this.torrent.getPieceCount()
+            });
+        }
+
+        this.firePieceAvailabity(havePiece);
+        break;
+      case BITFIELD:
+        // Augment the hasPiece bit field from this BITFIELD message
+        PeerMessage.BitfieldMessage bitfield =
+          (PeerMessage.BitfieldMessage) msg;
+
+        synchronized (this.availablePiecesLock) {
+          this.availablePieces.or(bitfield.getBitfield());
+          logger.trace("Recorded bitfield from {} with {} " +
+            "pieces(s) [{}/{}].",
+            new Object[]{
+              this,
+              bitfield.getBitfield().cardinality(),
+              this.availablePieces.cardinality(),
+              this.torrent.getPieceCount()
+            });
+        }
+
+        this.fireBitfieldAvailabity();
+        break;
+      case REQUEST:
+        PeerMessage.RequestMessage request =
+          (PeerMessage.RequestMessage) msg;
+        logger.trace("Got request message for {} ({} {}@{}) from {}", new Object[]{
+          Arrays.toString(torrent.getFilenames().toArray()),
+          request.getPiece(),
+          request.getLength(),
+          request.getOffset(),
+          this
+        });
+        Piece rp = this.torrent.getPiece(request.getPiece());
+
+        // If we are choking from this peer and it still sends us
+        // requests, it is a violation of the BitTorrent protocol.
+        // Similarly, if the peer requests a piece we don't have, it
+        // is a violation of the BitTorrent protocol. In these
+        // situation, terminate the connection.
+        if (this.isChoking() || !rp.isValid()) {
+          logger.warn("Peer {} violated protocol, terminating exchange.", this);
+          this.unbind(true);
+          break;
+        }
+
+        if (request.getLength() >
+          PeerMessage.RequestMessage.MAX_REQUEST_SIZE) {
+          logger.warn("Peer {} requested a block too big, " +
+            "terminating exchange.", this);
+          this.unbind(true);
+          break;
+        }
+
+        // At this point we agree to send the requested piece block to
+        // the remote peer, so let's queue a message with that block
+        try {
+          ByteBuffer block = rp.read(request.getOffset(),
+            request.getLength());
+          this.send(PeerMessage.PieceMessage.craft(request.getPiece(),
+            request.getOffset(), block));
+          this.upload.add(block.capacity());
+
+          if (request.getOffset() + request.getLength() == rp.size()) {
+            this.firePieceSent(rp);
+          }
+        } catch (IOException ioe) {
+          logger.error("error", ioe);
+          this.fireIOException(new IOException(
+            "Error while sending piece block request!", ioe));
+        }
+
+        break;
+      case PIECE:
+        // Record the incoming piece block.
+
+        // Should we keep track of the requested pieces and act when we
+        // get a piece we didn't ask for, or should we just stay
+        // greedy?
+        PeerMessage.PieceMessage piece = (PeerMessage.PieceMessage) msg;
+        Piece p = this.torrent.getPiece(piece.getPiece());
+
+        logger.trace("Got piece for {} ({} {}@{}) from {}", new Object[]{
+          Arrays.toString(torrent.getFilenames().toArray()),
+          p.getIndex(),
+          p.size(),
+          piece.getOffset(),
+          this
+        });
+
+
+        // Remove the corresponding request from the request queue to
+        //  make room for next block requests.
+        this.removeBlockRequest(piece.getPiece(), piece.getOffset());
+        this.download.add(piece.getBlock().capacity());
+
+        try {
+          synchronized (p) {
+            if (p.isValid()) {
+              this.cancelPendingRequests(p);
+              this.firePeerReady();
+              logger.debug("Discarding block for already completed " + p);
+              break;
+            }
+            //TODO add proper catch for IOException
+            p.record(piece.getBlock(), piece.getOffset());
+
+            // If the block offset equals the piece size and the block
+            // length is 0, it means the piece has been entirely
+            // downloaded. In this case, we have nothing to save, but
+            // we should validate the piece.
+            if (getRemainingRequestedPieces(p).size() == 0) {
+              p.finish();
+              p.validate(torrent, p);
+              this.firePieceCompleted(p);
+              myRequestedPieces.remove(p);
+              this.firePeerReady();
+            } else {
+              if (piece.getOffset() + piece.getBlock().capacity()
+                == p.size()) { // final request reached
+                for (PeerMessage.RequestMessage requestMessage : getRemainingRequestedPieces(p)) {
+                  send(requestMessage);
+                }
+              } else {
+                this.requestNextBlocksForPiece(p);
+              }
+            }
+          }
+        } catch (IOException ioe) {
+          logger.error(ioe.getMessage(), ioe);
+          this.fireIOException(new IOException(
+            "Error while storing received piece block!", ioe));
+          break;
+        }
+        break;
+      case CANCEL:
+        // No need to support
+        break;
+    }
+  }

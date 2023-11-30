@@ -1,0 +1,26 @@
+    @Override
+    public String toSerializable(final LogEvent event) {
+        final StringBuilder buffer = getStringBuilder();
+        // Revisit when 1.3 is out so that we do not need to create a new
+        // printer for each event.
+        // No need to close the printer.
+        try (final CSVPrinter printer = new CSVPrinter(buffer, getFormat())) {
+            printer.print(event.getNanoTime());
+            printer.print(event.getTimeMillis());
+            printer.print(event.getLevel());
+            printer.print(event.getThreadName());
+            printer.print(event.getMessage().getFormattedMessage());
+            printer.print(event.getLoggerFqcn());
+            printer.print(event.getLoggerName());
+            printer.print(event.getMarker());
+            printer.print(event.getThrownProxy());
+            printer.print(event.getSource());
+            printer.print(event.getContextMap());
+            printer.print(event.getContextStack());
+            printer.println();
+            return buffer.toString();
+        } catch (final IOException e) {
+            StatusLogger.getLogger().error(event.toString(), e);
+            return getFormat().getCommentMarker() + " " + e;
+        }
+    }

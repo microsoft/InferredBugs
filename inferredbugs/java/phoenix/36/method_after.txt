@@ -1,0 +1,23 @@
+    public boolean seekOrReseek(Cell cell, boolean isSeek) throws IOException{
+        Cell keyToSeek = cell;
+        KeyValue splitKeyValue = new KeyValue.KeyOnlyKeyValue(reader.getSplitkey());
+        if (reader.isTop()) {
+            if(this.comparator.compare(cell, splitKeyValue, true) < 0){
+                if(!isSeek && realSeekDone()) {
+                    return true;
+                }
+                return seekOrReseekToProperKey(isSeek, keyToSeek);
+            }
+            keyToSeek = getKeyPresentInHFiles(cell);
+            return seekOrReseekToProperKey(isSeek, keyToSeek);
+        } else {
+            if (this.comparator.compare(cell, splitKeyValue, true) >= 0) {
+                close();
+                return false;
+            }
+            if(!isSeek && reader.getRegionInfo().getStartKey().length == 0 && reader.getSplitRow().length > reader.getRegionStartKeyInHFile().length) {
+                keyToSeek = getKeyPresentInHFiles(cell);
+            }
+        }
+        return seekOrReseekToProperKey(isSeek, keyToSeek);
+    }

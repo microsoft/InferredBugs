@@ -1,0 +1,23 @@
+  @Test
+  public void testLoadReleaseConfigDefaultConfigsAndOverrideCluster() {
+    long appId = 6666;
+    long versionId = 100;
+    long releaseId = 11111;
+    VersionDTO someVersion = assembleVersion(appId, "1.0", releaseId);
+    ReleaseSnapshotDTO[] someReleaseSnapShots = new ReleaseSnapshotDTO[2];
+    someReleaseSnapShots[0] = assembleReleaseSnapShot(11111, Constants.DEFAULT_CLUSTER_NAME,
+                                                  "{\"6666.foo\":\"demo1\", \"6666.bar\":\"demo2\"}");
+    someReleaseSnapShots[1] = assembleReleaseSnapShot(11112, "cluster1",
+                                                  "{\"6666.foo\":\"demo1\", \"6666.bar\":\"demo2\"}");
+
+    when(versionAPI.getVersionById(Env.DEV, versionId)).thenReturn(someVersion);
+    when(configAPI.getConfigByReleaseId(Env.DEV, releaseId)).thenReturn(someReleaseSnapShots);
+
+    AppConfigVO appConfigVO = configService.loadReleaseConfig(Env.DEV, appId, versionId);
+
+    assertEquals(appConfigVO.getAppId(), appId);
+    assertEquals(appConfigVO.getVersionId(), versionId);
+    assertEquals(appConfigVO.getDefaultClusterConfigs().size(), 2);
+    assertEquals(0, appConfigVO.getOverrideAppConfigs().size());
+    assertEquals(1, appConfigVO.getOverrideClusterConfigs().size());
+  }

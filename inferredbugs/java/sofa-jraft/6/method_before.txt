@@ -1,0 +1,30 @@
+    void sendNextRpc() {
+        this.timer = null;
+        final long offset = requestBuilder.getOffset() + requestBuilder.getCount();
+        final long maxCount = this.destBuf == null ? raftOptions.getMaxByteCountPerRpc() : Integer.MAX_VALUE;
+        this.requestBuilder = requestBuilder.setOffset(offset).setCount(maxCount).setReadPartly(true);
+        this.lock.lock();
+        try {
+            if (this.finished) {
+                return;
+            }
+            // throttle
+            long newMaxCount = maxCount;
+            if (this.snapshotThrottle != null) {
+                newMaxCount = snapshotThrottle.throttledByThroughput(maxCount);
+                if (newMaxCount == 0) {
+                    // Reset count to make next rpc retry the previous one
+                    this.requestBuilder.setCount(0);
+                    this.timer = this.timerManager.schedule(this::onTimer, this.copyOptions.getRetryIntervalMs(),
+                            TimeUnit.MILLISECONDS);
+                    return;
+                }
+            }
+            this.requestBuilder.setCount(newMaxCount);
+            LOG.debug("Send get file request {} to peer {}", this.requestBuilder.build(), this.endpoint);
+            this.rpcCall = this.rpcService.getFile(endpoint, this.requestBuilder.build(),
+                this.copyOptions.getTimeoutMs(), done);
+        } finally {
+            lock.unlock();
+        }
+    }

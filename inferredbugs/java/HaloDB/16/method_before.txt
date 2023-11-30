@@ -1,0 +1,17 @@
+    void delete(byte[] key) throws IOException {
+        writeLock.lock();
+        try {
+            InMemoryIndexMetaData metaData = inMemoryIndex.get(key);
+            if (metaData != null) {
+                //TODO: implement a getAndRemove method in InMemoryIndex.
+                inMemoryIndex.remove(key);
+                TombstoneEntry entry =
+                    new TombstoneEntry(key, getNextSequenceNumber(), -1, Versions.CURRENT_TOMBSTONE_FILE_VERSION);
+                currentTombstoneFile = rollOverTombstoneFile(entry, currentTombstoneFile);
+                currentTombstoneFile.write(entry);
+                markPreviousVersionAsStale(key, metaData);
+            }
+        } finally {
+            writeLock.unlock();
+        }
+    }

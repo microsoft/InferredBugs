@@ -1,0 +1,139 @@
+        private GridItem GetItemByDirection(string direction, int fromGroupIndex, int fromItemIndex)
+        {
+            Tizen.Log.Fatal("NUI", ">>>>>>>>> direction: " + direction + " fromGroupIndex: " + fromGroupIndex + " fromItemIndex: " + fromItemIndex);
+            Cell currentCell = GetCellByItemIndex(fromGroupIndex, fromItemIndex);
+
+            //adjust focused column index based on reference line
+            Group currentGroup = groupList.ElementAt(fromGroupIndex);
+            int currentColumnIndex = currentCell.columnIndex;
+            Column currentColumn = currentGroup.columnList.ElementAt(currentColumnIndex);
+
+            int destFocusGroupIndex = -2, destFocusItemIndex = -2;
+            int destFocusColumnIndex = -1;
+            switch (direction)
+            {
+                case "Up":
+                    destFocusGroupIndex = fromGroupIndex;
+                    if (currentCell.rowIndex == 0)
+                    {
+                        destFocusItemIndex = -1;
+                    }
+                    else
+                    {
+                        Cell nextCell = currentColumn.cellList.ElementAt(currentCell.rowIndex - 1);
+                        destFocusItemIndex = nextCell.itemIndex;
+                    }
+
+                    break;
+                case "Down":
+                    destFocusGroupIndex = fromGroupIndex;
+                    if (currentCell.rowIndex >= currentColumn.cellList.Count - 1)
+                    {
+                        destFocusItemIndex = -1;
+                    }
+                    else if (fromItemIndex == currentGroup.itemList.Count - 1)
+                    {
+                        destFocusColumnIndex = currentColumnIndex - 1;
+                        Column nextColumn = currentGroup.columnList.ElementAt(destFocusColumnIndex);
+                        Cell nextCell = nextColumn.cellList.ElementAt(currentCell.rowIndex + 1);
+                        destFocusItemIndex = nextCell.itemIndex;
+                    }
+                    else
+                    {
+                        Cell nextCell = currentColumn.cellList.ElementAt(currentCell.rowIndex + 1);
+                        destFocusItemIndex = nextCell.itemIndex;
+                    }
+
+                    break;
+                case "Left":
+                    if (currentCell.columnIndex == 0)
+                    {
+                        if (fromGroupIndex == 0)
+                        {
+                            destFocusItemIndex = -1;
+                        }
+                        else
+                        {
+                            destFocusGroupIndex = fromGroupIndex - 1;
+                            Group nextGroup = groupList.ElementAt(destFocusGroupIndex);
+                            destFocusColumnIndex = nextGroup.columnList.Count - 1;
+
+                            Column nextColumn = nextGroup.columnList.ElementAt(destFocusColumnIndex);
+                            if (currentCell.rowIndex >= nextColumn.cellList.Count)
+                            {
+                                Cell nextCell = nextColumn.cellList.ElementAt(nextColumn.cellList.Count - 1);
+                                destFocusItemIndex = nextCell.itemIndex;
+                            }
+                            else
+                            {
+                                Cell nextCell = nextColumn.cellList.ElementAt(currentCell.rowIndex);
+                                destFocusItemIndex = nextCell.itemIndex;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        destFocusGroupIndex = fromGroupIndex;
+                        destFocusColumnIndex = currentCell.columnIndex - 1;
+                        Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusGroupIndex: " + destFocusGroupIndex + " destFocusColumnIndex:" + destFocusColumnIndex + " currentCell.rowIndex: " + currentCell.rowIndex);
+                        Column nextColumn = currentGroup.columnList.ElementAt(destFocusColumnIndex);
+                        Cell nextCell = nextColumn.cellList.ElementAt(currentCell.rowIndex);
+                        destFocusItemIndex = nextCell.itemIndex;
+                        Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusItemIndex: " + destFocusItemIndex);
+                    }
+
+                    break;
+                case "Right":
+                    if (currentColumnIndex == currentGroup.columnList.Count - 1)
+                    {
+                        if (fromGroupIndex == groupList.Count - 1)
+                        {
+                            destFocusItemIndex = -1;
+                        }
+                        else
+                        {
+                            destFocusGroupIndex = fromGroupIndex + 1;
+                            destFocusColumnIndex = 0;
+                            Group nextGroup = groupList.ElementAt(destFocusGroupIndex);
+                            Column nextColumn = nextGroup.columnList.ElementAt(destFocusColumnIndex);
+                            Cell nextCell = nextColumn.cellList.ElementAt(currentCell.rowIndex);
+                            destFocusItemIndex = nextCell.itemIndex;
+                        }
+                    }
+                    else
+                    {
+                        destFocusGroupIndex = fromGroupIndex;
+                        destFocusColumnIndex = currentColumnIndex + 1;
+
+                        Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusGroupIndex: " + destFocusGroupIndex + " destFocusColumnIndex:" + destFocusColumnIndex + " currentCell.rowIndex: " + currentCell.rowIndex);
+                        Column nextColumn = currentGroup.columnList.ElementAt(destFocusColumnIndex);
+                        if (currentCell.rowIndex >= nextColumn.cellList.Count)
+                        {
+
+                            Cell nextCell = nextColumn.cellList.ElementAt(nextColumn.cellList.Count - 1);
+                            destFocusItemIndex = nextCell.itemIndex;
+                            Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusItemIndex: " + destFocusItemIndex + " currentCell.rowIndex: " + currentCell.rowIndex + " nextColumn.cellList.Count: " + nextColumn.cellList.Count);
+                        }
+                        else
+                        {
+                            Cell nextCell = nextColumn.cellList.ElementAt(currentCell.rowIndex);
+                            destFocusItemIndex = nextCell.itemIndex;
+                            Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusItemIndex: " + destFocusItemIndex + " currentCell.rowIndex: " + currentCell.rowIndex + " nextColumn.cellList.Count: " + nextColumn.cellList.Count);
+                        }
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+
+
+            Tizen.Log.Fatal("NUI", ">>>>>>>>> destFocusGroupIndex: " + destFocusGroupIndex + " destFocusColumnIndex:" + destFocusColumnIndex + " destFocusItemIndex: " + destFocusItemIndex);
+            GridItem item = null;
+            if (IsGroupIndexValid(destFocusGroupIndex) == true && IsItemIndexValid(destFocusGroupIndex, destFocusItemIndex))
+            {
+                item = groupList.ElementAt(destFocusGroupIndex).itemList.ElementAt(destFocusItemIndex);
+            }
+
+            return item;
+        }

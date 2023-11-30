@@ -1,0 +1,30 @@
+        public static string SWGet(string Shortname)
+        {
+            string sResult = "";
+            if (!_cache.TryGetValue("SWGET1-" + Shortname.GetHashCode(StringComparison.InvariantCultureIgnoreCase), out sResult))
+            {
+                try
+                {
+                    var oClient = new HttpClient();
+                    oClient.DefaultRequestHeaders.Add("AuthenticatedToken", Token);
+                    oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
+                    var response = oClient.GetStringAsync(sURL + "/rest/SWGetShort?name=" + WebUtility.UrlEncode(Shortname));
+                    response.Wait(5000);
+                    if (response.IsCompleted)
+                    {
+                        sResult = response.Result;
+
+                        // Set cache options.
+                        var cacheEntryOptions = new MemoryCacheEntryOptions()
+                            .SetSlidingExpiration(TimeSpan.FromSeconds(330));
+
+                        _cache.Set("SWGET1-" + Shortname.GetHashCode(StringComparison.InvariantCultureIgnoreCase), sResult, cacheEntryOptions);
+
+                        return sResult;
+                    }
+                }
+                catch { }
+            }
+
+            return sResult;
+        }

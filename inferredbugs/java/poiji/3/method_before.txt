@@ -1,0 +1,26 @@
+    <T> void unmarshal0(Class<T> type, Consumer<? super T> consumer, OPCPackage open) throws IOException, SAXException, OpenXML4JException {
+
+        //ISSUE #55
+        XSSFWorkbook wb = new XSSFWorkbook(open);
+        Workbook workbook = new SXSSFWorkbook(wb);
+        //work out which sheet must process
+        int processIndex = PoijiOptions.getSheetIndexToProcess(workbook, options);
+
+        ReadOnlySharedStringsTable readOnlySharedStringsTable = new ReadOnlySharedStringsTable(open);
+        XSSFReader xssfReader = new XSSFReader(open);
+        StylesTable styles = xssfReader.getStylesTable();
+
+        SheetIterator iter = (SheetIterator) xssfReader.getSheetsData();
+        int index = 0;
+
+        while (iter.hasNext()) {
+            try (InputStream stream = iter.next()) {
+                //if (index == options.sheetIndex()) {
+                if (index == processIndex) {
+                    processSheet(styles, readOnlySharedStringsTable, type, stream, consumer);
+                    return;
+                }
+            }
+            ++index;
+        }
+    }

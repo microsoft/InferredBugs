@@ -1,0 +1,48 @@
+    @Override
+    public void copyTo(Wire wire) {
+        while (bytes.remaining() > 0) {
+            int code = bytes.readUnsignedByte();
+            switch (code >> 4) {
+                case NUM0:
+                case NUM1:
+                case NUM2:
+                case NUM3:
+                case NUM4:
+                case NUM5:
+                case NUM6:
+                case NUM7:
+                    writeValue.uint8(code);
+                    break;
+
+                case CONTROL:
+                    break;
+
+                case FLOAT:
+                    double d = readFloat(code);
+                    writeValue.float64(d);
+                    break;
+
+                case INT:
+                    long l = readInt(code);
+                    writeValue.int64(l);
+                    break;
+
+                case SPECIAL:
+                    copySpecial(code);
+                    break;
+
+                case FIELD0:
+                case FIELD1:
+                    StringBuilder fsb = readField(code, Wires.acquireStringBuilder());
+                    writeField(fsb);
+                    break;
+
+                case STR0:
+                case STR1:
+                    StringBuilder sb = readText(code, Wires.acquireStringBuilder());
+                    writeValue.text(sb);
+                    break;
+
+            }
+        }
+    }

@@ -1,0 +1,69 @@
+    private boolean parallelExecution(String pack, List<String> tests) throws Exception {
+        String os = System.getProperty("os.name").toLowerCase();
+        String platform = System.getenv("Platform");
+        HostMachineDeviceManager hostMachineDeviceManager = HostMachineDeviceManager.getInstance();
+        int deviceCount = hostMachineDeviceManager.getDevicesByHost().getAllDevices().size();
+
+        if (deviceCount == 0) {
+            figlet("No Devices Connected");
+            System.exit(0);
+        }
+
+        System.out.println("***************************************************\n");
+        System.out.println("Total Number of devices detected::" + deviceCount + "\n");
+        System.out.println("***************************************************\n");
+        System.out.println("starting running tests in threads");
+
+        createAppiumLogsFolder();
+
+        if (deviceAllocationManager.getDevices() != null && platform
+                .equalsIgnoreCase(ANDROID)
+                || platform.equalsIgnoreCase(BOTH)) {
+            generateDirectoryForAdbLogs();
+            createSnapshotFolderAndroid("android");
+        }
+
+        if (os.contains("mac") && platform.equalsIgnoreCase(IOS)
+                || platform.equalsIgnoreCase(BOTH)) {
+            //iosDevice.checkExecutePermissionForIOSDebugProxyLauncher();
+            createSnapshotFolderiOS("iPhone");
+        }
+
+        List<Class> testcases = new ArrayList<>();
+
+        boolean hasFailures = false;
+        String runner = configFileManager.getProperty("RUNNER");
+        String framework = configFileManager.getProperty("FRAMEWORK");
+
+
+        if (framework.equalsIgnoreCase("testng")) {
+            // final String pack = "com.paralle.tests"; // Or any other package
+            PackageUtil.getClasses(pack).stream().forEach(s -> {
+                if (s.toString().contains("Test")) {
+                    testcases.add((Class) s);
+                }
+            });
+            String executionType = runner.equalsIgnoreCase("distribute")
+                    ? "distribute" : "parallel";
+            hasFailures = myTestExecutor
+                    .runMethodParallelAppium(tests, pack, deviceCount,
+                            executionType);
+        }
+
+        if (framework.equalsIgnoreCase("cucumber")) {
+            //addPluginToCucumberRunner();
+            if (runner.equalsIgnoreCase("distribute")) {
+                myTestExecutor
+                        .constructXmlSuiteDistributeCucumber(deviceCount);
+                hasFailures = myTestExecutor.runMethodParallel();
+            } else if (runner.equalsIgnoreCase("parallel")) {
+                //addPluginToCucumberRunner();
+                myTestExecutor
+                        .constructXmlSuiteForParallelCucumber(deviceCount,
+                                hostMachineDeviceManager.getDevicesByHost().getAllDevices());
+                hasFailures = myTestExecutor.runMethodParallel();
+                htmlReporter.generateReports();
+            }
+        }
+        return hasFailures;
+    }

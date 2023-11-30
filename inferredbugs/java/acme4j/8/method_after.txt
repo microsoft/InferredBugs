@@ -1,0 +1,20 @@
+    @Override
+    public int accept(int... httpStatus) throws AcmeException {
+        assertConnectionIsOpen();
+
+        try {
+            int rc = conn.getResponseCode();
+            OptionalInt match = Arrays.stream(httpStatus).filter(s -> s == rc).findFirst();
+            if (match.isPresent()) {
+                return match.getAsInt();
+            }
+
+            if (!"application/problem+json".equals(conn.getHeaderField(CONTENT_TYPE_HEADER))) {
+                throw new AcmeException("HTTP " + rc + ": " + conn.getResponseMessage());
+            }
+
+            throw createAcmeException(readJsonResponse());
+        } catch (IOException ex) {
+            throw new AcmeNetworkException(ex);
+        }
+    }

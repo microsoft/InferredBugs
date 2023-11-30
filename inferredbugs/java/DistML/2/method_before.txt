@@ -1,0 +1,35 @@
+    private void read(SelectionKey key) throws IOException {
+        SocketChannel channel = (SocketChannel) key.channel();
+        DataBuffer buf = buffers.get(channel);
+        if (buf.readData(channel)) {
+            InputStream is = new ByteArrayInputStream(buf.data);
+            DataInputStream dis = new DataInputStream(is);
+
+            DataBusProtocol.DistMLMessage req = DataBusProtocol.DistMLMessage.readDistMLMessage(dis, model);
+            if (req instanceof DataBusProtocol.CloseRequest) {// worker disconnected
+                try {
+                    key.cancel();
+                    ((SocketChannel) key.channel()).socket().close();
+                }
+                catch (IOException e){}
+                log("client disconnected: " + ((SocketChannel) key.channel()).getRemoteAddress());
+            }
+            else {
+                DataBusProtocol.DistMLMessage res = handle(req);
+
+                int len = res.sizeAsBytes(model);
+                ByteArrayOutputStream bdos = new ByteArrayOutputStream(len + 4);
+                DataOutputStream dos = new DataOutputStream(bdos);
+                dos.writeInt(len);
+                res.write(dos, model);
+
+                buf.resBuf = ByteBuffer.allocate(len+4);
+                buf.resBuf.put(bdos.toByteArray());
+                buf.resBuf.flip();
+
+                key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+                //log("register with OP_WRITE: " + key + ", " + key.interestOps());
+//                channel.socket().getOutputStream().write(bdos.toByteArray());
+            }
+        }
+    }

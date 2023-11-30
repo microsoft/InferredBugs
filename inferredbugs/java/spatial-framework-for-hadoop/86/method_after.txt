@@ -1,0 +1,21 @@
+ @Test
+	public void TestNullGeom() throws Exception {
+        ArrayList<Object> stuff = new ArrayList<Object>();
+		Properties proptab = new Properties();
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMNS, "shape");
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMN_TYPES, "binary");
+		SerDe jserde = mkSerDe(proptab);
+        StructObjectInspector rowOI = (StructObjectInspector)jserde.getObjectInspector();
+
+        //value.set("{\"properties\":{},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15.0,5.0]}}");
+        addWritable(stuff, new Point(15.0, 5.0));
+		Object row = runSerDe(stuff, jserde, rowOI);
+		Object fieldData = getField("shape", row, rowOI);
+		ckPoint(new Point(15.0, 5.0), (BytesWritable)fieldData);
+
+        //value.set("{\"properties\":{},\"coordinates\":null}");
+		stuff.set(0, null);
+		row = runSerDe(stuff, jserde, rowOI);
+		fieldData = getField("shape", row, rowOI);
+		Assert.assertNull(fieldData);
+	}

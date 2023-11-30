@@ -1,0 +1,29 @@
+  @Test
+  public void testInitArgsForSuccessConnection() {
+    try {
+      final String[] nicknames = new String[1];
+      new MockUp<sqlline.DatabaseConnection>() {
+        @Mock
+        void setNickname(String nickname) {
+          nicknames[0] = nickname;
+        }
+      };
+      final SqlLine sqlLine = new SqlLine();
+      ByteArrayOutputStream os = new ByteArrayOutputStream();
+      final String filename = "file' with spaces";
+      String[] connectionArgs = new String[] {
+          "-u", ConnectionSpec.H2.url,
+          "-n", ConnectionSpec.H2.username,
+          "-p", ConnectionSpec.H2.password,
+          "-nn", "nickname with spaces",
+          "-log", "target/" + filename,
+          "-e", "!set maxwidth 80"};
+      begin(sqlLine, os, false, connectionArgs);
+
+      assertThat("file with spaces",
+          Files.exists(Paths.get("target", filename)));
+      assertEquals("nickname with spaces", nicknames[0]);
+    } catch (Throwable t) {
+      throw new RuntimeException(t);
+    }
+  }

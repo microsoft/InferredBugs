@@ -1,0 +1,42 @@
+ private PackrOutput buildMacBundle(PackrOutput output) throws IOException {
+
+		if (config.platform != PackrConfig.Platform.MacOS) {
+			return output;
+		}
+
+		// replacement strings for Info.plist
+		Map<String, String> values = new HashMap<>();
+
+		values.put("${executable}", config.executable);
+
+		if (config.bundleIdentifier != null) {
+			values.put("${bundleIdentifier}", config.bundleIdentifier);
+		} else {
+			values.put("${bundleIdentifier}", config.mainClass.substring(0, config.mainClass.lastIndexOf('.')));
+		}
+
+		// create folder structure
+
+		File root = output.executableFolder;
+
+		PackrFileUtils.mkdirs(new File(root, "Contents"));
+		try (FileWriter info = new FileWriter(new File(root, "Contents/Info.plist"))) {
+			String plist = readResourceAsString("/Info.plist", values);
+			info.write(plist);
+		}
+
+		File target = new File(root, "Contents/MacOS");
+		PackrFileUtils.mkdirs(target);
+
+		File resources = new File(root, "Contents/Resources");
+		PackrFileUtils.mkdirs(resources);
+
+		if (config.iconResource != null) {
+			// copy icon to Contents/Resources/icons.icns
+			if (config.iconResource.exists()) {
+				PackrFileUtils.copyFile(config.iconResource, new File(resources, "icons.icns"));
+			}
+		}
+
+		return new PackrOutput(target, resources);
+	}

@@ -1,0 +1,39 @@
+  public void TestImportGraphDef ()
+		{
+			var status = new TFStatus ();
+			TFBuffer graphDef;
+
+			// Create graph with two nodes, "x" and "3"
+			using (var graph = new TFGraph ()) {
+				Assert (status);
+				Placeholder (graph, status);
+				Assert (graph ["feed"] != null);
+
+				ScalarConst (3, graph, status);
+				Assert (graph ["scalar"] != null);
+
+				// Export to GraphDef
+				graphDef = new TFBuffer ();
+				graph.ToGraphDef (graphDef, status);
+				Assert (status);
+			};
+
+			// Import it again, with a prefix, in a fresh graph
+			using (var graph = new TFGraph ()) {
+				using (var options = new TFImportGraphDefOptions ()) {
+					options.SetPrefix ("imported");
+					graph.ImportGraphDef (graphDef, options, status);
+					Assert (status);
+				}
+				graphDef.Dispose ();
+
+				var scalar = graph ["imported/scalar"];
+				var feed = graph ["imported/feed"];
+				Assert (scalar != null);
+				Assert (feed != null);
+
+				// Can add nodes to the imported graph without trouble
+				Add (feed, scalar, graph, status);
+				Assert (status);
+			}
+		}

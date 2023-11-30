@@ -1,0 +1,14 @@
+  public void assertServer(MiniRaftCluster cluster, ClientId clientId, long callId, long oldLastApplied) throws Exception {
+    long leaderApplied = cluster.getLeader().getState().getLastAppliedIndex();
+    // make sure retry cache has the entry
+    for (RaftServerImpl server : cluster.iterateServerImpls()) {
+      LOG.info("check server " + server.getId());
+      if (server.getState().getLastAppliedIndex() < leaderApplied) {
+        Thread.sleep(1000);
+      }
+      Assert.assertEquals(2, RaftServerTestUtil.getRetryCacheSize(server));
+      Assert.assertNotNull(RaftServerTestUtil.getRetryEntry(server, clientId, callId));
+      // make sure there is only one log entry committed
+      Assert.assertEquals(1, count(server.getState().getLog(), oldLastApplied + 1));
+    }
+  }

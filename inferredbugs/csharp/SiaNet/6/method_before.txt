@@ -1,0 +1,40 @@
+        public override void Forward(Variable x)
+        {
+            //ToDo: Implement DilationRate
+            Input = x;
+            var (n, c, h, w) = x.Data.GetConv2DShape();
+
+            Variable weight = BuildVar("w", new long[] { Filters, c, KernalSize.Item1, KernalSize.Item2 }, x.Data.ElementType, KernalInitializer, KernalConstraint, KernalRegularizer);
+            Variable bias = null;
+            if (UseBias)
+            {
+                bias = BuildVar("b", new long[] { Filters, 1}, x.Data.ElementType, BiasInitializer, BiasConstraint, BiasRegularizer);
+            }
+
+            uint? pad = null;
+            if(Padding == PaddingType.Same)
+            {
+                pad = 1;
+            }
+            else if(Padding == PaddingType.Full)
+            {
+                pad = 2;
+            }
+
+            var h_out = (h - KernalSize.Item1 + 2 * pad) / Strides + 1;
+            var w_out = (w - KernalSize.Item2 + 2 * pad) / Strides + 1;
+            
+            var wRows = weight.Data.Reshape(Filters, -1);
+            xCols = ImgUtil.Im2Col(x.Data, KernalSize, pad, Strides);
+            xCols.Print();
+            //xCols.View(18, 9).Print();
+
+            Output = wRows * xCols;
+            
+            if(UseBias)
+            {
+                Output = Output + bias.Data;
+            }
+
+            Output = Output.Reshape(Filters, h_out.Value, w_out.Value, n).Transpose(3, 0, 1, 2);
+        }

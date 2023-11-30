@@ -1,0 +1,44 @@
+  @Override
+  public int read(final byte[] array, final int offset, final int length) throws IOException {
+    if (this.bitsInBuffer == 0) {
+      int readBytes = 0;
+      int tmpoffset = offset;
+      int tmplen = length;
+      while (tmplen > 0) {
+        int read = this.in.read(array, tmpoffset, tmplen);
+        if (read < 0) {
+          readBytes = readBytes == 0 ? read : readBytes;
+          break;
+        }
+        tmplen -= read;
+        tmpoffset += read;
+        readBytes += read;
+        this.byteCounter += read;
+      }
+
+      if (this.msb0) {
+        int index = offset;
+        int number = readBytes;
+        while (number > 0) {
+          array[index] = JBBPUtils.reverseByte(array[index]);
+          index++;
+          number--;
+        }
+      }
+
+      return readBytes;
+    }
+    else {
+      int count = length;
+      int i = offset;
+      while (count > 0) {
+        final int nextByte = this.readBits(JBBPBitNumber.BITS_8);
+        if (nextByte < 0) {
+          break;
+        }
+        count--;
+        array[i++] = (byte) nextByte;
+      }
+      return length - count;
+    }
+  }

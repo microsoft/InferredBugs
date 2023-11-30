@@ -1,0 +1,42 @@
+    @Override
+    protected void enable() {
+        // provide an info command
+        Commands.create()
+                .handler(c -> {
+                    LoaderUtils.getHelperImplementationPlugins().stream()
+                            .sorted(Comparator.comparing(Plugin::getName))
+                            .forEach(pl -> Players.msg(c.sender(), "&7[&6helper&7] &7Running &6" + pl.getName() + " v" + pl.getDescription().getVersion() + "&7."));
+                })
+                .register("helper");
+
+        // provide default service implementations
+        provideService(HologramFactory.class, new BukkitHologramFactory());
+        provideService(BungeeCord.class, new BungeeCordImpl(this));
+        if (isPluginPresent("ProtocolLib")) {
+            PacketScoreboardProvider scoreboardProvider = new PacketScoreboardProvider(this);
+            provideService(ScoreboardProvider.class, scoreboardProvider);
+            provideService(PacketScoreboardProvider.class, scoreboardProvider);
+
+            SignPromptFactory signPromptFactory = new PacketSignPromptFactory();
+            provideService(SignPromptFactory.class, signPromptFactory);
+
+            try {
+                IndividualHologramFactory hologramFactory = new PacketIndividualHologramFactory();
+                provideService(IndividualHologramFactory.class, hologramFactory);
+            } catch (Throwable t) {
+                // ignore??
+            }
+        }
+        if (isPluginPresent("Citizens")) {
+            CitizensNpcFactory npcManager = bind(new CitizensNpcFactory());
+            provideService(NpcFactory.class, npcManager);
+            provideService(CitizensNpcFactory.class, npcManager);
+        }
+        if (isPluginPresent("ViaVersion")) {
+            BossBarFactory bossBarFactory = new ViaBossBarFactory();
+            provideService(BossBarFactory.class, bossBarFactory, ServicePriority.High);
+        } else if (classExists("org.bukkit.boss.BossBar")) {
+            BossBarFactory bossBarFactory = new BukkitBossBarFactory(getServer());
+            provideService(BossBarFactory.class, bossBarFactory);
+        }
+    }

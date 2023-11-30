@@ -1,0 +1,33 @@
+    @TransactionAttribute(TransactionAttributeType.NOT_SUPPORTED)
+    public Network getWithDevicesAndDeviceClasses(@NotNull Long networkId, @NotNull HivePrincipal principal) {
+        if (principal.getUser() != null) {
+            List<Network> found = networkDAO.getNetworkList(principal.getUser(), null, Arrays.asList(networkId));
+            if (found.isEmpty()) {
+                return null;
+            }
+            List<Device> devices = deviceService.getList(networkId, principal);
+            Network result = found.get(0);
+            result.setDevices(new HashSet<>(devices));
+            return result;
+        } else {
+            AccessKey key = principal.getKey();
+            User user = userService.findUserWithNetworks(key.getUser().getId());
+            List<Network> found = networkDAO.getNetworkList(user,
+                    key.getPermissions(),
+                    Arrays.asList(networkId));
+            Network result = found.isEmpty() ? null : found.get(0);
+            if (result == null) {
+                return result;
+            }
+            //to get proper devices 1) get access key with all permissions 2) get devices for required network
+            key = accessKeyService.find(key.getId(), principal.getKey().getUser().getId());
+            if (!CheckPermissionsHelper.checkAllPermissions(key, AllowedKeyAction.Action.GET_DEVICE)) {
+                result.setDevices(null);
+                return result;
+            }
+            Set<Device> devices =
+                    new HashSet<>(deviceService.getList(result.getId(), principal));
+            result.setDevices(devices);
+            return result;
+        }
+    }

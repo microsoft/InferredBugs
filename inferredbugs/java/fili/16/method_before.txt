@@ -1,0 +1,39 @@
+    @Override
+    public void clearDimension() {
+        Set<DimensionRow> dimensionRows = findAllDimensionRows();
+        IndexWriterConfig indexWriterConfig = new IndexWriterConfig(analyzer).setRAMBufferSizeMB(BUFFER_SIZE);
+        lock.writeLock().lock();
+        try {
+            try (IndexWriter writer = new IndexWriter(luceneDirectory, indexWriterConfig)) {
+                //Remove all dimension data from the store.
+                String rowId = dimension.getKey().getName();
+                dimensionRows.stream()
+                        .map(DimensionRow::getRowMap)
+                        .map(map -> map.get(rowId))
+                        .map(id -> DimensionStoreKeyUtils.getRowKey(rowId, id))
+                        .forEach(keyValueStore::remove);
+
+                //Since Lucene's indices are being dropped, the dimension field stored via the columnKey is becoming
+                //stale.
+                keyValueStore.remove(DimensionStoreKeyUtils.getColumnKey(dimension.getKey().getName()));
+                //The allValues key mapping needs to reflect the fact that we are dropping all dimension data.
+                keyValueStore.put(DimensionStoreKeyUtils.getAllValuesKey(), "[]");
+                //We're resetting the keyValueStore, so we don't want any stale last updated date floating around.
+                keyValueStore.remove(DimensionStoreKeyUtils.getLastUpdatedKey());
+
+                //In addition to clearing the keyValueStore, we also need to delete all of Lucene's segment files.
+                writer.deleteAll();
+                writer.commit();
+            } catch (IOException e) {
+                LOG.error(ErrorMessageFormat.FAIL_TO_WIPTE_LUCENE_INDEX_DIR.format(luceneDirectory));
+                throw new RuntimeException(e);
+            }
+
+            //This must be outside the try-resources block because it may _also_ need to open an IndexWriter, and
+            //opening an IndexWriter involves taking a write lock on lucene, of which there can only be one at a time.
+            reopenIndexSearcher(true);
+            refreshCardinality();
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }

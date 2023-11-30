@@ -1,0 +1,23 @@
+ @RequestMapping(value = "/consumer/offset/{group}/{topic}/realtime/ajax", method = RequestMethod.GET)
+	public void offsetGraphAjax(@PathVariable("group") String group, @PathVariable("topic") String topic, HttpServletResponse response, HttpServletRequest request) {
+		response.setContentType("text/html;charset=utf-8");
+		response.setCharacterEncoding("utf-8");
+		response.setHeader("Charset", "utf-8");
+		response.setHeader("Cache-Control", "no-cache");
+		response.setHeader("Content-Encoding", "gzip");
+
+		String ip = request.getHeader("x-forwarded-for");
+		LOG.info("IP:" + (ip == null ? request.getRemoteAddr() : ip));
+
+		try {
+			byte[] output = GzipUtils.compressToByte(OffsetService.getOffsetsGraph(group, topic));
+			response.setContentLength(output == null ? "NULL".toCharArray().length : output.length);
+			OutputStream out = response.getOutputStream();
+			out.write(output);
+
+			out.flush();
+			out.close();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}

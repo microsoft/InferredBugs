@@ -1,0 +1,76 @@
+        protected override void ProcessSingleParameter(System.CodeDom.CodeParameterDeclarationExpression codeParam, NativeParameter ntParam, bool isDelegateParam)
+        {
+            // There are several kinds of structures where we don't want to do this optimization.  The
+            // most pertinent being handle types.  They have an ugly structure definition and 
+            // everyone would just rather use the IntPtr version
+            if (IsHandleType(ntParam.NativeType) || IsVoidPointerType(ntParam.NativeType))
+            {
+                return;
+            }
+
+            // If this is a pointer to a char type then don't convert it 
+            if (IsPointerToCharType(ntParam))
+            {
+                return;
+            }
+
+            // Filter for Pointer types
+            NativeType paramType = ntParam.NativeTypeDigged;
+            if (paramType.Kind != NativeSymbolKind.PointerType)
+            {
+                return;
+            }
+
+            NativeType realNt = ((NativePointer)paramType).RealTypeDigged;
+            if (!(realNt.Category == NativeSymbolCategory.Defined || realNt.Kind == NativeSymbolKind.BuiltinType))
+            {
+                return;
+            }
+
+            // Look at the SAL attribute and make sure this is just a single element pointer
+            SalAnalyzer analyzer = new SalAnalyzer(ntParam.SalAttribute);
+            bool isSingle = false;
+            FieldDirection direction = default(FieldDirection);
+
+            if (analyzer.IsEmpty)
+            {
+                // If there are no SAL attributes then assume this is a simple out pointer
+                isSingle = true;
+                direction = FieldDirection.Ref;
+            }
+            else
+            {
+                if (analyzer.IsIn())
+                {
+                    isSingle = true;
+                    codeParam.CustomAttributes.Clear();
+                    codeParam.CustomAttributes.Add(MarshalAttributeFactory.CreateInAttribute());
+                    direction = FieldDirection.Ref;
+                }
+                else if (analyzer.IsOut())
+                {
+                    isSingle = true;
+                    codeParam.CustomAttributes.Clear();
+                    codeParam.CustomAttributes.Add(MarshalAttributeFactory.CreateOutAttribute());
+                    direction = FieldDirection.Out;
+                }
+                else if (analyzer.IsInOut())
+                {
+                    isSingle = true;
+                    codeParam.CustomAttributes.Clear();
+                    direction = FieldDirection.Ref;
+                }
+                else
+                {
+                    direction = FieldDirection.Ref;
+                }
+            }
+
+            if (isSingle)
+            {
+                // Found one
+                codeParam.Type = _trans.GenerateTypeReference(realNt);
+                codeParam.Direction = direction;
+                SetParamProcessed(codeParam);
+            }
+        }

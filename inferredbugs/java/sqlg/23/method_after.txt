@@ -1,0 +1,18 @@
+    @Test
+    public void testLoadingJson() throws Exception {
+        Assume.assumeTrue(this.sqlgGraph.getSqlDialect().supportsJson());
+        ObjectMapper objectMapper =  new ObjectMapper();
+        ObjectNode json = new ObjectNode(objectMapper.getNodeFactory());
+        json.put("username", "john");
+        Vertex v1 = this.sqlgGraph.addVertex(T.label, "Person", "doc", json);
+        this.sqlgGraph.tx().commit();
+        this.sqlgGraph.close();
+        try (SqlgGraph sqlgGraph1 = SqlgGraph.open(configuration)) {
+            Vertex vv = sqlgGraph1.traversal().V(v1.id()).next();
+            Assert.assertTrue(vv.property("doc").isPresent());
+            Map<String, PropertyType> propertyTypeMap = sqlgGraph1.getTopology().getAllTables().get(SchemaTable.of(
+                    sqlgGraph1.getSqlDialect().getPublicSchema(), "V_Person").toString());
+            Assert.assertTrue(propertyTypeMap.containsKey("doc"));
+            sqlgGraph1.tx().rollback();
+        }
+    }

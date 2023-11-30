@@ -1,0 +1,24 @@
+    public static AssemblyInfo GetAssemblyInfo(string assemblyPath, Action<string> outputHandler)
+    {
+      // Verify assembly path was passed in.
+      if (string.IsNullOrWhiteSpace(assemblyPath))
+      {
+        throw new ArgumentNullException("assemblyPath");
+      }
+
+      // Make sure the file actually exists.
+      if (!File.Exists(assemblyPath))
+      {
+        throw new FileNotFoundException("Could not find provided assembly file.", assemblyPath);
+      }
+
+      using (var corflags = new CorFlags(assemblyPath))
+      {
+        if (!corflags.Run(outputHandler))
+        {
+          throw new InvalidOperationException(string.Format(CultureInfo.CurrentCulture, "CORFLAGS failed to execute for assembly '{0}'.", assemblyPath));
+        }
+
+        return corflags.AssemblyInfo;
+      }
+    }

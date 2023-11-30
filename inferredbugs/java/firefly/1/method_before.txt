@@ -1,0 +1,36 @@
+ public void flush() {
+		if (fileOutput && buffer.size() > 0) {
+			BufferedWriter bufferedWriter = null;
+			try {
+				String date = LogFactory.dayDateFormat.format(new Date());
+				bufferedWriter = getBufferedWriter(date);
+				
+				for (LogItem logItem = null; (logItem = buffer.poll()) != null;) {
+					Date d = new Date();
+					String newDate = LogFactory.dayDateFormat.format(d);
+					if(!newDate.equals(date)) {
+						if (bufferedWriter != null)
+							try {
+								bufferedWriter.close();
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
+						date = newDate;
+						bufferedWriter = getBufferedWriter(date);
+					}
+					
+					logItem.setDate(SafeSimpleDateFormat.defaultDateFormat.format(d));
+					bufferedWriter.append(logItem.toString() + CL);
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			} finally {
+				if (bufferedWriter != null)
+					try {
+						bufferedWriter.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+			}
+		}
+	}

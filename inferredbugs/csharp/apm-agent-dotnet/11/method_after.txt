@@ -1,0 +1,21 @@
+  [Fact]
+		public void TransactionWithSpanWithoutEnd()
+		{
+			var transactionName = "TestTransaction";
+			var transactionType = "UnitTest";
+			var spanName = "TestSpan";
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			var transaction = agent.Tracer.StartTransaction(transactionName, transactionType);
+
+			var unused = transaction.StartSpan(spanName, ApiConstants.TypeExternal);
+
+			Thread.Sleep(5); //Make sure we have duration > 0
+
+			transaction.End(); //Ends transaction, but doesn't end span.
+			Assert.NotEmpty(payloadSender.Payloads);
+			Assert.Empty(payloadSender.Payloads[0].Transactions[0].Spans);
+
+			Assert.NotNull(payloadSender.Payloads[0].Service);
+		}

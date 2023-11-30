@@ -1,0 +1,64 @@
+    @Override
+    protected void populateBuffer() {
+
+        if (lastDate == null) {
+            lastDate = String.format(DATEFORMAT, new Date());
+        }
+
+        LOG.info("{} Populating buffer with nextFetchDate <= {}", logIdprefix,
+                lastDate);
+
+        QueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(
+                "nextFetchDate").lte(lastDate);
+
+        SearchRequestBuilder srb = client.prepareSearch(indexName)
+                .setTypes(docType).setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(rangeQueryBuilder).setFrom(0).setSize(0)
+                .setExplain(false);
+
+        TermsAggregationBuilder aggregations = AggregationBuilders
+                .terms("partition").field(partitionField).size(maxBucketNum);
+
+        TopHitsAggregationBuilder tophits = AggregationBuilders.topHits("docs")
+                .size(maxURLsPerBucket).explain(false);
+        // sort within a bucket
+        if (StringUtils.isNotBlank(bucketSortField)) {
+            FieldSortBuilder sorter = SortBuilders.fieldSort(bucketSortField)
+                    .order(SortOrder.ASC);
+            tophits.sort(sorter);
+        }
+
+        aggregations.subAggregation(tophits);
+
+        // sort between buckets
+        if (StringUtils.isNotBlank(totalSortField)) {
+            MinAggregationBuilder minBuilder = AggregationBuilders.min(
+                    "top_hit").field(totalSortField);
+            aggregations.subAggregation(minBuilder);
+            aggregations.order(Terms.Order.aggregation("top_hit", true));
+        }
+
+        if (sample) {
+            DiversifiedAggregationBuilder sab = new DiversifiedAggregationBuilder(
+                    "sample");
+            sab.field(partitionField).maxDocsPerValue(maxURLsPerBucket);
+            sab.shardSize(maxURLsPerBucket * maxBucketNum);
+            sab.subAggregation(aggregations);
+            srb.addAggregation(sab);
+        } else {
+            srb.addAggregation(aggregations);
+        }
+
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-preference.html
+        // _shards:2,3
+        if (shardID != -1) {
+            srb.setPreference("_shards:" + shardID);
+        }
+
+        // dump query to log
+        LOG.debug("{} ES query {}", logIdprefix, srb.toString());
+
+        timeStartESQuery = System.currentTimeMillis();
+        isInESQuery.set(true);
+        srb.execute(this);
+    }

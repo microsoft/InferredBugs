@@ -1,0 +1,52 @@
+ @EventHandler
+	public void onStructureGrow(StructureGrowEvent event) {
+		Location location = event.getLocation();
+		GWorld world = gw.getTableManager().getWorldTable().getWorld(location.getWorld().getName());
+		TreeTable treeTable = gw.getTableManager().getTreeTable();
+		GPlayer planter;
+
+		// TODO: Add TreeType species to reduction model
+
+		if (treeTable.getLocationMap().containsKey(location)) {
+			Tree tree = treeTable.getTreeMap().get(treeTable.getLocationMap().get(location));
+			planter = tree.getOwner();
+
+			Reduction reduction = ClimateEngine.getInstance().getClimateEngine(world.getWorldName()).treeGrow(planter, event.getSpecies(), event.getBlocks());
+			int carbonScore = planter.getCarbonScore();
+			planter.setCarbonScore((int) (carbonScore - reduction.getReductionValue()));
+
+			tree.setSapling(false);
+			tree.setSize(event.getBlocks().size()); // TODO: Only consider core species blocks as tree size
+
+			// Queue tree update query
+			TreeUpdateQuery treeUpdateQuery = new TreeUpdateQuery(tree);
+			AsyncDBQueue.getInstance().queueUpdateQuery(treeUpdateQuery);
+		} else {
+			PlayerTable playerTable = GlobalWarming.getInstance().getTableManager().getPlayerTable();
+			planter = playerTable.getOrCreatePlayer(untrackedUUID, true);
+
+			// First create a new tree object and store it
+			Long uniqueId = GlobalWarming.getInstance().getRandom().nextLong();
+			// TODO: Only consider core species blocks as tree size
+			Tree tree = new Tree(uniqueId, planter, location, false, event.getBlocks().size());
+
+			TreeInsertQuery insertQuery = new TreeInsertQuery(tree);
+			AsyncDBQueue.getInstance().queueInsertQuery(insertQuery);
+
+			gw.getLogger().warning("Untracked structure grow occured:");
+			gw.getLogger().warning("@ " + location.toString());
+		}
+
+		// Create a new reduction object using the worlds climate engine
+		Reduction reduction = ClimateEngine.getInstance().getClimateEngine(world.getWorldName()).treeGrow(planter, event.getSpecies(), event.getBlocks());
+		int carbonScore = planter.getCarbonScore();
+		planter.setCarbonScore((int) (carbonScore - reduction.getReductionValue()));
+
+		// Queue player update query
+		PlayerUpdateQuery playerUpdateQuery = new PlayerUpdateQuery(planter);
+		AsyncDBQueue.getInstance().queueUpdateQuery(playerUpdateQuery);
+
+		// Queue reduction insert query
+		ReductionInsertQuery insertQuery = new ReductionInsertQuery(reduction);
+		AsyncDBQueue.getInstance().queueInsertQuery(insertQuery);
+	}

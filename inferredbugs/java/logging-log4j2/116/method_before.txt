@@ -1,0 +1,30 @@
+    @Override
+    protected void write(final byte[] bytes, final int offset, final int length, final boolean immediateFlush)  {
+        if (socket == null) {
+            if (connector != null && !immediateFail) {
+                connector.latch();
+            }
+            if (socket == null) {
+                final String msg = "Error writing to " + getName() + " socket not available";
+                throw new AppenderLoggingException(msg);
+            }
+        }
+        synchronized (this) {
+            try {
+                final OutputStream outputStream = getOutputStream();
+                outputStream.write(bytes, offset, length);
+                if (immediateFlush) {
+                    outputStream.flush();
+                }
+            } catch (final IOException ex) {
+                if (retry && connector == null) {
+                    connector = new Reconnector(this);
+                    connector.setDaemon(true);
+                    connector.setPriority(Thread.MIN_PRIORITY);
+                    connector.start();
+                }
+                final String msg = "Error writing to " + getName();
+                throw new AppenderLoggingException(msg, ex);
+            }
+        }
+    }

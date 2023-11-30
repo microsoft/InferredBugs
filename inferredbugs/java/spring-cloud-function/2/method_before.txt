@@ -1,0 +1,47 @@
+ @SuppressWarnings("unchecked")
+	protected void initialize(ExecutionContext ctxt) {
+
+		ConfigurableApplicationContext context = AzureSpringFunctionInitializer.context;
+
+		if (!this.initialized.compareAndSet(false, true)) {
+			return;
+		}
+		if (ctxt != null) {
+			ctxt.getLogger().info("Initializing functions");
+		}
+
+		if (context == null) {
+			synchronized (AzureSpringFunctionInitializer.class) {
+				if (context == null) {
+					SpringApplicationBuilder builder = new SpringApplicationBuilder(
+							configurationClass);
+					ClassUtils.overrideThreadContextClassLoader(
+							AzureSpringFunctionInitializer.class.getClassLoader());
+
+					context = builder.web(WebApplicationType.NONE).run();
+					AzureSpringFunctionInitializer.context = context;
+				}
+			}
+
+		}
+
+		context.getAutowireCapableBeanFactory().autowireBean(this);
+		String name = context.getEnvironment().getProperty("function.name");
+
+		if (name == null) {
+			name = "function";
+		}
+		if (this.catalog == null) {
+			this.function = context.getBean(name, Function.class);
+		}
+		else {
+			Set<String> functionNames = this.catalog.getNames(Function.class);
+			if (functionNames.size() == 1) {
+				this.function = this.catalog.lookup(Function.class,
+						functionNames.iterator().next());
+			}
+			else {
+				this.function = this.catalog.lookup(Function.class, name);
+			}
+		}
+	}

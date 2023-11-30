@@ -1,0 +1,24 @@
+    @Override
+    public Result<Account> importAccount(String prikey, String password) {
+        if (!ECKey.isValidPrivteHex(prikey)) {
+            return Result.getFailed(AccountErrorCode.PARAMETER_ERROR);
+        }
+        Account account;
+        try {
+            account = AccountTool.createAccount(prikey);
+        } catch (NulsException e) {
+            return Result.getFailed(AccountErrorCode.FAILED);
+        }
+        if (StringUtils.validPassword(password)) {
+            try {
+                account.encrypt(password);
+            } catch (NulsException e) {
+                Log.error(e);
+            }
+        }
+        AccountPo po = new AccountPo(account);
+        accountStorageService.saveAccount(po);
+        LOCAL_ADDRESS_LIST.add(account.getAddress().toString());
+        accountLedgerService.importAccountLedger(account.getAddress().getBase58());
+        return Result.getSuccess().setData(account);
+    }

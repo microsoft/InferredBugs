@@ -1,0 +1,13 @@
+    protected void changeRole(Role new_role) {
+        final RaftImpl new_impl=new_role == Role.Follower? new Follower(this) : new_role == Role.Candidate? new Candidate(this) : new Leader(this);
+        withLockDo(impl_lock, new Callable<Void>() {
+            public Void call() throws Exception {
+                if(!impl.getClass().equals(new_impl.getClass())) {
+                    impl.destroy();
+                    new_impl.init();
+                    impl=new_impl;
+                }
+                return null;
+            }
+        });
+    }

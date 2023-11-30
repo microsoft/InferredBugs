@@ -1,0 +1,38 @@
+    @Test
+    public void testCloseExpiredIdleConnections() throws Exception {
+
+        final PoolingHttpClientConnectionManager mgr = new PoolingHttpClientConnectionManager();
+        mgr.setMaxTotal(1);
+
+        final HttpHost target = getServerHttp();
+        final HttpRoute route = new HttpRoute(target, null, false);
+        final HttpContext context = new BasicHttpContext();
+
+        final HttpClientConnection conn = getConnection(mgr, route);
+        mgr.connect(conn, route.getTargetHost(), route.getLocalSocketAddress(), 0, context);
+
+        Assert.assertEquals(1, mgr.getTotalStats().getLeased());
+        Assert.assertEquals(1, mgr.getStats(route).getLeased());
+
+        mgr.releaseConnection(conn, null, 100, TimeUnit.MILLISECONDS);
+
+        // Released, still active.
+        Assert.assertEquals(1, mgr.getTotalStats().getAvailable());
+        Assert.assertEquals(1, mgr.getStats(route).getAvailable());
+
+        mgr.closeExpiredConnections();
+
+        // Time has not expired yet.
+        Assert.assertEquals(1, mgr.getTotalStats().getAvailable());
+        Assert.assertEquals(1, mgr.getStats(route).getAvailable());
+
+        Thread.sleep(150);
+
+        mgr.closeExpiredConnections();
+
+        // Time expired now, connections are destroyed.
+        Assert.assertEquals(0, mgr.getTotalStats().getAvailable());
+        Assert.assertEquals(0, mgr.getStats(route).getAvailable());
+
+        mgr.shutdown();
+    }

@@ -1,0 +1,73 @@
+ private PackageDescriptor buildControl( final File[] pControlFiles, final BigInteger pDataSize, final StringBuffer pChecksums, final File pOutput ) throws FileNotFoundException, IOException, ParseException {
+
+		PackageDescriptor packageDescriptor = null;
+
+		final TarOutputStream outputStream = new TarOutputStream(new GZIPOutputStream(new FileOutputStream(pOutput)));
+		outputStream.setLongFileMode(TarOutputStream.LONGFILE_GNU);
+
+		for (int i = 0; i < pControlFiles.length; i++) {
+			final File file = pControlFiles[i];
+
+			if (file.isDirectory()) {
+				continue;
+			}
+
+			final TarEntry entry = new TarEntry(file);
+
+			final String name = file.getName();
+
+			entry.setName(name);
+
+			if ("control".equals(name)) {
+				packageDescriptor = new PackageDescriptor(new FileInputStream(file), resolver);
+
+				if (packageDescriptor.get("Date") == null) {
+					packageDescriptor.set("Date", new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z").format(new Date())); // Mon, 26 Mar 2007 11:44:04 +0200
+				}
+
+				if (packageDescriptor.get("Distribution") == null) {
+					packageDescriptor.set("Distribution", "unknown");
+				}
+
+				if (packageDescriptor.get("Urgency") == null) {
+					packageDescriptor.set("Urgency", "low");
+				}
+
+				if (packageDescriptor.get("Maintainer") == null) {
+					
+					final String debFullName = System.getenv("DEBFULLNAME");
+					final String debEmail = System.getenv("DEBEMAIL");
+					if (debFullName != null && debEmail != null) {
+						packageDescriptor.set("Maintainer", debFullName + " <" + debEmail + ">");
+					}
+				}				
+				
+				continue;
+			}			
+
+			final InputStream inputStream = new FileInputStream(file);
+
+			outputStream.putNextEntry(entry);
+
+			Utils.copy(inputStream, outputStream);								
+
+			outputStream.closeEntry();
+
+			inputStream.close();
+
+		}
+
+		if (packageDescriptor == null) {
+			throw new FileNotFoundException("No control file in " + Arrays.toString(pControlFiles));
+		}
+
+		packageDescriptor.set("Installed-Size", pDataSize.toString());
+
+		addEntry("control", packageDescriptor.toString(), outputStream);
+
+		addEntry("md5sums", pChecksums.toString(), outputStream);
+
+		outputStream.close();
+
+		return packageDescriptor;
+	}

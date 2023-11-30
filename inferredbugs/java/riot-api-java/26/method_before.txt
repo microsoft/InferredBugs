@@ -1,0 +1,22 @@
+ @Override
+	protected boolean setState(RequestState state) {
+		boolean success = super.setState(state);
+		if (!success) {
+			return false;
+		}
+		if (listener != null) {
+			if (state == RequestState.Succeeded) {
+				listener.onRequestSucceeded(this);
+			} else if (state == RequestState.Failed) {
+				listener.onRequestFailed(getException());
+			} else if (state == RequestState.TimeOut) {
+				listener.onRequestTimeout(this);
+			}
+		}
+		if (state == RequestState.Succeeded || state == RequestState.Failed || state == RequestState.TimeOut) {
+			synchronized (signal) {
+				signal.notifyAll();
+			}
+		}
+		return true;
+	}

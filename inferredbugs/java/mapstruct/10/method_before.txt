@@ -1,0 +1,91 @@
+    private List<Method> retrieveMethods(TypeElement element, boolean implementationRequired) {
+        List<Method> methods = new ArrayList<Method>();
+
+        MapperPrism mapperPrism = implementationRequired ? MapperPrism.getInstanceOn( element ) : null;
+
+        //TODO Extract to separate method
+        for ( ExecutableElement method : methodsIn( element.getEnclosedElements() ) ) {
+            Parameter parameter = executables.retrieveParameter( method );
+            Type returnType = executables.retrieveReturnType( method );
+
+            boolean mappingErroneous = false;
+
+            if ( implementationRequired ) {
+                if ( parameter.getType().isIterableType() && !returnType.isIterableType() ) {
+                    printMessage(
+                        ReportingPolicy.ERROR,
+                        "Can't generate mapping method from iterable type to non-iterable type.",
+                        method
+                    );
+                    mappingErroneous = true;
+                }
+                if ( !parameter.getType().isIterableType() && returnType.isIterableType() ) {
+                    printMessage(
+                        ReportingPolicy.ERROR,
+                        "Can't generate mapping method from non-iterable type to iterable type.",
+                        method
+                    );
+                    mappingErroneous = true;
+                }
+                if ( parameter.getType().isPrimitive() ) {
+                    printMessage(
+                        ReportingPolicy.ERROR,
+                        "Can't generate mapping method with primitive parameter type.",
+                        method
+                    );
+                    mappingErroneous = true;
+                }
+                if ( returnType.isPrimitive() ) {
+                    printMessage(
+                        ReportingPolicy.ERROR,
+                        "Can't generate mapping method with primitive return type.",
+                        method
+                    );
+                    mappingErroneous = true;
+                }
+
+                if ( mappingErroneous ) {
+                    continue;
+                }
+            }
+
+            //add method with property mappings if an implementation needs to be generated
+            if ( implementationRequired ) {
+                methods.add(
+                    Method.forMethodRequiringImplementation(
+                        method,
+                        parameter.getName(),
+                        parameter.getType(),
+                        returnType,
+                        getMappings( method )
+                    )
+                );
+            }
+            //otherwise add reference to existing mapper method
+            else {
+                methods.add(
+                    Method.forReferencedMethod(
+                        typeUtil.getType( typeUtils.getDeclaredType( element ) ),
+                        method,
+                        parameter.getName(),
+                        parameter.getType(),
+                        returnType
+                    )
+                );
+            }
+        }
+
+        //Add all methods of used mappers in order to reference them in the aggregated model
+        if ( implementationRequired ) {
+            for ( TypeMirror usedMapper : mapperPrism.uses() ) {
+                methods.addAll(
+                    retrieveMethods(
+                        (TypeElement) ( (DeclaredType) usedMapper ).asElement(),
+                        false
+                    )
+                );
+            }
+        }
+
+        return methods;
+    }

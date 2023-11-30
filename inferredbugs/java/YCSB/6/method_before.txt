@@ -1,0 +1,31 @@
+ public void acknowledge(int value)
+	{
+		if (value > limit + WINDOW_SIZE) {
+			throw new RuntimeException("This should be a different exception.");
+		}
+
+		window[value % WINDOW_SIZE] = true;
+
+		if (lock.tryLock()) {
+			// move a contiguous sequence from the window
+			// over to the "limit" variable
+
+			try {
+				int index;
+
+				for (index = limit + 1; index <= value; ++index) {
+					int slot = index % WINDOW_SIZE;
+
+					if (!window[slot]) {
+						break;
+					}
+
+					window[slot] = false;
+				}
+
+				limit = index - 1;
+			} finally {
+				lock.unlock();
+			}
+		}
+	}

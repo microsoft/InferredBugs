@@ -1,0 +1,25 @@
+    protected void handleException(Exception e, Architecture arch,
+            String version) {
+        String versionStr = isNullOrEmpty(version) ? "(latest version)"
+                : version;
+        String errorMessage = String.format(
+                "There was an error managing %s %s (%s)", getDriverName(),
+                versionStr, e.getMessage());
+        if (!config().isForceCache() && retryCount == 0) {
+            config().setForceCache(true);
+            config().setUseMirror(true);
+            retryCount++;
+            log.warn("{} ... trying again using mirror", errorMessage);
+            manage(arch, version);
+        } else if (retryCount == 1) {
+            config().setAvoidAutoVersion(true);
+            version = "";
+            retryCount++;
+            log.warn("{} ... trying again using latest from cache",
+                    errorMessage);
+            manage(arch, version);
+        } else {
+            log.error("{}", errorMessage, e);
+            throw new WebDriverManagerException(e);
+        }
+    }

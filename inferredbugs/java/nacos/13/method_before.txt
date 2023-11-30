@@ -1,0 +1,67 @@
+    @RequestMapping("/onAddIP4Dom")
+    public String onAddIP4Dom(HttpServletRequest request) throws Exception {
+        if (Switch.getDisableAddIP()) {
+            throw new AccessControlException("Adding IP for dom is forbidden now.");
+        }
+
+        String clientIP = WebUtils.required(request, "clientIP");
+
+        long term = Long.parseLong(WebUtils.required(request, "term"));
+
+        if (!RaftCore.isLeader(clientIP)) {
+            Loggers.RAFT.warn("peer(" + JSON.toJSONString(clientIP) + ") tried to publish " +
+                "data but wasn't leader, leader: " + JSON.toJSONString(RaftCore.getLeader()));
+            throw new IllegalStateException("peer(" + clientIP + ") tried to publish " +
+                "data but wasn't leader");
+        }
+
+        if (term < RaftCore.getPeerSet().local().term.get()) {
+            Loggers.RAFT.warn("out of date publish, pub-term: "
+                + JSON.toJSONString(clientIP) + ", cur-term: " + JSON.toJSONString(RaftCore.getPeerSet().local()));
+            throw new IllegalStateException("out of date publish, pub-term:"
+                + term + ", cur-term: " + RaftCore.getPeerSet().local().term.get());
+        }
+
+        RaftCore.getPeerSet().local().resetLeaderDue();
+
+        final String dom = WebUtils.required(request, "dom");
+        if (domainsManager.getDomain(dom) == null) {
+            throw new IllegalStateException("dom doesn't exist: " + dom);
+        }
+
+        boolean updateOnly = Boolean.parseBoolean(WebUtils.optional(request, "updateOnly", Boolean.FALSE.toString()));
+
+        String ipListString = WebUtils.required(request, "ipList");
+        List<IpAddress> newIPs = new ArrayList<>();
+
+        List<String> ipList;
+        if (Boolean.parseBoolean(WebUtils.optional(request, SwitchEntry.PARAM_JSON, Boolean.FALSE.toString()))) {
+            newIPs = JSON.parseObject(ipListString, new TypeReference<List<IpAddress>>() {
+            });
+        } else {
+            ipList = Arrays.asList(ipListString.split(","));
+            for (String ip : ipList) {
+                IpAddress ipAddr = IpAddress.fromJSON(ip);
+                newIPs.add(ipAddr);
+            }
+        }
+
+        long timestamp = Long.parseLong(WebUtils.required(request, "timestamp"));
+
+        if (CollectionUtils.isEmpty(newIPs)) {
+            throw new IllegalArgumentException("Empty ip list");
+        }
+
+        if (updateOnly) {
+            //make sure every IP is in the dom, otherwise refuse update
+            List<IpAddress> oldIPs = domainsManager.getDomain(dom).allIPs();
+            Collection diff = CollectionUtils.subtract(newIPs, oldIPs);
+            if (diff.size() != 0) {
+                throw new IllegalArgumentException("these IPs are not present: " + Arrays.toString(diff.toArray())
+                    + ", if you want to add them, remove updateOnly flag");
+            }
+        }
+        domainsManager.easyAddIP4Dom(dom, newIPs, timestamp, term);
+
+        return "ok";
+    }

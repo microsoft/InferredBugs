@@ -1,0 +1,39 @@
+    @Test
+    public void testReplaceDepartments(){
+        List<Department> departments = Departments.defaultDepartments().list();
+
+        File tmpDir = Files.createTempDir();
+        File groups = new File(tmpDir, "departments.csv");
+
+        try {
+            PrintWriter groupPrintWriter = new PrintWriter(new BufferedWriter(new FileWriter(groups, false)));
+            groupPrintWriter.println("部门名称,部门ID,父部门ID,排序");
+
+            for (Department department : departments) {
+                groupPrintWriter.print(csv(department));
+            }
+            groupPrintWriter.close();
+
+            String job = Jobs.defaultJobs().replaceDepartments(groups);
+            while (true) {
+                JobResult jobResult = Jobs.defaultJobs().getResult(job);
+                if (3 == jobResult.getStatus()) {
+                    if (100 == jobResult.getPercentage()) {
+                        Assert.assertTrue(true);
+                    }
+                    break;
+                } else {
+                    System.out.println("正在同步:" + jobResult.getPercentage());
+                    sleep(100);
+                }
+            }
+        } catch(Exception e) {
+            e.printStackTrace();
+            Assert.fail("test failed.");
+        } finally {
+            try {
+                FileUtils.forceDelete(tmpDir);
+            } catch (IOException e) {
+            }
+        }
+    }

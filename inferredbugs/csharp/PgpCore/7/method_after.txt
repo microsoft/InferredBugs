@@ -1,0 +1,72 @@
+        private void DecryptAndVerify(Stream inputStream, Stream outputStream, Stream publicKeyStream, Stream privateKeyStream, string passPhrase)
+        {
+            // find secret key
+            PgpSecretKeyRingBundle pgpSec = new PgpSecretKeyRingBundle(PgpUtilities.GetDecoderStream(privateKeyStream));
+            PgpEncryptedDataList encryptedDataList = Utilities.GetEncryptedDataList(PgpUtilities.GetDecoderStream(inputStream));
+
+            // decrypt
+            PgpPrivateKey privateKey = null;
+            PgpPublicKeyEncryptedData pbe = null;
+            foreach (PgpPublicKeyEncryptedData pked in encryptedDataList.GetEncryptedDataObjects())
+            {
+                privateKey = FindSecretKey(pgpSec, pked.KeyId, passPhrase.ToCharArray());
+
+                if (privateKey != null)
+                {
+                    pbe = pked;
+                    break;
+                }
+            }
+
+            if (privateKey == null)
+                throw new ArgumentException("Secret key for message not found.");
+
+            var publicKey = Utilities.ReadPublicKey(publicKeyStream);
+
+            PgpObjectFactory plainFact = null;
+            using (Stream clear = pbe.GetDataStream(privateKey))
+            {
+                plainFact = new PgpObjectFactory(clear);
+            }
+            
+            PgpObject message = plainFact.NextPgpObject();
+
+            if (message is PgpCompressedData cData)
+            {
+                using (Stream compDataIn = cData.GetDataStream())
+                {
+                    plainFact = new PgpObjectFactory(compDataIn);
+                }
+
+                message = plainFact.NextPgpObject();
+            }
+
+            if (message is PgpOnePassSignatureList pgpOnePassSignatureList)
+            {
+                PgpOnePassSignature pgpOnePassSignature = pgpOnePassSignatureList[0];
+
+                var verified = publicKey.KeyId == pgpOnePassSignature.KeyId || publicKey.GetKeySignatures().Cast<PgpSignature>().Select(x => x.KeyId).Contains(pgpOnePassSignature.KeyId);
+                if (verified == false)
+                    throw new PgpException("Failed to verify file.");
+
+                message = plainFact.NextPgpObject();
+            }
+            else
+                throw new PgpException("File was not signed.");
+
+            if (message is PgpLiteralData ld)
+            {
+                Stream unc = ld.GetInputStream();
+                Streams.PipeAll(unc, outputStream);
+
+                if (pbe.IsIntegrityProtected())
+                {
+                    if (!pbe.Verify())
+                    {
+                        throw new PgpException("Message failed integrity check.");
+                    }
+                }
+            }
+            else
+                throw new PgpException("Message is not a simple encrypted file.");
+        }

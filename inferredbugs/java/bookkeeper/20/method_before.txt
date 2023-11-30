@@ -1,0 +1,53 @@
+    @Test
+    public void testEnsembleReformation() throws Exception {
+        try {
+            LedgerManagerFactory newLedgerManagerFactory = LedgerManagerFactory
+                    .newLedgerManagerFactory(baseConf, zkc);
+            LedgerManager ledgerManager = newLedgerManagerFactory
+                    .newLedgerManager();
+
+            List<Long> ledgerList = new ArrayList<Long>(3);
+            LedgerHandle lh1 = createAndAddEntriesToLedger();
+            ledgerList.add(lh1.getId());
+            LedgerHandle lh2 = createAndAddEntriesToLedger();
+            ledgerList.add(lh2.getId());
+
+            startNewBookie();
+            shutdownBookie(bs.size() - 2);
+
+            // add few more entries after ensemble reformation
+            for (int i = 0; i < 10; i++) {
+                ByteBuffer entry = ByteBuffer.allocate(4);
+                entry.putInt(rng.nextInt(Integer.MAX_VALUE));
+                entry.position(0);
+
+                entries.add(entry.array());
+                lh1.addEntry(entry.array());
+                lh2.addEntry(entry.array());
+            }
+
+            BookieLedgerIndexer bookieLedgerIndex = new BookieLedgerIndexer(
+                    ledgerManager);
+
+            Map<String, Set<Long>> bookieToLedgerIndex = bookieLedgerIndex
+                    .getBookieToLedgerIndex();
+            assertEquals("Missed few bookies in the bookie-ledger mapping!", 4,
+                    bookieToLedgerIndex.size());
+            Collection<Set<Long>> bk2ledgerEntry = bookieToLedgerIndex.values();
+            for (Set<Long> ledgers : bk2ledgerEntry) {
+                assertEquals(
+                        "Missed few ledgers in the bookie-ledger mapping!", 2,
+                        ledgers.size());
+                for (Long ledgerNode : ledgers) {
+                    assertTrue("Unknown ledger-bookie mapping", ledgerList
+                            .contains(ledgerNode));
+                }
+            }
+        } catch (BKException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to BookKeeper exception");
+        } catch (InterruptedException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to interruption");
+        }
+    }

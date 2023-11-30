@@ -1,0 +1,22 @@
+  private void doDeploy() {
+    recursiveDeployAuditors(context.getAuditors(), new DefaultFutureResult<Void>().setHandler(new Handler<AsyncResult<Void>>() {
+      @Override
+      public void handle(AsyncResult<Void> result) {
+        if (result.failed()) {
+          logger.error("Failed to deploy auditor verticle.", result.cause());
+          container.exit();
+        }
+        else {
+          new RecursiveDeployer(context).deploy(new Handler<AsyncResult<Void>>() {
+            @Override
+            public void handle(AsyncResult<Void> result) {
+              if (result.failed()) {
+                container.logger().error("Failed to deploy network.", result.cause());
+                container.exit();
+              }
+            }
+          });
+        }
+      }
+    }));
+  }

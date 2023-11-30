@@ -1,0 +1,38 @@
+  public void merge(final CueballFilePath base,
+                    final List<CueballFilePath> deltas,
+                    final String newBasePath,
+                    final int keyHashSize,
+                    final int valueSize,
+                    ValueTransformer transformer,
+                    int hashIndexBits,
+                    CompressionCodec compressionCodec) throws IOException {
+
+    CueballStreamBufferMergeSort cueballStreamBufferMergeSort = new CueballStreamBufferMergeSort(base,
+        deltas,
+        keyHashSize,
+        hashIndexBits,
+        valueSize,
+        compressionCodec,
+        transformer);
+
+    // Output stream for the new base to be written. intentionally unbuffered, the writer below will do that on its own.
+    OutputStream newCueballBaseOutputStream = new FileOutputStream(newBasePath);
+
+    // Note that we intentionally omit the hasher here, since it will *not* be used
+    CueballWriter newCueballBaseWriter =
+        new CueballWriter(newCueballBaseOutputStream, keyHashSize, null, valueSize, compressionCodec, hashIndexBits);
+
+    while (true) {
+      CueballStreamBufferMergeSort.KeyHashValuePair keyValuePair = cueballStreamBufferMergeSort.nextKeyValuePair();
+      if (keyValuePair == null) {
+        break;
+      }
+
+      // Write next key hash and value
+      newCueballBaseWriter.writeHash(keyValuePair.keyHash, keyValuePair.value);
+    }
+
+    // Close all buffers and the base writer
+    cueballStreamBufferMergeSort.close();
+    newCueballBaseWriter.close();
+  }

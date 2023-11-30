@@ -1,0 +1,38 @@
+    @Test
+    public void testRestoredFromFileAsyncCommitting() throws Exception {
+        SessionHolder.init(".");
+        GlobalSession globalSession = new GlobalSession("demo-app", "my_test_tx_group", "test", 6000);
+
+        globalSession.addSessionLifecycleListener(SessionHolder.getRootSessionManager());
+        globalSession.begin();
+
+        BranchSession branchSession1 = SessionHelper.newBranchByGlobal(globalSession, BranchType.AT, RESOURCE_ID,
+            "ta:1", "xxx");
+        Assert.assertTrue(branchSession1.lock());
+        globalSession.addBranch(branchSession1);
+
+        LockManager lockManager = LockManagerFactory.get();
+
+        Assert.assertFalse(lockManager.isLockable(0L, RESOURCE_ID, "ta:1"));
+
+        globalSession.changeStatus(GlobalStatus.AsyncCommitting);
+
+        lockManager.cleanAllLocks();
+
+        Assert.assertTrue(lockManager.isLockable(0L, RESOURCE_ID, "ta:1"));
+
+        // Re-init SessionHolder: restore sessions from file
+        SessionHolder.init(".");
+
+        long tid = globalSession.getTransactionId();
+        GlobalSession reloadSession = SessionHolder.findGlobalSession(tid);
+        Assert.assertEquals(reloadSession.getStatus(), GlobalStatus.AsyncCommitting);
+
+        GlobalSession sessionInAsyncCommittingQueue = SessionHolder.getAsyncCommittingSessionManager()
+            .findGlobalSession(tid);
+        Assert.assertTrue(reloadSession == sessionInAsyncCommittingQueue);
+
+        // No locking for session in AsyncCommitting status
+        Assert.assertTrue(lockManager.isLockable(0L, RESOURCE_ID, "ta:1"));
+
+    }

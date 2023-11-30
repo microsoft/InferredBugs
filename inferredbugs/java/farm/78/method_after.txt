@@ -1,0 +1,33 @@
+    @Test
+    public void estimatesJobsWithDifferentCurrencies() throws Exception {
+        final Project project = new FkProject();
+        final Farm farm = new PropsFarm();
+        new Ledger(farm, project).bootstrap().add(
+            new Ledger.Transaction(
+                new Cash.S("$500"),
+                "assets", "cash",
+                "income", "sponsor",
+                "Funded by some guy"
+            )
+        );
+        final Estimates estimates = new Estimates(farm, project).bootstrap();
+        final String first = "gh:yegor256/pdd#4";
+        final Wbs wbs = new Wbs(project).bootstrap();
+        wbs.add(first);
+        new Orders(farm, project).bootstrap()
+            .assign(first, "yegor256", UUID.randomUUID().toString());
+        estimates.update(first, new Cash.S("$45"));
+        MatcherAssert.assertThat(
+            estimates.get(first),
+            Matchers.equalTo(new Cash.S("$45.00"))
+        );
+        final String second = "gh:yegor256/pdd#1";
+        wbs.add(second);
+        new Orders(farm, project).bootstrap()
+            .assign(second, "yegor", UUID.randomUUID().toString());
+        estimates.update(second, new Cash.S("€100"));
+        MatcherAssert.assertThat(
+            estimates.total(),
+            Matchers.equalTo(new Cash.S("$177.00"))
+        );
+    }

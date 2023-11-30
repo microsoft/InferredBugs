@@ -1,0 +1,64 @@
+    @Override
+    public Page download(Request request, Task task) {
+        Site site = null;
+        if (task != null) {
+            site = task.getSite();
+        }
+        Set<Integer> acceptStatCode;
+        String charset = null;
+        Map<String, String> headers = null;
+        if (site != null) {
+            acceptStatCode = site.getAcceptStatCode();
+            charset = site.getCharset();
+            headers = site.getHeaders();
+        } else {
+            acceptStatCode = Sets.newHashSet(200);
+        }
+        logger.info("downloading page {}" , request.getUrl());
+        RequestBuilder requestBuilder = RequestBuilder.get().setUri(request.getUrl());
+        if (headers != null) {
+            for (Map.Entry<String, String> headerEntry : headers.entrySet()) {
+                requestBuilder.addHeader(headerEntry.getKey(), headerEntry.getValue());
+            }
+        }
+        RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
+                .setConnectionRequestTimeout(site.getTimeOut())
+                .setSocketTimeout(site.getTimeOut())
+                .setConnectTimeout(site.getTimeOut())
+                .setCookieSpec(CookieSpecs.BEST_MATCH);
+        if (site != null && site.getHttpProxy() != null) {
+            requestConfigBuilder.setProxy(site.getHttpProxy());
+        }
+        requestBuilder.setConfig(requestConfigBuilder.build());
+        CloseableHttpResponse httpResponse = null;
+        try {
+            httpResponse = getHttpClient(site).execute(requestBuilder.build());
+            int statusCode = httpResponse.getStatusLine().getStatusCode();
+            if (acceptStatCode.contains(statusCode)) {
+                //charset
+                if (charset == null) {
+                    String value = httpResponse.getEntity().getContentType().getValue();
+                    charset = UrlUtils.getCharset(value);
+                }
+                return handleResponse(request, charset, httpResponse, task);
+            } else {
+                logger.warn("code error " + statusCode + "\t" + request.getUrl());
+                return null;
+            }
+        } catch (IOException e) {
+            logger.warn("download page " + request.getUrl() + " error", e);
+            if (site.getCycleRetryTimes() > 0) {
+                return addToCycleRetry(request, site);
+            }
+            return null;
+        } finally {
+            try {
+                if (httpResponse != null) {
+                    //ensure the connection is released back to pool
+                    EntityUtils.consume(httpResponse.getEntity());
+                }
+            } catch (IOException e) {
+                logger.warn("close response fail", e);
+            }
+        }
+    }

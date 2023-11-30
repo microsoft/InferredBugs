@@ -1,0 +1,90 @@
+    public static FiltersrvController createController(String[] args) {
+        System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
+
+        if (null == System.getProperty(NettySystemConfig.COM_ROCKETMQ_REMOTING_SOCKET_SNDBUF_SIZE)) {
+            NettySystemConfig.socketSndbufSize = 65535;
+        }
+
+        if (null == System.getProperty(NettySystemConfig.COM_ROCKETMQ_REMOTING_SOCKET_RCVBUF_SIZE)) {
+            NettySystemConfig.socketRcvbufSize = 1024;
+        }
+
+        try {
+            Options options = ServerUtil.buildCommandlineOptions(new Options());
+            final CommandLine commandLine =
+                ServerUtil.parseCmdLine("mqfiltersrv", args, buildCommandlineOptions(options),
+                    new PosixParser());
+            if (null == commandLine) {
+                System.exit(-1);
+                return null;
+            }
+
+            final FiltersrvConfig filtersrvConfig = new FiltersrvConfig();
+            final NettyServerConfig nettyServerConfig = new NettyServerConfig();
+
+            if (commandLine.hasOption('c')) {
+                String file = commandLine.getOptionValue('c');
+                if (file != null) {
+                    InputStream in = new BufferedInputStream(new FileInputStream(file));
+                    Properties properties = new Properties();
+                    properties.load(in);
+                    MixAll.properties2Object(properties, filtersrvConfig);
+                    System.out.printf("load config properties file OK, " + file + "%n");
+                    in.close();
+
+                    String port = properties.getProperty("listenPort");
+                    if (port != null) {
+                        filtersrvConfig.setConnectWhichBroker(String.format("127.0.0.1:%s", port));
+                    }
+                }
+            }
+
+            nettyServerConfig.setListenPort(0);
+            nettyServerConfig.setServerAsyncSemaphoreValue(filtersrvConfig.getFsServerAsyncSemaphoreValue());
+            nettyServerConfig.setServerCallbackExecutorThreads(filtersrvConfig
+                .getFsServerCallbackExecutorThreads());
+            nettyServerConfig.setServerWorkerThreads(filtersrvConfig.getFsServerWorkerThreads());
+
+            if (commandLine.hasOption('p')) {
+                MixAll.printObjectProperties(null, filtersrvConfig);
+                MixAll.printObjectProperties(null, nettyServerConfig);
+                System.exit(0);
+            }
+
+            MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), filtersrvConfig);
+            if (null == filtersrvConfig.getRocketmqHome()) {
+                System.out.printf("Please set the " + MixAll.ROCKETMQ_HOME_ENV
+                    + " variable in your environment to match the location of the RocketMQ installation%n");
+                System.exit(-2);
+            }
+
+            LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+            JoranConfigurator configurator = new JoranConfigurator();
+            configurator.setContext(lc);
+            lc.reset();
+            configurator.doConfigure(filtersrvConfig.getRocketmqHome() + "/conf/logback_filtersrv.xml");
+            log = LoggerFactory.getLogger(LoggerName.FILTERSRV_LOGGER_NAME);
+
+            final FiltersrvController controller =
+                new FiltersrvController(filtersrvConfig, nettyServerConfig);
+            boolean initResult = controller.initialize();
+            if (!initResult) {
+                controller.shutdown();
+                System.exit(-3);
+            }
+
+            Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    controller.shutdown();
+                    return null;
+                }
+            }));
+
+            return controller;
+        } catch (Throwable e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+        return null;
+    }

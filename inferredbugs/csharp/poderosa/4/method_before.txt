@@ -1,0 +1,23 @@
+        private SSHPacketInterceptorResult CheckAgentOpenRequestPacket(SSH1PacketType packetType, DataFragment packet) {
+            if (packetType != SSH1PacketType.SSH_SMSG_AGENT_OPEN) {
+                return SSHPacketInterceptorResult.PassThrough;
+            }
+
+            SSH1DataReader reader = new SSH1DataReader(packet);
+            reader.ReadByte();    // skip message number
+            uint remoteChannel = reader.ReadUInt32();
+
+            // create a temporary channel
+            var channel = _createChannel(remoteChannel);
+
+            // create a handler
+            var handler = new SSH1AgentForwardingMessageHandler(channel, _authKeyProvider);
+
+            // register a channel to the connection object
+            _registerChannel(channel, handler);
+
+            // send SSH_MSG_CHANNEL_OPEN_CONFIRMATION
+            channel.SendOpenConfirmation();
+
+            return SSHPacketInterceptorResult.Consumed;
+        }

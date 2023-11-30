@@ -1,0 +1,17 @@
+    @Property(trials = TRIALS)
+    public void shouldCollectToListWithThrottledParallelism(@InRange(minInt = 2, maxInt = 20) int unitsOfWork, @InRange(minInt = 1, maxInt = 40) int parallelism) {
+        // given
+        executor = threadPoolExecutor(unitsOfWork);
+        long expectedDuration = expectedDuration(parallelism, unitsOfWork, BLOCKING_MILLIS);
+
+        Map.Entry<List<Long>, Long> result = timed(collectWith(f -> parallelToList(f, executor, parallelism), unitsOfWork));
+
+        assertThat(result)
+          .satisfies(e -> {
+              assertThat(e.getValue())
+                .isGreaterThanOrEqualTo(expectedDuration)
+                .isCloseTo(expectedDuration, offset(CONSTANT_DELAY));
+
+              assertThat(e.getKey()).hasSize(unitsOfWork);
+          });
+    }

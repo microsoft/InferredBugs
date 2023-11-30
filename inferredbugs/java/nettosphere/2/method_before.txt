@@ -1,0 +1,21 @@
+    void _close() {
+        if (!isClosed.getAndSet(true)) {
+            headerWritten = false;
+            final ChannelBuffer buffer = ChannelBuffers.dynamicBuffer();
+            ChannelBufferOutputStream c = new ChannelBufferOutputStream(buffer);
+            try {
+                c.write(ENDCHUNK);
+                channel.write(buffer).addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture future) throws Exception {
+                        if (!keepAlive) {
+                            channel.close().awaitUninterruptibly();
+                        }
+                    }
+                });
+
+            } catch (IOException e) {
+                logger.trace("Close error", e);
+            }
+        }
+    }

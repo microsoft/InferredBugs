@@ -1,0 +1,111 @@
+        public static bool VerifySigWithCoseKey(byte[] data, PeterO.Cbor.CBORObject coseKey, byte[] sig)
+        {
+            // Validate that alg matches the algorithm of the credentialPublicKey in authenticatorData
+            var kty = coseKey[PeterO.Cbor.CBORObject.FromObject(1)].AsInt32();
+            var alg = coseKey[PeterO.Cbor.CBORObject.FromObject(3)].AsInt32();
+            var crv = 0;
+            if (1 == kty || 2 == kty) crv = coseKey[PeterO.Cbor.CBORObject.FromObject(-1)].AsInt32();
+            switch (kty) // https://www.iana.org/assignments/cose/cose.xhtml#key-type
+            {
+                case 1: // OKP
+                    {
+                        switch (alg) // https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+                        {
+                            case -8:
+                                switch (crv) // https://www.iana.org/assignments/cose/cose.xhtml#elliptic-curves
+                                {
+                                    case 6:
+                                        throw new Fido2VerificationException("ALG_SIGN_ED25519_EDDSA_SHA512_RAW support not yet implmented");
+                                    default:
+                                        throw new ArgumentOutOfRangeException("crv");
+                                }
+                            default:
+                                throw new ArgumentOutOfRangeException("alg");
+                        }
+                    }
+                case 2: // EC2
+                    {
+                        var point = new ECPoint
+                        {
+                            X = coseKey[PeterO.Cbor.CBORObject.FromObject(-2)].GetByteString(),
+                            Y = coseKey[PeterO.Cbor.CBORObject.FromObject(-3)].GetByteString()
+                        };
+                        ECCurve curve = ECCurve.NamedCurves.nistP256;
+                        switch (alg) // https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+                        {
+                            case -7:
+                                switch (crv) // https://www.iana.org/assignments/cose/cose.xhtml#elliptic-curves
+                                {
+                                    case 1:
+                                    case 8:
+                                        break;
+                                    default:
+                                        throw new ArgumentOutOfRangeException("crv");
+                                }
+                                break;
+                            case -35:
+                                switch (crv) // https://www.iana.org/assignments/cose/cose.xhtml#elliptic-curves
+                                {
+                                    case 2:
+                                        curve = ECCurve.NamedCurves.nistP384;
+                                        break;
+                                    default:
+                                        throw new ArgumentOutOfRangeException("crv");
+                                }
+                                break;
+                            case -36:
+                                switch (crv) // https://www.iana.org/assignments/cose/cose.xhtml#elliptic-curves
+                                {
+                                    case 3:
+                                        curve = ECCurve.NamedCurves.nistP521;
+                                        System.Diagnostics.Debug.WriteLine(BitConverter.ToString(sig).Replace("-", ""));
+                                        break;
+                                    default:
+                                        throw new ArgumentOutOfRangeException("crv");
+                                }
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException("alg");
+                        }
+                        var cng = ECDsaCng.Create(new ECParameters
+                        {
+                            Q = point,
+                            Curve = curve
+                        });
+                        var ecsig = SigFromEcDsaSig(sig);
+                        System.Diagnostics.Debug.WriteLine(BitConverter.ToString(ecsig).Replace("-", ""));
+                        return cng.VerifyData(data, ecsig, algMap[alg]);
+                    }
+                case 3: // RSA
+                    {
+                        RSACng rsa = new RSACng();
+                        rsa.ImportParameters(
+                            new RSAParameters()
+                            {
+                                Modulus = coseKey[PeterO.Cbor.CBORObject.FromObject(-1)].GetByteString(),
+                                Exponent = coseKey[PeterO.Cbor.CBORObject.FromObject(-2)].GetByteString()
+                            }
+                        );
+                        RSASignaturePadding padding = RSASignaturePadding.Pss;
+                        switch (alg)
+                        {
+
+                            case -37:
+                            case -38:
+                            case -39:
+                                break;
+
+                            case -65535:
+                            case -257:
+                            case -258:
+                            case -259:
+                                padding = RSASignaturePadding.Pkcs1;
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException("alg");
+                        }
+                        return rsa.VerifyData(data, sig, algMap[alg], padding);
+                    }
+            }
+            throw new Fido2VerificationException("Missing or unknown keytype");
+        }

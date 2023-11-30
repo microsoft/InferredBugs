@@ -1,0 +1,46 @@
+        private Node<T> chooseNode(Rectangle r, int level)
+        {
+            // CL1 [Initialize] Set N to be the root node
+            Node<T> n = getNode(rootNodeId);
+            parents.Clear();
+            parentsEntry.Clear();
+
+            // CL2 [Leaf check] If N is a leaf, return N
+            while (true)
+            {
+                if (n == null)
+                {
+                    Debug.WriteLine($"Could not get root Node<T> ({rootNodeId})");
+                }
+
+                if (n.level == level)
+                {
+                    return n;
+                }
+
+                // CL3 [Choose subtree] If N is not at the desired level, let F be the entry in N
+                // whose rectangle FI needs least enlargement to include EI. Resolve
+                // ties by choosing the entry with the rectangle of smaller area.
+                float leastEnlargement = n.getEntry(0).enlargement(r);
+                int index = 0; // index of rectangle in subtree
+                for (int i = 1; i < n.entryCount; i++)
+                {
+                    Rectangle tempRectangle = n.getEntry(i);
+                    float tempEnlargement = tempRectangle.enlargement(r);
+                    if ((tempEnlargement < leastEnlargement) ||
+                        ((tempEnlargement == leastEnlargement) &&
+                         (tempRectangle.area() < n.getEntry(index).area())))
+                    {
+                        index = i;
+                        leastEnlargement = tempEnlargement;
+                    }
+                }
+
+                parents.Push(n.nodeId);
+                parentsEntry.Push(index);
+
+                // CL4 [Descend until a leaf is reached] Set N to be the child Node&lt;T&gt;
+                // pointed to by Fp and repeat from CL2
+                n = getNode(n.ids[index]);
+            }
+        }

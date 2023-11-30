@@ -1,0 +1,24 @@
+ public boolean deleteFromFileBlocks(Node f) {
+		// 先判断一下文件块所在的存储区
+		File rootPath = new File(ConfigureReader.instance().getFileBlockPath());
+		if (!f.getFilePath().startsWith("file_")) {// 存放于主文件系统中
+			short index = Short.parseShort(f.getFilePath().substring(0, f.getFilePath().indexOf('_')));
+			rootPath = ConfigureReader.instance().getExtendStores().parallelStream()
+					.filter((e) -> e.getIndex() == index).findAny().get().getPath();
+		}
+		// 获取对应的文件块对象
+		File file = getFileFromBlocks(f);
+		if (file != null) {
+			if (file.delete()) {
+				File parentPath = file.getParentFile();
+				while (parentPath != null && parentPath.isDirectory() && (!parentPath.equals(rootPath))
+						&& parentPath.list().length == 0) {
+					File thisPath = parentPath;
+					parentPath = thisPath.getParentFile();
+					thisPath.delete();
+				}
+				return true;
+			}
+		}
+		return false;
+	}

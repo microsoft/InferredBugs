@@ -1,0 +1,89 @@
+ private InstanceSet buildInstanceList(String file) throws IOException {
+
+		System.out.print("生成训练数据 ...");
+
+		FNLPReader reader = new FNLPReader(file);
+		FNLPReader preReader = new FNLPReader(file);
+		InstanceSet instset = new InstanceSet();
+		
+		LabelAlphabet la = factory.DefaultLabelAlphabet();
+		IFeatureAlphabet fa = factory.DefaultFeatureAlphabet();
+		int count = 0;
+		
+		//preReader为了把ysize定下来
+		la.lookupIndex("S");
+		while(preReader.hasNext()){
+			Sentence sent = (Sentence) preReader.next();
+			Target targets = (Target)sent.getTarget();
+			for(int i=0; i<sent.length(); i++){
+				String label;
+				if(targets.getHead(i) != -1){
+					if(targets.getHead(i) < i){
+						label = "L" + targets.getDepClass(i);
+					}
+					//else if(targets.getHead(i) > i){
+					else{
+						label = "R" + targets.getDepClass(i);
+					}
+					la.lookupIndex(label);
+				}
+			}
+		}
+		int ysize = la.size();
+		la.setStopIncrement(true);
+				
+		while (reader.hasNext()) {
+			Sentence sent = (Sentence) reader.next();
+			//	int[] heads = (int[]) instance.getTarget();
+			String depClass = null;
+			Target targets = (Target)sent.getTarget();
+			JointParsingState state = new JointParsingState(sent);
+			
+			while (!state.isFinalState()) {
+				// 左右焦点词在句子中的位置
+				int[] lr = state.getFocusIndices();
+
+				ArrayList<String> features = state.getFeatures();
+				JointParsingState.Action action = getAction(lr[0], lr[1],
+						targets);
+				switch (action) {
+				case LEFT:
+					depClass = targets.getDepClass(lr[1]);
+					break;
+				case RIGHT:
+					depClass = targets.getDepClass(lr[0]);
+					break;
+				default:
+
+				}
+				state.next(action,depClass);
+				if (action == JointParsingState.Action.LEFT)
+					targets.setHeads(lr[1],-1);
+				if (action == JointParsingState.Action.RIGHT)
+					targets.setHeads(lr[0],-1);
+				String label = "";
+				switch (action) {
+				case LEFT:
+					label += "L"+sent.getDepClass(lr[1]);		
+					break;
+				case RIGHT:
+					label+="R"+sent.getDepClass(lr[0]);
+					break;
+				default:
+					label = "S";					
+				}
+				int id = la.lookupIndex(label);				
+				Instance inst = new Instance();
+				inst.setTarget(id);
+				int[] idx = JointParser.addFeature(fa, features, ysize);
+				inst.setData(idx);
+				instset.add(inst);
+			}
+			count++;
+//			System.out.println(count);
+		}
+		
+		instset.setAlphabetFactory(factory);
+		System.out.printf("共生成实例:%d个\n", count);
+		return instset;
+	}

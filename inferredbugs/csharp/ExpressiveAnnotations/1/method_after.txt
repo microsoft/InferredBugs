@@ -1,0 +1,35 @@
+        private Expression ParseVal()
+        {
+            Token token;
+            if (!PeekToken(out token))
+                throw new InvalidOperationException();
+
+            if (token.Id == TokenId.LEFT_BRACKET)
+            {
+                CrushToken();
+                var arg = ParseOrExp();
+                if (!PeekToken(out token) || token.Id != TokenId.RIGHT_BRACKET)
+                    throw new InvalidOperationException();
+                CrushToken();
+                return arg;
+            }
+
+            CrushToken();
+            switch (token.Id)
+            {
+                case TokenId.NULL:
+                    return Expression.Constant(null);
+                case TokenId.INT:
+                    return Expression.Constant(token.Value, typeof(int));
+                case TokenId.FLOAT:
+                    return Expression.Constant(token.Value, typeof(float));
+                case TokenId.BOOL:
+                    return Expression.Constant(token.Value, typeof(bool));
+                case TokenId.STRING:
+                    return Expression.Constant(token.Value, typeof(string));
+                case TokenId.PROPERTY:
+                    return ExtractProp(token.Value.ToString());
+                default:
+                    throw new InvalidOperationException();
+            }
+        }

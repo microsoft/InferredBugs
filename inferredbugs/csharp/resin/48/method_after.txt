@@ -1,0 +1,14 @@
+        public INodeReader GetOrTryCreateIndexReader(ulong collectionId, long keyId)
+        {
+            var ixFileName = Path.Combine(_sessionFactory.Dir, string.Format("{0}.{1}.ix", collectionId, keyId));
+
+            if (!File.Exists(ixFileName))
+                return null;
+
+            var collectionReaders = _nodeReaders.GetOrAdd(collectionId, new ConcurrentDictionary<long, INodeReader>());
+
+            return collectionReaders.GetOrAdd(keyId, new NodeReader(
+                    collectionId,
+                    keyId,
+                    _sessionFactory));
+        }

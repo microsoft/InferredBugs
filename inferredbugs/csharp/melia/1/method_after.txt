@@ -1,0 +1,32 @@
+  public void InitProperties()
+		{
+			if (this.Job == null)
+				throw new InvalidOperationException("Character's jobs need to be loaded before initializing the properties.");
+
+			// We need something to check whether the properties were
+			// already initialized. Let's just use a variable for that.
+			if (!this.Variables.Perm.Defined("PropertiesInitialized"))
+			{
+				this.Properties.Set(PropertyId.PC.Lv, 1);
+				this.Exp = 0;
+				this.TotalExp = 0;
+				this.MaxExp = ChannelServer.Instance.Data.ExpDb.GetNextExp(1);
+
+				this.Properties.Set(PropertyId.PC.STR_JOB, this.Job.Data.Str);
+				this.Properties.Set(PropertyId.PC.CON_JOB, this.Job.Data.Con);
+				this.Properties.Set(PropertyId.PC.INT_JOB, this.Job.Data.Int);
+				this.Properties.Set(PropertyId.PC.MNA_JOB, this.Job.Data.Spr);
+				this.Properties.Set(PropertyId.PC.DEX_JOB, this.Job.Data.Dex);
+				this.Properties.Set(PropertyId.PC.HP, this.Properties.Calculate(PropertyId.PC.MHP));
+				this.Properties.Set(PropertyId.PC.SP, this.Properties.Calculate(PropertyId.PC.MSP));
+
+				(this.Properties as CharacterProperties).Stamina = (int)this.Properties.Calculate(PropertyId.PC.MaxSta);
+
+				this.Variables.Perm["PropertiesInitialized"] = true;
+			}
+
+			var properties = (this.Properties as CharacterProperties);
+
+			properties.UpdateCalculated();
+			properties.InitAutoUpdates();
+		}

@@ -1,0 +1,52 @@
+    @Override
+    public final String get(final String path,
+                            final SlingHttpServletRequest request,
+                            final SlingHttpServletResponse response) {
+
+
+        if (!serveAuthenticatedFromCache && !isAnonymousRequest(request)) {
+            // For authenticated requests, don't return from cache
+            return ResourceDataUtil.getIncludeAsString(path, request, response);
+        }
+
+        final long start = System.currentTimeMillis();
+
+        // Lock the cache because we we increment values within the cache even on valid cache hits
+        synchronized (this.cache) {
+
+            CacheEntry cacheEntry = cache.get(path);
+
+            if (cacheEntry == null || cacheEntry.isExpired(new Date())) {
+
+                // Cache Miss
+
+                if (cacheEntry == null) {
+                    cacheEntry = new CacheEntry();
+                }
+
+                final String data = ResourceDataUtil.getIncludeAsString(path, request, response);
+
+                cacheEntry.setData(data);
+                cacheEntry.setExpiresIn(ttl);
+                cacheEntry.incrementMisses();
+
+                // Add entry to cache
+                cache.put(path, cacheEntry);
+
+                log.info("Served cache MISS for [ {} ] in [ {} ] ms", path, System.currentTimeMillis() - start);
+
+                return data;
+            } else {
+                // Cache Hit
+
+                final String data = cacheEntry.getData();
+
+                cacheEntry.incrementHits();
+                cache.put(path, cacheEntry);
+
+                log.info("Served cache HIT for [ {} ] in [ {} ] ms", path, System.currentTimeMillis() - start);
+
+                return data;
+            }
+        }
+    }

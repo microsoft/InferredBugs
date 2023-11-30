@@ -1,0 +1,77 @@
+    @Override
+    public void process(final CommandProcess process) {
+        int exitCode = 0;
+        RowAffect affect = new RowAffect();
+
+        try {
+            Instrumentation inst = process.session().getInstrumentation();
+            ClassLoader classloader = null;
+            if (hashCode == null) {
+                classloader = ClassLoader.getSystemClassLoader();
+            } else {
+                classloader = ClassLoaderUtils.getClassLoader(inst, hashCode);
+                if (classloader == null) {
+                    process.write("Can not find classloader with hashCode: " + hashCode + ".\n");
+                    exitCode = -1;
+                    return;
+                }
+            }
+
+            DynamicCompiler dynamicCompiler = new DynamicCompiler(classloader, new Writer() {
+                @Override
+                public void write(char[] cbuf, int off, int len) throws IOException {
+                    process.write(new String(cbuf, off, len));
+                }
+
+                @Override
+                public void flush() throws IOException {
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+
+            });
+
+            Charset charset = Charset.defaultCharset();
+            if (encoding != null) {
+                charset = Charset.forName(encoding);
+            }
+
+            for (String sourceFile : sourcefiles) {
+                String sourceCode = FileUtils.readFileToString(new File(sourceFile), charset);
+                String name = new File(sourceFile).getName();
+                if (name.endsWith(".java")) {
+                    name = name.substring(0, name.length() - ".java".length());
+                }
+                dynamicCompiler.addSource(name, sourceCode);
+            }
+
+            Map<String, byte[]> byteCodes = dynamicCompiler.buildByteCodes();
+
+            File outputDir = null;
+            if (this.directory != null) {
+                outputDir = new File(this.directory);
+            } else {
+                outputDir = new File("").getAbsoluteFile();
+            }
+
+            process.write("Memory compiler output:\n");
+            for (Entry<String, byte[]> entry : byteCodes.entrySet()) {
+                File byteCodeFile = new File(outputDir, entry.getKey().replace('.', '/') + ".class");
+                FileUtils.writeByteArrayToFile(byteCodeFile, entry.getValue());
+                process.write(byteCodeFile.getAbsolutePath() + '\n');
+                affect.rCnt(1);
+            }
+
+        } catch (Throwable e) {
+            logger.warn("Memory compiler error", e);
+            process.write("Memory compiler error, exception message: " + e.getMessage()
+                            + ", please check $HOME/logs/arthas/arthas.log for more details. \n");
+            exitCode = -1;
+        } finally {
+            process.write(affect + "\n");
+            process.end(exitCode);
+        }
+    }

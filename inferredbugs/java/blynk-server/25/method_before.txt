@@ -1,0 +1,43 @@
+    @GET
+    @Path("{token}/pin/{pin}")
+    @Metric(HTTP_GET_PIN_DATA)
+    public Response getWidgetPinData(@PathParam("token") String token,
+                                     @PathParam("pin") String pinString) {
+
+        TokenValue tokenValue = tokenManager.getTokenValueByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return Response.badRequest("Invalid token.");
+        }
+
+        final User user = tokenValue.user;
+        final int dashId = tokenValue.dashId;
+        final int deviceId = tokenValue.deviceId;
+
+        DashBoard dashBoard = user.profile.getDashById(dashId);
+
+        PinType pinType;
+        byte pin;
+
+        try {
+            pinType = PinType.getPinType(pinString.charAt(0));
+            pin = Byte.parseByte(pinString.substring(1));
+        } catch (NumberFormatException | IllegalCommandBodyException e) {
+            log.debug("Wrong pin format. {}", pinString);
+            return Response.badRequest("Wrong pin format.");
+        }
+
+        Widget widget = dashBoard.findWidgetByPin(deviceId, pin, pinType);
+
+        if (widget == null) {
+            String value = dashBoard.pinsStorage.get(new PinStorageKey(deviceId, pinType, pin));
+            if (value == null) {
+                log.debug("Requested pin {} not found. User {}", pinString, user.email);
+                return Response.badRequest("Requested pin doesn't exist in the app.");
+            }
+            return ok(JsonParser.valueToJsonAsString(value.split(StringUtils.BODY_SEPARATOR_STRING)));
+        }
+
+        return ok(widget.getJsonValue());
+    }

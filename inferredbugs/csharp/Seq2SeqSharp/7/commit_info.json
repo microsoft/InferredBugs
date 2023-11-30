@@ -1,0 +1,433 @@
+{
+    "hash": "dc6247aff6b29539bf1ad05e1719ca6a6ca1c0b7",
+    "message": "Added shared QKV in multi-heads attention layer\nAdd inplace for add operation",
+    "file_num_lines": 1222,
+    "diff_parsed": {
+        "added": [
+            [
+                332,
+                "        public IWeightTensor Add(IWeightTensor w1, IWeightTensor w2, bool runGradient1 = true, bool runGradient2 = true, bool inPlace = false)"
+            ],
+            [
+                336,
+                "            WeightTensor res = null;"
+            ],
+            [
+                337,
+                ""
+            ],
+            [
+                338,
+                "            if (inPlace)"
+            ],
+            [
+                339,
+                "            {"
+            ],
+            [
+                340,
+                "                res = m1.CopyWeightsRef($\"{GetHashString(w1.Name)}.Add\");"
+            ],
+            [
+                341,
+                "            }"
+            ],
+            [
+                342,
+                "            else"
+            ],
+            [
+                343,
+                "            {"
+            ],
+            [
+                344,
+                "                res = m_weightTensorFactory.CreateWeightTensor(m1.Sizes, m_deviceId, name: $\"{GetHashString(w1.Name, w2.Name)}.Add\", graphToBind: this);"
+            ],
+            [
+                345,
+                "            }"
+            ],
+            [
+                430,
+                "                throw new NotSupportedException($\"Log operation doesn't support back propagation.\");"
+            ],
+            [
+                1519,
+                "        public IWeightTensor Select(IWeightTensor src, int dim, int index)"
+            ],
+            [
+                1520,
+                "        {"
+            ],
+            [
+                1521,
+                "            WeightTensor s = src as WeightTensor;"
+            ],
+            [
+                1522,
+                "            var resTWeight = s.TWeight.Select(dim, index);"
+            ],
+            [
+                1524,
+                "            WeightTensor res = m_weightTensorFactory.CreateWeightTensor(resTWeight.Sizes, m_deviceId, name: $\"Select_{m_deviceId}\", graphToBind: this);"
+            ],
+            [
+                1525,
+                "            res.TWeight = resTWeight;"
+            ],
+            [
+                1527,
+                "            if (m_needsBackprop)"
+            ],
+            [
+                1528,
+                "            {"
+            ],
+            [
+                1529,
+                "                Action backward = () =>"
+            ],
+            [
+                1530,
+                "                {"
+            ],
+            [
+                1531,
+                "                    res.ReleaseWeight();"
+            ],
+            [
+                1533,
+                "                    using (var tmpG = s.TGradient.Select(dim, index))"
+            ],
+            [
+                1534,
+                "                    {"
+            ],
+            [
+                1535,
+                "                        Ops.Add(tmpG, tmpG, res.TGradient);"
+            ],
+            [
+                1536,
+                "                    }"
+            ],
+            [
+                1537,
+                "                    res.Dispose();"
+            ],
+            [
+                1538,
+                "                };"
+            ],
+            [
+                1539,
+                "                m_backprop.Add(backward);"
+            ],
+            [
+                1540,
+                "            }"
+            ],
+            [
+                1541,
+                ""
+            ],
+            [
+                1542,
+                ""
+            ],
+            [
+                1543,
+                "            return res;"
+            ],
+            [
+                1544,
+                "        }"
+            ],
+            [
+                1546,
+                "        public IWeightTensor LeftShiftTokens(List<List<int>> input, int lastTokenToPad)"
+            ],
+            [
+                1547,
+                "        {"
+            ],
+            [
+                1548,
+                "            float[] buf = new float[input.Count * input[0].Count];"
+            ],
+            [
+                1549,
+                ""
+            ],
+            [
+                1550,
+                "            for (int i = 0; i < input.Count; i++)"
+            ],
+            [
+                1552,
+                "                for (int j = 0; j < input[i].Count - 1; j++)"
+            ],
+            [
+                1554,
+                "                    buf[i * input[i].Count + j] = input[i][j + 1];"
+            ],
+            [
+                1556,
+                ""
+            ],
+            [
+                1557,
+                "                buf[(i + 1) * input[i].Count - 1] = lastTokenToPad;"
+            ],
+            [
+                1560,
+                "            WeightTensor res = m_weightTensorFactory.CreateWeightTensor(input.Count, input[0].Count, m_deviceId, name: $\"LeftShiftTokens_{m_deviceId}\", graphToBind: this);"
+            ],
+            [
+                1584,
+                "                    //for (int j = 0; j < originalLengths[k]; j++)"
+            ],
+            [
+                1585,
+                "                    //{"
+            ],
+            [
+                1586,
+                "                    //    buf[k * (paddedLength * paddedLength) + i * paddedLength + j] = 0.0f;"
+            ],
+            [
+                1587,
+                "                    //}"
+            ],
+            [
+                1588,
+                ""
+            ],
+            [
+                1589,
+                ""
+            ],
+            [
+                1590,
+                "                    Array.Fill(buf, 0.0f, k * (paddedLength * paddedLength) + i * paddedLength, originalLengths[k]);"
+            ],
+            [
+                1619,
+                "                    Array.Fill(buf, 0.0f, offset_k_i, i + 1);"
+            ],
+            [
+                1620,
+                "                    Array.Fill(buf, -99999999.0f, offset_k_i + i + 1, paddedLength - (i + 1));"
+            ],
+            [
+                1622,
+                ""
+            ],
+            [
+                1623,
+                "                Array.Fill(buf, -99999999.0f, offset_k + originalLengths[k] * paddedLength, (paddedLength - originalLengths[k]) * paddedLength);"
+            ],
+            [
+                1653,
+                "                    Array.Fill(buf, 0.0f, offset_k_i, srcOriginalLengths[k]);"
+            ],
+            [
+                1654,
+                "                    Array.Fill(buf, -99999999.0f, offset_k_i + srcOriginalLengths[k], srcPaddedLength - srcOriginalLengths[k]);"
+            ],
+            [
+                1656,
+                ""
+            ],
+            [
+                1657,
+                "                Array.Fill(buf, -99999999.0f, offset_k + tgtOriginalLengths[k] * srcPaddedLength, (tgtPaddedLength - tgtOriginalLengths[k]) * srcPaddedLength);"
+            ]
+        ],
+        "deleted": [
+            [
+                332,
+                "        public IWeightTensor Add(IWeightTensor w1, IWeightTensor w2, bool runGradient1 = true, bool runGradient2 = true)"
+            ],
+            [
+                336,
+                "            WeightTensor res = m_weightTensorFactory.CreateWeightTensor(m1.Sizes, m_deviceId, name: $\"{GetHashString(w1.Name, w2.Name)}.Add\", graphToBind: this);"
+            ],
+            [
+                421,
+                "                throw new NotSupportedException($\"MinV operation doesn't support back propagation.\");"
+            ],
+            [
+                1512,
+                "        public IWeightTensor BuildTensorFrom2DArray(List<List<int>> array, params long[] shape)"
+            ],
+            [
+                1513,
+                "        {"
+            ],
+            [
+                1514,
+                "            float[] buf = new float[array.Count * array[0].Count];"
+            ],
+            [
+                1515,
+                "            Array.Fill(buf, 0.0f);"
+            ],
+            [
+                1518,
+                "            for (int i = 0; i < array.Count; i++)"
+            ],
+            [
+                1520,
+                "                for (int j = 0; j < array[0].Count; j++)"
+            ],
+            [
+                1522,
+                "                    buf[i * array[0].Count + j] = array[i][j];"
+            ],
+            [
+                1526,
+                "            WeightTensor res = m_weightTensorFactory.CreateWeightTensor(shape, m_deviceId, name: $\"BuildTensorFrom2DArray_{m_deviceId}\", graphToBind: this);"
+            ],
+            [
+                1541,
+                ""
+            ],
+            [
+                1551,
+                "                    for (int j = 0; j < originalLengths[k]; j++)"
+            ],
+            [
+                1552,
+                "                    {"
+            ],
+            [
+                1553,
+                "                        buf[k * (paddedLength * paddedLength) + i * paddedLength + j] = 0.0f;"
+            ],
+            [
+                1554,
+                "                    }"
+            ],
+            [
+                1577,
+                "            Array.Fill(buf, -99999999.0f);"
+            ],
+            [
+                1578,
+                ""
+            ],
+            [
+                1579,
+                ""
+            ],
+            [
+                1586,
+                "                    for (int j = 0; j < originalLengths[k]; j++)"
+            ],
+            [
+                1587,
+                "                    {"
+            ],
+            [
+                1588,
+                "                        if (i >= j)"
+            ],
+            [
+                1589,
+                "                        {"
+            ],
+            [
+                1590,
+                "                            buf[offset_k_i + j] = 0.0f;"
+            ],
+            [
+                1591,
+                "                        }"
+            ],
+            [
+                1592,
+                "                        else"
+            ],
+            [
+                1593,
+                "                        {"
+            ],
+            [
+                1594,
+                "                            break;"
+            ],
+            [
+                1595,
+                "                        }"
+            ],
+            [
+                1596,
+                "                    }"
+            ],
+            [
+                1620,
+                "            Array.Fill(buf, -99999999.0f);"
+            ],
+            [
+                1628,
+                "                    for (int j = 0; j < srcOriginalLengths[k]; j++)"
+            ],
+            [
+                1629,
+                "                    {"
+            ],
+            [
+                1630,
+                "                        buf[offset_k_i + j] = 0.0f;"
+            ],
+            [
+                1631,
+                "                    }"
+            ],
+            [
+                1666,
+                ""
+            ],
+            [
+                1667,
+                "                //if (m_setEdges != null)"
+            ],
+            [
+                1668,
+                "                //{"
+            ],
+            [
+                1669,
+                "                //    m_setEdges.Clear();"
+            ],
+            [
+                1670,
+                "                //}"
+            ],
+            [
+                1671,
+                ""
+            ],
+            [
+                1672,
+                "                //if (m_name2SubGraph != null)"
+            ],
+            [
+                1673,
+                "                //{"
+            ],
+            [
+                1674,
+                "                //    m_name2SubGraph.Clear();"
+            ],
+            [
+                1675,
+                "                //}"
+            ]
+        ]
+    },
+    "num_lines_added": 60,
+    "num_lines_removed": 45
+}

@@ -1,0 +1,48 @@
+    private static void uploadFile(DeviceClient client, String baseDirectory, String relativeFileName) throws FileNotFoundException, IOException, URISyntaxException {
+        File file = new File(baseDirectory, relativeFileName);
+        try (InputStream inputStream = new FileInputStream(file))
+        {
+            long streamLength = file.length();
+
+            if(relativeFileName.startsWith("\\"))
+            {
+                relativeFileName = relativeFileName.substring(1);
+            }
+
+            int index = fileNameList.size();
+            fileNameList.add(relativeFileName);
+
+            System.out.println("Getting SAS URI for upload file " + fileNameList.get(index));
+            FileUploadSasUriResponse sasUriResponse = client.getFileUploadSasUri(new FileUploadSasUriRequest(file.getName()));
+
+            try
+            {
+                // Note that other versions of the Azure Storage SDK can be used here instead. The latest can be found here:
+                // https://github.com/Azure/azure-sdk-for-java/tree/master/sdk/storage#azure-storage-sdk-client-library-for-java
+                System.out.println("Uploading file " + fileNameList.get(index) + " with the retrieved SAS URI...");
+                CloudBlockBlob blob = new CloudBlockBlob(sasUriResponse.getBlobUri());
+                blob.upload(inputStream, streamLength);
+            }
+            catch (Exception e)
+            {
+                // Note that this is done even when the file upload fails. IoT Hub has a fixed number of SAS URIs allowed active
+                // at any given time. Once you are done with the file upload, you should free your SAS URI so that other
+                // SAS URIs can be generated. If a SAS URI is not freed through this API, then it will free itself eventually
+                // based on how long SAS URIs are configured to live on your IoT Hub.
+                FileUploadCompletionNotification completionNotification = new FileUploadCompletionNotification(sasUriResponse.getCorrelationId(), false);
+                client.completeFileUploadAsync(completionNotification);
+                System.out.println("Failed to upload file " + fileNameList.get(index));
+                e.printStackTrace();
+                return;
+            }
+            finally
+            {
+                inputStream.close();
+            }
+
+            FileUploadCompletionNotification completionNotification = new FileUploadCompletionNotification(sasUriResponse.getCorrelationId(), true);
+            client.completeFileUploadAsync(completionNotification);
+
+            System.out.println("Finished file upload for file " + fileNameList.get(index));
+        }
+    }

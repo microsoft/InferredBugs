@@ -1,0 +1,92 @@
+ public void write(Object n, VisitorContext vc) throws Exception {
+
+		File out = null;
+		boolean createdEmptyFile = false;
+		if (vc != null) {
+			out = (File) vc.get(AbstractWalker.ORIGINAL_FILE_KEY);
+		}
+		if (out == null) {
+			log.debug("Creating the target source file. This is not the original source file.");
+			out = createOutputDirectory(n);
+			createdEmptyFile = true;
+		} else {
+			log.debug("The system will overwrite the original source file.");
+		}
+		boolean write = true;
+		if (out != null) {
+			log.debug("Analyzing exclude and include rules");
+			String aux = FilenameUtils.normalize(out.getAbsolutePath(), true);
+			if (excludes != null) {
+				for (int i = 0; i < excludes.length && write; i++) {
+					if (!excludes[i].startsWith(normalizedOutputDirectory)) {
+						excludes[i] = normalizedOutputDirectory + "/"
+								+ excludes[i];
+						if (excludes[i].endsWith("\\*\\*")) {
+							excludes[i] = excludes[i].substring(0,
+									excludes[i].length() - 2);
+						}
+					}
+					write = !(excludes[i].startsWith(aux) || FilenameUtils
+							.wildcardMatch(aux, excludes[i]));
+				}
+			}
+			if (includes != null && write) {
+				write = false;
+				for (int i = 0; i < includes.length && !write; i++) {
+					if (!includes[i].startsWith(normalizedOutputDirectory)) {
+						includes[i] = normalizedOutputDirectory + "/"
+								+ includes[i];
+						if (includes[i].endsWith("\\*\\*")) {
+							includes[i] = includes[i].substring(0,
+									includes[i].length() - 2);
+						}
+					}
+
+					write = includes[i].startsWith(aux)
+							|| FilenameUtils.wildcardMatch(aux, includes[i]);
+				}
+			}
+			if (write) {
+				Writer writer = null;
+
+				try {
+
+					String content = getContent(n, vc);
+					if (content != null && !"".equals(content)) {
+						char endLineChar = getEndLineChar(out);
+
+						writer = new BufferedWriter(new OutputStreamWriter(
+								new FileOutputStream(out), getEncoding()));
+
+						if (vc.get("append") == null) {
+							write(content, writer, endLineChar);
+						} else {
+							if (Boolean.TRUE.equals(vc.get("append"))) {
+								append(content, writer, endLineChar);
+							} else {
+								write(content, writer, endLineChar);
+							}
+						}
+						Summary.getInstance().addFile(out);
+						log.debug(out.getPath() + " written ");
+					} else {
+						log.error(out.getPath()
+								+ " does not have valid content");
+						throw new WalkModException("blank code is returned");
+					}
+				} finally {
+					if (writer != null) {
+						writer.close();
+
+					}
+				}
+			} else {
+				if (createdEmptyFile && out != null && out.isFile()) {
+					out.delete();
+				}
+				log.debug("skipping " + out.getParent());
+			}
+		} else {
+			log.debug("There is no place where to write.");
+		}
+	}

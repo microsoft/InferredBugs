@@ -1,0 +1,25 @@
+    @Override
+    public List<BxDocument> getDocuments() throws TransformationException {
+        List<BxDocument> documents = new ArrayList<BxDocument>();
+
+        TrueVizToBxDocumentReader tvReader = new TrueVizToBxDocumentReader();
+        Enumeration<? extends ZipEntry> entries = zipFile.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry zipEntry = (ZipEntry) entries.nextElement();
+            if (zipEntry.getName().endsWith("xml")) {
+                try {
+                    List<BxPage> pages = tvReader.read(new InputStreamReader(zipFile.getInputStream(zipEntry), "UTF-8"));
+                    BxDocument newDoc = new BxDocument();
+                    for (BxPage page : pages) {
+                        page.setParent(newDoc);
+                    }
+                    newDoc.setFilename(zipEntry.getName());
+                    newDoc.setPages(pages);
+                    documents.add(newDoc);
+                } catch (IOException ex) {
+                    throw new TransformationException("Cannot read file!", ex);
+                }
+            }
+        }
+        return documents;
+    }

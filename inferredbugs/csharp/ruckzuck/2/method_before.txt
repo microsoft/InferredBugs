@@ -1,0 +1,42 @@
+        public static string SWResults(string Searchstring)
+        {
+            string sCatFile = @"wwwroot/rzcat.xml";
+
+            if (contentType.ToLower() == "application/json")
+                sCatFile = @"wwwroot/rzcat.json";
+
+            try
+            {
+                if (string.IsNullOrEmpty(Searchstring))
+                {
+                    if (File.Exists(sCatFile))
+                    {
+                        if (CatalogTTL == 0 || DateTime.Now.ToUniversalTime() - File.GetCreationTime(sCatFile).ToUniversalTime() <= new TimeSpan(1, 0, 0))
+                        {
+                            return File.ReadAllText(sCatFile);
+                        }
+                    }
+                }
+
+                var oClient = new HttpClient();
+                oClient.DefaultRequestHeaders.Add("AuthenticatedToken", Token);
+                oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
+                var response = oClient.GetStringAsync(sURL + "/rest/SWResults?search=" + Searchstring);
+                response.Wait(5000);
+                if (response.Result != null)
+                {
+                    string sResult = response.Result;
+                    File.WriteAllText(sCatFile, sResult);
+                    return sResult;
+                }
+            }
+            catch { }
+
+            //return old File
+            if (File.Exists(sCatFile))
+            {
+                return File.ReadAllText(sCatFile);
+            }
+
+            return "";
+        }

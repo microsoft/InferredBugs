@@ -1,0 +1,35 @@
+    @Test
+    public void consumerErrorSkipsEntryTest() throws Exception {
+        addItemsToReturn(20);
+
+        Throwable testException = new Throwable("ShardConsumerError");
+
+        doAnswer(new Answer() {
+            int expectedInvocations = recordsPublisher.responses.size();
+
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                expectedInvocations--;
+                if (expectedInvocations == 10) {
+                    throw testException;
+                }
+                if (expectedInvocations <= 0) {
+                    synchronized (processedNotifier) {
+                        processedNotifier.notifyAll();
+                    }
+                }
+                return null;
+            }
+        }).when(shardConsumer).handleInput(any(ProcessRecordsInput.class), any(Subscription.class));
+
+        synchronized (processedNotifier) {
+            subscriber.startSubscriptions();
+            processedNotifier.wait(5000);
+        }
+
+        assertThat(subscriber.getAndResetDispatchFailure(), equalTo(testException));
+        assertThat(subscriber.getAndResetDispatchFailure(), nullValue());
+
+        verify(shardConsumer, times(20)).handleInput(any(ProcessRecordsInput.class), any(Subscription.class));
+
+    }

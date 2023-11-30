@@ -1,0 +1,29 @@
+ public ZooKeeper getClient(){
+		if (zooKeeper==null) {
+			try {
+				if (INSTANCE_INIT_LOCK.tryLock(2, TimeUnit.SECONDS)) {
+					if (zooKeeper==null) {		// 二次校验，防止并发创建client
+						try {
+							zooKeeper = new ZooKeeper(zkaddress, 10000, watcher);		// TODO，本地变量方式，成功才会赋值
+							if (zkdigest!=null && zkdigest.trim().length()>0) {
+								zooKeeper.addAuthInfo("digest",zkdigest.getBytes());		// like "account:password"
+							}
+
+							zooKeeper.exists(zkpath, false);	// sync
+						} catch (Exception e) {
+							logger.error(e.getMessage(), e);
+						} finally {
+							INSTANCE_INIT_LOCK.unlock();
+						}
+						logger.info(">>>>>>>>>> xxl-conf, XxlZkClient init success.");
+					}
+				}
+			} catch (InterruptedException e) {
+				logger.error(e.getMessage(), e);
+			}
+		}
+		if (zooKeeper == null) {
+			throw new XxlConfException("XxlZkClient.zooKeeper is null.");
+		}
+		return zooKeeper;
+	}

@@ -1,0 +1,33 @@
+ public void testPropertySet() throws FileNotFoundException, IOException {
+		GenericExporter ge = new GenericExporter();
+		ge.setConfiguration(getCfg());
+		ge.setOutputDirectory(getOutputDir());
+		Properties p = new Properties();
+		p.setProperty("proptest", "A value");
+		p.setProperty( "refproperty", "proptest=${proptest}" );
+		p.setProperty("hibernatetool.booleanProperty", "true");
+		p.setProperty("hibernatetool.myTool.toolclass", "org.hibernate.tool.hbm2x.Cfg2JavaTool");
+		
+		ge.setProperties(p);
+		ge.setTemplateName("generictemplates/pojo/generic-class.ftl");
+		ge.setFilePattern("{package-name}/generic{class-name}.txt");
+		ge.start();		
+		
+		Properties generated = new Properties();
+		FileInputStream is = null;
+		try {
+			is = new FileInputStream(new File(getOutputDir(), "org/hibernate/tool/hbm2x/genericArticle.txt"));
+			generated.load(is);
+		} finally {
+			if (is != null) {
+				is.close();
+			}
+		}
+		
+		assertEquals(generated.getProperty("booleanProperty"), "true");
+		assertEquals(generated.getProperty("hibernatetool.booleanProperty"), "true");
+		assertNull(generated.getProperty("booleanWasTrue"));
+		assertEquals(generated.getProperty("myTool.value"), "value");
+		assertEquals(generated.getProperty("refproperty"), "proptest=A value");
+		
+	}

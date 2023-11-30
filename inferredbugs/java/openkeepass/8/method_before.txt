@@ -1,0 +1,37 @@
+ public KeePassFile openDatabase(String password) {
+		try {
+			byte[] aesDecryptedDbFile = decrypter.decryptDatabase(password, keepassHeader, keepassFile);
+			
+			byte[] startBytes = new byte[32];
+			ByteArrayInputStream decryptedStream = new ByteArrayInputStream(aesDecryptedDbFile);
+			decryptedStream.read(startBytes);
+			
+			// compare startBytes
+			if(!Arrays.equals(keepassHeader.getStreamStartBytes(), startBytes)) {
+				throw new KeepassDatabaseUnreadable("The keepass database file seems to be corrupt or cannot be decrypted.");
+			}
+			
+			HashedBlockInputStream hashedBlockInputStream = new HashedBlockInputStream(decryptedStream);
+			byte[] hashedBlockBytes = StreamUtils.toByteArray(hashedBlockInputStream);
+			
+			byte[] decompressed = hashedBlockBytes;
+			
+			// unzip if necessary
+			if(keepassHeader.getCompression().equals(CompressionAlgorithm.Gzip)) {
+				GZIPInputStream gzipInputStream = new GZIPInputStream(new ByteArrayInputStream(hashedBlockBytes));
+				decompressed = StreamUtils.toByteArray(gzipInputStream);
+			}
+			
+			ProtectedStringCrypto protectedStringCrypto;
+			if(keepassHeader.getCrsAlgorithm().equals(CrsAlgorithm.Salsa20)) {
+				protectedStringCrypto = Salsa20.createInstance(keepassHeader.getProtectedStreamKey());
+			}
+			else {
+				throw new UnsupportedOperationException("Only Salsa20 is supported as CrsAlgorithm at the moment!");
+			}
+			
+			return xmlParser.parse(new ByteArrayInputStream(decompressed), protectedStringCrypto);
+		} catch (IOException e) {
+			throw new RuntimeException("Could not open database file", e);
+		}
+	}

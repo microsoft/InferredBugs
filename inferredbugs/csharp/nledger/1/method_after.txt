@@ -1,0 +1,47 @@
+        public override Value PythonCommand(CallScope args)
+        {
+            if (!IsInitialized())
+                Initialize();
+
+            var argv = new List<string>();
+
+            argv.Add(Environment.GetCommandLineArgs().FirstOrDefault());
+
+            for (int i = 0; i < args.Size; i++)
+                argv.Add(args.Get<string>(i));
+
+            int status = 1;
+
+            using (GIL())
+            {
+                try
+                {
+                    //[DM] Commented piece of code below (...Runtime.Py_Main...) was initially ported from original Ledger.
+                    // However, Py_Main finalizes the context at the end of execution and the current AppDomain becomes unusable.
+                    // It is acceptable for a command-line utility but it is not a case for a software library.
+                    // The workaround is to execute the target script (w/o parameters) by means of Exec as a script block.
+                    // This solution works fine unless you have command-line arguments; they are not supported.
+                    //status = Runtime.Py_Main(argv.Count, argv.ToArray());
+
+                    //[DM] Some tests (e.g. regress\B21BF389_py.test) indicate that Python code executed by Ledger's 'python' command
+                    // expects to have variable __file___ populated with running Python file name (because Ledger uses Py_Main for this command).
+                    // For compatibility purposes, let's populate this variable with proper name.
+                    var fileName = System.IO.Path.GetFullPath(argv[1]);
+                    MainModule.ModuleObject.SetAttr("__file__", new PyString(fileName));
+
+                    MainModule.ModuleObject.Exec(System.IO.File.ReadAllText(fileName));
+                    status = 0;
+                }
+                catch (Exception ex)
+                {
+                    // [DM] PyErr_Print() is omitted
+                    ErrorContext.Current.AddErrorContext(ex.ToString());
+                    throw new RuntimeError("Failed to execute Python module");
+                }
+            }
+
+            if (status != 0)
+                throw new Exception(status.ToString());
+
+            return Value.Empty;
+        }

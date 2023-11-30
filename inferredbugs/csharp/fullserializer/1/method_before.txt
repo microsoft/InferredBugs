@@ -1,0 +1,24 @@
+        public override fsResult TryDeserialize(fsData data, ref object instance_, Type storageType) {
+            var instance = (IEnumerable)instance_;
+            var result = fsResult.Success;
+
+            if ((result += CheckType(data, fsDataType.Array)).Failed) return result;
+
+            var elementStorageType = GetElementType(storageType);
+            var addMethod = GetAddMethod(storageType);
+
+            var serializedList = data.AsList;
+            for (int i = 0; i < serializedList.Count; ++i) {
+                var itemData = serializedList[i];
+                object itemInstance = null;
+
+                // note: We don't fail the entire deserialization even if the item failed
+                var itemResult = Serializer.TryDeserialize(itemData, elementStorageType, ref itemInstance);
+                result.AddMessages(itemResult);
+                if (itemResult.Failed) continue;
+
+                addMethod.Invoke(instance, new object[] { itemInstance });
+            }
+
+            return result;
+        }

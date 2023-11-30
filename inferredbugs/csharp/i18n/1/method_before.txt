@@ -1,0 +1,74 @@
+  private Translation ParseTranslationFile(string tag)
+		{
+			//todo: consider that lines we don't understand like headers from poedit and #| should be preserved and outputted again.
+
+			Translation translation = new Translation();
+			Language language = new Language();
+			language.LanguageShortTag = tag;
+			translation.LanguageInformation = language;
+			List<TranslateItem> items = new List<TranslateItem>();
+			TranslateItem item = new TranslateItem();
+
+			string path = GetPathForLanguage(tag);
+
+			using (var fs = File.OpenText(path))
+			{
+				// http://www.gnu.org/s/hello/manual/gettext/PO-Files.html
+
+				string line;
+				bool currentlyReadingItem = false;
+				while ((line = fs.ReadLine()) != null)
+				{
+					item = new TranslateItem();
+
+
+					List<string> extractedComments = new List<string>();
+					List<string> translatorComments = new List<string>();
+					List<string> flags = new List<string>();
+					List<string> references = new List<string>();
+
+					//read all comments, flags and other descriptive items for this string
+					//if we have #~ its a historical/log entry but it is the messageID/message so we skip this do/while
+					if (line.StartsWith("#") && !line.StartsWith("#~"))
+					{
+						do
+						{
+							currentlyReadingItem = true;
+							switch (line[1])
+							{
+								case '.': //Extracted comments
+									extractedComments.Add(line.Substring(2).Trim());
+									break;
+								case ':': //references
+									references.Add(line.Substring(2).Trim());
+									break;
+								case ',': //flags
+									flags.Add(line.Substring(2).Trim());
+									break;
+								case '|': //msgid previous-untranslated-string - NOT used by us
+									break;
+								default: //translator comments
+									translatorComments.Add(line.Substring(1).Trim());
+									break;
+							}
+
+						} while ((line = fs.ReadLine()) != null && line.StartsWith("#"));
+					}
+
+					item.TranslatorComments = translatorComments;
+					item.ExtractedComments = extractedComments;
+					item.Flags = flags;
+					item.References = references;
+
+					if (currentlyReadingItem || line.StartsWith("#~"))
+					{
+						ParseBody(fs, line, item);
+						items.Add(item);
+					}
+
+					currentlyReadingItem = false;
+				}
+			}
+			translation.Items = items;
+			return translation;
+		}

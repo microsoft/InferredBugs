@@ -1,0 +1,57 @@
+  public void run() throws IOException {
+    // Add shutdown hook
+    addShutdownHook();
+    claimedRingGroupConductor = false;
+    LOG.info("Ring Group Conductor for ring group " + ringGroupName + " starting.");
+    try {
+      ringGroup = coordinator.getRingGroup(ringGroupName);
+
+      // attempt to claim the ring group conductor title
+      if (ringGroup.claimRingGroupConductor(configurator.getInitialMode())) {
+        claimedRingGroupConductor = true;
+
+        // we are now *the* ring group conductor for this ring group.
+        domainGroup = ringGroup.getDomainGroup();
+
+        // set a watch on the ring group
+        ringGroup.setListener(this);
+
+        // set a watch on the domain group version
+        domainGroup.setListener(this);
+
+        // loop until we're taken down
+        stopping = false;
+        try {
+          while (!stopping) {
+            // take a snapshot of the current ring, since
+            // it might get changed while we're processing the current update.
+            RingGroup snapshotRingGroup;
+            synchronized (lock) {
+              snapshotRingGroup = ringGroup;
+            }
+
+            // Only process updates if ring group conductor is configured to be active/proactive
+            if (snapshotRingGroup.getRingGroupConductorMode() == RingGroupConductorMode.ACTIVE ||
+                snapshotRingGroup.getRingGroupConductorMode() == RingGroupConductorMode.PROACTIVE) {
+              processUpdates(snapshotRingGroup);
+            }
+            Thread.sleep(configurator.getSleepInterval());
+          }
+        } catch (InterruptedException e) {
+          // daemon is going down.
+        }
+      } else {
+        LOG.info("Attempted to claim Ring Group Conductor status, but there was already a lock in place!");
+      }
+    } catch (Throwable t) {
+      LOG.fatal("unexpected exception!", t);
+    } finally {
+      if (claimedRingGroupConductor) {
+        ringGroup.releaseRingGroupConductor();
+        claimedRingGroupConductor = false;
+      }
+    }
+    LOG.info("Ring Group Conductor for ring group " + ringGroupName + " shutting down.");
+    // Remove shutdown hook. We don't need it anymore
+    removeShutdownHook();
+  }

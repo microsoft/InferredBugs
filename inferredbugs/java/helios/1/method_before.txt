@@ -1,0 +1,23 @@
+  @Test
+  public void verifyAgentReportsDockerVersion() throws Exception {
+    startDefaultMaster();
+    startDefaultAgent(testHost());
+
+    final HeliosClient client = defaultClient();
+    final DockerVersion dockerVersion = Polling.await(
+        LONG_WAIT_MINUTES, MINUTES, new Callable<DockerVersion>() {
+          @Override
+          public DockerVersion call() throws Exception {
+            final HostStatus status = client.hostStatus(testHost()).get();
+            return status == null
+                   ? null
+                   : status.getHostInfo() == null
+                     ? null
+                     : status.getHostInfo().getDockerVersion();
+          }
+        });
+
+    final DockerClient dockerClient = new DefaultDockerClient(DOCKER_HOST.uri());
+    final String expectedDockerVersion = dockerClient.version().version();
+    assertThat(dockerVersion.getVersion(), is(expectedDockerVersion));
+  }

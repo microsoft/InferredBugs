@@ -1,0 +1,9 @@
+ @Override
+	public Mono<Void> fireAndForget(Payload payload) {
+		GatewayExchange exchange = GatewayExchange.fromPayload(FIRE_AND_FORGET, payload);
+		Tags tags = getTags(exchange);
+		return findRSocketOrCreatePending(exchange)
+				.flatMap(rSocket -> rSocket.fireAndForget(payload))
+				.doOnError(t -> count("forward.request.fnf.error", tags))
+				.doFinally(s -> count("forward.request.fnf", tags));
+	}

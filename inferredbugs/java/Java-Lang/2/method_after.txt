@@ -1,0 +1,19 @@
+    @Test
+    public void testLocking() {
+        // a page
+        long start = System.nanoTime();
+        final DirectStore store1 = DirectStore.allocate(1 << 12);
+        final int lockCount = 20 * 1000 * 1000;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                manyToggles(store1, lockCount, 1, 0);
+            }
+        }).start();
+
+        manyToggles(store1, lockCount, 0, 1);
+
+        store1.free();
+        long time = System.nanoTime() - start;
+        System.out.printf("Contended lock rate was %,d per second%n", (int) (lockCount * 2 * 1e9 / time));
+    }

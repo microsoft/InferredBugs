@@ -1,0 +1,31 @@
+        [Fact]
+        public void Handle_WithNancyContext_CompareIsCalledOnTheProviderServiceRequestComparer()
+        {   
+            var expectedRequest = new ProviderServiceRequest();
+            var expectedResponse = new ProviderServiceResponse();
+            var actualRequest = new ProviderServiceRequest();
+
+            var mockRequestComparer = Substitute.For<IProviderServiceRequestComparer>();
+            var mockRequestMapper = Substitute.For<IProviderServiceRequestMapper>();
+            var mockResponseMapper = Substitute.For<INancyResponseMapper>();
+
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/", "HTTP")
+            };
+
+            var interactions = new List<ProviderServiceInteraction>
+            {
+                new ProviderServiceInteraction() { Request = expectedRequest, Response = expectedResponse }
+            };
+
+            nancyContext.SetMockInteraction(interactions);
+
+            mockRequestMapper.Convert(nancyContext.Request).Returns(actualRequest);
+
+            IMockProviderNancyRequestHandler handler = new MockProviderNancyRequestHandler(mockRequestComparer, mockRequestMapper, mockResponseMapper);
+
+            handler.Handle(nancyContext);
+
+            mockRequestComparer.Received(1).Compare(expectedRequest, actualRequest);
+        }

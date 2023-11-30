@@ -1,0 +1,43 @@
+    @NotNull
+    public List<Entry> generate(@NotNull Scope scope, @NotNull String path) {
+        List<Entry> result = new ArrayList<Entry>();
+
+        Set<Binding> entries = new TreeSet<Binding>();
+        for (Binding b : scope.values()) {
+            if (!b.isSynthetic()
+                    && !b.isBuiltin()
+                    && !b.getDefs().isEmpty()
+                    && path.equals(b.getSingle().getFile())) {
+                entries.add(b);
+            }
+        }
+
+        for (Binding nb : entries) {
+            Def signode = nb.getSingle();
+            List<Entry> kids = null;
+
+            if (nb.getKind() == Binding.Kind.CLASS) {
+                Type realType = nb.getType();
+                if (realType.isUnionType()) {
+                    for (Type t : realType.asUnionType().getTypes()) {
+                        if (t.isClassType()) {
+                            realType = t;
+                            break;
+                        }
+                    }
+                }
+                kids = generate(realType.getTable(), path);
+            }
+
+            Entry kid = kids != null ? new Branch() : new Leaf();
+            kid.setOffset(signode.getStart());
+            kid.setQname(nb.getQname());
+            kid.setKind(nb.getKind());
+
+            if (kids != null) {
+                kid.setChildren(kids);
+            }
+            result.add(kid);
+        }
+        return result;
+    }

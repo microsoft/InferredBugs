@@ -1,0 +1,24 @@
+    boolean onLinkRemoteOpen(String linkName)
+    {
+        // Codes_SRS_AMQPSESSIONDEVICEOPERATION_12_024: [The function shall return true if any of the operation's link name is a match and return false otherwise.]
+        if (this.amqpsAuthenticatorState == AmqpsDeviceAuthenticationState.AUTHENTICATED)
+        {
+            for (Map.Entry<MessageType, AmqpsDeviceOperations> entry : amqpsDeviceOperationsMap.entrySet())
+            {
+                if (entry.getValue().onLinkRemoteOpen(linkName))
+                {
+                    // If the link that is being opened is a sender link and the operation is a DeviceTwin operation, we will send a subscribe message on the opened link
+                    if (entry.getKey() == MessageType.DEVICE_TWIN && linkName.equals(entry.getValue().getSenderLinkTag()))
+                    {
+                        // since we have already checked the message type, we can safely cast it
+                        AmqpsDeviceTwin deviceTwinOperations = (AmqpsDeviceTwin)entry.getValue();
+                        sendMessage(deviceTwinOperations.buildSubscribeToDesiredPropertiesProtonMessage(), entry.getKey(), deviceClientConfig.getDeviceId());
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }

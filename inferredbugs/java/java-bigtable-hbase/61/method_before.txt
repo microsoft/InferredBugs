@@ -1,0 +1,27 @@
+  public static Credentials getCredentials(CredentialOptions options)
+      throws IOException, GeneralSecurityException {
+    switch (options.getCredentialType()) {
+      case DefaultCredentials:
+        return getApplicationDefaultCredential();
+      case P12:
+        P12CredentialOptions p12Options = (P12CredentialOptions) options;
+        return getCredentialFromPrivateKeyServiceAccount(
+            p12Options.getServiceAccount(), p12Options.getKeyFile());
+      case SuppliedCredentials:
+        return ((UserSuppliedCredentialOptions) options).getCredential();
+      case SuppliedJson:
+        JsonCredentialsOptions jsonCredentialsOptions = (JsonCredentialsOptions) options;
+        synchronized (jsonCredentialsOptions) {
+          if (jsonCredentialsOptions.getCachedCredentials() == null) {
+            jsonCredentialsOptions.setCachedCredentails(
+                getInputStreamCredential(jsonCredentialsOptions.getInputStream()));
+          }
+          return jsonCredentialsOptions.getCachedCredentials();
+        }
+      case None:
+        return null;
+      default:
+        throw new IllegalStateException(
+            "Cannot process Credential type: " + options.getCredentialType());
+    }
+  }

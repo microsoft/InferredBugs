@@ -1,0 +1,55 @@
+    public HttpResponse execute() throws Exception {
+        StringBuilder requestBody = new StringBuilder();
+        if (request.getEntity() != null) {
+            String content = ObjectMapperSingleton.getContext(request.getEntity().getClass()).writer().writeValueAsString(request.getEntity());
+            requestBody.append(content);
+
+        } else if (request.hasJson()) {
+            requestBody.append(request.getJson());
+        }
+
+        StringBuilder contentBuilder = new StringBuilder();
+        BufferedReader in = null;
+        try {
+            connection.setRequestMethod(request.getMethod().name());
+            if (requestBody.length() > 0) {
+                System.out.println(requestBody.toString());
+                connection.setDoOutput(true);
+                BufferedOutputStream out = new BufferedOutputStream(connection.getOutputStream());
+                out.write(requestBody.toString().getBytes());
+                out.flush();
+            }
+
+            in = new BufferedReader(new InputStreamReader(
+                    connection.getInputStream()));
+            String inputLine;
+
+            while ((inputLine = in.readLine()) != null) {
+                contentBuilder.append(inputLine);
+            }
+
+        } catch (IOException ex) {
+            ex.printStackTrace(System.out);
+
+            in = new BufferedReader(new InputStreamReader(
+                    connection.getErrorStream()));
+            String inputLine;
+
+            while ((inputLine = in.readLine()) != null) {
+                contentBuilder.append(inputLine);
+            }
+
+        } finally {
+            if (in != null) {
+                in.close();
+            }
+        }
+
+        HttpResponseImpl responseImpl
+                = HttpResponseImpl.wrap(connection.getHeaderFields(),
+                        connection.getResponseCode(), connection.getResponseMessage(),
+                        connection.getInputStream());
+
+        connection.disconnect();
+        return responseImpl;
+    }

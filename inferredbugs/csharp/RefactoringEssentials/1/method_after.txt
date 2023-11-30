@@ -1,0 +1,39 @@
+        static bool HasReturnContract(BlockSyntax bodyStatement, string returnType)
+        {
+            var rhsEnsures = SyntaxFactory.ParseStatement($"Contract.Ensures(Contract.Result<{returnType}>() != null);");
+            var lhsEnsures = SyntaxFactory.ParseStatement($"Contract.Ensures(null != Contract.Result<{returnType}>());");
+            foreach (var expression in bodyStatement.DescendantNodes().OfType<ExpressionStatementSyntax>())
+            {
+                var ies = expression.Expression as InvocationExpressionSyntax;
+                if (ies == null)
+                    continue;
+
+                var access = ies.Expression as MemberAccessExpressionSyntax;
+                if (access == null)
+                    continue;
+
+                if (!ValidateContractAccess(access, "Ensures", null))
+                    continue;
+
+                if (ies.ArgumentList.Arguments.Count != 1)
+                    continue;
+
+                var arg = ies.ArgumentList.Arguments[0].Expression as BinaryExpressionSyntax;
+                if (arg == null || !arg.OperatorToken.IsKind(SyntaxKind.ExclamationEqualsToken))
+                    continue;
+
+                if (arg.Left.IsKind(SyntaxKind.NullLiteralExpression))
+                {
+                    ies = arg.Right as InvocationExpressionSyntax;
+                }
+                else if (arg.Right.IsKind(SyntaxKind.NullLiteralExpression))
+                {
+                    ies = arg.Left as InvocationExpressionSyntax;
+                }
+                access = ies?.Expression as MemberAccessExpressionSyntax;
+                if (!ValidateContractAccess(access, "Result", returnType))
+                    continue;
+                return true;
+            }
+            return false;
+        }

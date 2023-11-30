@@ -1,0 +1,37 @@
+        private BuildConfiguration TryGetBuildConfigurationOrTerminate(string repositoryPathStr)
+        {
+            var appVeyorYml = Path.Combine(repositoryPathStr, "appveyor.yml");
+
+            if (!File.Exists(appVeyorYml))
+            {
+                Outputter.WriteError("appveyor.yml file not found on repository path. Trying '.appveyor.yml'...");
+
+                appVeyorYml = Path.Combine(repositoryPathStr, ".appveyor.yml");
+
+                if (!File.Exists(appVeyorYml))
+                {
+                    Outputter.WriteError(".appveyor.yml file not found on repository path. Build aborted.");
+                    Environment.Exit(1);
+                }
+            }
+
+            BuildConfiguration configuration = null;
+
+            try
+            {
+                configuration = new BuildConfigurationYamlFileReader(appVeyorYml)
+                    .GetBuildConfiguration();
+            }
+            catch (LocalAppVeyorException)
+            {
+                Outputter.WriteError($"Error while parsing '{appVeyorYml}' file. Build aborted.");
+                Environment.Exit(1);
+            }
+
+            if (_skipStepsOptions.Values != null)
+            {
+                configuration.SkipSteps = _skipStepsOptions.Values.ToArray();
+            }
+
+            return configuration;
+        }

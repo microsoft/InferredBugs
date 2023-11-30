@@ -1,0 +1,48 @@
+    private static Object getValue(final V8Object object, final String key, final V8Map<Object> cache) {
+        int valueType = object.getType(key);
+        switch (valueType) {
+            case V8Value.INTEGER:
+                return object.getInteger(key);
+            case V8Value.DOUBLE:
+                return object.getDouble(key);
+            case V8Value.BOOLEAN:
+                return object.getBoolean(key);
+            case V8Value.STRING:
+                return object.getString(key);
+            case V8Value.V8_FUNCTION:
+                return IGNORE;
+            case V8Value.V8_TYPED_ARRAY:
+                V8Array typedArray = object.getArray(key);
+                try {
+                    return ((V8TypedArray) typedArray).getByteBuffer();
+                } finally {
+                    if (typedArray instanceof V8Array) {
+                        typedArray.release();
+                    }
+                }
+            case V8Value.V8_ARRAY:
+                V8Array array = object.getArray(key);
+                try {
+                    return toList(array, cache);
+                } finally {
+                    if (array instanceof V8Array) {
+                        array.release();
+                    }
+                }
+            case V8Value.V8_OBJECT:
+                V8Object child = object.getObject(key);
+                try {
+                    return toMap(child, cache);
+                } finally {
+                    if (child instanceof V8Object) {
+                        child.release();
+                    }
+                }
+            case V8Value.NULL:
+                return null;
+            case V8Value.UNDEFINED:
+                return V8.getUndefined();
+            default:
+                throw new IllegalStateException("Cannot find type for key: " + key);
+        }
+    }

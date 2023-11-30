@@ -1,0 +1,74 @@
+    @Override
+    public void shutdown(final Closure done) {
+        List<RepeatedTimer> timers = null;
+        this.writeLock.lock();
+        try {
+            LOG.info("Node {} shutdown, currTerm={} state={}.", getNodeId(), this.currTerm, this.state);
+            if (this.state.compareTo(State.STATE_SHUTTING) < 0) {
+                NodeManager.getInstance().remove(this);
+                // If it is leader, set the wakeup_a_candidate with true;
+                // If it is follower, call on_stop_following in step_down
+                if (this.state.compareTo(State.STATE_FOLLOWER) <= 0) {
+                    stepDown(this.currTerm, this.state == State.STATE_LEADER,
+                            new Status(RaftError.ESHUTDOWN, "Raft node is going to quit."));
+                }
+                this.state = State.STATE_SHUTTING;
+                // Stop all timers
+                timers = stopAllTimers();
+                if (this.readOnlyService != null) {
+                    this.readOnlyService.shutdown();
+                }
+                if (this.logManager != null) {
+                    this.logManager.shutdown();
+                }
+                if (this.metaStorage != null) {
+                    this.metaStorage.shutdown();
+                }
+                if (this.snapshotExecutor != null) {
+                    this.snapshotExecutor.shutdown();
+                }
+                if (this.wakingCandidate != null) {
+                    Replicator.stop(this.wakingCandidate);
+                }
+                if (this.fsmCaller != null) {
+                    this.fsmCaller.shutdown();
+                }
+                if (this.rpcService != null) {
+                    this.rpcService.shutdown();
+                }
+                if (this.applyQueue != null) {
+                    Utils.runInThread(() -> {
+                        this.shutdownLatch = new CountDownLatch(1);
+                        this.applyQueue.publishEvent((event, sequence) -> event.shutdownLatch = this.shutdownLatch);
+                    });
+                } else {
+                    final int num = GLOBAL_NUM_NODES.decrementAndGet();
+                    LOG.info("The number of active nodes decrement to {}.", num);
+                }
+                if (this.timerManager != null) {
+                    this.timerManager.shutdown();
+                }
+            }
+
+            if (this.state != State.STATE_SHUTDOWN) {
+                if (done != null) {
+                    this.shutdownContinuations.add(done);
+                }
+                return;
+            }
+
+            // This node is down, it's ok to invoke done right now. Don't invoke this
+            // in place to avoid the dead writeLock issue when done.Run() is going to acquire
+            // a writeLock which is already held by the caller
+            if (done != null) {
+                Utils.runClosureInThread(done);
+            }
+        } finally {
+            this.writeLock.unlock();
+
+            // Destroy all timers out of lock
+            if (timers != null) {
+                destroyAllTimers(timers);
+            }
+        }
+    }

@@ -1,0 +1,29 @@
+    private KubernetesList convertToOpenShiftResources(KubernetesList resources) throws MojoExecutionException {
+        KubernetesListBuilder builder = new KubernetesListBuilder();
+        builder.withMetadata(resources.getMetadata());
+        List<HasMetadata> items = resources.getItems();
+        List<HasMetadata> objects = new ArrayList<>();
+        if (items != null) {
+            for (HasMetadata item : items) {
+                if (item instanceof Deployment) {
+                    // if we have a Deployment and a DeploymentConfig of the same name
+                    // since we have a different manifest for OpenShift then lets filter out
+                    // the Kubernetes specific Deployment
+                    String name = KubernetesHelper.getName(item);
+                    if (hasDeploymentConfigNamed(items, name)) {
+                        continue;
+                    }
+                }
+                HasMetadata converted = convertKubernetesItemToOpenShift(item);
+                if (converted != null) {
+                    objects.add(converted);
+                }
+            }
+        }
+
+        openshiftDependencyResources.addMissingResources(objects);
+        moveTemplatesToTopLevel(builder, objects);
+        // TODO: Remove this ASAP when https://github.com/fabric8io/fabric8-maven-plugin/issues/678 is fixed
+        removeInitContainers(builder, VolumePermissionEnricher.ENRICHER_NAME);
+        return builder.build();
+    }

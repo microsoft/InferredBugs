@@ -1,0 +1,20 @@
+    public void snapshot() throws InterruptedException {
+        long lastZxid = dataTree.lastProcessedZxid;
+        ZooTrace.logTraceMessage(LOG, ZooTrace.getTextTraceLevel(),
+                "Snapshotting: zxid 0x" + Long.toHexString(lastZxid));
+        try {
+            File f =new File(dataDir, "snapshot." + Long.toHexString(lastZxid));
+            OutputStream sessOS = new BufferedOutputStream(new FileOutputStream(f));
+            BinaryOutputArchive oa = BinaryOutputArchive.getArchive(sessOS);
+            snapshot(oa);
+            sessOS.flush();
+            sessOS.close();
+            ZooTrace.logTraceMessage(LOG, ZooTrace.getTextTraceLevel(),
+                    "Snapshotting finished: zxid 0x" + Long.toHexString(lastZxid));
+        } catch (IOException e) {
+            LOG.error("Severe error, exiting",e);
+            // This is a severe error that we cannot recover from,
+            // so we need to exit
+            System.exit(10);
+        }
+    }

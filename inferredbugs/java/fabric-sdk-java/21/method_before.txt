@@ -1,0 +1,56 @@
+    public void updateChannelConfiguration(UpdateChannelConfiguration updateChannelConfiguration, Orderer orderer, byte[]... signers) throws TransactionException, InvalidArgumentException {
+
+        checkChannelState();
+
+        checkOrderer(orderer);
+
+        try {
+            final long startLastConfigIndex = getLastConfigIndex(orderer);
+            logger.trace(format("startLastConfigIndex: %d. Channel config wait time is: %d",
+                    startLastConfigIndex, CHANNEL_CONFIG_WAIT_TIME));
+
+            sendUpdateChannel(updateChannelConfiguration.getUpdateChannelConfigurationAsBytes(), signers, orderer);
+
+            long currentLastConfigIndex = -1;
+            final long nanoTimeStart = System.nanoTime();
+
+            //Try to wait to see the channel got updated but don't fail if we don't see it.
+            do {
+                currentLastConfigIndex = getLastConfigIndex(orderer);
+                if (currentLastConfigIndex == startLastConfigIndex) {
+
+                    final long duration = TimeUnit.MILLISECONDS.convert(System.nanoTime() - nanoTimeStart, TimeUnit.NANOSECONDS);
+
+                    if (duration > CHANNEL_CONFIG_WAIT_TIME) {
+                        logger.warn(format("Channel %s did not get updated last config after %d ms, Config wait time: %d ms. startLastConfigIndex: %d, currentLastConfigIndex: %d ",
+                                name, duration, CHANNEL_CONFIG_WAIT_TIME, startLastConfigIndex, currentLastConfigIndex));
+                        //waited long enough ..
+                        currentLastConfigIndex = startLastConfigIndex - 1L; // just bail don't throw exception.
+                    } else {
+
+                        try {
+                            Thread.sleep(ORDERER_RETRY_WAIT_TIME); //try again sleep
+                        } catch (InterruptedException e) {
+                            TransactionException te = new TransactionException("update channel thread Sleep", e);
+                            logger.warn(te.getMessage(), te);
+                        }
+                    }
+
+                }
+
+                logger.trace(format("currentLastConfigIndex: %d", currentLastConfigIndex));
+
+            } while (currentLastConfigIndex == startLastConfigIndex);
+
+        } catch (TransactionException e) {
+
+            logger.error(format("Channel %s error: %s", name, e.getMessage()), e);
+            throw e;
+        } catch (Exception e) {
+            String msg = format("Channel %s error: %s", name, e.getMessage());
+
+            logger.error(msg, e);
+            throw new TransactionException(msg, e);
+        }
+
+    }

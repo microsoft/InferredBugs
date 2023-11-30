@@ -1,0 +1,617 @@
+{
+    "hash": "baca06f736264ded155779ab440ce6831762bde9",
+    "message": "Streaming compression fixes after merge PR\n\n* Fix return value of DecompressionStream.Read() with non-zero offset\n* CompressionStream.Dispose() continue calling ZSTD_endStream() until it returns 0\n* CompressionStream.Flush() flushes all data from zstd internal buffers\n* Finalizer should only free unmanaged resources\n* If Dispose() method is called more than once, the object must ignore all calls after the first one\n* Using ZSTD_CStreamOutSize() with EnsureZstdSuccess()\n* Fix RoundTrip_StreamingToBatch test\n* Do not call Write() on the underlying stream if there are zero bytes to write\n* Add configurable bufferSize\n* Add some tests",
+    "file_num_lines": 165,
+    "diff_parsed": {
+        "added": [
+            [
+                20,
+                "\t\tpublic static MemoryStream GetSmallStream(DataFill dataFill) => GetStream(SmallBufferSize, dataFill);"
+            ],
+            [
+                21,
+                "\t\tpublic static MemoryStream GetLargeStream(DataFill dataFill) => GetStream(LargeBufferSize, dataFill);"
+            ],
+            [
+                45,
+                "\t\t[TestCase(new byte[0], 0, 0)]"
+            ],
+            [
+                46,
+                "\t\t[TestCase(new byte[] {1, 2, 3}, 1, 2)]"
+            ],
+            [
+                47,
+                "\t\t[TestCase(new byte[] {1, 2, 3}, 0, 2)]"
+            ],
+            [
+                48,
+                "\t\t[TestCase(new byte[] {1, 2, 3}, 1, 1)]"
+            ],
+            [
+                49,
+                "\t\t[TestCase(new byte[] {1, 2, 3}, 0, 3)]"
+            ],
+            [
+                50,
+                "\t\tpublic void StreamingCompressionSingleWrite(byte[] data, int offset, int count)"
+            ],
+            [
+                51,
+                "\t\t{"
+            ],
+            [
+                52,
+                "\t\t\tvar tempStream = new MemoryStream();"
+            ],
+            [
+                53,
+                "\t\t\tusing(var compressionStream = new CompressionStream(tempStream))"
+            ],
+            [
+                54,
+                "\t\t\t\tcompressionStream.Write(data, offset, count);"
+            ],
+            [
+                55,
+                ""
+            ],
+            [
+                56,
+                "\t\t\ttempStream.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                57,
+                ""
+            ],
+            [
+                58,
+                "\t\t\tvar resultStream = new MemoryStream();"
+            ],
+            [
+                59,
+                "\t\t\tusing(var decompressionStream = new DecompressionStream(tempStream))"
+            ],
+            [
+                60,
+                "\t\t\t\tdecompressionStream.CopyTo(resultStream);"
+            ],
+            [
+                61,
+                ""
+            ],
+            [
+                62,
+                "\t\t\tvar dataToCompress = new byte[count];"
+            ],
+            [
+                63,
+                "\t\t\tArray.Copy(data, offset, dataToCompress, 0, count);"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                65,
+                "\t\t\tAssert.AreEqual(dataToCompress, resultStream.ToArray());"
+            ],
+            [
+                66,
+                "\t\t}"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                68,
+                "\t\t[TestCase(1)]"
+            ],
+            [
+                69,
+                "\t\t[TestCase(2)]"
+            ],
+            [
+                70,
+                "\t\t[TestCase(3)]"
+            ],
+            [
+                71,
+                "\t\t[TestCase(5)]"
+            ],
+            [
+                72,
+                "\t\t[TestCase(10)]"
+            ],
+            [
+                73,
+                "\t\t[TestCase(11)]"
+            ],
+            [
+                74,
+                "\t\tpublic void StreamingDecompressionSingleRead(int readCount)"
+            ],
+            [
+                75,
+                "\t\t{"
+            ],
+            [
+                76,
+                "\t\t\tvar data = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};"
+            ],
+            [
+                77,
+                ""
+            ],
+            [
+                78,
+                "\t\t\tvar tempStream = new MemoryStream();"
+            ],
+            [
+                79,
+                "\t\t\tusing(var compressionStream = new CompressionStream(tempStream))"
+            ],
+            [
+                80,
+                "\t\t\t\tcompressionStream.Write(data, 0, data.Length);"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                82,
+                "\t\t\ttempStream.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                83,
+                ""
+            ],
+            [
+                84,
+                "\t\t\tvar buffer = new byte[10];"
+            ],
+            [
+                85,
+                "\t\t\tusing(var decompressionStream = new DecompressionStream(tempStream))"
+            ],
+            [
+                86,
+                "\t\t\t{"
+            ],
+            [
+                87,
+                "\t\t\t\tint bytesRead;"
+            ],
+            [
+                88,
+                "\t\t\t\tint totalBytesRead = 0;"
+            ],
+            [
+                89,
+                "\t\t\t\twhile((bytesRead = decompressionStream.Read(buffer, totalBytesRead, readCount)) > 0)"
+            ],
+            [
+                90,
+                "\t\t\t\t{"
+            ],
+            [
+                91,
+                "\t\t\t\t\tAssert.LessOrEqual(bytesRead, readCount);"
+            ],
+            [
+                92,
+                "\t\t\t\t\ttotalBytesRead += bytesRead;"
+            ],
+            [
+                93,
+                "\t\t\t\t}"
+            ],
+            [
+                94,
+                ""
+            ],
+            [
+                95,
+                "\t\t\t\tAssert.AreEqual(data.Length, totalBytesRead);"
+            ],
+            [
+                96,
+                "\t\t\t}"
+            ],
+            [
+                97,
+                ""
+            ],
+            [
+                98,
+                "\t\t\tAssert.AreEqual(data, buffer);"
+            ],
+            [
+                99,
+                "\t\t}"
+            ],
+            [
+                100,
+                ""
+            ],
+            [
+                101,
+                "\t\t[Test]"
+            ],
+            [
+                102,
+                "\t\tpublic void StreamingCompressionFlushDataFromInternalBuffers()"
+            ],
+            [
+                103,
+                "\t\t{"
+            ],
+            [
+                104,
+                "\t\t\tvar testBuffer = new byte[1];"
+            ],
+            [
+                105,
+                ""
+            ],
+            [
+                106,
+                "\t\t\tvar tempStream = new MemoryStream();"
+            ],
+            [
+                107,
+                "\t\t\tusing(var compressionStream = new CompressionStream(tempStream))"
+            ],
+            [
+                108,
+                "\t\t\t{"
+            ],
+            [
+                109,
+                "\t\t\t\tcompressionStream.Write(testBuffer, 0, testBuffer.Length);"
+            ],
+            [
+                110,
+                "\t\t\t\tcompressionStream.Flush();"
+            ],
+            [
+                111,
+                ""
+            ],
+            [
+                112,
+                "\t\t\t\tAssert.Greater(tempStream.Length, 0);"
+            ],
+            [
+                113,
+                "\t\t\t\ttempStream.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                114,
+                ""
+            ],
+            [
+                115,
+                "\t\t\t\t//NOTE: without ZSTD_endStream call on compression"
+            ],
+            [
+                116,
+                "\t\t\t\tvar resultStream = new MemoryStream();"
+            ],
+            [
+                117,
+                "\t\t\t\tusing(var decompressionStream = new DecompressionStream(tempStream))"
+            ],
+            [
+                118,
+                "\t\t\t\t\tdecompressionStream.CopyTo(resultStream);"
+            ],
+            [
+                119,
+                ""
+            ],
+            [
+                120,
+                "\t\t\t\tAssert.AreEqual(testBuffer, resultStream.ToArray());"
+            ],
+            [
+                121,
+                "\t\t\t}"
+            ],
+            [
+                122,
+                "\t\t}"
+            ],
+            [
+                123,
+                ""
+            ],
+            [
+                134,
+                "\t\t\tvar dataStream = DataGenerator.GetSmallStream(DataFill.Random);"
+            ],
+            [
+                137,
+                "\t\t\tusing(var compressionStream = new CompressionStream(normalResultStream))"
+            ],
+            [
+                138,
+                "\t\t\t\tdataStream.CopyTo(compressionStream);"
+            ],
+            [
+                141,
+                "\t\t\tusing(var compressionStream = new CompressionStream(dictResultStream, compressionOptions))"
+            ],
+            [
+                142,
+                "\t\t\t\tdataStream.CopyTo(compressionStream);"
+            ],
+            [
+                150,
+                "\t\t\tvar dataStream = DataGenerator.GetLargeStream(DataFill.Sequential);"
+            ],
+            [
+                152,
+                "\t\t\tvar resultStream = new MemoryStream();"
+            ],
+            [
+                153,
+                "\t\t\tusing(var compressionStream = new CompressionStream(resultStream))"
+            ],
+            [
+                154,
+                "\t\t\t\tdataStream.CopyTo(compressionStream);"
+            ],
+            [
+                156,
+                "\t\t\tAssert.Greater(dataStream.Length, resultStream.Length);"
+            ],
+            [
+                162,
+                "\t\t\tvar data = DataGenerator.GetLargeBuffer(DataFill.Sequential);"
+            ],
+            [
+                164,
+                "\t\t\tbyte[] compressed;"
+            ],
+            [
+                166,
+                "\t\t\t\tcompressed = compressor.Wrap(data);"
+            ],
+            [
+                169,
+                "\t\t\tusing(var decompressionStream = new DecompressionStream(new MemoryStream(compressed)))"
+            ],
+            [
+                172,
+                "\t\t\tAssert.AreEqual(data, resultStream.ToArray());"
+            ],
+            [
+                178,
+                "\t\t\tvar dataStream = DataGenerator.GetLargeStream(DataFill.Sequential);"
+            ],
+            [
+                181,
+                "\t\t\tusing(var compressionStream = new CompressionStream(tempStream))"
+            ],
+            [
+                182,
+                "\t\t\t\tdataStream.CopyTo(compressionStream);"
+            ],
+            [
+                184,
+                "\t\t\tvar resultBuffer = new byte[dataStream.Length];"
+            ],
+            [
+                186,
+                "\t\t\t\tAssert.AreEqual(dataStream.Length, decompressor.Unwrap(tempStream.ToArray(), resultBuffer, 0));"
+            ],
+            [
+                188,
+                "\t\t\tAssert.AreEqual(dataStream.ToArray(), resultBuffer);"
+            ],
+            [
+                191,
+                "\t\t[Test, Combinatorial, Parallelizable(ParallelScope.Children)]"
+            ],
+            [
+                192,
+                "\t\tpublic void RoundTrip_StreamingToStreaming("
+            ],
+            [
+                193,
+                "\t\t\t[Values(1, 2, 7, 1024, 65535, DataGenerator.LargeBufferSize, DataGenerator.LargeBufferSize + 1)] int zstdBufferSize,"
+            ],
+            [
+                194,
+                "\t\t\t[Values(1, 2, 7, 1024, 65535, DataGenerator.LargeBufferSize, DataGenerator.LargeBufferSize + 1)] int copyBufferSize)"
+            ],
+            [
+                199,
+                "\t\t\tusing(var compressionStream = new CompressionStream(tempStream, zstdBufferSize))"
+            ],
+            [
+                200,
+                "\t\t\t\ttestStream.CopyTo(compressionStream, copyBufferSize);"
+            ],
+            [
+                202,
+                "\t\t\ttempStream.Seek(0, SeekOrigin.Begin);"
+            ],
+            [
+                205,
+                "\t\t\tusing(var decompressionStream = new DecompressionStream(tempStream, zstdBufferSize))"
+            ],
+            [
+                206,
+                "\t\t\t\tdecompressionStream.CopyTo(resultStream, copyBufferSize);"
+            ],
+            [
+                208,
+                "\t\t\tAssert.AreEqual(testStream.ToArray(), resultStream.ToArray());"
+            ]
+        ],
+        "deleted": [
+            [
+                20,
+                "\t\tpublic static MemoryStream GetSmallStream(DataFill dataFill) => new MemoryStream(GetBuffer(SmallBufferSize, dataFill));"
+            ],
+            [
+                21,
+                "\t\tpublic static MemoryStream GetLargeStream(DataFill dataFill) => new MemoryStream(GetBuffer(LargeBufferSize, dataFill));"
+            ],
+            [
+                55,
+                "\t\t\tvar testStream = DataGenerator.GetSmallStream(DataFill.Random);"
+            ],
+            [
+                58,
+                "\t\t\tusing(var compressionStream = new CompressorStream(normalResultStream))"
+            ],
+            [
+                59,
+                "\t\t\t\ttestStream.CopyTo(compressionStream);"
+            ],
+            [
+                62,
+                "\t\t\tusing(var compressionStream = new CompressorStream(dictResultStream, compressionOptions))"
+            ],
+            [
+                63,
+                "\t\t\t\ttestStream.CopyTo(compressionStream);"
+            ],
+            [
+                71,
+                "\t\t\tvar inStream = DataGenerator.GetLargeStream(DataFill.Sequential);"
+            ],
+            [
+                73,
+                "\t\t\tvar outStream = new MemoryStream();"
+            ],
+            [
+                74,
+                "\t\t\tusing(var compressionStream = new CompressorStream(outStream))"
+            ],
+            [
+                75,
+                "\t\t\t\tinStream.CopyTo(compressionStream);"
+            ],
+            [
+                77,
+                "\t\t\tAssert.Greater(inStream.Length, outStream.Length);"
+            ],
+            [
+                83,
+                "\t\t\tvar testBuffer = DataGenerator.GetLargeBuffer(DataFill.Sequential);"
+            ],
+            [
+                85,
+                "\t\t\tbyte[] compressedBuffer;"
+            ],
+            [
+                87,
+                "\t\t\t\tcompressedBuffer = compressor.Wrap(testBuffer);"
+            ],
+            [
+                90,
+                "\t\t\tusing(var decompressionStream = new DecompressorStream(new MemoryStream(compressedBuffer)))"
+            ],
+            [
+                93,
+                "\t\t\tValidate(testBuffer, resultStream.ToArray());"
+            ],
+            [
+                99,
+                "\t\t\tvar testStream = DataGenerator.GetLargeStream(DataFill.Sequential);"
+            ],
+            [
+                102,
+                "\t\t\tusing(var compressorStream = new CompressorStream(testStream))"
+            ],
+            [
+                103,
+                "\t\t\t\ttempStream.CopyTo(compressorStream);"
+            ],
+            [
+                105,
+                "\t\t\tbyte[] resultBuffer;"
+            ],
+            [
+                107,
+                "\t\t\t\tresultBuffer = decompressor.Unwrap(tempStream.ToArray());"
+            ],
+            [
+                109,
+                "\t\t\tValidate(tempStream.ToArray(), resultBuffer);"
+            ],
+            [
+                112,
+                "\t\t[Test]"
+            ],
+            [
+                113,
+                "\t\tpublic void RoundTrip_StreamingStreaming()"
+            ],
+            [
+                118,
+                "\t\t\tusing(var compressionStream = new CompressorStream(tempStream))"
+            ],
+            [
+                119,
+                "\t\t\t\ttestStream.CopyTo(compressionStream);"
+            ],
+            [
+                121,
+                "\t\t\ttempStream.Position = 0;"
+            ],
+            [
+                124,
+                "\t\t\tusing(var decompressionStream = new DecompressorStream(tempStream))"
+            ],
+            [
+                125,
+                "\t\t\t\tdecompressionStream.CopyTo(resultStream);"
+            ],
+            [
+                126,
+                ""
+            ],
+            [
+                127,
+                "\t\t\tValidate(testStream.ToArray(), resultStream.ToArray());"
+            ],
+            [
+                128,
+                "\t\t}"
+            ],
+            [
+                129,
+                ""
+            ],
+            [
+                130,
+                "\t\tprivate static void Validate(byte[] expected, byte[] actual)"
+            ],
+            [
+                131,
+                "\t\t{"
+            ],
+            [
+                132,
+                "\t\t\tAssert.AreEqual(expected.Length, actual.Length, \"Decompressed Stream length is different than input stream\");"
+            ],
+            [
+                134,
+                "\t\t\tfor(int i = 0; i < expected.Length; i++)"
+            ],
+            [
+                135,
+                "\t\t\t\tAssert.AreEqual(expected[i], actual[i], $\"Decompressed byte index {i} is different than input stream\");"
+            ]
+        ]
+    },
+    "num_lines_added": 112,
+    "num_lines_removed": 39
+}

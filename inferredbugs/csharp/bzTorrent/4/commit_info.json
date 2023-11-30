@@ -1,0 +1,1237 @@
+{
+    "hash": "41a35d01fd915cba361d4eb02953a8d0487e421b",
+    "message": "added handshake dto and ability to handshake via the new connection logic",
+    "file_num_lines": 411,
+    "diff_parsed": {
+        "added": [
+            [
+                35,
+                "using System.Net.Torrent.Data;"
+            ],
+            [
+                44,
+                "\t\tprivate readonly IPeerConnection peerConnection;"
+            ],
+            [
+                45,
+                "\t\tprivate byte[] _internalBuffer; //async internal buffer"
+            ],
+            [
+                46,
+                "        private readonly List<IProtocolExtension> _btProtocolExtensions;"
+            ],
+            [
+                47,
+                ""
+            ],
+            [
+                48,
+                "        public int Timeout { get => peerConnection.Timeout; }"
+            ],
+            [
+                72,
+                "        public PeerWireClient(IPeerConnection io)"
+            ],
+            [
+                74,
+                "\t\t\tpeerConnection = io;"
+            ],
+            [
+                83,
+                "\t\t\tpeerConnection.Connect(endPoint);"
+            ],
+            [
+                88,
+                "\t\t\tpeerConnection.Connect(new IPEndPoint(IPAddress.Parse(ipHost), port));"
+            ],
+            [
+                93,
+                "\t\t\tpeerConnection.Disconnect();"
+            ],
+            [
+                98,
+                "            return Handshake(Hash, LocalPeerID);"
+            ],
+            [
+                102,
+                "        public bool Handshake(string hash, string peerId)"
+            ],
+            [
+                114,
+                "            if (hash.Length != 40)"
+            ],
+            [
+                134,
+                "\t\t\tvar handshake = new PeerClientHandshake"
+            ],
+            [
+                135,
+                "\t\t\t{"
+            ],
+            [
+                136,
+                "\t\t\t\tInfoHash = hash,"
+            ],
+            [
+                137,
+                "\t\t\t\tPeerId = peerId,"
+            ],
+            [
+                138,
+                "\t\t\t\tReservedBytes = reservedBytes"
+            ],
+            [
+                139,
+                "\t\t\t};"
+            ],
+            [
+                141,
+                "\t\t\tpeerConnection.Handshake(handshake);"
+            ],
+            [
+                143,
+                "\t\t\tforeach (var extension in _btProtocolExtensions)"
+            ],
+            [
+                181,
+                "            return true;"
+            ],
+            [
+                186,
+                "\t\t\tpeerConnection.Process();"
+            ],
+            [
+                188,
+                "\t\t\tvar command = peerConnection.Receive();"
+            ],
+            [
+                190,
+                "\t\t\tif (command == null)"
+            ],
+            [
+                194,
+                "                return peerConnection.Connected;"
+            ],
+            [
+                197,
+                "            if (command.Command == PeerClientCommands.KeepAlive)"
+            ],
+            [
+                201,
+                "                    return peerConnection.Connected;"
+            ],
+            [
+                207,
+                "                return peerConnection.Connected;"
+            ],
+            [
+                210,
+                "            switch (command.Command)"
+            ],
+            [
+                212,
+                "                case PeerClientCommands.Choke:"
+            ],
+            [
+                216,
+                "                case PeerClientCommands.Unchoke:"
+            ],
+            [
+                220,
+                "                case PeerClientCommands.Interested:"
+            ],
+            [
+                224,
+                "                case PeerClientCommands.NotInterested:"
+            ],
+            [
+                228,
+                "                case PeerClientCommands.Have:"
+            ],
+            [
+                232,
+                "                case PeerClientCommands.Bitfield:"
+            ],
+            [
+                234,
+                "                    ProcessBitfield(command.CommandLength - 1);"
+            ],
+            [
+                236,
+                "                case PeerClientCommands.Request:"
+            ],
+            [
+                240,
+                "                case PeerClientCommands.Piece:"
+            ],
+            [
+                242,
+                "                    ProcessPiece(command.CommandLength - 1);"
+            ],
+            [
+                244,
+                "                case PeerClientCommands.Cancel:"
+            ],
+            [
+                252,
+                "                        if (!extension.CommandIDs.Contains(b => b == (byte)command.Command))"
+            ],
+            [
+                257,
+                "                        if (extension.OnCommand(this, command.CommandLength, (byte)command.Command, command.Payload))"
+            ],
+            [
+                263,
+                "                break;"
+            ],
+            [
+                271,
+                "            peerConnection.Send(new PeerMessageBuilder(128).Message());"
+            ],
+            [
+                273,
+                "            return true;"
+            ],
+            [
+                278,
+                "            peerConnection.Send(new PeerMessageBuilder(0).Message());"
+            ],
+            [
+                280,
+                "            return true;"
+            ],
+            [
+                285,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(1).Message());"
+            ],
+            [
+                287,
+                "\t\t\treturn true;"
+            ],
+            [
+                288,
+                "\t\t}"
+            ],
+            [
+                292,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(2).Message());"
+            ],
+            [
+                294,
+                "\t\t\treturn true;"
+            ],
+            [
+                295,
+                "\t\t}"
+            ],
+            [
+                299,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(3).Message());"
+            ],
+            [
+                301,
+                "\t\t\treturn true;"
+            ],
+            [
+                302,
+                "\t\t}"
+            ],
+            [
+                306,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(4).Add(index).Message());"
+            ],
+            [
+                308,
+                "\t\t\treturn true;"
+            ],
+            [
+                309,
+                "\t\t}"
+            ],
+            [
+                358,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(5).Add(bytes).Message());"
+            ],
+            [
+                368,
+                "\t\t\treturn true;"
+            ],
+            [
+                369,
+                "\t\t}"
+            ],
+            [
+                373,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(6).Add(index).Add(start).Add(length).Message());"
+            ],
+            [
+                375,
+                "            return true;"
+            ],
+            [
+                380,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(7).Add(index).Add(start).Add(data).Message());"
+            ],
+            [
+                382,
+                "            return true;"
+            ],
+            [
+                387,
+                "\t\t\tpeerConnection.Send(new PeerMessageBuilder(8).Add(index).Add(start).Add(length).Message());"
+            ],
+            [
+                389,
+                "            return true;"
+            ],
+            [
+                394,
+                "            //var sent = Socket.Send(bytes);"
+            ],
+            [
+                396,
+                "            return true;"
+            ]
+        ],
+        "deleted": [
+            [
+                32,
+                "using System.Diagnostics;"
+            ],
+            [
+                33,
+                "using System.Net.Sockets;"
+            ],
+            [
+                36,
+                "using System.Text;"
+            ],
+            [
+                45,
+                "        private readonly byte[] _bitTorrentProtocolHeader = { 0x42, 0x69, 0x74, 0x54, 0x6F, 0x72, 0x72, 0x65, 0x6E, 0x74, 0x20, 0x70, 0x72, 0x6F, 0x74, 0x6F, 0x63, 0x6F, 0x6C };"
+            ],
+            [
+                46,
+                ""
+            ],
+            [
+                47,
+                "        internal readonly IWireIO Socket;"
+            ],
+            [
+                48,
+                "        private byte[] _internalBuffer; //async internal buffer"
+            ],
+            [
+                49,
+                "        private readonly List<IProtocolExtension> _btProtocolExtensions;"
+            ],
+            [
+                50,
+                "        private bool _handshakeSent;"
+            ],
+            [
+                51,
+                "        private bool _handshakeComplete;"
+            ],
+            [
+                52,
+                "        private bool _receiving;"
+            ],
+            [
+                53,
+                "        private IAsyncResult _async;"
+            ],
+            [
+                54,
+                ""
+            ],
+            [
+                55,
+                "        private const int MinBufferSize = 1024;"
+            ],
+            [
+                56,
+                "        private const int MaxBufferSize = 1024 * 256;"
+            ],
+            [
+                57,
+                "        private int _dynamicBufferSize = 1024*16;"
+            ],
+            [
+                58,
+                ""
+            ],
+            [
+                60,
+                "        public int Timeout { get => Socket.Timeout; }"
+            ],
+            [
+                84,
+                "        public PeerWireClient(IWireIO io)"
+            ],
+            [
+                86,
+                "            Socket = io;"
+            ],
+            [
+                95,
+                "            Socket.Connect(endPoint);"
+            ],
+            [
+                100,
+                "            Socket.Connect(new IPEndPoint(IPAddress.Parse(ipHost), port));"
+            ],
+            [
+                105,
+                "            if(_async != null)"
+            ],
+            [
+                106,
+                "            {"
+            ],
+            [
+                107,
+                "                Socket.EndReceive(_async);"
+            ],
+            [
+                108,
+                "            }"
+            ],
+            [
+                109,
+                ""
+            ],
+            [
+                110,
+                "            Socket.Disconnect();"
+            ],
+            [
+                115,
+                "            return Handshake(PackHelper.Hex(Hash), Encoding.ASCII.GetBytes(LocalPeerID));"
+            ],
+            [
+                118,
+                "        public bool Handshake(string hash, string peerId)"
+            ],
+            [
+                119,
+                "        {"
+            ],
+            [
+                120,
+                "            LocalPeerID = peerId;"
+            ],
+            [
+                121,
+                "            Hash = hash;"
+            ],
+            [
+                122,
+                ""
+            ],
+            [
+                123,
+                "            return Handshake();"
+            ],
+            [
+                124,
+                "        }"
+            ],
+            [
+                126,
+                "        public bool Handshake(byte[] hash, byte[] peerId)"
+            ],
+            [
+                138,
+                "            if (hash.Length != 20)"
+            ],
+            [
+                158,
+                "            var sendBuf = (new[] { (byte)_bitTorrentProtocolHeader.Length }).Cat(_bitTorrentProtocolHeader).Cat(reservedBytes).Cat(hash).Cat(peerId);"
+            ],
+            [
+                160,
+                "            try"
+            ],
+            [
+                161,
+                "            {"
+            ],
+            [
+                162,
+                "                var len = Socket.Send(sendBuf);"
+            ],
+            [
+                163,
+                "                if (len != sendBuf.Length)"
+            ],
+            [
+                164,
+                "                {"
+            ],
+            [
+                165,
+                "                    throw new Exception(\"Didnt sent entire handshake\");"
+            ],
+            [
+                166,
+                "                }"
+            ],
+            [
+                167,
+                "            }"
+            ],
+            [
+                168,
+                "            catch (SocketException ex)"
+            ],
+            [
+                169,
+                "            {"
+            ],
+            [
+                170,
+                "                Trace.TraceInformation(ex.Message);"
+            ],
+            [
+                171,
+                "                return false;"
+            ],
+            [
+                172,
+                "            }"
+            ],
+            [
+                174,
+                "            foreach (var extension in _btProtocolExtensions)"
+            ],
+            [
+                179,
+                "            _handshakeSent = true;"
+            ],
+            [
+                180,
+                ""
+            ],
+            [
+                212,
+                "            if (Socket.Connected)"
+            ],
+            [
+                213,
+                "            {"
+            ],
+            [
+                214,
+                "                Socket.Disconnect();"
+            ],
+            [
+                215,
+                "            }"
+            ],
+            [
+                216,
+                ""
+            ],
+            [
+                219,
+                "            return false;"
+            ],
+            [
+                224,
+                "            if (!_receiving)"
+            ],
+            [
+                225,
+                "            {"
+            ],
+            [
+                226,
+                "                var recBuffer = new byte[_dynamicBufferSize];"
+            ],
+            [
+                227,
+                "                try"
+            ],
+            [
+                228,
+                "                {"
+            ],
+            [
+                229,
+                "                    _receiving = true;"
+            ],
+            [
+                230,
+                ""
+            ],
+            [
+                231,
+                "                    _async = Socket.BeginReceive(recBuffer, 0, _dynamicBufferSize, OnReceived, recBuffer);"
+            ],
+            [
+                232,
+                "                }"
+            ],
+            [
+                233,
+                "                catch(Exception ex)"
+            ],
+            [
+                234,
+                "                {"
+            ],
+            [
+                235,
+                "                    Trace.TraceInformation(ex.Message);"
+            ],
+            [
+                236,
+                "                    return false;"
+            ],
+            [
+                237,
+                "                }"
+            ],
+            [
+                240,
+                "            }"
+            ],
+            [
+                241,
+                ""
+            ],
+            [
+                242,
+                "            if (_internalBuffer.Length < 4)"
+            ],
+            [
+                246,
+                "                return Socket.Connected;"
+            ],
+            [
+                247,
+                "            }"
+            ],
+            [
+                248,
+                ""
+            ],
+            [
+                249,
+                "            if (!_handshakeComplete)"
+            ],
+            [
+                250,
+                "            {"
+            ],
+            [
+                251,
+                "                int resLen = _internalBuffer[0];"
+            ],
+            [
+                252,
+                "                if (resLen != 19)"
+            ],
+            [
+                253,
+                "                {"
+            ],
+            [
+                254,
+                "                    if (resLen == 0)"
+            ],
+            [
+                255,
+                "                    {"
+            ],
+            [
+                256,
+                "                        // keep alive?"
+            ],
+            [
+                257,
+                "                        Thread.Sleep(100);"
+            ],
+            [
+                258,
+                ""
+            ],
+            [
+                259,
+                "                        Disconnect();"
+            ],
+            [
+                260,
+                "                        return false;"
+            ],
+            [
+                261,
+                "                    }"
+            ],
+            [
+                262,
+                "                }"
+            ],
+            [
+                263,
+                ""
+            ],
+            [
+                264,
+                "                _handshakeComplete = true;"
+            ],
+            [
+                265,
+                ""
+            ],
+            [
+                266,
+                "                var recReserved = _internalBuffer.GetBytes(20, 8);"
+            ],
+            [
+                267,
+                "                RemoteUsesDHT = (recReserved[7] & 0x1) == 0x1;"
+            ],
+            [
+                268,
+                ""
+            ],
+            [
+                269,
+                "                var remoteHashBytes = _internalBuffer.GetBytes(28, 20);"
+            ],
+            [
+                270,
+                "                if (string.IsNullOrEmpty(Hash))"
+            ],
+            [
+                271,
+                "                {"
+            ],
+            [
+                272,
+                "                    var remoteHash = UnpackHelper.Hex(remoteHashBytes);"
+            ],
+            [
+                273,
+                "                    Hash = remoteHash;"
+            ],
+            [
+                274,
+                "                }"
+            ],
+            [
+                275,
+                ""
+            ],
+            [
+                276,
+                "                var remoteIdbytes = _internalBuffer.GetBytes(48, 20);"
+            ],
+            [
+                277,
+                ""
+            ],
+            [
+                278,
+                "                RemotePeerID = Encoding.ASCII.GetString(remoteIdbytes);"
+            ],
+            [
+                279,
+                ""
+            ],
+            [
+                280,
+                "                lock (_locker)"
+            ],
+            [
+                281,
+                "                {"
+            ],
+            [
+                282,
+                "                    _internalBuffer = _internalBuffer.GetBytes(68);"
+            ],
+            [
+                283,
+                "                }"
+            ],
+            [
+                284,
+                ""
+            ],
+            [
+                285,
+                "                OnHandshake();"
+            ],
+            [
+                286,
+                ""
+            ],
+            [
+                287,
+                "                if (_handshakeSent)"
+            ],
+            [
+                288,
+                "                {"
+            ],
+            [
+                289,
+                "                    return true;"
+            ],
+            [
+                290,
+                "                }"
+            ],
+            [
+                291,
+                ""
+            ],
+            [
+                292,
+                "                Handshake();"
+            ],
+            [
+                293,
+                ""
+            ],
+            [
+                294,
+                "                return true;"
+            ],
+            [
+                295,
+                "            }"
+            ],
+            [
+                296,
+                ""
+            ],
+            [
+                297,
+                "            var commandLength = UnpackHelper.Int32(_internalBuffer, 0, UnpackHelper.Endianness.Big);"
+            ],
+            [
+                298,
+                ""
+            ],
+            [
+                299,
+                "            if (commandLength > (_internalBuffer.Length - 4))"
+            ],
+            [
+                300,
+                "            {"
+            ],
+            [
+                301,
+                "                //need more data first"
+            ],
+            [
+                302,
+                "                return true;"
+            ],
+            [
+                303,
+                "            }"
+            ],
+            [
+                304,
+                ""
+            ],
+            [
+                305,
+                "            lock (_locker)"
+            ],
+            [
+                306,
+                "            {"
+            ],
+            [
+                307,
+                "                _internalBuffer = _internalBuffer.GetBytes(4);"
+            ],
+            [
+                310,
+                "            if (commandLength == 0)"
+            ],
+            [
+                314,
+                "                    return true;"
+            ],
+            [
+                320,
+                "                return true;"
+            ],
+            [
+                321,
+                "            }"
+            ],
+            [
+                322,
+                ""
+            ],
+            [
+                323,
+                "            int commandId = _internalBuffer[0];"
+            ],
+            [
+                324,
+                ""
+            ],
+            [
+                325,
+                "            lock (_locker)"
+            ],
+            [
+                326,
+                "            {"
+            ],
+            [
+                327,
+                "                _internalBuffer = _internalBuffer.GetBytes(1);"
+            ],
+            [
+                330,
+                "            switch (commandId)"
+            ],
+            [
+                332,
+                "                case 0:"
+            ],
+            [
+                336,
+                "                case 1:"
+            ],
+            [
+                340,
+                "                case 2:"
+            ],
+            [
+                344,
+                "                case 3:"
+            ],
+            [
+                348,
+                "                case 4:"
+            ],
+            [
+                352,
+                "                case 5:"
+            ],
+            [
+                354,
+                "                    ProcessBitfield(commandLength - 1);"
+            ],
+            [
+                356,
+                "                case 6:"
+            ],
+            [
+                360,
+                "                case 7:"
+            ],
+            [
+                362,
+                "                    ProcessPiece(commandLength - 1);"
+            ],
+            [
+                364,
+                "                case 8:"
+            ],
+            [
+                372,
+                "                        if (!extension.CommandIDs.Contains(b => b == commandId))"
+            ],
+            [
+                377,
+                "                        if (extension.OnCommand(this, commandLength, (byte)commandId, _internalBuffer))"
+            ],
+            [
+                382,
+                ""
+            ],
+            [
+                383,
+                "                    lock (_locker)"
+            ],
+            [
+                384,
+                "                    {"
+            ],
+            [
+                385,
+                "                            _internalBuffer = _internalBuffer.GetBytes(commandLength - 1);"
+            ],
+            [
+                386,
+                "                    }"
+            ],
+            [
+                388,
+                "                    break;"
+            ],
+            [
+                394,
+                "        private void OnReceived(IAsyncResult ar)"
+            ],
+            [
+                395,
+                "        {"
+            ],
+            [
+                396,
+                "            if (Socket == null)"
+            ],
+            [
+                397,
+                "            {"
+            ],
+            [
+                398,
+                "                return;"
+            ],
+            [
+                399,
+                "            }"
+            ],
+            [
+                400,
+                ""
+            ],
+            [
+                401,
+                "            var data = (byte[])ar.AsyncState;"
+            ],
+            [
+                402,
+                ""
+            ],
+            [
+                403,
+                "            var len = Socket.EndReceive(ar);"
+            ],
+            [
+                404,
+                ""
+            ],
+            [
+                405,
+                "            _async = null;"
+            ],
+            [
+                406,
+                ""
+            ],
+            [
+                407,
+                "            if (len > 0)"
+            ],
+            [
+                408,
+                "            {"
+            ],
+            [
+                409,
+                "                lock (_locker)"
+            ],
+            [
+                410,
+                "                {"
+            ],
+            [
+                411,
+                "                    _internalBuffer = _internalBuffer == null ? data : _internalBuffer.Cat(data.GetBytes(0, len));"
+            ],
+            [
+                412,
+                "                }"
+            ],
+            [
+                413,
+                ""
+            ],
+            [
+                414,
+                "                #region Automatically alter the buffer size"
+            ],
+            [
+                415,
+                "                if (_internalBuffer.Length > _dynamicBufferSize && (_dynamicBufferSize - 1024) >= MinBufferSize)"
+            ],
+            [
+                416,
+                "                {"
+            ],
+            [
+                417,
+                "                    _dynamicBufferSize -= 1024;"
+            ],
+            [
+                418,
+                "                }"
+            ],
+            [
+                419,
+                ""
+            ],
+            [
+                420,
+                "                if (_internalBuffer.Length < _dynamicBufferSize && (_dynamicBufferSize + 1024) <= MaxBufferSize)"
+            ],
+            [
+                421,
+                "                {"
+            ],
+            [
+                422,
+                "                    _dynamicBufferSize += 1024;"
+            ],
+            [
+                423,
+                "                }"
+            ],
+            [
+                424,
+                "                #endregion"
+            ],
+            [
+                425,
+                "            }"
+            ],
+            [
+                426,
+                ""
+            ],
+            [
+                427,
+                "            _receiving = false;"
+            ],
+            [
+                428,
+                ""
+            ],
+            [
+                429,
+                "        }"
+            ],
+            [
+                430,
+                ""
+            ],
+            [
+                433,
+                "            var sent = Socket.Send(PackHelper.Int32(0));"
+            ],
+            [
+                435,
+                "            return sent == 4;"
+            ],
+            [
+                440,
+                "            var sent = Socket.Send(new PeerMessageBuilder(0).Message());"
+            ],
+            [
+                442,
+                "            return sent == 5;"
+            ],
+            [
+                447,
+                "            var sent = Socket.Send(new PeerMessageBuilder(1).Message());"
+            ],
+            [
+                449,
+                "            return sent == 5;"
+            ],
+            [
+                450,
+                "        }"
+            ],
+            [
+                454,
+                "            var sent = Socket.Send(new PeerMessageBuilder(2).Message());"
+            ],
+            [
+                456,
+                "            return sent == 5;"
+            ],
+            [
+                457,
+                "        }"
+            ],
+            [
+                461,
+                "            var sent = Socket.Send(new PeerMessageBuilder(3).Message());"
+            ],
+            [
+                463,
+                "            return sent == 5;"
+            ],
+            [
+                464,
+                "        }"
+            ],
+            [
+                468,
+                "            var sent = Socket.Send(new PeerMessageBuilder(4).Add(index).Message());"
+            ],
+            [
+                470,
+                "            return sent == 9;"
+            ],
+            [
+                471,
+                "        }"
+            ],
+            [
+                520,
+                "            var sent = Socket.Send(new PeerMessageBuilder(5).Add(bytes).Message());"
+            ],
+            [
+                530,
+                "            return sent == (5 + bitField.Length);"
+            ],
+            [
+                531,
+                "        }"
+            ],
+            [
+                535,
+                "            var sent = Socket.Send(new PeerMessageBuilder(6).Add(index).Add(start).Add(length).Message());"
+            ],
+            [
+                537,
+                "            return sent == 17;"
+            ],
+            [
+                542,
+                "            var sent = Socket.Send(new PeerMessageBuilder(7).Add(index).Add(start).Add(data).Message());"
+            ],
+            [
+                544,
+                "            return (sent == 13 + data.Length);"
+            ],
+            [
+                549,
+                "            var sent = Socket.Send(new PeerMessageBuilder(8).Add(index).Add(start).Add(length).Message());"
+            ],
+            [
+                551,
+                "            return sent == 13;"
+            ],
+            [
+                556,
+                "            var sent = Socket.Send(bytes);"
+            ],
+            [
+                558,
+                "            return sent == bytes.Length;"
+            ]
+        ]
+    },
+    "num_lines_added": 72,
+    "num_lines_removed": 234
+}

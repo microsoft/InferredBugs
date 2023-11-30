@@ -1,0 +1,26 @@
+        [Fact]
+        public void AScoredSearchWillOrderByRelevence()
+        {
+            InitializeContext();
+            LuceneIndexerOptions options = new LuceneIndexerOptions()
+            {
+                Path = "lucene"
+            };
+            SearchEngine<TestDbContext> searchProvider = new SearchEngine<TestDbContext>(options, _context, new MemoryCache(new MemoryCacheOptions()));
+
+            searchProvider.CreateIndex();
+
+            SearchOptions searchOptions = new SearchOptions("Burns", "FirstName,Surname");
+
+            var results = searchProvider.ScoredSearch<User>(searchOptions);
+
+            var first = results.Results.First().Entity;
+            var highest = results.Results.First().Score;
+            var lowest = results.Results.Last().Score;
+
+            Assert.True(highest > lowest);
+            Assert.Equal("Jeremy", first.FirstName);
+            Assert.Equal("Burns", first.Surname);
+
+            searchProvider.DeleteIndex();
+        }

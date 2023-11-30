@@ -1,0 +1,30 @@
+        private bool RegisterService(string serviceName, DnsEndPoint dnsEndPoint, Action<Entry> registered = null)
+        {
+            var serviceId = GenServiceId(serviceName, dnsEndPoint);
+            var checkId = GenCheckId(serviceName, dnsEndPoint);
+            var checkName = GenCheckName(serviceName, dnsEndPoint);
+            var acr = new AgentCheckRegistration
+            {
+                ID = checkId,
+                Name = checkName,
+                TCP = $"{dnsEndPoint.Host}:{dnsEndPoint.Port}",
+                Interval = ConsulTimespan.CheckInterval,
+                Status = HealthStatus.Passing,
+                DeregisterCriticalServiceAfter = ConsulTimespan.CriticalInterval,
+            };
+            var asr = new AgentServiceRegistration
+            {
+                ID = serviceId,
+                Name = serviceName,
+                Address = dnsEndPoint.Host,
+                Port = dnsEndPoint.Port,
+                Check = acr
+            };
+
+            var res = _client.Agent.ServiceRegister(asr).Result;
+            if (res.StatusCode != HttpStatusCode.OK)
+                return false;
+
+            registered?.Invoke(new Entry(this, serviceId));
+            return true;
+        }

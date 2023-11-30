@@ -1,0 +1,24 @@
+    @Override
+    public synchronized void put(String key, Entry entry) {
+        pruneIfNeeded(entry.data.length);
+        File file = getFileForKey(key);
+        try {
+            FileOutputStream fos = new FileOutputStream(file);
+            CacheHeader e = new CacheHeader(key, entry);
+            boolean success = e.writeHeader(fos);
+            if (!success) {
+                fos.close();
+                VolleyLog.d("Failed to write header for %s", file.getAbsolutePath());
+                throw new IOException();
+            }
+            fos.write(entry.data);
+            fos.close();
+            putEntry(key, e);
+            return;
+        } catch (IOException e) {
+        }
+        boolean deleted = file.delete();
+        if (!deleted) {
+            VolleyLog.d("Could not clean up file %s", file.getAbsolutePath());
+        }
+    }

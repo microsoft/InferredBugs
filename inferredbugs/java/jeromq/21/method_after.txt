@@ -1,0 +1,32 @@
+    @Test
+    public void testIssue476() throws InterruptedException, IOException, ExecutionException
+    {
+        final int front = Utils.findOpenPort();
+        final int back = Utils.findOpenPort();
+
+        final int max = 20;
+
+        ExecutorService service = Executors.newFixedThreadPool(3);
+        try (final ZContext ctx = new ZContext()) {
+            service.submit(() -> {
+                Thread.currentThread().setName("Proxy");
+                Socket xpub = ctx.createSocket(SocketType.XPUB);
+                xpub.bind("tcp://*:" + back);
+                Socket xsub = ctx.createSocket(SocketType.XSUB);
+                xsub.bind("tcp://*:" + front);
+                Socket ctrl = ctx.createSocket(SocketType.PAIR);
+                ctrl.bind("inproc://ctrl-proxy");
+                ZMQ.proxy(xpub, xsub, null, ctrl);
+            });
+            final AtomicReference<Throwable> error = testIssue476(front, back, max, service, ctx);
+            ZMQ.Socket ctrl = ctx.createSocket(SocketType.PAIR);
+            ctrl.connect("inproc://ctrl-proxy");
+            ctrl.send(ZMQ.PROXY_TERMINATE);
+            ctrl.close();
+
+            service.shutdown();
+            service.awaitTermination(2, TimeUnit.SECONDS);
+
+            assertThat(error.get(), nullValue());
+        }
+    }

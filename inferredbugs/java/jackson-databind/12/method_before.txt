@@ -1,0 +1,30 @@
+    void runOnce() throws Exception {
+        final ObjectMapper mapper = getObjectMapper();
+        Callable<String> writeJson = new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                Wrapper wrapper = new Wrapper(new TypeOne("test"));
+                return mapper.writeValueAsString(wrapper);
+            }
+        };
+
+        int numThreads = 4;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        List<Future<String>> jsonFutures = new ArrayList<Future<String>>();
+        for (int i = 0; i < numThreads; i++) {
+            jsonFutures.add(executor.submit(writeJson));
+        }
+
+        executor.shutdown();
+        executor.awaitTermination(5, TimeUnit.SECONDS);
+
+        for (Future<String> jsonFuture : jsonFutures) {
+            String json = jsonFuture.get();
+            JsonNode tree = mapper.readTree(json);
+            JsonNode wrapped = tree.get("hasSubTypes");
+
+            if (!wrapped.has("one")) {
+                throw new IllegalStateException("Missing 'one', source: "+json);
+            }
+        }
+    }

@@ -1,0 +1,50 @@
+  public void run() throws IOException {
+    LOG.info("Ring Group Conductor Daemon for ring group " + ringGroupName + " starting.");
+    boolean claimedRingGroupConductor = false;
+    try {
+      ringGroup = coordinator.getRingGroup(ringGroupName);
+
+      // attempt to claim the ring group conductor title
+      if (ringGroup.claimRingGroupConductor()) {
+        claimedRingGroupConductor = true;
+
+        // we are now *the* ring group conductor for this ring group.
+        domainGroup = ringGroup.getDomainGroup();
+
+        // set a watch on the ring group
+        ringGroup.setListener(this);
+
+        // set a watch on the domain group version
+        domainGroup.setListener(this);
+
+        // loop until we're taken down
+        stopping = false;
+        try {
+          while (!stopping) {
+            // take a snapshot of the current ring/domain group configs, since
+            // they might get changed while we're processing the current update.
+            RingGroup snapshotRingGroup;
+            DomainGroup snapshotDomainGroup;
+            synchronized (lock) {
+              snapshotRingGroup = ringGroup;
+              snapshotDomainGroup = domainGroup;
+            }
+
+            processUpdates(snapshotRingGroup, snapshotDomainGroup);
+            Thread.sleep(configurator.getSleepInterval());
+          }
+        } catch (InterruptedException e) {
+          // daemon is going down.
+        }
+      } else {
+        LOG.info("Attempted to claim Ring Group Conductor status, but there was already a lock in place!");
+      }
+    } catch (Throwable t) {
+      LOG.fatal("unexpected exception!", t);
+    } finally {
+      if (claimedRingGroupConductor) {
+        ringGroup.releaseRingGroupConductor();
+      }
+    }
+    LOG.info("Ring Group Conductor Daemon for ring group " + ringGroupName + " shutting down.");
+  }

@@ -1,0 +1,161 @@
+{
+    "hash": "4e4b6b587252917efead32aa8c362f0cf99dfadc",
+    "message": "Fix some bugs with lambda parsing in Acrylic.\n\nC# code, in order to be compatible with Acrylic, will not allow typeless definitions (at least for now).\nThis means converting things like \".Select(t => t.Trim())\" to \".Select((string t) => t.Trim())\"\n\nTypeless lambda arg definitions will need to be on a wishlist for a while.",
+    "file_num_lines": 481,
+    "diff_parsed": {
+        "added": [
+            [
+                225,
+                "            IList<Executable> lambdaCode = this.parser.ExecutableParser.ParseBlock(tokens, false, owner, false);"
+            ],
+            [
+                226,
+                "            if (lambdaCode.Count == 1 && lambdaCode[0] is ExpressionAsExecutable)"
+            ],
+            [
+                227,
+                "            {"
+            ],
+            [
+                228,
+                "                // If a lambda contains a single expression as its code body, then this is an implicit return statement."
+            ],
+            [
+                229,
+                "                ExpressionAsExecutable eae = (ExpressionAsExecutable)lambdaCode[0];"
+            ],
+            [
+                230,
+                "                lambdaCode[0] = new ReturnStatement(eae.FirstToken, eae.Expression, owner);"
+            ],
+            [
+                231,
+                "            }"
+            ],
+            [
+                249,
+                "            Token maybeOpenParen = tokens.Peek();"
+            ],
+            [
+                258,
+                "                    if (this.parser.CurrentScope.IsStaticallyTyped)"
+            ],
+            [
+                259,
+                "                    {"
+            ],
+            [
+                260,
+                "                        TokenStream.StreamState state = tokens.RecordState();"
+            ],
+            [
+                261,
+                "                        AType lambdaArgType = this.parser.TypeParser.TryParse(tokens);"
+            ],
+            [
+                262,
+                "                        Token lambdaArg = null;"
+            ],
+            [
+                263,
+                "                        if (lambdaArgType != null)"
+            ],
+            [
+                264,
+                "                        {"
+            ],
+            [
+                265,
+                "                            lambdaArg = tokens.PopIfWord();"
+            ],
+            [
+                266,
+                "                        }"
+            ],
+            [
+                267,
+                ""
+            ],
+            [
+                268,
+                "                        if (lambdaArg != null)"
+            ],
+            [
+                269,
+                "                        {"
+            ],
+            [
+                270,
+                "                            List<AType> lambdaArgTypes = new List<AType>() { lambdaArgType };"
+            ],
+            [
+                271,
+                "                            List<Token> lambdaArgs = new List<Token>() { lambdaArg };"
+            ],
+            [
+                272,
+                "                            while (tokens.PopIfPresent(\",\"))"
+            ],
+            [
+                273,
+                "                            {"
+            ],
+            [
+                274,
+                "                                lambdaArgTypes.Add(this.parser.TypeParser.Parse(tokens));"
+            ],
+            [
+                275,
+                "                                lambdaArgs.Add(tokens.PopWord());"
+            ],
+            [
+                276,
+                "                            }"
+            ],
+            [
+                277,
+                "                            tokens.PopExpected(\")\");"
+            ],
+            [
+                278,
+                "                            return this.ParseLambda(tokens, maybeOpenParen, lambdaArgTypes, lambdaArgs, owner);"
+            ],
+            [
+                279,
+                "                        }"
+            ],
+            [
+                280,
+                "                        else"
+            ],
+            [
+                281,
+                "                        {"
+            ],
+            [
+                282,
+                "                            tokens.RestoreState(state);"
+            ],
+            [
+                283,
+                "                        }"
+            ],
+            [
+                284,
+                "                    }"
+            ],
+            [
+                285,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                225,
+                "            IList<Executable> lambdaCode = this.parser.ExecutableParser.ParseBlock(tokens, true, owner);"
+            ]
+        ]
+    },
+    "num_lines_added": 36,
+    "num_lines_removed": 1
+}

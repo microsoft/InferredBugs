@@ -1,0 +1,32 @@
+    @POST
+    public FormValidation doCheckNewSource(@QueryParameter String newSource) {
+        Jenkins.getInstance().checkPermission(Jenkins.ADMINISTER);
+        String normalizedSource = Util.fixEmptyAndTrim(newSource);
+        File file = new File(Util.fixNull(normalizedSource));
+        if (normalizedSource == null) {
+            return FormValidation.ok(); // empty, do nothing
+        }
+        if (!file.exists() && !ConfigurationAsCode.isSupportedURI(normalizedSource)) {
+            return FormValidation.error("Configuration cannot be applied. File or URL cannot be parsed or do not exist.");
+        }
+
+        List<YamlSource> yamlSources = Collections.emptyList();
+        try {
+            List<String> sources = Collections.singletonList(normalizedSource);
+            yamlSources = getConfigFromSources(sources);
+            final Map<Source, String> issues = checkWith(yamlSources);
+            final JSONArray errors = collectProblems(issues, "error");
+            if (!errors.isEmpty()) {
+                return FormValidation.error(errors.toString());
+            }
+            final JSONArray warnings = collectProblems(issues, "warning");
+            if (!warnings.isEmpty()) {
+                return FormValidation.warning(warnings.toString());
+            }
+            return FormValidation.okWithMarkup("The configuration can be applied");
+        } catch (ConfiguratorException | IllegalArgumentException e) {
+            return FormValidation.error(e, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());
+        } finally {
+            closeSources(yamlSources);
+        }
+    }

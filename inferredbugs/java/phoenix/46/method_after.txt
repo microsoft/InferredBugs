@@ -1,0 +1,75 @@
+    private PTable doGetTable(byte[] tenantId, byte[] schemaName, byte[] tableName,
+            long clientTimeStamp, RowLock rowLock, int clientVersion, boolean skipAddingIndexes,
+            boolean skipAddingParentColumns, PTable lockedAncestorTable) throws IOException, SQLException {
+        Region region = env.getRegion();
+        final byte[] key = SchemaUtil.getTableKey(tenantId, schemaName, tableName);
+        // if this region doesn't contain the metadata rows look up the table by using PhoenixRuntime.getTable
+        if (!region.getRegionInfo().containsRow(key)) {
+            Properties props = new Properties();
+            if (tenantId != null) {
+                props.setProperty(PhoenixRuntime.TENANT_ID_ATTRIB, Bytes.toString(tenantId));
+            }
+            if (clientTimeStamp != HConstants.LATEST_TIMESTAMP) {
+                props.setProperty("CurrentSCN", Long.toString(clientTimeStamp));
+            }
+            try (PhoenixConnection connection =
+                    QueryUtil.getConnectionOnServer(props, env.getConfiguration())
+                            .unwrap(PhoenixConnection.class)) {
+                ConnectionQueryServices queryServices = connection.getQueryServices();
+                MetaDataMutationResult result =
+                        queryServices.getTable(PNameFactory.newName(tenantId), schemaName,
+                            tableName, HConstants.LATEST_TIMESTAMP, clientTimeStamp,
+                            skipAddingIndexes, skipAddingParentColumns, lockedAncestorTable);
+                return result.getTable();
+            } catch (ClassNotFoundException e) {
+            }
+        }
+        
+        ImmutableBytesPtr cacheKey = new ImmutableBytesPtr(key);
+        // Ask Lars about the expense of this call - if we don't take the lock, we still won't get
+        // partial results
+        // get the co-processor environment
+        // TODO: check that key is within region.getStartKey() and region.getEndKey()
+        // and return special code to force client to lookup region from meta.
+        /*
+         * Lock directly on key, though it may be an index table. This will just prevent a table
+         * from getting rebuilt too often.
+         */
+        final boolean wasLocked = (rowLock != null);
+        try {
+            if (!wasLocked) {
+                rowLock = acquireLock(region, key, null);
+            }
+            PTable table =
+                    getTableFromCache(cacheKey, clientTimeStamp, clientVersion, skipAddingIndexes,
+                        skipAddingParentColumns, lockedAncestorTable);
+            table = modifyIndexStateForOldClient(clientVersion, table);
+            // We only cache the latest, so we'll end up building the table with every call if the
+            // client connection has specified an SCN.
+            // TODO: If we indicate to the client that we're returning an older version, but there's a
+            // newer version available, the client
+            // can safely not call this, since we only allow modifications to the latest.
+            if (table != null && table.getTimeStamp() < clientTimeStamp) {
+                // Table on client is up-to-date with table on server, so just return
+                if (isTableDeleted(table)) {
+                    return null;
+                }
+                return table;
+            }
+            // Query for the latest table first, since it's not cached
+            table =
+                    buildTable(key, cacheKey, region, HConstants.LATEST_TIMESTAMP, clientVersion,
+                        skipAddingIndexes, skipAddingParentColumns, lockedAncestorTable);
+            if ((table != null && table.getTimeStamp() < clientTimeStamp) || 
+                    (blockWriteRebuildIndex && table.getIndexDisableTimestamp() > 0)) {
+                return table;
+            }
+            // Otherwise, query for an older version of the table - it won't be cached
+            table =
+                    buildTable(key, cacheKey, region, clientTimeStamp, clientVersion,
+                        skipAddingIndexes, skipAddingParentColumns, lockedAncestorTable);
+            return table;
+        } finally {
+            if (!wasLocked && rowLock!=null) rowLock.release();
+        }
+    }

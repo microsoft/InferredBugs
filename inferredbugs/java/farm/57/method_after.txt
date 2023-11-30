@@ -1,0 +1,58 @@
+    @Test
+    public void respondsToMilestonedEvent() throws IOException {
+        final MkGithub github = new MkGithub();
+        final Repo repo = github.repos()
+            .create(new Repos.RepoCreate("test", false));
+        final Issue bug = repo
+            .issues().create("bug", "");
+        final Milestone milestone =
+            repo.milestones().create("my milestone");
+        new Issue.Smart(bug).milestone(milestone);
+        final FkFarm farm = new FkFarm();
+        MatcherAssert.assertThat(
+            new RbAddToMilestone().react(
+                farm,
+                github,
+                Json.createObjectBuilder()
+                    .add(
+                        "repository",
+                        Json.createObjectBuilder()
+                            .add("full_name", repo.coordinates().toString())
+                            .build()
+                    )
+                    .add(
+                        "issue",
+                        Json.createObjectBuilder()
+                            .add("number", 1)
+                            .add(
+                                "milestone",
+                                Json.createObjectBuilder()
+                                    .add("title", "milestone-title")
+                                    .add("number", 1)
+                                    .build()
+                            ).build()
+                    ).build()
+            ),
+            Matchers.is(
+                String.format(
+                    "Issue #%d has been added to milestone #%d",
+                    bug.number(), milestone.number()
+                )
+            )
+        );
+        final Collection<XML> claims =
+            new Claims(new GhProject(farm, bug.repo())).bootstrap().iterate();
+        final ClaimIn claim = new ClaimIn(claims.iterator().next());
+        MatcherAssert.assertThat(
+            claim.type(),
+            Matchers.is("Job milestoned")
+        );
+        MatcherAssert.assertThat(
+            claim.param("milestone"),
+            Matchers.is(String.valueOf(milestone.number()))
+        );
+        MatcherAssert.assertThat(
+            claim.param("job"),
+            Matchers.is(new Job(bug).toString())
+        );
+    }

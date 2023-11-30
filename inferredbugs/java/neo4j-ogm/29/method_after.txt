@@ -1,0 +1,65 @@
+ @Override
+	public <T> Iterable<T> map(Class<T> type, Response<RestModel> response) {
+		RestStatisticsModel restStatisticsModel = new RestStatisticsModel();
+		RestModel model = response.next();
+		Collection<Map<String, Object>> result = new ArrayList<>();
+		Map<Long, String> relationshipEntityColumns = new HashMap<>(); //Relationship ID to column name
+
+		restStatisticsModel.setStatistics(model.getStats());
+
+		while (model.getRow().entrySet().size() > 0) {
+			Map<String,Object> row = model.getRow();
+			List<RelationshipModel> relationshipModels = new ArrayList<>();
+			for (Map.Entry<String,Object> entry : row.entrySet()) {
+				Object value = entry.getValue();
+				if (value instanceof List) {
+					List entityList = (List) value;
+					if (isMappable(entityList)) {
+						for (int i=0; i< entityList.size(); i++) {
+							Object mapped = mapEntity(entry.getKey(), entityList.get(i), relationshipModels, relationshipEntityColumns);
+							if (mapped != null) { //if null, it'll be a relationship, which we're mapping after all nodes
+								entityList.set(i, mapped);
+							}
+						}
+					}
+					else {
+						convertListValueToArray(entityList, entry);
+					}
+				}
+				else {
+					if (isMappable(Arrays.asList(value))) {
+						Object mapped = mapEntity(entry.getKey(), value, relationshipModels, relationshipEntityColumns);
+						if (mapped != null) {
+							entry.setValue(mapped);
+						}
+					}
+				}
+
+			}
+			//Map all relationships
+			DefaultGraphModel graphModel = new DefaultGraphModel();
+			graphModel.setRelationships(relationshipModels.toArray(new RelationshipModel[relationshipModels.size()]));
+			Map<Long, Object> relationshipEntities = graphEntityMapper.mapRelationships(graphModel);
+			for (Map.Entry<Long, Object> entry : relationshipEntities.entrySet()) {
+				Object rels = row.get(relationshipEntityColumns.get(entry.getKey()));
+				if (rels instanceof List) {
+					List relsList = (List)rels;
+					for (int i=0;i<relsList.size(); i++) {
+						if (relsList.get(i) instanceof RelationshipModel) {
+							if (((RelationshipModel) relsList.get(i)).getId().equals(entry.getKey())) {
+								relsList.set(i, entry.getValue());
+							}
+						}
+					}
+				} else {
+					row.put(relationshipEntityColumns.get(entry.getKey()), entry.getValue());
+				}
+			}
+
+
+			result.add(row);
+			model = response.next();
+		}
+		restStatisticsModel.setResult(result);
+		return (Iterable<T>) Arrays.asList(restStatisticsModel);
+	}

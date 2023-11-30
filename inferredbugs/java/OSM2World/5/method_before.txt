@@ -1,0 +1,96 @@
+ @Override
+	protected void addPrimitiveToValueBuffer(BufferT buffer,
+			Primitive primitive) {
+					
+		/*
+		 * rearrange the lists of vertices, normals and texture coordinates
+		 * to turn triangle strips and triangle fans into separate triangles
+		 */
+
+		List<VectorXYZ> primVertices = primitive.vertices;
+		List<VectorXYZ> primNormals = primitive.normals;
+		List<List<VectorXZ>> primTexCoordLists = primitive.texCoordLists;
+		
+		if (primitive.type == Type.TRIANGLE_STRIP) {
+			
+			primVertices = triangleVertexListFromTriangleStrip(primVertices);
+			primNormals = triangleNormalListFromTriangleStrip(primNormals);
+			
+			if (primTexCoordLists != null) {
+				List<List<VectorXZ>> newPrimTexCoordLists = new ArrayList<List<VectorXZ>>();
+				for (List<VectorXZ> primTexCoordList : primTexCoordLists) {
+					newPrimTexCoordLists.add(triangleVertexListFromTriangleStrip(primTexCoordList));
+				}
+				primTexCoordLists = newPrimTexCoordLists;
+			}
+			
+		} else if (primitive.type == Type.TRIANGLE_FAN) {
+			
+			primVertices = triangleVertexListFromTriangleFan(primVertices);
+			primNormals = triangleVertexListFromTriangleFan(primNormals);
+			
+			if (primTexCoordLists != null) {
+				List<List<VectorXZ>> newPrimTexCoordLists = new ArrayList<List<VectorXZ>>();
+				for (List<VectorXZ> primTexCoordList : primTexCoordLists) {
+					newPrimTexCoordLists.add(triangleVertexListFromTriangleFan(primTexCoordList));
+				}
+				primTexCoordLists = newPrimTexCoordLists;
+			}
+			
+		}
+		
+		List<VectorXYZW> primTangents = null;
+		if (material.hasBumpMap()) {
+			primTangents = calculateTangentVectorsForTexLayer(primVertices, primNormals, primTexCoordLists.get(material.getBumpMapInd()));
+		} else if (material.getNumTextureLayers() > 0) {
+			primTangents = calculateTangentVectorsForTexLayer(primVertices, primNormals, primTexCoordLists.get(0));
+		}
+			
+		/* put the values into the buffer, in the right order */
+		
+		for (int i = 0; i < primVertices.size(); i++) {
+			
+			int count = 0;
+			assert (primTexCoordLists == null
+					&& material.getNumTextureLayers() == 0)
+				|| (primTexCoordLists != null
+					&& primTexCoordLists.size() == material.getNumTextureLayers())
+				: "WorldModules need to provide the correct number of tex coords";
+			
+			if (primTexCoordLists == null && material.getNumTextureLayers() > 0) {
+				System.out.println(material);
+			}
+				
+			for (int t = 0; t < material.getNumTextureLayers(); t++) {
+				if (!material.hasBumpMap() || t != material.getBumpMapInd()) {
+					VectorXZ textureCoord =	primTexCoordLists.get(t).get(i);
+					put(buffer, textureCoord);
+					//System.out.println("put tex coord");
+					count += 2;
+				}
+			}
+			
+			put(buffer, primNormals.get(i));
+			count += 3;
+			//System.out.println("put normals");
+			if (material.getNumTextureLayers() > 0) {
+				put(buffer, primTangents.get(i));
+				count += 4;
+				//System.out.println("put tangent");
+			}
+			if (material.hasBumpMap()) {
+				put(buffer, primTexCoordLists.get(material.getBumpMapInd()).get(i));
+				count += 2;
+				//System.out.println("put bm coord");
+			}
+			put(buffer, primVertices.get(i));
+			count += 3;
+			//System.out.println("put vertices");
+			
+			if (count != JOGLRendererVBO.getValuesPerVertex(material)) {
+				throw new RuntimeException("put: "+count +" values:" + JOGLRendererVBO.getValuesPerVertex(material));
+			}
+			//System.out.println("values per Material:" + JOGLRendererVBO.getValuesPerVertex(material));
+		}
+		
+	}

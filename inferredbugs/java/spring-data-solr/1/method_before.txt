@@ -1,0 +1,18 @@
+ public <T> Cursor<T> queryForCursor(Query query, final Class<T> clazz) {
+
+		return new DelegatingCursor<T>(queryParsers.getForClass(query.getClass()).constructSolrQuery(query)) {
+
+			@Override
+			protected org.springframework.data.solr.core.query.result.DelegatingCursor.PartialResult<T> doLoad(
+					SolrQuery nativeQuery) {
+
+				QueryResponse response = executeSolrQuery(nativeQuery);
+				if (response == null) {
+					return new PartialResult<T>("", Collections.<T> emptyList());
+				}
+
+				return new PartialResult<T>(response.getNextCursorMark(), convertQueryResponseToBeans(response, clazz));
+			}
+
+		}.open();
+	}

@@ -1,0 +1,52 @@
+    protected static void extractDummies(Dataset data, Map<Object, Object> referenceLevels) {
+
+        Map<Object, Dataset.ColumnType> columnTypes = data.getColumns();
+        if(referenceLevels.isEmpty()) {
+            //Training Mode
+            
+            //find the referenceLevels for each categorical variable
+            for(Integer rId: data) {
+                Record r = data.get(rId);
+                for(Map.Entry<Object, Object> entry: r.getX().entrySet()) {
+                    Object column = entry.getKey();
+                    if(referenceLevels.containsKey(column)==false) { //already set?
+                        if(covert2dummy(columnTypes.get(column))==false) { 
+                            continue; //only ordinal and categorical are converted into dummyvars
+                        }
+                        Object value = entry.getValue();
+                        referenceLevels.put(column, value);
+                    }
+                }
+            }
+        }
+        
+        //Replace variables with dummy versions
+        for(Integer rId: data) {
+            Record r = data.get(rId);
+            Set<Object> columns = new HashSet<>(r.getX().keySet()); //TODO: remove this once we make Record immutable
+            for(Object column : columns) {
+                if(covert2dummy(columnTypes.get(column))==false) { 
+                    continue;
+                }
+                Object value = r.getX().get(column);
+                
+                r.getX().remove(column); //remove the original column
+                
+                
+                Object referenceLevel= referenceLevels.get(column);
+                
+                if(referenceLevel != null && //not unknown variable
+                   !referenceLevel.equals(value)) { //not equal to reference level
+                    
+                    //create a new column
+                    List<Object> newColumn = Arrays.<Object>asList(column,value);
+                    
+                    //add a new dummy variable for this column-value combination
+                    r.getX().put(newColumn, true); 
+                }
+            }
+        }
+        
+        //Reset Meta info
+        data.resetMeta();
+    }

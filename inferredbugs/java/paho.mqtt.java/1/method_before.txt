@@ -1,0 +1,19 @@
+ protected boolean checkQuiesceLock() {
+		final String methodName = "checkQuiesceLock";
+		// if (quiescing && actualInFlight == 0 && pendingFlows.size() == 0 &&
+		// inFlightPubRels == 0 && callback.isQuiesced()) {
+		int tokC = tokenStore.count();
+		if (quiescing && tokC == 0 && pendingFlows.size() == 0 && callback.isQuiesced()) {
+			// @TRACE 626=quiescing={0} actualInFlight={1} pendingFlows={2}
+			// inFlightPubRels={3} callbackQuiesce={4} tokens={5}
+			log.fine(CLASS_NAME, methodName, "626",
+					new Object[] { new Boolean(quiescing), Integer.valueOf(actualInFlight),
+							Integer.valueOf(pendingFlows.size()), Integer.valueOf(inFlightPubRels),
+							Boolean.valueOf(callback.isQuiesced()), Integer.valueOf(tokC) });
+			synchronized (quiesceLock) {
+				quiesceLock.notifyAll();
+			}
+			return true;
+		}
+		return false;
+	}

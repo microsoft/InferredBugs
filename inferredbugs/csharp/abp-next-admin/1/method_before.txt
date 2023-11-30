@@ -1,0 +1,11 @@
+    public virtual Task<bool> TryLockAsync(string jobKey, int lockSeconds, CancellationToken cancellationToken = default)
+    {
+        Check.NotNullOrWhiteSpace(jobKey, nameof(jobKey));
+        if (_localSyncObjects.ContainsKey(jobKey))
+        {
+            return Task.FromResult(false);
+        }
+
+        var semaphore = new SemaphoreSlim(1, 1);
+        return Task.FromResult(_localSyncObjects.TryAdd(jobKey, semaphore));
+    }

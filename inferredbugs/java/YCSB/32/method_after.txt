@@ -1,0 +1,83 @@
+  @Override
+  public Status scan(String table, String startkey, int recordcount,
+      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
+
+    try {
+      PreparedStatement stmt = (fields == null) ? scanAllStmt.get() : scanStmts.get(fields);
+
+      // Prepare statement on demand
+      if (stmt == null) {
+        Select.Builder selectBuilder;
+
+        if (fields == null) {
+          selectBuilder = QueryBuilder.select().all();
+        } else {
+          selectBuilder = QueryBuilder.select();
+          for (String col : fields) {
+            ((Select.Selection) selectBuilder).column(col);
+          }
+        }
+
+        Select selectStmt = selectBuilder.from(table);
+
+        // The statement builder is not setup right for tokens.
+        // So, we need to build it manually.
+        String initialStmt = selectStmt.toString();
+        StringBuilder scanStmt = new StringBuilder();
+        scanStmt.append(initialStmt.substring(0, initialStmt.length() - 1));
+        scanStmt.append(" WHERE ");
+        scanStmt.append(QueryBuilder.token(YCSB_KEY));
+        scanStmt.append(" >= ");
+        scanStmt.append("token(");
+        scanStmt.append(QueryBuilder.bindMarker());
+        scanStmt.append(")");
+        scanStmt.append(" LIMIT ");
+        scanStmt.append(QueryBuilder.bindMarker());
+
+        stmt = session.prepare(scanStmt.toString());
+        stmt.setConsistencyLevel(readConsistencyLevel);
+        if (trace) {
+          stmt.enableTracing();
+        }
+
+        PreparedStatement prevStmt = (fields == null) ?
+                                     scanAllStmt.getAndSet(stmt) :
+                                     scanStmts.putIfAbsent(new HashSet(fields), stmt);
+        if (prevStmt != null) {
+          stmt = prevStmt;
+        }
+      }
+
+      logger.debug(stmt.getQueryString());
+      logger.debug("startKey = {}, recordcount = {}", startkey, recordcount);
+
+      ResultSet rs = session.execute(stmt.bind(startkey, Integer.valueOf(recordcount)));
+
+      HashMap<String, ByteIterator> tuple;
+      while (!rs.isExhausted()) {
+        Row row = rs.one();
+        tuple = new HashMap<String, ByteIterator>();
+
+        ColumnDefinitions cd = row.getColumnDefinitions();
+
+        for (ColumnDefinitions.Definition def : cd) {
+          ByteBuffer val = row.getBytesUnsafe(def.getName());
+          if (val != null) {
+            tuple.put(def.getName(), new ByteArrayByteIterator(val.array()));
+          } else {
+            tuple.put(def.getName(), null);
+          }
+        }
+
+        result.add(tuple);
+      }
+
+      return Status.OK;
+
+    } catch (Exception e) {
+      logger.error(
+          MessageFormatter.format("Error scanning with startkey: {}", startkey).getMessage(), e);
+      return Status.ERROR;
+    }
+
+  }

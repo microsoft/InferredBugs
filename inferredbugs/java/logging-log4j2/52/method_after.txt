@@ -1,0 +1,19 @@
+    @Test
+    public void testEnvironment() throws Exception {
+        ctx = Configurator.initialize("-config", null);
+        LogManager.getLogger("org.apache.test.TestConfigurator");
+        final Configuration config = ctx.getConfiguration();
+        assertNotNull("No configuration", config);
+        assertEquals("Incorrect Configuration.", CONFIG_NAME, config.getName());
+        final Map<String, Appender> map = config.getAppenders();
+        assertNotNull("Appenders map should not be null.", map);
+        assertThat(map, hasSize(greaterThan(0)));
+        assertThat("No ListAppender named List2", map, hasKey("List2"));
+        Appender app = map.get("List2");
+        final Layout<? extends Serializable> layout = app.getLayout();
+        assertNotNull("Appender List2 does not have a Layout", layout);
+        assertThat("Appender List2 is not configured with a PatternLayout", layout, instanceOf(PatternLayout.class));
+        final String pattern = ((PatternLayout) layout).getConversionPattern();
+        assertNotNull("No conversion pattern for List2 PatternLayout", pattern);
+        assertFalse("Environment variable was not substituted", pattern.startsWith("${env:PATH}"));
+    }

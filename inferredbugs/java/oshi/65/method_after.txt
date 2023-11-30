@@ -1,0 +1,18 @@
+    @Override
+    public long[] querySystemCpuLoadTicks() {
+        // To get load in processor group scenario, we need perfmon counters, but the
+        // _Total instance is an average rather than total (scaled) number of ticks
+        // which matches GetSystemTimes() results. We can just query the per-processor
+        // ticks and add them up. Calling the get() method gains the benefit of
+        // synchronizing this output with the memoized result of per-processor ticks as
+        // well.
+        long[] ticks = new long[TickType.values().length];
+        // Sum processor ticks
+        long[][] procTicks = getProcessorCpuLoadTicks();
+        for (int i = 0; i < ticks.length; i++) {
+            for (long[] procTick : procTicks) {
+                ticks[i] += procTick[i];
+            }
+        }
+        return ticks;
+    }

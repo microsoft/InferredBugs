@@ -1,0 +1,38 @@
+    protected void start() {
+        if (started) {
+            throw new IllegalStateException("Filter already started. Make sure to specify just keycloakConfigResolver or keycloakConfigFile but not both");
+        }
+
+        if (keycloakConfigResolverClass != null) {
+            Class<?> clazz;
+            try {
+                clazz = getClass().getClassLoader().loadClass(keycloakConfigResolverClass);
+            } catch (ClassNotFoundException cnfe) {
+                // Fallback to tccl
+                try {
+                    clazz = Thread.currentThread().getContextClassLoader().loadClass(keycloakConfigResolverClass);
+                } catch (ClassNotFoundException cnfe2) {
+                    throw new RuntimeException("Unable to find resolver class: " + keycloakConfigResolverClass);
+                }
+            }
+
+            try {
+                KeycloakConfigResolver resolver = (KeycloakConfigResolver) clazz.newInstance();
+                log.info("Using " + resolver + " to resolve Keycloak configuration on a per-request basis.");
+                this.deploymentContext = new AdapterDeploymentContext(resolver);
+            } catch (Exception e) {
+                throw new RuntimeException("Unable to instantiate resolver " + clazz);
+            }
+        } else {
+            if (keycloakConfigFile == null) {
+                throw new IllegalArgumentException("You need to specify either keycloakConfigResolverClass or keycloakConfigFile in configuration");
+            }
+            InputStream is = readConfigFile();
+            KeycloakDeployment kd = KeycloakDeploymentBuilder.build(is);
+            deploymentContext = new AdapterDeploymentContext(kd);
+            log.info("Keycloak is using a per-deployment configuration loaded from: " + keycloakConfigFile);
+        }
+
+        nodesRegistrationManagement = new NodesRegistrationManagement();
+        started = true;
+    }

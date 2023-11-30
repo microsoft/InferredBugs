@@ -1,0 +1,30 @@
+  [Fact]
+		public void OnNextWithStartAndStopTwice()
+		{
+			var logger = new TestLogger(LogLevel.Warning);
+			var agent = new ApmAgent(new TestAgentComponents(logger));
+			StartTransaction(agent);
+			var listener = new HttpDiagnosticListener(agent);
+
+			var request = new HttpRequestMessage(HttpMethod.Get, "https://elastic.co");
+			var response = new HttpResponseMessage(HttpStatusCode.OK);
+
+			//Simulate Start
+			listener.OnNext(new KeyValuePair<string, object>("System.Net.Http.HttpRequestOut.Start", new { Request = request }));
+			//Simulate Stop
+			listener.OnNext(new KeyValuePair<string, object>("System.Net.Http.HttpRequestOut.Stop", new { Request = request, Response = response }));
+			//Simulate Stop again. This should not happen, still we test for this.
+			listener.OnNext(new KeyValuePair<string, object>("System.Net.Http.HttpRequestOut.Stop", new { Request = request, Response = response }));
+
+			logger.Lines.Should().NotBeEmpty();
+			logger.Lines[0]
+				.Should()
+				.StartWith($"{{{nameof(HttpDiagnosticListener)}}}")
+				.And.ContainAll(
+					"Failed capturing request",
+					HttpMethod.Get.Method,
+					request.RequestUri.AbsoluteUri
+				);
+			Agent.TransactionContainer.Transactions.Value.Should().NotBeNull();
+			Agent.TransactionContainer.Transactions.Value.Spans.Should().ContainSingle();
+		}

@@ -1,0 +1,57 @@
+        private void PopulateWorkspace()
+        {
+            Model model = _workspace.Model;
+            ViewSet views = _workspace.Views;
+            model.Enterprise = new Enterprise("Some Enterprise");
+    
+            Person user = model.AddPerson(Location.Internal, "User", "");
+            SoftwareSystem softwareSystem = model.AddSoftwareSystem(Location.Internal, "Software System", "");
+            user.Uses(softwareSystem, "Uses");
+    
+            SoftwareSystem emailSystem = model.AddSoftwareSystem(Location.External, "E-mail System", "");
+            softwareSystem.Uses(emailSystem, "Sends e-mail using");
+            emailSystem.Delivers(user, "Delivers e-mails to");
+    
+            Container webApplication = softwareSystem.AddContainer("Web Application", "", "");
+            Container database = softwareSystem.AddContainer("Database", "", "");
+            user.Uses(webApplication, "Uses", "HTTP");
+            webApplication.Uses(database, "Reads from and writes to", "JDBC");
+            webApplication.Uses(emailSystem, "Sends e-mail using");
+    
+            Component controller = webApplication.AddComponent("SomeController", "", "Spring MVC Controller");
+            Component emailComponent = webApplication.AddComponent("EmailComponent", "");
+            Component repository = webApplication.AddComponent("SomeRepository", "", "Spring Data");
+            user.Uses(controller, "Uses", "HTTP");
+            controller.Uses(repository, "Uses");
+            controller.Uses(emailComponent, "Sends e-mail using");
+            repository.Uses(database, "Reads from and writes to", "JDBC");
+            emailComponent.Uses(emailSystem, "Sends e-mails using", "SMTP");
+
+            DeploymentNode webServer = model.AddDeploymentNode("Web Server", "A server hosted at AWS EC2.", "Ubuntu 12.04 LTS");
+            webServer.AddDeploymentNode("Apache Tomcat", "The live web server", "Apache Tomcat 8.x")
+                    .Add(webApplication);
+            DeploymentNode databaseServer = model.AddDeploymentNode("Database Server", "A server hosted at AWS EC2.", "Ubuntu 12.04 LTS");
+            databaseServer.AddDeploymentNode("MySQL", "The live database server", "MySQL 5.5.x")
+                    .Add(database);
+    
+            SystemLandscapeView
+                systemLandscapeView = views.CreateSystemLandscapeView("enterpriseContext", "");
+            systemLandscapeView.AddAllElements();
+    
+            SystemContextView systemContextView = views.CreateSystemContextView(softwareSystem, "systemContext", "");
+            systemContextView.AddAllElements();
+    
+            ContainerView containerView = views.CreateContainerView(softwareSystem, "containers", "");
+            containerView.AddAllElements();
+    
+            ComponentView componentView = views.CreateComponentView(webApplication, "components", "");
+            componentView.AddAllElements();
+    
+            DynamicView dynamicView = views.CreateDynamicView(webApplication, "dynamic", "");
+            dynamicView.Add(user, "Requests /something", controller);
+            dynamicView.Add(controller, repository);
+            dynamicView.Add(repository, "select * from something", database);
+
+            DeploymentView deploymentView = views.CreateDeploymentView(softwareSystem, "deployment", "");
+            deploymentView.AddAllDeploymentNodes();
+        }

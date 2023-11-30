@@ -1,0 +1,20 @@
+    private CompoundDirectory getExif() throws IOException {
+        List<Application> exifSegments = getAppSegments(JPEG.APP1, "Exif");
+
+        if (!exifSegments.isEmpty()) {
+            Application exif = exifSegments.get(0);
+            InputStream data = exif.data();
+
+            if (data.read() == -1) { // Read pad
+                processWarningOccurred("Exif chunk has no data.");
+            }
+            else {
+                ImageInputStream stream = new MemoryCacheImageInputStream(data);
+                return (CompoundDirectory) new TIFFReader().read(stream);
+
+                // TODO: Directory offset of thumbnail is wrong/relative to container stream, causing trouble for the TIFFReader...
+            }
+        }
+
+        return null;
+    }

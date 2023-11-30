@@ -1,0 +1,51 @@
+    public RepositoryChanged updateSvnRepository(String repoName, String repoRemoteLocation, String repoUserName, String repoPassword, String repoLocations, boolean useCredentials) {
+        boolean changed = false;
+        List<String> changedFiles = new ArrayList<>();
+        List<String> deletedFiles = new ArrayList<>();
+        Singleton.getLogger().info("SVN: attempting to pull latest from " + repoRemoteLocation + " for " + repoName);
+
+
+        ProcessBuilder processBuilder;
+        if (useCredentials) {
+            processBuilder = new ProcessBuilder(this.SVNBINARYPATH, "update");
+        }
+        else {
+            processBuilder = new ProcessBuilder(this.SVNBINARYPATH, "update", "--username", repoUserName, "--password", repoPassword);
+        }
+
+        processBuilder.directory(new File(repoLocations + repoName));
+        Process process = null;
+        BufferedReader bufferedReader = null;
+
+        try {
+            String previousRevision = this.getCurrentRevision(repoLocations, repoName);
+            Singleton.getLogger().info("SVN: update previous revision " + previousRevision);
+
+            process = processBuilder.start();
+
+            InputStream is = process.getInputStream();
+            InputStreamReader isr = new InputStreamReader(is);
+            bufferedReader = new BufferedReader(isr);
+            String line;
+
+            while ((line = bufferedReader.readLine()) != null) {
+                Singleton.getLogger().info("svn update: " + line);
+            }
+
+            String currentRevision = this.getCurrentRevision(repoLocations, repoName);
+            Singleton.getLogger().info("SVN: update current revision " + currentRevision);
+
+            if (!previousRevision.equals(currentRevision)) {
+                return this.getDiffBetweenRevisions(repoLocations, repoName, previousRevision);
+            }
+        } catch (IOException | InvalidPathException ex) {
+            changed = false;
+            Singleton.getLogger().warning("ERROR - caught a " + ex.getClass() + " in " + this.getClass() + " updateSvnRepository for " + repoName + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(process);
+            Helpers.closeQuietly(bufferedReader);
+        }
+
+        return new RepositoryChanged(changed, changedFiles, deletedFiles);
+    }

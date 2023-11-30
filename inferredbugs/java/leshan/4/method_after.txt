@@ -1,0 +1,91 @@
+    @SuppressWarnings("unchecked")
+    private static <T extends LwM2mNode> T parseTlv(Tlv[] tlvs, LwM2mPath path, LwM2mModel model, Class<T> nodeClass)
+            throws CodecException {
+        LOG.trace("Parsing TLV content for path {}: {}", path, tlvs);
+
+        // Object
+        if (nodeClass == LwM2mObject.class) {
+            List<LwM2mObjectInstance> instances = new ArrayList<>();
+
+            // is it an array of TLV resources?
+            if (tlvs.length > 0 && //
+                    (tlvs[0].getType() == TlvType.MULTIPLE_RESOURCE || tlvs[0].getType() == TlvType.RESOURCE_VALUE)) {
+
+                ObjectModel oModel = model.getObjectModel(path.getObjectId());
+                if (oModel == null) {
+                    LOG.warn("No model for object {}. The tlv is decoded assuming this is a single instance object",
+                            path.getObjectId());
+                    instances.add(parseObjectInstanceTlv(tlvs, path.getObjectId(), 0, model));
+                } else if (!oModel.multiple) {
+                    instances.add(parseObjectInstanceTlv(tlvs, path.getObjectId(), 0, model));
+                } else {
+                    throw new CodecException(String
+                            .format("Object instance TLV is mandatory for multiple instances object [path:%s]", path));
+                }
+
+            } else {
+                for (Tlv tlv : tlvs) {
+                    if (tlv.getType() != TlvType.OBJECT_INSTANCE)
+                        throw new CodecException(
+                                String.format("Expected TLV of type OBJECT_INSTANCE but was %s  [path:%s]",
+                                        tlv.getType().name(), path));
+
+                    instances.add(parseObjectInstanceTlv(tlv.getChildren(), path.getObjectId(),
+                            tlv.getIdentifier(), model));
+                }
+            }
+            return (T) new LwM2mObject(path.getObjectId(), instances);
+        }
+
+        // Object instance
+        else if (nodeClass == LwM2mObjectInstance.class) {
+
+            if (tlvs.length == 1 && tlvs[0].getType() == TlvType.OBJECT_INSTANCE) {
+                if (path.isObjectInstance() && tlvs[0].getIdentifier() != path.getObjectInstanceId()) {
+                    throw new CodecException(String.format("Id conflict between path [%s] and instance TLV [%d]", path,
+                            tlvs[0].getIdentifier()));
+                }
+                // object instance TLV
+                return (T) parseObjectInstanceTlv(tlvs[0].getChildren(), path.getObjectId(), tlvs[0].getIdentifier(),
+                        model);
+            } else {
+                // array of TLV resources
+                // try to retrieve the instanceId from the path or the model
+                Integer instanceId = path.getObjectInstanceId();
+                if (instanceId == null) {
+                    // single instance object?
+                    ObjectModel oModel = model.getObjectModel(path.getObjectId());
+                    if (oModel != null && !oModel.multiple) {
+                        instanceId = 0;
+                    } else {
+                        instanceId = LwM2mObjectInstance.UNDEFINED;
+                    }
+                }
+                return (T) parseObjectInstanceTlv(tlvs, path.getObjectId(), instanceId, model);
+            }
+        }
+
+        // Resource
+        else if (nodeClass == LwM2mResource.class) {
+            ResourceModel resourceModel = model.getResourceModel(path.getObjectId(), path.getResourceId());
+            if (tlvs.length == 0 && resourceModel != null && !resourceModel.multiple) {
+                // If there is no TlV value and we know that this resource is a single resource we raise an exception
+                // else we consider this is a multi-instance resource
+                throw new CodecException(String.format("TLV payload is mandatory for single resource %s", path));
+
+            } else if (tlvs.length == 1 && tlvs[0].getType() != TlvType.RESOURCE_INSTANCE) {
+                if (path.isResource() && path.getResourceId() != tlvs[0].getIdentifier()) {
+                    throw new CodecException(String.format("Id conflict between path [%s] and resource TLV [%s]", path,
+                            tlvs[0].getIdentifier()));
+                }
+                return (T) parseResourceTlv(tlvs[0], path.getObjectId(), path.getObjectInstanceId(), model);
+            } else {
+                Type expectedRscType = getResourceType(path, model);
+                return (T) LwM2mMultipleResource.newResource(path.getResourceId(),
+                        parseTlvValues(tlvs, expectedRscType, path), expectedRscType);
+            }
+        } else {
+            throw new IllegalArgumentException("invalid node class: " + nodeClass);
+        }
+
+    }

@@ -1,0 +1,343 @@
+    void float_comparison(int operation, SimpleNode node, int reifStart) {
+
+	//   	 node.dump("");
+
+	ASTScalarFlatExpr p1 = (ASTScalarFlatExpr)node.jjtGetChild(0);
+	ASTScalarFlatExpr p2 = (ASTScalarFlatExpr)node.jjtGetChild(1);
+
+	boolean reified = false; 
+	if (p.startsWith("_reif", reifStart)) {
+	    reified = true;
+	}
+
+	if (reified) { // reified constraint
+	    PrimitiveConstraint c = null;
+	    ASTScalarFlatExpr p3 = (ASTScalarFlatExpr)node.jjtGetChild(2);
+	    IntVar v3 = getVariable(p3);
+
+	    if (p2.getType() == 5) { // var rel float
+
+		FloatVar v1 = getFloatVariable(p1);
+
+		double i2 = getFloat(p2);
+		switch (operation) {
+
+		case eq :
+		    if (v1.min() > i2 || v1.max() < i2) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+			return;
+		    }
+		    else if (v1.min() == i2 && v1.singleton() ) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+			return;
+		    } else if (v3.max() == 0) {
+			v1.domain.inComplement(store.level, v1, i2);
+			return;
+		    }
+		    else if (v3.min() == 1) {
+			v1.domain.in(store.level, v1, i2, i2);
+			return;
+		    }
+		    else
+			c = new PeqC(v1, i2);
+		    break;
+
+		case ne :
+		    if (v1.min() > i2 || v1.max() < i2) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+		    	return;
+		    }
+		    else if (v1.min() == i2 && v1.singleton() ) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+		    	return;
+		    } else if (v3.max() == 0) {
+			v1.domain.in(store.level, v1, i2, i2);
+			return;
+		    }
+		    else if (v3.min() == 1) {
+			v1.domain.inComplement(store.level, v1, i2);
+			return;
+		    }
+		    else
+			c = new PneqC(v1, i2);
+		    break;
+		case lt :
+		    if (v1.max() < i2) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+		    	return;
+		    }
+		    else if (v1.min() >= i2 ) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+		    	return;
+		    }
+		    else
+			c = new PltC(v1, i2);
+		    break;
+		case le :
+		    if (v1.max() <= i2) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+		    	return;
+		    }
+		    else if (v1.min() > i2 ) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+		    	return;
+		    }
+		    else
+			c = new PlteqC(v1, i2);
+		    break;
+		// case gt :
+		//     if (v1.min() > i2) {
+		// 	v3.domain.in(store.level, v3, 1, 1);
+		// 	return;
+		//     }
+		//     else if (v1.max() <= i2 ) {
+		// 	v3.domain.in(store.level, v3, 0, 0);
+		// 	return;
+		//     }
+		//     else
+		// 	c = new PgtC(v1, i2);
+		//     break;
+		// case ge :
+		//     if (v1.min() >= i2) {
+		// 	v3.domain.in(store.level, v3, 1, 1);
+		// 	return;
+		//     }
+		//     else if (v1.max() < i2 ) {
+		// 	v3.domain.in(store.level, v3, 0, 0);
+		// 	return;
+		//     }
+		//     else
+		// 	c = new PgteqC(v1, i2);
+		//     break;
+		}
+	    } else if (p1.getType() == 5) { // float rel var
+		FloatVar v2 = getFloatVariable(p2);
+		double i1 = getFloat(p1);
+
+		switch (operation) {
+
+		case eq :
+		    if (v2.min() > i1 || v2.max() < i1) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+			return;
+		    }
+		    else if (v2.min() == i1 && v2.singleton() ) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+			return;
+		    }
+		    else if (v3.max() == 0) {
+			v2.domain.inComplement(store.level, v2, i1);
+			return;
+		    }
+		    else if (v3.min() == 1) {
+			v2.domain.in(store.level, v2, i1, i1);
+			return;
+		    }
+		    else
+			c = new PeqC(v2, i1);
+		    break;
+
+		case ne :
+		    if (v2.min() > i1 || v2.max() < i1) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+		    	return;
+		    }
+		    else if (v2.min() == i1 && v2.singleton() ) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+		    	return;
+		    }
+		    else
+			c = new PneqC(v2, i1);
+		    break;
+		case lt :
+		    if (i1 < v2.min()) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+		    	return;
+		    }
+		    else if (i1 >= v2.max() ) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+		    	return;
+		    }
+		    else
+			c = new PgtC(v2, i1);
+		    break;
+		case le :
+		    if (i1 <= v2.min()) {
+		    	v3.domain.in(store.level, v3, 1, 1);
+		    	return;
+		    }
+		    else if (i1 > v2.max() ) {
+		    	v3.domain.in(store.level, v3, 0, 0);
+		    	return;
+		    }
+		    else
+			c = new PgteqC(v2, i1);
+		    break;
+		// case gt :
+		//     if (i1 > v2.max()) {
+		// 	v3.domain.in(store.level, v3, 1, 1);
+		// 	return;
+		//     }
+		//     else if (i1 <= v2.min() ) {
+		// 	v3.domain.in(store.level, v3, 0, 0);
+		// 	return;
+		//     }
+		//     else
+		// 	c = new PltC(v2, i1);
+		//     break;
+		// case ge :
+		//     if (i1 > v2.max()) {
+		//     	v3.domain.in(store.level, v3, 1, 1);
+		//     	return;
+		//     }
+		//     else if (i1 < v2.min() ) {
+		//     	v3.domain.in(store.level, v3, 0, 0);
+		//     	return;
+		//     }
+		//     else
+		//     	c = new PlteqC(v2, i1);
+		//     break;
+		}
+	    } else { // var rel var
+		FloatVar v1 = getFloatVariable(p1);
+		FloatVar v2 = getFloatVariable(p2);
+
+		switch (operation) {
+		case eq :
+		    c = new PeqQ(v1, v2);
+		    break;
+		case ne :
+		    c = new PneqQ(v1, v2);
+		    break;
+		case lt :
+		    c = new PltQ(v1, v2);
+		    break;
+		case le :
+		    c = new PlteqQ(v1, v2);
+		    break;
+		// case gt :
+		//     c = new PgtQ(v1, v2);
+		//     break;
+		// case ge :
+		//     c = new PgteqQ(v1, v2);
+		//     break;
+		}
+	    }
+
+ 	    Constraint cr = new Reified(c, v3);
+ 	    pose(cr);
+	}
+	else  { // not reified constraints
+
+	    if (p1.getType() == 5) { // first parameter float
+		if (p2.getType() == 0 || p2.getType() == 1) { // first parameter float & second parameter float
+		    double i1 = getFloat(p1);
+		    double i2 = getFloat(p2);
+		    switch (operation) {
+		    case eq :
+			if (i1 != i2) throw Store.failException;
+			break;
+		    case ne :
+			if (i1 == i2) throw Store.failException;
+			break;
+		    case lt :
+			if (i1 >= i2) throw Store.failException;
+			break;
+		    case le :
+			if (i1 > i2) throw Store.failException;
+			break;
+		    // case gt :
+		    // 	if (i1 <= i2) throw Store.failException;
+		    // 	break;
+		    // case ge :
+		    // 	if (i1 < i2) throw Store.failException;
+		    // 	break;
+		    }
+		} 
+		else { // first parameter float & second parameter var
+
+		    double i1 = getFloat(p1);
+		    FloatVar v2 = getFloatVariable(p2);
+
+		    switch (operation) {
+		    case eq :
+			v2.domain.in(store.level, v2, i1, i1);
+			break;
+		    case ne :
+			v2.domain.inComplement(store.level, v2, i1);
+			break;
+		    case lt :
+			v2.domain.in(store.level, v2, FloatDomain.next(i1), VariablesParameters.MAX_FLOAT);
+			break;
+		    case le :
+			v2.domain.in(store.level, v2, i1, VariablesParameters.MAX_FLOAT);
+			break;
+		    // case gt :
+		    // 	v2.domain.in(store.level, v2, IntDomain.MinInt, i1-1);
+		    // 	break;
+		    // case ge :
+		    // 	v2.domain.in(store.level, v2, IntDomain.MinInt, i1);
+		    // 	break;
+		    }
+		}
+	    }
+	    else { // first parameter var
+		if (p2.getType() == 5) { // first parameter var & second parameter float
+
+		    FloatVar v1 = getFloatVariable(p1);
+		    double i2 = getFloat(p2);
+
+		    switch (operation) {
+		    case eq :
+			v1.domain.in(store.level, v1, i2, i2);
+			break;
+		    case ne :
+			v1.domain.inComplement(store.level, v1, i2);
+			break;
+		    case lt :
+			v1.domain.in(store.level, v1, VariablesParameters.MIN_FLOAT, FloatDomain.previous(i2));
+			break;
+		    case le :
+			v1.domain.in(store.level, v1, VariablesParameters.MIN_FLOAT, i2);
+			break;
+		    // case gt :
+		    // 	v1.domain.in(store.level, v1, i2+1, VariablesParameters.MAX_FLOAT);
+		    // 	break;
+		    // case ge :
+		    // 	v1.domain.in(store.level, v1, i2, VariablesParameters.MAX_FLOAT);
+		    // 	break;
+		    }
+
+		} 
+		else { // first parameter var & second parameter var
+
+		    PrimitiveConstraint c = null;
+		    FloatVar v1 = getFloatVariable(p1);
+		    FloatVar v2 = getFloatVariable(p2);
+
+		    switch (operation) {
+		    case eq :
+			c = new PeqQ(v1, v2);
+			break;
+		    case ne :
+			c = new PneqQ(v1, v2);
+			break;
+		    case lt :
+			c = new PltQ(v1, v2);
+			break;
+		    case le :
+			c = new PlteqQ(v1, v2);
+			break;
+		    // case gt :
+		    // 	c = new PgtQ(v1, v2);
+		    // 	break;
+		    // case ge :
+		    // 	c = new PgteqQ(v1, v2);
+		    // 	break;
+		    }
+		    pose(c);
+		}
+	    }
+
+	}
+    }

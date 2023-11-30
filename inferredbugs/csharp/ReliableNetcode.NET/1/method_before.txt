@@ -1,0 +1,53 @@
+  public static int ReadFragmentHeader(byte[] packetBuffer, int offset, int bufferLength, int maxFragments, int fragmentSize, out int fragmentID, out int numFragments, out int fragmentBytes,
+			out ushort sequence, out ushort ack, out uint ackBits, out byte channelID)
+		{
+			if (bufferLength < Defines.FRAGMENT_HEADER_BYTES)
+				throw new FormatException("Buffer too small for packet header");
+
+			using (var reader = ByteArrayReaderWriter.Get(packetBuffer))
+			{
+				byte prefixByte = reader.ReadByte();
+
+				if (prefixByte != 1)
+					throw new FormatException("Packet header indicates non-fragment packet");
+
+				channelID = (byte)(prefixByte >> 6);
+
+				sequence = reader.ReadUInt16();
+
+				fragmentID = reader.ReadByte();
+				numFragments = reader.ReadByte() + 1;
+
+				if (numFragments > maxFragments)
+					throw new FormatException("Packet header indicates fragments outside of max range");
+
+				if (fragmentID >= numFragments)
+					throw new FormatException("Packet header indicates fragment ID outside of fragment count");
+
+				fragmentBytes = bufferLength - Defines.FRAGMENT_HEADER_BYTES;
+
+				ushort packetSequence = 0;
+				ushort packetAck = 0;
+				uint packetAckBits = 0;
+
+				if (fragmentID == 0)
+				{
+					int packetHeaderBytes = ReadPacketHeader(packetBuffer, Defines.FRAGMENT_HEADER_BYTES, bufferLength, out packetSequence, out packetAck, out packetAckBits);
+					if (packetSequence != sequence)
+						throw new FormatException("Bad packet sequence in fragment");
+
+					fragmentBytes = bufferLength - packetHeaderBytes - Defines.FRAGMENT_HEADER_BYTES;
+				}
+
+				ack = packetAck;
+				ackBits = packetAckBits;
+
+				if (fragmentBytes > fragmentSize)
+					throw new FormatException("Fragment bytes remaining > indicated fragment size");
+
+				if (fragmentID != numFragments - 1 && fragmentBytes != fragmentSize)
+					throw new FormatException("Fragment size invalid");
+
+				return (int)reader.ReadPosition - offset;
+			}
+		}

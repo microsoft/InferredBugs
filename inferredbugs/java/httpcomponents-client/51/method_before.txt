@@ -1,0 +1,64 @@
+    CloseableHttpResponse revalidateCacheEntry(
+            final HttpRoute route,
+            final HttpRequestWrapper request,
+            final HttpClientContext context,
+            final HttpExecutionAware execAware,
+            final HttpCacheEntry cacheEntry) throws IOException, HttpException {
+
+        final HttpRequestWrapper conditionalRequest = conditionalRequestBuilder.buildConditionalRequest(request, cacheEntry);
+        final URI uri = conditionalRequest.getURI();
+        if (uri != null) {
+            try {
+                request.setURI(URIUtils.rewriteURIForRoute(uri, route));
+            } catch (final URISyntaxException ex) {
+                throw new ProtocolException("Invalid URI: " + uri, ex);
+            }
+        }
+
+        Date requestDate = getCurrentDate();
+        CloseableHttpResponse backendResponse = backend.execute(
+                route, conditionalRequest, context, execAware);
+        Date responseDate = getCurrentDate();
+
+        if (revalidationResponseIsTooOld(backendResponse, cacheEntry)) {
+            backendResponse.close();
+            final HttpRequestWrapper unconditional = conditionalRequestBuilder
+                .buildUnconditionalRequest(request, cacheEntry);
+            requestDate = getCurrentDate();
+            backendResponse = backend.execute(route, unconditional, context, execAware);
+            responseDate = getCurrentDate();
+        }
+
+        backendResponse.addHeader(HeaderConstants.VIA, generateViaHeader(backendResponse));
+
+        final int statusCode = backendResponse.getStatusLine().getStatusCode();
+        if (statusCode == HttpStatus.SC_NOT_MODIFIED || statusCode == HttpStatus.SC_OK) {
+            recordCacheUpdate(context);
+        }
+
+        if (statusCode == HttpStatus.SC_NOT_MODIFIED) {
+            final HttpCacheEntry updatedEntry = responseCache.updateCacheEntry(
+                    context.getTargetHost(), request, cacheEntry,
+                    backendResponse, requestDate, responseDate);
+            if (suitabilityChecker.isConditional(request)
+                    && suitabilityChecker.allConditionalsMatch(request, updatedEntry, new Date())) {
+                return responseGenerator
+                        .generateNotModifiedResponse(updatedEntry);
+            }
+            return responseGenerator.generateResponse(updatedEntry);
+        }
+
+        if (staleIfErrorAppliesTo(statusCode)
+            && !staleResponseNotAllowed(request, cacheEntry, getCurrentDate())
+            && validityPolicy.mayReturnStaleIfError(request, cacheEntry, responseDate)) {
+            try {
+                final CloseableHttpResponse cachedResponse = responseGenerator.generateResponse(cacheEntry);
+                cachedResponse.addHeader(HeaderConstants.WARNING, "110 localhost \"Response is stale\"");
+                return cachedResponse;
+            } finally {
+                backendResponse.close();
+            }
+        }
+        return handleBackendResponse(conditionalRequest, context, requestDate, responseDate,
+                backendResponse);
+    }

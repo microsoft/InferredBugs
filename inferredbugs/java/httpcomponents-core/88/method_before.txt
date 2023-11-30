@@ -1,0 +1,30 @@
+    @Test
+    public void testEntityWithMultipleContentLengthAllWrong() throws Exception {
+        SessionInputBuffer inbuffer = new SessionInputBufferMock(new byte[] {'0'});
+        HttpMessage message = new DummyHttpMessage();
+
+        // lenient mode
+        message.getParams().setBooleanParameter(CoreProtocolPNames.STRICT_TRANSFER_ENCODING, false);
+        message.addHeader("Content-Type", "unknown");
+        message.addHeader("Content-Length", "yyy");
+        message.addHeader("Content-Length", "xxx");
+        EntityDeserializer entitygen = new EntityDeserializer(
+                new LaxContentLengthStrategy());
+        HttpEntity entity = entitygen.deserialize(inbuffer, message);
+        Assert.assertNotNull(entity);
+        Assert.assertEquals(-1, entity.getContentLength());
+        Assert.assertFalse(entity.isChunked());
+        InputStream instream = entity.getContent();
+        Assert.assertNotNull(instream);
+        Assert.assertFalse(instream instanceof ContentLengthInputStream);
+        Assert.assertTrue(instream instanceof IdentityInputStream);
+
+        // strict mode
+        message.getParams().setBooleanParameter(CoreProtocolPNames.STRICT_TRANSFER_ENCODING, true);
+        try {
+            entitygen.deserialize(inbuffer, message);
+            Assert.fail("ProtocolException should have been thrown");
+        } catch (ProtocolException ex) {
+            // expected
+        }
+    }

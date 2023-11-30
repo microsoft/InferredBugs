@@ -1,0 +1,26 @@
+    @Override
+    public boolean tryAdvance(Consumer<? super E> action) {
+        Objects.requireNonNull(action);
+        if (!exhausted) {
+            E e = null;
+            ReentrantLock lock = queueLock;
+            lock.lock();
+            try {
+                Object p;
+                if ((p = current) != null || (p = getQueueFirst(queue)) != null)
+                    do {
+                        e = getNodeItem(p);
+                        p = succ(p);
+                    } while (e == null && p != null);
+                exhausted = ((current = p) == null);
+            } finally {
+                // checkInvariants();
+                lock.unlock();
+            }
+            if (e != null) {
+                action.accept(e);
+                return true;
+            }
+        }
+        return false;
+    }

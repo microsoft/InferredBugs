@@ -1,0 +1,25 @@
+    @Test
+    public void shouldBeAbleToDumpReadOnlyQueueFile() throws Exception {
+        if (OS.isWindows())
+            return;
+
+        final File dataDir = DirectoryUtils.tempDir(DumpQueueMainTest.class.getSimpleName());
+        final SingleChronicleQueue queue = SingleChronicleQueueBuilder.
+                binary(dataDir).
+                build();
+
+        final ExcerptAppender excerptAppender = queue.acquireAppender();
+        excerptAppender.writeText("first");
+        excerptAppender.writeText("last");
+
+        final Path queueFile = Files.list(dataDir.toPath()).
+                filter(p -> p.toString().endsWith(SingleChronicleQueue.SUFFIX)).
+                findFirst().orElseThrow(() ->
+                new AssertionError("Could not find queue file in directory " + dataDir));
+        assertThat(queueFile.toFile().setWritable(false), is(true));
+
+        final CountingOutputStream countingOutputStream = new CountingOutputStream();
+        DumpQueueMain.dump(queueFile.toFile(), new PrintStream(countingOutputStream), Long.MAX_VALUE);
+
+        assertThat(countingOutputStream.bytes, is(not(0L)));
+    }

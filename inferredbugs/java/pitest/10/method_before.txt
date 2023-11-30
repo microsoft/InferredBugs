@@ -1,0 +1,46 @@
+  private void run(final Class<?> clazz, final Class<?> test,
+      final MethodMutatorFactory... mutators) {
+
+    final ReportOptions data = new ReportOptions();
+
+    final Set<Predicate<String>> tests = Collections.singleton(Prelude
+        .isEqualTo(test.getName()));
+    data.setTargetTests(tests);
+    data.setDependencyAnalysisMaxDistance(-1);
+
+    final Set<Predicate<String>> mutees = Collections.singleton(Prelude
+        .isEqualTo(clazz.getName()));
+    data.setTargetClasses(mutees);
+
+    data.setTimeoutConstant(PercentAndConstantTimeoutStrategy.DEFAULT_CONSTANT);
+    data.setTimeoutFactor(PercentAndConstantTimeoutStrategy.DEFAULT_FACTOR);
+
+    final ArrayList<Predicate<String>> inScope = new ArrayList<Predicate<String>>();
+    inScope.addAll(mutees);
+    inScope.addAll(tests);
+
+    data.setClassesInScope(inScope);
+
+    final CoverageDatabase coverageDatabase = new DefaultCoverageDatabase(
+        this.config, new ClassPath(), new JavaAgentJarFinder(), data);
+
+    coverageDatabase.initialise();
+
+    final Collection<ClassGrouping> codeClasses = coverageDatabase
+        .getGroupedClasses();
+
+    final MutationEngine engine = DefaultMutationConfigFactory.createEngine(
+        false, False.<String> instance(), Collections.<String> emptyList(),
+        mutators);
+
+    final MutationConfig mutationConfig = new MutationConfig(engine,
+        Collections.<String> emptyList());
+    final MutationTestBuilder builder = new MutationTestBuilder(mutationConfig,
+        UnfilteredMutationFilter.factory(), this.config, data,
+        new JavaAgentJarFinder());
+
+    final List<TestUnit> tus = builder.createMutationTestUnits(codeClasses,
+        this.config, coverageDatabase);
+
+    this.pit.run(this.container, tus);
+  }

@@ -1,0 +1,165 @@
+    private void SearchContinueRetainTree(MCTSIterator reuseOtherContextForEvaluatedNodes, PositionWithHistory newPositionAndMoves, List<GameMoveStat> gameMoveHistory, bool verbose, DateTime startTime, MCTSManager.MCTSProgressCallback progressCallback, bool isFirstMoveOfGame, MCTSIterator priorContext, MCTSNodeStore store, int numNodesInitial, MCTSNode newRoot, SearchLimit searchLimitTargetAdjusted, bool possiblyUsePositionCache)
+    {
+      TimingStats statsMaterialize = new();
+      if (Manager.Context.ParamsSearch.Execution.TranspositionMode != TranspositionMode.None)
+      {
+        if (!MCTSNodeStructStorage.USE_FAST_TREE_REBUILD)
+        {
+          using (new TimingBlock(statsMaterialize, TimingBlock.LoggingType.None))
+          {
+            MaterializeAllTranspositionLinkages(newRoot);
+          }
+        }
+      }
+
+      // Now rewrite the tree nodes and children "in situ"
+      PositionEvalCache reusePositionCache = null;
+      if (Manager.Context.ParamsSearch.TreeReuseRetainedPositionCacheEnabled)
+      {
+        reusePositionCache = new PositionEvalCache(false, 0);
+      }
+
+      // Create a new dictionary to recieve the new transposition roots
+      TranspositionRootsDict newTranspositionRoots = null;
+      if (priorContext.Tree.TranspositionRoots != null)
+      {
+        newTranspositionRoots = new TranspositionRootsDict(newRoot.N);
+      }
+
+      // TODO: Consider sometimes or always skip rebuild via MakeChildNewRoot,
+      //       instead just set a new root (move it into place as first node).
+      //       Perhaps rebuild only if the MCTSNodeStore would become excessively large.
+      TimingStats makeNewRootTimingStats = new TimingStats();
+      bool wasSwap = false;
+      using (new TimingBlock(makeNewRootTimingStats, TimingBlock.LoggingType.None))
+      {
+        const float THRESHOLD_RETAIN_TREE = 0.70f;
+
+        float fracRetain = (float)newRoot.Ref.N / priorContext.Tree.Root.N;
+        bool possiblyUseSwapRoot = priorContext.ParamsSearch.TestFlag;
+        if (fracRetain < THRESHOLD_RETAIN_TREE || !possiblyUseSwapRoot)
+        {
+//Console.WriteLine("New root " + fracRetain);
+          MCTSNodeStructStorage.MakeChildNewRoot(Manager.Context.Tree, ref newRoot.Ref, newPositionAndMoves,
+                                                 reusePositionCache, newTranspositionRoots, 
+                                                 priorContext.ParamsSearch.Execution.TranspositionMaximizeRootN);
+        }
+        else
+        {
+          wasSwap = true;
+//Console.WriteLine("Swap root " + fracRetain + " from index " + newRoot.Index);
+          MCTSNodeStructStorage.DoMakeChildNewRootSwapRoot(Manager.Context.Tree, ref newRoot.Ref, newPositionAndMoves,
+                                                           reusePositionCache, newTranspositionRoots,
+                                                           priorContext.ParamsSearch.Execution.TranspositionMaximizeRootN);
+        }
+      MCTSManager.TotalTimeSecondsInMakeNewRoot += (float)(statsMaterialize.ElapsedTimeSecs + makeNewRootTimingStats.ElapsedTimeSecs);
+//if (wasSwap) MCTSEventSource.TestMetric1 += (float)(statsMaterialize.ElapsedTimeSecs + makeNewRootTimingStats.ElapsedTimeSecs);
+if (this.Manager.Context.ParamsSearch.TestFlag) MCTSEventSource.TestMetric1 += (float)(statsMaterialize.ElapsedTimeSecs + makeNewRootTimingStats.ElapsedTimeSecs);
+if (wasSwap) MCTSEventSource.TestCounter1++;
+
+      CeresEnvironment.LogInfo("MCTS", "MakeChildNewRoot", $"Select {newRoot.N:N0} from {numNodesInitial:N0} "
+                              + $"in {(int)(makeNewRootTimingStats.ElapsedTimeSecs / 1000.0)}ms");
+
+      // Construct a new search manager reusing this modified store and modified transposition roots.
+      Manager = new MCTSManager(store, reuseOtherContextForEvaluatedNodes, reusePositionCache, newTranspositionRoots,
+                                priorContext.NNEvaluators, priorContext.ParamsSearch, priorContext.ParamsSelect,
+                                searchLimitTargetAdjusted, Manager.LimitManager,
+                                startTime, gameMoveHistory, isFirstMoveOfGame:isFirstMoveOfGame);
+      Manager.Context.ContemptManager = priorContext.ContemptManager;
+
+      (BestMove, TimingInfo) = MCTSManager.Search(Manager, verbose, progressCallback, possiblyUsePositionCache);
+    }
+
+
+    /// <summary>
+    /// Returns new SearchLimit, possibly adjusted for time overhead.
+    /// </summary>
+    /// <param name="limit"></param>
+    /// <param name="paramsSearch"></param>
+    /// <returns></returns>
+    SearchLimit AdjustedSearchLimit(SearchLimit limit, ParamsSearch paramsSearch)
+    {
+      if (limit.IsTimeLimit)
+      {
+        return limit with { Value = Math.Max(0.01f, limit.Value - paramsSearch.MoveOverheadSeconds) };
+      }
+      else
+      {
+        return limit with { };
+      }
+    }
+
+
+    private void ComputeSearchLimits(in Position position,
+                                     int searchRootN, float searchRootQ,
+                                     List<GameMoveStat> gameMoveHistory, SearchLimit searchLimit, 
+                                     bool isFirstMoveOfGame, MCTSIterator priorContext, 
+                                     out SearchLimit searchLimitTargetAdjusted, out SearchLimit searchLimitIncremental)
+    {
+      switch (searchLimit.Type)
+      {
+        case SearchLimitType.NodesPerMove:
+          searchLimitIncremental = searchLimit with { };
+
+          // Nodes per move are treated as incremental beyond initial starting size of tree.
+          searchLimitTargetAdjusted = new SearchLimit(SearchLimitType.NodesPerMove, searchLimit.Value + searchRootN, maxTreeNodes:searchLimit.MaxTreeNodes);
+          break;
+
+        case SearchLimitType.SecondsPerMove:
+          searchLimitIncremental = searchLimit with { };
+          searchLimitTargetAdjusted = searchLimit with { };
+          break;
+
+        case SearchLimitType.NodesForAllMoves:
+          searchLimitIncremental = ConvertedSearchLimit(in position,  searchLimit, 
+                                                        searchRootN, searchRootQ,
+                                                        priorContext.ParamsSearch, Manager.LimitManager,
+                                                        gameMoveHistory, isFirstMoveOfGame);
+          // Nodes per move are treated as incremental beyond initial starting size of tree.
+          searchLimitTargetAdjusted = new SearchLimit(SearchLimitType.NodesPerMove, searchLimitIncremental.Value + searchRootN, 
+                                                      maxTreeNodes: searchLimit.MaxTreeNodes);
+          break;
+
+        case SearchLimitType.SecondsForAllMoves:
+          searchLimitTargetAdjusted = ConvertedSearchLimit(in position, searchLimit,
+                                                           searchRootN, searchRootQ,
+                                                           priorContext.ParamsSearch, Manager.LimitManager,
+                                                           gameMoveHistory, isFirstMoveOfGame);
+          searchLimitIncremental = searchLimitTargetAdjusted with { };
+          break;
+
+        default:
+          throw new Exception($"Unsupported limit type {searchLimit.Type}");
+          break;
+      }
+    }
+
+    private static void MaterializeAllTranspositionLinkages(MCTSNode newRoot)
+    {
+      // The MakeChildNewRoot method is not able to handle transposition linkages
+      // (this would be complicated and could involve linkages to nodes no longer in the retained subtree).
+      // Therefore we first materialize any transposition linked nodes in the subtree.
+      // Since this is not currently multithreaded we can turn off tree node locking for the duration.
+      newRoot.MaterializeAllTranspositionLinks();
+    }
+
+    private void UpdateContemptManager(MCTSNode newRoot)
+    {
+      newRoot?.Annotate();
+
+      // Inform contempt manager about the opponents move
+      // (compared to the move we believed was optimal)
+      if (newRoot != null && newRoot.Depth == 2)
+      {
+        MCTSNode opponentsPriorMove = newRoot;
+        MCTSNode bestMove = opponentsPriorMove.Parent.ChildrenSorted(n => (float)n.Q)[0];
+        if (bestMove.N > opponentsPriorMove.N / 10)
+        {
+          float bestQ = (float)bestMove.Q;
+          float actualQ = (float)opponentsPriorMove.Q;
+          Manager.Context.ContemptManager.RecordOpponentMove(actualQ, bestQ);
+          //Console.WriteLine("Record " + actualQ + " vs best " + bestQ + " target contempt " + priorManager.Context.ContemptManager.TargetContempt);
+        }
+      }
+    }
+  }

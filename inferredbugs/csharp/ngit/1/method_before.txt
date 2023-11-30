@@ -1,0 +1,49 @@
+  private void ResetIndexForPaths(RevCommit commit)
+		{
+			DirCache dc = null;
+			DirCacheEditor edit;
+			try
+			{
+				dc = repo.LockDirCache();
+				edit = dc.Editor();
+				TreeWalk tw = new TreeWalk(repo);
+				tw.AddTree(new DirCacheIterator(dc));
+				tw.AddTree(commit.Tree);
+				tw.Filter = PathFilterGroup.CreateFromStrings(filepaths);
+				tw.Recursive = true;
+				while (tw.Next())
+				{
+					string path = tw.PathString;
+					// DirCacheIterator dci = tw.getTree(0, DirCacheIterator.class);
+					CanonicalTreeParser tree = tw.GetTree<CanonicalTreeParser>(1);
+					if (tree == null)
+					{
+						// file is not in the commit, remove from index
+						edit.Add(new DirCacheEditor.DeletePath(path));
+					}
+					else
+					{
+						// revert index to commit
+						// it seams that there is concurrent access to tree
+						// variable, therefore we need to keep references to
+						// entryFileMode and entryObjectId in local
+						// variables
+						FileMode entryFileMode = tree.EntryFileMode;
+						ObjectId entryObjectId = tree.EntryObjectId;
+						edit.Add(new _PathEdit_305(entryFileMode, entryObjectId, path));
+					}
+				}
+				edit.Commit();
+			}
+			catch (IOException e)
+			{
+				throw new RuntimeException(e);
+			}
+			finally
+			{
+				if (dc != null)
+				{
+					dc.Unlock();
+				}
+			}
+		}

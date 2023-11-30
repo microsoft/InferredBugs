@@ -1,0 +1,16 @@
+ public void await(long timeout, TimeUnit unit, boolean cancelOnTimeout) throws InterruptedException, TimeoutException {
+		final long end = System.currentTimeMillis() + unit.toMillis(timeout);
+		if (!isDone() && System.currentTimeMillis() < end) {
+			synchronized (signal) {
+				while (!isDone() && System.currentTimeMillis() < end) {
+					signal.wait(end - System.currentTimeMillis());
+				}
+			}
+		}
+		if (!isDone()) {
+			if (cancelOnTimeout) {
+				cancel();
+			}
+			throw new TimeoutException();
+		}
+	}

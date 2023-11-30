@@ -1,0 +1,90 @@
+    public static void load(final JanusGraph graph, final int rowsToLoad, final boolean report)
+        throws IOException, InterruptedException {
+
+        final JanusGraphManagement mgmt = graph.openManagement();
+        if (mgmt.getGraphIndex(CHARACTER) == null) {
+            final PropertyKey characterKey = mgmt.makePropertyKey(CHARACTER).dataType(String.class).make();
+            mgmt.buildIndex(CHARACTER, Vertex.class).addKey(characterKey).unique().buildCompositeIndex();
+        }
+        if (mgmt.getGraphIndex(COMIC_BOOK) == null) {
+            final PropertyKey comicBookKey = mgmt.makePropertyKey(COMIC_BOOK).dataType(String.class).make();
+            mgmt.buildIndex(COMIC_BOOK, Vertex.class).addKey(comicBookKey).unique().buildCompositeIndex();
+            mgmt.makePropertyKey(WEAPON).dataType(String.class).make();
+            mgmt.makeEdgeLabel(APPEARED).multiplicity(Multiplicity.MULTI).make();
+        }
+        mgmt.commit();
+
+        final ClassLoader classLoader = MarvelGraphFactory.class.getClassLoader();
+        final URL resource = classLoader.getResource("META-INF/marvel.csv");
+        Preconditions.checkNotNull(resource);
+        final Map<String, Set<String>> comicToCharacter = new HashMap<>();
+        final Map<String, Set<String>> characterToComic = new HashMap<>();
+        final Set<String> characters = new HashSet<>();
+        final BlockingQueue<Runnable> creationQueue = new LinkedBlockingQueue<>();
+        try (CSVReader reader = new CSVReader(new InputStreamReader(resource.openStream()))) {
+            reader.readAll().subList(0, rowsToLoad).forEach(nextLine -> {
+                final String comicBook = nextLine[1];
+                final String[] characterNames = nextLine[0].split("/");
+                if (!comicToCharacter.containsKey(comicBook)) {
+                    comicToCharacter.put(comicBook, new HashSet<>());
+                }
+                final List<String> comicCharacters = Arrays.asList(characterNames);
+                comicToCharacter.get(comicBook).addAll(comicCharacters);
+                characters.addAll(comicCharacters);
+            });
+        }
+        creationQueue.addAll(characters.stream().map(character -> new CharacterCreationCommand(character, graph))
+            .collect(Collectors.toList()));
+
+        final BlockingQueue<Runnable> appearedQueue = new LinkedBlockingQueue<>();
+        for (String comicBook : comicToCharacter.keySet()) {
+            creationQueue.add(new ComicBookCreationCommand(comicBook, graph));
+            final Set<String> comicCharacters = comicToCharacter.get(comicBook);
+            for (String character : comicCharacters) {
+                final AppearedCommand lineCommand = new AppearedCommand(graph, new Appeared(character, comicBook));
+                appearedQueue.add(lineCommand);
+                if (!characterToComic.containsKey(character)) {
+                    characterToComic.put(character, new HashSet<String>());
+                }
+                characterToComic.get(character).add(comicBook);
+            }
+            REGISTRY.histogram("histogram.comic-to-character").update(comicCharacters.size());
+        }
+
+        int maxAppearances = 0;
+        String maxCharacter = "";
+        for (String character : characterToComic.keySet()) {
+            final Set<String> comicBookSet = characterToComic.get(character);
+            final int numberOfAppearances = comicBookSet.size();
+            REGISTRY.histogram("histogram.character-to-comic").update(numberOfAppearances);
+            if (numberOfAppearances > maxAppearances) {
+                maxCharacter = character;
+                maxAppearances = numberOfAppearances;
+            }
+        }
+        log.info("Character {} has most appearances at {}", maxCharacter, maxAppearances);
+
+        ExecutorService executor = Executors.newFixedThreadPool(POOL_SIZE);
+        for (int i = 0; i < POOL_SIZE; i++) {
+            executor.execute(new BatchCommand(graph, creationQueue));
+        }
+        executor.shutdown();
+        while (!executor.awaitTermination(TIMEOUT_SIXTY_SECONDS, TimeUnit.SECONDS)) {
+            log.info("Awaiting:" + creationQueue.size());
+            if (report) {
+                REPORTER.report();
+            }
+        }
+
+        executor = Executors.newSingleThreadExecutor();
+        executor.execute(new BatchCommand(graph, appearedQueue));
+
+        executor.shutdown();
+        while (!executor.awaitTermination(TIMEOUT_SIXTY_SECONDS, TimeUnit.SECONDS)) {
+            log.info("Awaiting:" + appearedQueue.size());
+            if (report) {
+                REPORTER.report();
+            }
+        }
+        log.info("MarvelGraph.load complete");
+    }

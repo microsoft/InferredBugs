@@ -1,0 +1,31 @@
+    @Override
+    public long[] querySystemCpuLoadTicks() {
+        long[] ticks = new long[TickType.values().length];
+        WinBase.FILETIME lpIdleTime = new WinBase.FILETIME();
+        WinBase.FILETIME lpKernelTime = new WinBase.FILETIME();
+        WinBase.FILETIME lpUserTime = new WinBase.FILETIME();
+        if (!Kernel32.INSTANCE.GetSystemTimes(lpIdleTime, lpKernelTime, lpUserTime)) {
+            LOG.error("Failed to update system idle/kernel/user times. Error code: {}", Native.getLastError());
+            return ticks;
+        }
+        // IOwait:
+        // Windows does not measure IOWait.
+
+        // IRQ and ticks:
+        // Percent time raw value is cumulative 100NS-ticks
+        // Divide by 10_000 to get milliseconds
+
+        Map<SystemTickCountProperty, Long> valueMap = ProcessorInformation.querySystemCounters();
+        ticks[TickType.IRQ.getIndex()] = valueMap.getOrDefault(SystemTickCountProperty.PERCENTINTERRUPTTIME, 0L)
+                / 10_000L;
+        ticks[TickType.SOFTIRQ.getIndex()] = valueMap.getOrDefault(SystemTickCountProperty.PERCENTDPCTIME, 0L)
+                / 10_000L;
+
+        ticks[TickType.IDLE.getIndex()] = lpIdleTime.toDWordLong().longValue() / 10_000L;
+        ticks[TickType.SYSTEM.getIndex()] = lpKernelTime.toDWordLong().longValue() / 10_000L
+                - ticks[TickType.IDLE.getIndex()];
+        ticks[TickType.USER.getIndex()] = lpUserTime.toDWordLong().longValue() / 10_000L;
+        // Additional decrement to avoid double counting in the total array
+        ticks[TickType.SYSTEM.getIndex()] -= ticks[TickType.IRQ.getIndex()] + ticks[TickType.SOFTIRQ.getIndex()];
+        return ticks;
+    }

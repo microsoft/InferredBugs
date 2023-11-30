@@ -1,0 +1,29 @@
+    @Override
+    public Event applyListZipList(RedisInputStream in, DB db, int version) throws IOException {
+        /*
+         * |<zlbytes>| <zltail>| <zllen>| <entry> ...<entry> | <zlend>|
+         * | 4 bytes | 4 bytes | 2bytes | zipListEntry ...   | 1byte  |
+         */
+        BaseRdbParser parser = new BaseRdbParser(in);
+        KeyStringValueList o10 = new KeyStringValueList();
+        String key = parser.rdbLoadEncodedStringObject().string;
+        ByteArray aux = parser.rdbLoadPlainStringObject();
+        RedisInputStream stream = new RedisInputStream(new ByteArrayInputStream(aux));
+
+        List<String> list = new ArrayList<>();
+        int zlbytes = BaseRdbParser.LenHelper.zlbytes(stream);
+        int zltail = BaseRdbParser.LenHelper.zltail(stream);
+        int zllen = BaseRdbParser.LenHelper.zllen(stream);
+        for (int i = 0; i < zllen; i++) {
+            list.add(BaseRdbParser.StringHelper.zipListEntry(stream));
+        }
+        int zlend = BaseRdbParser.LenHelper.zlend(stream);
+        if (zlend != 255) {
+            throw new AssertionError("zlend expect 255 but " + zlend);
+        }
+        o10.setValueRdbType(RDB_TYPE_LIST_ZIPLIST);
+        o10.setValue(list);
+        o10.setDb(db);
+        o10.setKey(key);
+        return o10;
+    }

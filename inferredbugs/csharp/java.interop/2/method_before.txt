@@ -1,0 +1,41 @@
+  public static ClassGen CreateClass (XElement pkg, XElement elem, CodeGenerationOptions options)
+		{
+			var klass = new ClassGen (CreateGenBaseSupport (pkg, elem, false)) {
+				BaseType = elem.XGetAttribute ("extends"),
+				FromXml = true,
+				IsAbstract = elem.XGetAttribute ("abstract") == "true",
+				IsFinal = elem.XGetAttribute ("final") == "true",
+				// Only use an explicitly set XML attribute
+				Unnest = elem.XGetAttribute ("unnest") == "true" ? true :
+					 elem.XGetAttribute ("unnest") == "false" ? false :
+					 !options.SupportNestedInterfaceTypes
+			};
+
+			FillApiSince (klass, pkg, elem);
+
+			foreach (var child in elem.Elements ()) {
+				switch (child.Name.LocalName) {
+					case "implements":
+						var iname = child.XGetAttribute ("name-generic-aware");
+						iname = iname.Length > 0 ? iname : child.XGetAttribute ("name");
+						klass.AddImplementedInterface (iname);
+						break;
+					case "method":
+						klass.AddMethod (CreateMethod (klass, child));
+						break;
+					case "constructor":
+						klass.Ctors.Add (CreateCtor (klass, child));
+						break;
+					case "field":
+						klass.AddField (CreateField (klass, child));
+						break;
+					case "typeParameters":
+						break; // handled at GenBaseSupport
+					default:
+						Report.LogCodedWarning (0, Report.WarningUnexpectedChild, child.Name.ToString ());
+						break;
+				}
+			}
+
+			return klass;
+		}

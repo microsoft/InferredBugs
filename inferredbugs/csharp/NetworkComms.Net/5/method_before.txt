@@ -1,0 +1,29 @@
+        private void Constructor(string sendingPacketTypeStr, string requestReturnPacketTypeStr, object packetObject, SendReceiveOptions options)
+        {
+            if (sendingPacketTypeStr == null || sendingPacketTypeStr == "") throw new ArgumentNullException("The provided packetTypeStr can not be zero length or null.");
+
+            if (options == null) throw new ArgumentNullException("The provided SendReceiveOptions cannot be null.");
+
+            if (packetObject == null)
+                this.packetData = new StreamSendWrapper(new ThreadSafeStream(new MemoryStream(new byte[0]), true));
+            else
+                this.packetData = options.DataSerializer.SerialiseDataObject(packetObject, options.DataProcessors, options.Options);
+
+            //We only calculate the checkSum if we are going to use it
+            string hashStr = null;
+            if (NetworkComms.EnablePacketCheckSumValidation)
+            {
+                MemoryStream tempStream = new MemoryStream(new byte[packetData.Length]);
+                packetData.ThreadSafeStream.CopyTo(tempStream, packetData.Start, packetData.Length);
+                hashStr = NetworkComms.MD5Bytes(tempStream);
+            }
+
+            this.packetHeader = new PacketHeader(sendingPacketTypeStr, packetData.Length, requestReturnPacketTypeStr,  
+                options.Options.ContainsKey("ReceiveConfirmationRequired") ? bool.Parse(options.Options["ReceiveConfirmationRequired"]) : false,
+                hashStr);
+
+            //Add an identifier specifying the serializers and processors we have used
+            this.packetHeader.SetOption(PacketHeaderLongItems.SerializerProcessors, DPSManager.CreateSerializerDataProcessorIdentifier(options.DataSerializer, options.DataProcessors));
+
+            if (NetworkComms.loggingEnabled) NetworkComms.logger.Trace(" ... creating comms packet. PacketObject data size is " + packetData.Length + " bytes");
+        }

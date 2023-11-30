@@ -1,0 +1,19 @@
+  @Test
+  public void testOneFrame() throws Exception {
+    final ZMTPWriter writer = ZMTPWriter.create(ZMTP10);
+    final ByteBuf buf = Unpooled.buffer();
+    writer.reset(buf);
+
+    ByteBuf frame = writer.frame(11, false);
+    assertThat(frame, is(sameInstance(buf)));
+
+    final ByteBuf content = copiedBuffer("hello world", UTF_8);
+
+    frame.writeBytes(content.duplicate());
+
+    final ZMTPFramingDecoder decoder = new ZMTPFramingDecoder(wireFormat(ZMTP10), new RawDecoder());
+    decoder.decode(null, buf, out);
+
+    assertThat(out, hasSize(1));
+    assertThat(out, contains((Object) singletonList(content)));
+  }

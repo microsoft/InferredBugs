@@ -1,0 +1,309 @@
+{
+    "hash": "8fa4cf2a034daec6a765d3184742fd50106890a6",
+    "message": "improve hit counter",
+    "file_num_lines": 81,
+    "diff_parsed": {
+        "added": [
+            [
+                23,
+                "        return clients.GetOrAdd("
+            ],
+            [
+                24,
+                "            headerValue,"
+            ],
+            [
+                25,
+                "            hVal => new Counter(_durationSeconds, hVal, _limit, ref clients)"
+            ],
+            [
+                26,
+                "            ).LimitReached();"
+            ],
+            [
+                31,
+                "        private readonly string _self;"
+            ],
+            [
+                32,
+                "        private readonly ConcurrentDictionary<string, Counter> _parent;"
+            ],
+            [
+                33,
+                "        private Timer? _timer;"
+            ],
+            [
+                34,
+                "        private long _startTicks;"
+            ],
+            [
+                35,
+                "        private readonly TimeSpan _duration;"
+            ],
+            [
+                36,
+                "        private readonly int _limit;"
+            ],
+            [
+                39,
+                "        private bool Expired => DateTimeOffset.UtcNow.Subtract(_duration).Ticks > _startTicks;"
+            ],
+            [
+                41,
+                "        internal Counter(double durationSeconds, string key, int limit, ref ConcurrentDictionary<string, Counter> dictionary)"
+            ],
+            [
+                43,
+                "            _startTicks = DateTimeOffset.UtcNow.Ticks;"
+            ],
+            [
+                44,
+                "            _duration = TimeSpan.FromSeconds(durationSeconds);"
+            ],
+            [
+                45,
+                "            _self = key;"
+            ],
+            [
+                46,
+                "            _limit = limit;"
+            ],
+            [
+                47,
+                "            _parent = dictionary;"
+            ],
+            [
+                48,
+                "            _timer = new(RemoveFromParentIfExpired, null, 60000, 60000);"
+            ],
+            [
+                51,
+                "        internal bool LimitReached()"
+            ],
+            [
+                53,
+                "            if (Expired)"
+            ],
+            [
+                55,
+                "                Interlocked.Exchange(ref _startTicks, DateTimeOffset.UtcNow.Ticks);"
+            ],
+            [
+                56,
+                "                Interlocked.Exchange(ref _count, 0);"
+            ],
+            [
+                57,
+                "                //Console.WriteLine($\"reset: {GetHashCode()}\");"
+            ],
+            [
+                59,
+                ""
+            ],
+            [
+                60,
+                "            if (_count >= _limit)"
+            ],
+            [
+                61,
+                "            {"
+            ],
+            [
+                62,
+                "                //Console.WriteLine($\"limit reached: {GetHashCode()}\");"
+            ],
+            [
+                63,
+                "                return true;"
+            ],
+            [
+                64,
+                "            }"
+            ],
+            [
+                65,
+                ""
+            ],
+            [
+                66,
+                "            //Console.WriteLine($\"hit: {GetHashCode()}\");"
+            ],
+            [
+                67,
+                "            Interlocked.Increment(ref _count);"
+            ],
+            [
+                68,
+                "            return false;"
+            ],
+            [
+                71,
+                "        private void RemoveFromParentIfExpired(object? _)"
+            ],
+            [
+                73,
+                "            //Console.WriteLine($\"clean event: {GetHashCode()}\");"
+            ],
+            [
+                74,
+                ""
+            ],
+            [
+                75,
+                "            if (Expired && _parent.TryRemove(_self, out var counter))"
+            ],
+            [
+                76,
+                "            {"
+            ],
+            [
+                77,
+                "                Dispose();"
+            ],
+            [
+                78,
+                "                //Console.WriteLine($\"disposed: {counter.GetHashCode()} / {GetHashCode()}\");"
+            ],
+            [
+                79,
+                "            }"
+            ],
+            [
+                80,
+                "            //else if (Expired)"
+            ],
+            [
+                81,
+                "            //{"
+            ],
+            [
+                82,
+                "            //    Console.WriteLine($\"failed cleanup: {GetHashCode()}\");"
+            ],
+            [
+                83,
+                "            //}"
+            ],
+            [
+                93,
+                "                    _timer!.Dispose();"
+            ],
+            [
+                94,
+                "                    _timer = null;"
+            ],
+            [
+                99,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                23,
+                "        var counter = clients.GetOrAdd(headerValue, new Counter(_durationSeconds, headerValue, ref clients));"
+            ],
+            [
+                24,
+                "        if (counter.Count < _limit)"
+            ],
+            [
+                25,
+                "        {"
+            ],
+            [
+                26,
+                "            counter.Increase();"
+            ],
+            [
+                27,
+                "            Console.WriteLine(\"incresed: \" + counter.GetHashCode().ToString() + \" - \" + counter.Count.ToString());"
+            ],
+            [
+                28,
+                "            return false;"
+            ],
+            [
+                29,
+                "        }"
+            ],
+            [
+                30,
+                "        return true;"
+            ],
+            [
+                35,
+                "        private readonly string _key;"
+            ],
+            [
+                36,
+                "        private readonly ConcurrentDictionary<string, Counter>? _dictionary;"
+            ],
+            [
+                37,
+                "        private readonly System.Timers.Timer _timer;"
+            ],
+            [
+                40,
+                "        internal int Count => _count;"
+            ],
+            [
+                42,
+                "        internal Counter(double durationSeconds, string key, ref ConcurrentDictionary<string, Counter> dictionary)"
+            ],
+            [
+                44,
+                "            _key = key;"
+            ],
+            [
+                45,
+                "            _dictionary = dictionary;"
+            ],
+            [
+                46,
+                "            _timer = new(durationSeconds * 1000);"
+            ],
+            [
+                47,
+                "            _timer.AutoReset = false;"
+            ],
+            [
+                48,
+                "            _timer.Elapsed += RemoveCounter;"
+            ],
+            [
+                49,
+                "            _timer.Start();"
+            ],
+            [
+                52,
+                "        private void RemoveCounter(object? _, System.Timers.ElapsedEventArgs __)"
+            ],
+            [
+                54,
+                "            if (_dictionary?.TryRemove(_key, out var counter) is true)"
+            ],
+            [
+                56,
+                "                Console.WriteLine(\"removed: \" + counter.GetHashCode().ToString());"
+            ],
+            [
+                57,
+                "                counter.Dispose();"
+            ],
+            [
+                61,
+                "        internal void Increase()"
+            ],
+            [
+                63,
+                "            Interlocked.Increment(ref _count);"
+            ],
+            [
+                73,
+                "                    _timer.Dispose();"
+            ]
+        ]
+    },
+    "num_lines_added": 48,
+    "num_lines_removed": 26
+}

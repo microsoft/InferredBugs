@@ -1,0 +1,23 @@
+    @Test
+    public void register_with_invalid_request() throws InterruptedException, IOException {
+        // Check registration
+        helper.assertClientNotRegisterered();
+
+        // create a register request without the list of supported object
+        Request coapRequest = new Request(Code.POST);
+        coapRequest.setDestination(helper.server.getNonSecureAddress().getAddress());
+        coapRequest.setDestinationPort(helper.server.getNonSecureAddress().getPort());
+        coapRequest.getOptions().setContentFormat(ContentFormat.LINK.getCode());
+        coapRequest.getOptions().addUriPath("rd");
+        coapRequest.getOptions().addUriQuery("ep=" + helper.currentEndpointIdentifier);
+
+        // send request
+        CoapEndpoint coapEndpoint = new CoapEndpoint(new InetSocketAddress(0));
+        coapEndpoint.start();
+        coapEndpoint.sendRequest(coapRequest);
+
+        // check response
+        Response response = coapRequest.waitForResponse(1000);
+        assertEquals(response.getCode(), org.eclipse.californium.core.coap.CoAP.ResponseCode.BAD_REQUEST);
+        coapEndpoint.stop();
+    }

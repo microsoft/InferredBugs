@@ -1,0 +1,143 @@
+ private ObjectNode getDataNode(Object object, Map<String, ObjectNode> includedContainer,
+								   SerializationSettings settings) throws IllegalAccessException {
+		ObjectNode dataNode = objectMapper.createObjectNode();
+
+		// Perform initial conversion
+		ObjectNode attributesNode = objectMapper.valueToTree(object);
+
+		// Handle id, meta and relationship fields
+		Field idField = configuration.getIdField(object.getClass());
+		JsonNode id = attributesNode.remove(idField.getName());
+
+		// Handle meta
+		Field metaField = configuration.getMetaField(object.getClass());
+		if (metaField != null) {
+			JsonNode meta = attributesNode.remove(metaField.getName());
+			if (meta != null && shouldSerializeMeta(settings)) {
+				dataNode.set(META, meta);
+			}
+		}
+
+		// Handle links
+		String selfHref = null;
+		JsonNode jsonLinks = getResourceLinks(object, attributesNode, id, settings);
+		if (jsonLinks != null) {
+			dataNode.set(LINKS, jsonLinks);
+			
+			if (jsonLinks.has(SELF)) {
+				selfHref = jsonLinks.get(SELF).get(HREF).asText();
+			}
+		}
+		
+		// Handle resource identifier
+		dataNode.put(TYPE, configuration.getTypeName(object.getClass()));
+
+		String resourceId = (String) idField.get(object);
+		if (resourceId != null) {
+			dataNode.put(ID, resourceId);
+
+			// Cache the object for recursion breaking purposes
+			resourceCache.cache(resourceId.concat(configuration.getTypeName(object.getClass())), null);
+		}
+		dataNode.set(ATTRIBUTES, attributesNode);
+
+
+		// Handle relationships (remove from base type and add as relationships)
+		List<Field> relationshipFields = configuration.getRelationshipFields(object.getClass());
+
+		if (relationshipFields != null) {
+			ObjectNode relationshipsNode = objectMapper.createObjectNode();
+
+			for (Field relationshipField : relationshipFields) {
+				Object relationshipObject = relationshipField.get(object);
+
+				if (relationshipObject != null) {
+					attributesNode.remove(relationshipField.getName());
+
+					Relationship relationship = configuration.getFieldRelationship(relationshipField);
+
+					// In case serialisation is disabled for a given relationship, skip it
+					if (!relationship.serialise()) {
+						continue;
+					}
+
+					String relationshipName = relationship.value();
+					
+					ObjectNode relationshipDataNode = objectMapper.createObjectNode();
+					relationshipsNode.set(relationshipName, relationshipDataNode);
+					
+					// Serialize relationship meta
+					JsonNode relationshipMeta = getRelationshipMeta(object, relationshipName, settings);
+					if (relationshipMeta != null) {
+						relationshipDataNode.set(META, relationshipMeta);
+						attributesNode.remove(configuration
+								.getRelationshipMetaField(object.getClass(), relationshipName).getName());
+					}
+					
+					// Serialize relationship links
+					JsonNode relationshipLinks = getRelationshipLinks(object, relationship, selfHref, settings);
+					
+					if (relationshipLinks != null) {
+						relationshipDataNode.set(LINKS, relationshipLinks);
+						
+						// Remove link object from serialized JSON
+						Field refField = configuration
+								.getRelationshipLinksField(object.getClass(), relationshipName);
+						
+						if (refField != null) {
+							attributesNode.remove(refField.getName());
+						}
+					}
+					
+					if (relationshipObject instanceof Collection) {
+						ArrayNode dataArrayNode = objectMapper.createArrayNode();
+
+						for (Object element : (Collection<?>) relationshipObject) {
+							String relationshipType = configuration.getTypeName(element.getClass());
+							String idValue = (String) configuration.getIdField(element.getClass()).get(element);
+
+							ObjectNode identifierNode = objectMapper.createObjectNode();
+							identifierNode.put(TYPE, relationshipType);
+							identifierNode.put(ID, idValue);
+							dataArrayNode.add(identifierNode);
+
+							// Handle included data
+							if (shouldSerializeRelationship(relationshipName, settings) && idValue != null) {
+								String identifier = idValue.concat(relationshipType);
+								if (!includedContainer.containsKey(identifier) && !resourceCache.contains(identifier)) {
+									includedContainer.put(identifier,
+											getDataNode(element, includedContainer, settings));
+								}
+							}
+						}
+						relationshipDataNode.set(DATA, dataArrayNode);
+
+					} else {
+						String relationshipType = configuration.getTypeName(relationshipObject.getClass());
+						String idValue = (String) configuration.getIdField(relationshipObject.getClass())
+								.get(relationshipObject);
+
+						ObjectNode identifierNode = objectMapper.createObjectNode();
+						identifierNode.put(TYPE, relationshipType);
+						identifierNode.put(ID, idValue);
+						
+						relationshipDataNode.set(DATA, identifierNode);
+						
+						if (shouldSerializeRelationship(relationshipName, settings) && idValue != null) {
+							String identifier = idValue.concat(relationshipType);
+							if (!includedContainer.containsKey(identifier)) {
+								includedContainer.put(identifier,
+										getDataNode(relationshipObject, includedContainer, settings));
+							}
+						}
+					}
+				}
+
+			}
+
+			if (relationshipsNode.size() > 0) {
+				dataNode.set(RELATIONSHIPS, relationshipsNode);
+			}
+		}
+		return dataNode;
+	}

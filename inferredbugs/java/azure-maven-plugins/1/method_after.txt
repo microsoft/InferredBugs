@@ -1,0 +1,16 @@
+    protected boolean isInstallingExtensionNeeded(Set<BindingEnum> bindingTypes) {
+        final JsonObject hostJson = readHostJson();
+        final JsonObject extensionBundle = hostJson == null ? null : hostJson.getAsJsonObject(EXTENSION_BUNDLE);
+        if (extensionBundle != null && extensionBundle.has("id") &&
+                StringUtils.equalsIgnoreCase(extensionBundle.get("id").getAsString(), EXTENSION_BUNDLE_ID)) {
+            getLog().info(SKIP_INSTALL_EXTENSIONS_BUNDLE);
+            return false;
+        }
+        final boolean isNonHttpTriggersExist = bindingTypes.stream().anyMatch(binding ->
+                !Arrays.asList(FUNCTION_WITHOUT_FUNCTION_EXTENSION).contains(binding));
+        if (!isNonHttpTriggersExist) {
+            getLog().info(SKIP_INSTALL_EXTENSIONS_HTTP);
+            return false;
+        }
+        return true;
+    }

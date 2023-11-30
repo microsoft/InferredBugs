@@ -1,0 +1,43 @@
+ private void parseProperties(Properties properties) {
+		for (Entry<Object, Object> entry : properties.entrySet()) {
+			String name = (String) entry.getKey();
+			String value = (String) entry.getValue();
+//			System.out.println(name + "|" + value);
+
+			String[] strs = StringUtils.split(value, ',');
+			if (strs.length < 2) {
+				System.err.println("the log configuration file format is illegal");
+				continue;
+			}
+
+			String path = strs[1];
+			FileLog fileLog = new FileLog();
+			fileLog.setName(name);
+			fileLog.setLevel(LogLevel.fromName(strs[0]));
+
+			if ("console".equalsIgnoreCase(path)) {
+				fileLog.setFileOutput(false);
+				fileLog.setConsoleOutput(true);
+			} else {
+				File file = new File(path);
+				if(file.exists() && file.isDirectory()) {
+					fileLog.setPath(path);
+					fileLog.setFileOutput(true);
+				} else {
+					boolean success = file.mkdirs();
+					if(success) {
+						fileLog.setPath(path);
+						fileLog.setFileOutput(true);
+					} else {
+						System.err.println("create directory " + path + " failure");
+						continue;
+					}
+				}
+
+				if (strs.length > 2)
+					fileLog.setConsoleOutput("console".equalsIgnoreCase(strs[2]));
+			}
+			logMap.put(name, fileLog);
+			System.out.println("initialize log " + fileLog.toString() + " success");
+		}
+	}

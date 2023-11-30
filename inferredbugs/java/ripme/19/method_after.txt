@@ -1,0 +1,58 @@
+ private void login() throws IOException {
+
+		String customUsername = Utils.getConfigString("DeviantartCustomLoginUsername", this.username);
+		String customPassword = Utils.getConfigString("DeviantartCustomLoginPassword", this.password);
+		try {
+			String dACookies = Utils.getConfigString(utilsKey, null);
+			updateCookie(dACookies != null ? deserialize(dACookies) : null);
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+		if (getDACookie() == null || !checkLogin()) {
+			LOGGER.info("Do Login now");
+			// Do login now
+
+			// Load login page
+			Response res = Http.url("https://www.deviantart.com/users/login").connection().method(Method.GET)
+					.referrer(referer).userAgent(userAgent).execute();
+
+			updateCookie(res.cookies());
+
+			// Find tokens
+			Document doc = res.parse();
+			Element form = doc.getElementById("login");
+			String token = form.select("input[name=\"validate_token\"]").first().attr("value");
+			String key = form.select("input[name=\"validate_key\"]").first().attr("value");
+			LOGGER.info("Token: " + token + " & Key: " + key);
+
+			// Build Login Data
+			HashMap<String, String> loginData = new HashMap<String, String>();
+			loginData.put("challenge", "");
+			loginData.put("username", customUsername);
+			loginData.put("password", customPassword);
+			loginData.put("remember_me", "1");
+			loginData.put("validate_token", token);
+			loginData.put("validate_key", key);
+			Map<String, String> cookies = res.cookies();
+
+			// Log in using data. Handle redirect
+			res = Http.url("https://www.deviantart.com/users/login").connection().referrer(referer).userAgent(userAgent)
+					.method(Method.POST).data(loginData).cookies(cookies).followRedirects(false).execute();
+			updateCookie(res.cookies());
+
+			res = Http.url(res.header("location")).connection().referrer(referer).userAgent(userAgent)
+					.method(Method.GET).cookies(cookies).followRedirects(false).execute();
+
+			// Store cookies
+			updateCookie(res.cookies());
+
+			// Write Cookie to file for other RipMe Instances or later use
+			Utils.setConfigString(utilsKey, serialize(new HashMap<String, String>(getDACookie())));
+			Utils.saveConfig(); // save now because of other instances that might work simultaneously
+
+		}else {
+			LOGGER.info("No new Login needed");
+		}
+
+		LOGGER.info("DA Cookies: " + getDACookie());
+	}

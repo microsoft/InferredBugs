@@ -1,0 +1,38 @@
+    @Test
+    public void imageTest05() throws IOException, InterruptedException {
+
+        String outFileName = destinationFolder + "imageTest05.pdf";
+        String cmpFileName = sourceFolder + "cmp_imageTest05.pdf";
+
+        FileOutputStream file = new FileOutputStream(outFileName);
+
+        PdfWriter writer = new PdfWriter(file);
+
+        PdfDocument pdfDoc = new PdfDocument(writer);
+
+        Document doc = new Document(pdfDoc);
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        FileInputStream is = new FileInputStream(sourceFolder+"Desert.jpg");
+
+        nRead = is.read();
+        while (nRead != -1){
+            buffer.write(nRead);
+            nRead = is.read();
+        }
+
+        PdfImageXObject xObject = new PdfImageXObject(pdfDoc, ImageFactory.getJpegImage(buffer.toByteArray()));
+        Image image = new Image(xObject, 100);
+
+        doc.add(new Paragraph(new Text("First Line")));
+        Paragraph p = new Paragraph();
+        p.add(image);
+        image.scale(1, 0.5f);
+        doc.add(p);
+        doc.add(new Paragraph(new Text("Second Line")));
+
+        doc.close();
+
+        Assert.assertNull(new CompareTool().compareByContent(outFileName, cmpFileName, destinationFolder, "diff"));
+    }

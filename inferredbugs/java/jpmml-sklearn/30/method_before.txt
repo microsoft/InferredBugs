@@ -1,0 +1,34 @@
+ @Override
+	public List<Feature> encodeFeatures(List<String> ids, List<Feature> features, SkLearnEncoder encoder){
+		List<? extends Number> dataMin = getDataMin();
+		List<? extends Number> dataMax = getDataMax();
+
+		ClassDictUtil.checkSize(ids, features, dataMin, dataMax);
+
+		InvalidValueTreatmentMethod invalidValueTreatment = DomainUtil.parseInvalidValueTreatment(getInvalidValueTreatment());
+
+		InvalidValueDecorator invalidValueDecorator = new InvalidValueDecorator()
+			.setInvalidValueTreatment(invalidValueTreatment);
+
+		List<Feature> result = new ArrayList<>();
+
+		for(int i = 0; i < features.size(); i++){
+			WildcardFeature wildcardFeature = (WildcardFeature)features.get(i);
+
+			ContinuousFeature continuousFeature = wildcardFeature.toContinuousFeature();
+
+			Interval interval = new Interval(Interval.Closure.CLOSED_CLOSED)
+				.setLeftMargin(ValueUtil.asDouble(dataMin.get(i)))
+				.setRightMargin(ValueUtil.asDouble(dataMax.get(i)));
+
+			ValidValueDecorator validValueDecorator = new ValidValueDecorator()
+				.addIntervals(interval);
+
+			encoder.addDecorator(continuousFeature.getName(), validValueDecorator);
+			encoder.addDecorator(continuousFeature.getName(), invalidValueDecorator);
+
+			result.add(continuousFeature);
+		}
+
+		return result;
+	}

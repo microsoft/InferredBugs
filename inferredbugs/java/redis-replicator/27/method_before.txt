@@ -1,0 +1,34 @@
+    @Test
+    public void testFilter() throws IOException, InterruptedException {
+        Replicator redisReplicator = new RedisReplicator(
+                RedisSocketReplicatorTest.class.getClassLoader().getResourceAsStream("dumpV7.rdb"),
+                Configuration.defaultSetting());
+        final AtomicInteger acc = new AtomicInteger(0);
+        redisReplicator.addRdbListener(new RdbListener.Adaptor() {
+            @Override
+            public void preFullSync(Replicator replicator) {
+                super.preFullSync(replicator);
+                assertEquals(0, acc.get());
+            }
+
+            @Override
+            public void handle(Replicator replicator, KeyValuePair<?> kv) {
+                if (kv.getValueRdbType() == 0) {
+                    acc.incrementAndGet();
+                }
+            }
+
+            @Override
+            public void postFullSync(Replicator replicator, long checksum) {
+                super.postFullSync(replicator, checksum);
+            }
+        });
+        redisReplicator.addCloseListener(new CloseListener() {
+            @Override
+            public void handle(Replicator replicator) {
+                System.out.println("close testFilter");
+                assertEquals(13, acc.get());
+            }
+        });
+        redisReplicator.open();
+    }

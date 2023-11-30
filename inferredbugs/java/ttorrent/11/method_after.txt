@@ -1,0 +1,35 @@
+ @Override
+	public void announce(AnnounceRequestMessage.RequestEvent event,
+		boolean inhibitEvents) throws AnnounceException {
+		logger.info("Announcing{} to tracker with {}U/{}D/{}L bytes...",
+			new Object[] {
+				this.formatAnnounceEvent(event),
+				this.torrent.getUploaded(),
+				this.torrent.getDownloaded(),
+				this.torrent.getLeft()
+			});
+
+		try {
+			State state = State.CONNECT_REQUEST;
+			int tries = 0;
+
+			while (tries <= UDP_MAX_TRIES) {
+				if (this.lastConnectionTime != null &&
+					new Date().before(this.lastConnectionTime)) {
+					state = State.ANNOUNCE_REQUEST;
+				}
+
+				tries++;
+			}
+
+
+
+			ByteBuffer data = null;
+			UDPTrackerMessage.UDPTrackerResponseMessage message =
+				UDPTrackerMessage.UDPTrackerResponseMessage.parse(data);
+			this.handleTrackerResponse(message, inhibitEvents);
+		} catch (MessageValidationException mve) {
+			logger.error("Tracker message violates expected protocol: {}!",
+				mve.getMessage(), mve);
+		}
+	}

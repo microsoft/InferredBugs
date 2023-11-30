@@ -1,0 +1,26 @@
+    @Override
+    public int update(String table, String key,
+            HashMap<String, ByteIterator> values) {
+        try {
+            MongoCollection<Document> collection = database
+                    .getCollection(table);
+
+            Document query = new Document("_id", key);
+            Document fieldsToSet = new Document();
+            for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
+                fieldsToSet.put(entry.getKey(), entry.getValue().toArray());
+            }
+            Document update = new Document("$set", fieldsToSet);
+
+            UpdateResult result = collection.updateOne(query, update);
+            if (result.wasAcknowledged() && result.getMatchedCount() == 0) {
+                System.err.println("Nothing updated for key " + key);
+                return 1;
+            }
+            return 0;
+        }
+        catch (Exception e) {
+            System.err.println(e.toString());
+            return 1;
+        }
+    }

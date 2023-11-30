@@ -1,0 +1,41 @@
+        private Expression ReadMember(ref Utf8JsonReader reader, JsonSerializerOptions options)
+        {
+            Expression expression = default;
+            MemberTypes memberType = default;
+            string name = default;
+            Type declaringType = default;
+
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+            {
+                if (reader.TokenType != JsonTokenType.PropertyName) throw new JsonException();
+                var propertyName = JsonName(reader.GetString(), options);
+                reader.Read();
+
+                if (JsonNameEquals(propertyName, nameof(MemberExpression.Expression), options))
+                {
+                    expression = JsonSerializer.Deserialize<Expression>(ref reader, options);
+                }
+                else if (JsonNameEquals(propertyName, nameof(MemberExpression.Member.MemberType), options))
+                {
+                    Enum.TryParse(reader.GetString(), out memberType);
+                }
+                else if (JsonNameEquals(propertyName, nameof(MemberExpression.Member.Name), options))
+                {
+                    name = reader.GetString();
+                }
+                else if (JsonNameEquals(propertyName, nameof(MemberExpression.Member.DeclaringType), options))
+                {
+                    declaringType = JsonSerializer.Deserialize<Type>(ref reader, options);
+                }
+            }
+
+            MemberInfo member;
+            if (memberType == MemberTypes.Field)
+                member = declaringType!.GetField(name!);
+            else if (memberType == MemberTypes.Property)
+                member = declaringType!.GetProperty(name!);
+            else
+                throw new NotSupportedException($"MemberType={memberType}");
+
+            return Expression.MakeMemberAccess(expression, member!);
+        }

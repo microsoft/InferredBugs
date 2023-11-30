@@ -1,0 +1,36 @@
+   @Test
+   public void runTestWriteWriteConflict() throws Exception {
+      TransactionManager tm = new TransactionManager(hbaseConf);
+      TTable tt = new TTable(hbaseConf, TEST_TABLE);
+
+      TransactionState t1 = tm.beginTransaction();
+      LOG.info("Transaction created " + t1);
+
+      TransactionState t2 = tm.beginTransaction();
+      LOG.info("Transaction created" + t2);
+
+      byte[] row = Bytes.toBytes("test-simple");
+      byte[] fam = Bytes.toBytes(TEST_FAMILY);
+      byte[] col = Bytes.toBytes("testdata");
+      byte[] data1 = Bytes.toBytes("testWrite-1");
+      byte[] data2 = Bytes.toBytes("testWrite-2");
+
+      Put p = new Put(row);
+      p.add(fam, col, data1);
+      tt.put(t1, p);
+
+      Put p2 = new Put(row);
+      p2.add(fam, col, data2);
+      tt.put(t2, p2);
+
+      tm.tryCommit(t2);
+
+      boolean aborted = false;
+      try {
+         tm.tryCommit(t1);
+         assertTrue("Transaction commited successfully", false);
+      } catch (CommitUnsuccessfulException e) {
+         aborted = true;
+      }
+      assertTrue("Transaction didn't raise exception", aborted);
+   }

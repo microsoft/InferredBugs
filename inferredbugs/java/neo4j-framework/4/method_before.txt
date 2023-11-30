@@ -1,0 +1,63 @@
+ @Test
+	public void verifyRandomWalkerModuleCorrectlyGeneratesReasonablePageRankMeasurements() throws InterruptedException {
+		// firstly, generate a graph
+		final int numberOfNodes = 10;
+		GraphGenerator graphGenerator = new Neo4jGraphGenerator(database);
+
+		LOG.info("Generating Barabasi-Albert social network graph with {} nodes...", numberOfNodes);
+
+		graphGenerator.generateGraph(new BasicGeneratorConfiguration(numberOfNodes, new BarabasiAlbertGraphRelationshipGenerator(
+				new BarabasiAlbertConfig(numberOfNodes, 5)), SocialNetworkNodeCreator.getInstance(), SocialNetworkRelationshipCreator
+				.getInstance()));
+
+		LOG.info("Computing adjacency matrix for graph...");
+
+		// secondly, compute the adjacency matrix for this graph
+		NetworkMatrixFactory networkMatrixFactory = new NetworkMatrixFactory(database);
+
+		try (Transaction tx = database.beginTx()) {
+			LOG.info("Computing page rank based on adjacency matrix...");
+
+			// thirdly, compute the page rank of this graph based on the adjacency matrix
+			PageRank pageRank = new PageRank();
+
+            NetworkMatrix transitionMatrix = networkMatrixFactory.getTransitionMatrix();
+			List<RankNodePair> pageRankResult = pageRank.getPageRankPairs(transitionMatrix, 0.85); // Sergei's & Larry's suggestion is to use .85 to become rich;)
+
+            LOG.info(pageRankResult.toString());
+			LOG.info("Applying random graph walker module to page rank graph");
+
+			// fourthly, run the rage rank module to compute the random walker's page rank
+			GraphAwareRuntime runtime = GraphAwareRuntimeFactory.createRuntime(database);
+			runtime.registerModule(pageRankModule);
+			runtime.start();
+
+			LOG.info("Waiting for module walker to do its work");
+			TimeUnit.SECONDS.sleep(30);
+
+			// finally, compare both page rank metrics and verify the module is producing what it should
+			// XXX: I understand this is WIP, but why does this return a list if it's called get..Map?
+            // YYY: I call it a Map, since it is effectivelly the inverse of the Node, Integer hashMap from the NetworkMatrixFactory
+            //      and it is used only to map the indices from of the pagerank values back to the Nodes. Quite clumsy, on todo list ;)
+//			List<Node> indexMap = networkMatrixFactory.getIndexMap();
+
+            LOG.info("The highest PageRank in the network is: " + pageRankResult.get(0).node().getProperty("name").toString());
+            //LOG.info("Top of the rank map is: {}", indexMap.get(0).getProperty("name"));
+
+            int topRank  = 0;
+            Node topNode = null;
+
+			for (RankNodePair pair : pageRankResult) {
+                System.out.printf("%s\t%s\t%s\n", pair.node().getProperty("name"),
+                        "NeoRank: " + pair.node().getProperty(RandomWalkerPageRankModule.PAGE_RANK_PROPERTY_KEY).toString(),  "PageRank: " + pair.rank());
+
+                int rank = (int) pair.node().getProperty(RandomWalkerPageRankModule.PAGE_RANK_PROPERTY_KEY);
+
+                if (rank > topRank) {
+                    topRank = rank;
+                    topNode = pair.node();
+                }
+			}
+            LOG.info("The highest NeoRank in the network is: " + topNode.getProperty("name").toString());
+		}
+	}

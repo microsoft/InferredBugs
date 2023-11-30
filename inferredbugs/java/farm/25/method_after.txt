@@ -1,0 +1,56 @@
+    @Override
+    public Response act(final RqRegex req) throws IOException {
+        final Project project = new RqProject(this.farm, req, "PO");
+        final RqFormSmart form = new RqFormSmart(new RqGreedy(req));
+        final String email = form.single("email");
+        final Cash amount = new Cash.S(
+            String.format(
+                "USD %.2f",
+                // @checkstyle MagicNumber (1 line)
+                Double.parseDouble(form.single("cents")) / 100.0d
+            )
+        );
+        final Stripe stripe = new Stripe(this.farm);
+        final String customer;
+        final String pid;
+        try {
+            customer = stripe.register(
+                form.single("token"), email
+            );
+            pid = stripe.charge(
+                customer, amount,
+                new Par(this.farm, "Project %s funded").say(project.pid())
+            );
+        } catch (final Stripe.PaymentException ex) {
+            throw new RsForward(
+                new RsParFlash(ex),
+                String.format("/p/%s", project.pid())
+            );
+        }
+        final String user = new RqUser(this.farm, req).value();
+        new ClaimOut()
+            .type("Funded by Stripe")
+            .param("amount", amount)
+            .param("stripe_customer", customer)
+            .param("payment_id", pid)
+            .param("email", email)
+            .author(user)
+            .postTo(project);
+        new ClaimOut().type("Notify PMO").param(
+            "message", new Par(
+                "Project %s was funded for %s by @%s;",
+                "customer `%s`, payment `%s`"
+            ).say(project.pid(), amount, user, customer, pid)
+        ).postTo(this.farm);
+        return new RsForward(
+            new RsParFlash(
+                new Par(
+                    "The project %s was successfully funded for %s;",
+                    "the ledger will be updated in a few minutes;",
+                    "payment ID is `%s`"
+                ).say(project.pid(), amount, pid),
+                Level.INFO
+            ),
+            String.format("/p/%s", project.pid())
+        );
+    }

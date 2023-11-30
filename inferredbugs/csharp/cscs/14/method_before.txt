@@ -1,0 +1,33 @@
+        protected override Variable Evaluate(ParsingScript script)
+        {
+            // 1. Get the name of the variable.
+            string varName = Utils.GetToken(script, Constants.END_ARG_ARRAY);
+            Utils.CheckNotEnd(script, m_name);
+
+            List<Variable> arrayIndices = Utils.GetArrayIndices(script, ref varName);
+
+            // 2. Get the current value of the variable.
+            ParserFunction func = ParserFunction.GetFunction(varName);
+            Utils.CheckNotNull(varName, func);
+            Variable currentValue = func.GetValue(script);
+            Variable element = currentValue;
+
+            // 2b. Special case for an array.
+            if (arrayIndices.Count > 0)
+            {// array element
+                element = Utils.ExtractArrayElement(currentValue, arrayIndices);
+                script.MoveForwardIf(Constants.END_ARRAY);
+            }
+
+            // 3. Take either the length of the underlying tuple or
+            // string part if it is defined,
+            // or the numerical part converted to a string otherwise.
+            int size = element.Type == Variable.VarType.ARRAY ?
+                              element.Tuple.Count :
+                              element.AsString().Length;
+
+            script.MoveForwardIf(Constants.END_ARG, Constants.SPACE);
+
+            Variable newValue = new Variable(size);
+            return newValue;
+        }

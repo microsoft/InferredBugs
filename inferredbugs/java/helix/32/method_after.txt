@@ -1,0 +1,20 @@
+  public void download(String zkPath, String fsPath) throws Exception {
+
+    List<String> children = client.getChildren(zkPath);
+    if (children != null && children.size() > 0) {
+      new File(fsPath).mkdirs();
+      for (String child : children) {
+        String childPath = zkPath.equals("/") ? "/" + child : zkPath + "/" + child;
+        download(childPath, fsPath + "/" + child);
+      }
+    } else {
+      System.out
+          .println("Saving " + zkPath + " to " + new File(fsPath + suffix).getCanonicalPath());
+      OutputStream out = new FileOutputStream(fsPath + suffix);
+      Object readData = client.readData(zkPath);
+      if (readData != null) {
+        out.write((byte[]) readData);
+      }
+      out.close();
+    }
+  }

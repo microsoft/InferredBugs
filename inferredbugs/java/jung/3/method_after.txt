@@ -1,0 +1,24 @@
+  @Override
+  public void update(N node) {
+    Point2D location = layoutModel.apply(node);
+    if (!this.getLayoutArea().contains(location)) {
+      log.trace(location + " outside of spatial " + this.getLayoutArea());
+      this.setBounds(this.getUnion(this.getLayoutArea(), location));
+      this.recalculate(layoutModel.getGraph().nodes());
+    }
+    SpatialQuadTree<N> locationContainingLeaf = getContainingQuadTreeLeaf(location);
+    log.trace("leaf {} contains {}", locationContainingLeaf, location);
+    SpatialQuadTree<N> nodeContainingLeaf = getContainingQuadTreeLeaf(node);
+    log.trace("leaf {} contains node {}", nodeContainingLeaf, node);
+    if (locationContainingLeaf == null) {
+      log.error("got null for leaf containing {}", location);
+    }
+    if (nodeContainingLeaf == null) {
+      log.warn("got null for leaf containing {}", node);
+    }
+    if (locationContainingLeaf != null && !locationContainingLeaf.equals(nodeContainingLeaf)) {
+      log.trace("time to recalculate");
+      this.recalculate(layoutModel.getGraph().nodes());
+    }
+    this.insert(node);
+  }

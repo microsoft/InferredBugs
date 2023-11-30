@@ -1,0 +1,21 @@
+    static void doCacheEvict(Object[] arguments, Class targetClass, Method method, CacheEvict evict) {
+        String unless = AnnotationUtil.get(evict.unless());
+        if (Utils.isUnless(unless, method, arguments)) {
+            return;
+        }
+
+        String cacheName = AnnotationUtil.get(evict.name());
+        if (StrUtil.isBlank(cacheName)) {
+            throw new JbootException(String.format("CacheEvict.name()  must not empty in method [%s].",
+                    ClassUtil.buildMethodString(method)));
+        }
+
+        String cacheKey = AnnotationUtil.get(evict.key());
+
+        if (StrUtil.isBlank(cacheKey) || "*".equals(cacheKey)) {
+            AopCache.removeAll(cacheName);
+        } else {
+            cacheKey = Utils.buildCacheKey(cacheKey, targetClass, method, arguments);
+            AopCache.remove(cacheName, cacheKey);
+        }
+    }

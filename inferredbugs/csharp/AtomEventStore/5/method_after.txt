@@ -1,0 +1,41 @@
+        [Fact]
+        public void WriteASingleEventSynchronously()
+        {
+            var eventStreamId = 
+                new Guid("A0E50259-7345-48F9-84B4-BEEB5CEC662C");
+            using (var storage = new AtomEventsInMemory())
+            {
+                var pageSize = 25;
+                var serializer =
+                    new DataContractContentSerializer(
+                        new TypeResolutionTable(
+                            new TypeResolutionEntry(
+                                "urn:grean:samples:user-on-boarding",
+                                "user-created",
+                                typeof(UserCreated)),
+                            new TypeResolutionEntry(
+                                "urn:grean:samples:user-on-boarding",
+                                "email-verified",
+                                typeof(EmailVerified)),
+                            new TypeResolutionEntry(
+                                "urn:grean:samples:user-on-boarding",
+                                "email-changed",
+                                typeof(EmailChanged))));
+                IObserver<object> obs = new AtomEventObserver<object>(
+                    eventStreamId, // a Guid
+                    pageSize,      // an Int32
+                    storage,       // an IAtomEventStorage object
+                    serializer);   // an IContentSerializer object
+
+                var userCreated = new UserCreated
+                {
+                    UserId = eventStreamId,
+                    UserName = "ploeh",
+                    Password = "12345",
+                    Email = "ploeh@fnaah.com"
+                };
+                obs.OnNext(userCreated);
+
+                Assert.NotEmpty(storage);
+            }
+        }

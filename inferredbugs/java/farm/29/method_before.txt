@@ -1,0 +1,37 @@
+    @Override
+    public Response act(final RqRegex req) throws IOException {
+        final String pid = req.matcher().group(1);
+        final Catalog catalog = new Catalog(this.farm).bootstrap();
+        if (!catalog.exists(pid)) {
+            throw new RsForward(
+                new RsParFlash(
+                    new Par("Project %s not found").say(pid),
+                    Level.WARNING
+                )
+            );
+        }
+        final Project project = this.farm.find(
+            String.format("@id='%s'", pid)
+        ).iterator().next();
+        final Cash left = new Ledger(project).bootstrap().cash().add(
+            new Estimates(project).bootstrap().total().mul(-1L)
+        );
+        final String amount;
+        if (left.equals(Cash.ZERO)) {
+            amount = "no money";
+        } else {
+            amount = String.format("$%s left", left.decimal().intValue());
+        }
+        return new RsWithHeaders(
+            new RsWithType(
+                new RsWithBody(
+                    new TextOf(
+                        this.getClass().getResource("contrib-badge.svg")
+                    ).asString().replace("AMOUNT", amount)
+                ),
+                "image/svg+xml"
+            ),
+            "Cache-Control: no-cache",
+            String.format("X-Zerocracy-Project-ID: %s", project.pid())
+        );
+    }

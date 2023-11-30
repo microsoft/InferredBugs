@@ -1,0 +1,31 @@
+    private boolean identify_peer(Pipe pipe_)
+    {
+        Blob identity;
+
+        Msg msg = pipe_.read();
+        if (msg == null)
+            return false;
+
+        if (msg.size () == 0) {
+            //  Fall back on the auto-generation
+            ByteBuffer buf = ByteBuffer.allocate(5);
+            buf.put((byte)0);
+            buf.putInt (next_peer_id++);
+            buf.flip();
+            identity = new Blob(buf);
+        }
+        else {
+            identity = new Blob(msg.data ());
+
+            //  Ignore peers with duplicate ID.
+            if (outpipes.containsKey(identity))
+                return false;
+        }
+
+        pipe_.set_identity (identity);
+        //  Add the record into output pipes lookup table
+        Outpipe outpipe = new Outpipe(pipe_, true);
+        outpipes.put (identity, outpipe);
+
+        return true;
+    }

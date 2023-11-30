@@ -1,0 +1,42 @@
+ @Override
+	public ByteBuffer[] call() throws RuntimeServiceResultException {
+	  try {
+		SizeCalculationOutputStream tmp = new SizeCalculationOutputStream();
+		BinaryEncoder calc = new BinaryEncoder(tmp);
+		calc.setEncoderContext(encoderCtx);
+		if (type == MessageType.Encodeable)
+			calc.putEncodeable(null, msg);
+		else
+			calc.putMessage(msg);
+		int len = tmp.getLength();
+		
+		if (len>ctx.maxSendMessageSize && ctx.maxSendMessageSize!=0)
+			throw new ServiceResultException(StatusCodes.Bad_TcpMessageTooLarge);
+		
+		ByteQueue bq = new ByteQueue();
+		bq.order(ByteOrder.LITTLE_ENDIAN);
+		bq.setWriteLimit(len);
+		bq.setByteBufferFactory(chunkFactory);
+		bq.setChunkSize(chunkFactory.maxPlaintextSize);
+		
+		ByteBufferArrayWriteable array = new ByteBufferArrayWriteable(bq);
+		array.order(ByteOrder.LITTLE_ENDIAN);
+		
+		BinaryEncoder enc = new BinaryEncoder(array);
+		enc.setEncoderContext(encoderCtx);
+		
+		if (type == MessageType.Message)
+			enc.putMessage(msg);
+		else
+			enc.putEncodeable(null, msg);
+		
+		ByteBuffer[] plaintexts = bq.getChunks(len);
+		
+		if (plaintexts.length>ctx.maxRecvChunkCount && ctx.maxRecvChunkCount!=0)
+			throw new ServiceResultException(StatusCodes.Bad_TcpMessageTooLarge);
+
+		return plaintexts;
+	  } catch (ServiceResultException e) {
+		  throw new RuntimeServiceResultException(e);
+	  }
+	}

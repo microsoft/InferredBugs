@@ -1,0 +1,41 @@
+ private void configWriter(String content, Path filePath) {
+		if(Files.exists(filePath) && !Files.isWritable(filePath)){
+			log.error("Error file is not writable: " + filePath);
+			return;
+		}
+		
+		if(Files.notExists(filePath.getParent())) {
+			try {
+				Files.createDirectories(filePath.getParent());
+			} catch (IOException e) {
+				log.error("Error creating the directory: " + filePath + " message: " + e.getMessage(), e);
+			}
+		}
+
+		try {
+			Path target = null;
+			if(Files.exists(filePath)) {
+				target = FileSystems.getDefault().getPath(filePath.getParent().toString(), "habridge.config.old");
+				Files.move(filePath, target);
+			}
+			Files.write(filePath, content.getBytes(), StandardOpenOption.CREATE);
+
+			// set attributes to be for user only
+	        // using PosixFilePermission to set file permissions
+	        Set<PosixFilePermission> perms = new HashSet<PosixFilePermission>();
+	        // add owners permission 
+	        perms.add(PosixFilePermission.OWNER_READ);
+	        perms.add(PosixFilePermission.OWNER_WRITE);
+	        
+	        try {
+	        	if(System.getProperty("os.name").toLowerCase().indexOf("win") <= 0)
+	        		Files.setPosixFilePermissions(filePath, perms);
+	        } catch(UnsupportedOperationException e) {
+	        	log.info("Cannot set permissions for config file on this system as it is not supported. Continuing");
+	        }
+			if(target != null)
+				Files.delete(target);
+		} catch (IOException e) {
+			log.error("Error writing the file: " + filePath + " message: " + e.getMessage(), e);
+		}
+	}

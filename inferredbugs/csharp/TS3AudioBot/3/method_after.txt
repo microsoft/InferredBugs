@@ -1,0 +1,62 @@
+  private static string GenPlattformDat()
+		{
+			string plattform = null;
+			string version = null;
+			string bitness = Environment.Is64BitProcess ? "64bit" : "32bit";
+
+			if (IsLinux)
+			{
+				var values = new Dictionary<string, string>();
+
+				RunBash("cat /etc/*[_-][Rr]elease", x =>
+				{
+					var lines = x.ReadToEnd().Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+					foreach (var line in lines)
+					{
+						var match = PlattformRegex.Match(line);
+						if (!match.Success)
+							continue;
+
+						values[match.Groups[1].Value.ToUpper()] = TextUtil.StripQuotes(match.Groups[2].Value);
+					}
+
+					if (values.Count > 0)
+					{
+						string value;
+						plattform = values.TryGetValue("NAME", out value) ? value
+								: values.TryGetValue("ID", out value) ? value
+								: values.TryGetValue("DISTRIB_ID", out value) ? value
+								: values.TryGetValue("PRETTY_NAME", out value) ? value
+								: null;
+
+						version = values.TryGetValue("VERSION", out value) ? value
+								: values.TryGetValue("VERSION_ID", out value) ? value
+								: values.TryGetValue("DISTRIB_RELEASE", out value) ? value
+								: null;
+					}
+
+					if (plattform == null && version == null)
+					{
+						foreach (var line in lines)
+						{
+							var match = SemVerRegex.Match(line);
+							if (match.Success)
+							{
+								version = line;
+								break;
+							}
+						}
+					}
+
+					plattform = plattform ?? "Linux";
+					version = version ?? "<?>";
+				});
+			}
+			else
+			{
+				plattform = "Windows";
+				version = Environment.OSVersion.Version.ToString();
+			}
+
+			return $"{plattform} {version} ({bitness})";
+		}

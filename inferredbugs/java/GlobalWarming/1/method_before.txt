@@ -1,0 +1,23 @@
+ @EventHandler
+	public void onFurnaceSmelt(FurnaceBurnEvent event) {
+		Location location = event.getBlock().getLocation();
+		GWorld world = gw.getTableManager().getWorldTable().getWorld(location.getWorld().getName());
+		FurnaceTable furnaceTable = gw.getTableManager().getFurnaceTable();
+
+		if (furnaceTable.getLocationMap().containsKey(location)) {
+			Long uuid = furnaceTable.getLocationMap().get(location);
+			Furnace furnace = furnaceTable.getFurnaceMap().get(uuid);
+			// Note: We hold the owner of the furnace responsible for emissions
+			// If the furnace isn't protected, the furnace owner is still charged
+			GPlayer polluter = gw.getTableManager().getPlayerTable().getPlayers().get(furnace.getOwner().getUuid());
+			Contribution emissions = ClimateEngine.getInstance().getClimateEngine(world.getWorldName()).furnaceBurn(polluter, event.getFuel());
+			int carbonScore = polluter.getCarbonScore();
+			polluter.setCarbonScore((int) (carbonScore + emissions.getContributionValue()));
+			
+			// TODO: Queue polluter score DB update
+			// TODO: Queue new contribution DB insert
+		} else {
+			gw.getLogger().severe(event.getFuel().getType().name() + " burned as fuel in an untracked furnace!");
+			gw.getLogger().severe("@ " + location.toString());
+		}
+	}

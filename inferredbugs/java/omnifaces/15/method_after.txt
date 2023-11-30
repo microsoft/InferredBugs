@@ -1,0 +1,41 @@
+ @Override
+	public void apply(FaceletContext context, UIComponent parent) throws IOException {
+		if (!ComponentHandler.isNew(parent)) {
+			return;
+		}
+
+		if (!TRUE.equals(getApplicationAttribute(context.getFacesContext(), Socket.class.getName()))) {
+			throw new IllegalStateException(ERROR_ENDPOINT_NOT_ENABLED);
+		}
+
+		String channelName = channel.getValue(context);
+
+		if (!PATTERN_CHANNEL.matcher(channelName).matches()) {
+			throw new IllegalArgumentException(String.format(ERROR_INVALID_CHANNEL, channelName));
+		}
+
+		SocketChannelManager channelManager = getReference(SocketChannelManager.class);
+		String scopeName = getString(context, scope);
+		String channelId;
+
+		try {
+			channelId = channelManager.register(channelName, scopeName);
+		}
+		catch (IllegalArgumentException ignore) {
+			throw new IllegalArgumentException(String.format(ERROR_INVALID_SCOPE, scopeName));
+		}
+
+		if (channelId == null) {
+			throw new IllegalArgumentException(String.format(ERROR_DUPLICATE_CHANNEL, channelName));
+		}
+
+		Integer portNumber = getObject(context, port, Integer.class);
+		String onmessageFunction = onmessage.getValue(context);
+		String oncloseFunction = getString(context, onclose);
+		String functions = onmessageFunction + "," + oncloseFunction;
+		ValueExpression connectedExpression = getValueExpression(context, connected, Boolean.class);
+
+		SystemEventListener listener = new SocketEventListener(portNumber, channelName, channelId, functions, connectedExpression);
+		subscribeToViewEvent(PostAddToViewEvent.class, listener);
+		subscribeToViewEvent(PreRenderViewEvent.class, listener);
+	}

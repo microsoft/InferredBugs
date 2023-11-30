@@ -1,0 +1,52 @@
+    void begin(String [] args, InputStream inputStream)
+        throws IOException
+    {
+        try {
+            // load the options first, so we can override on the command line
+            command.load(null, null);
+            opts.load();
+        } catch (Exception e) {
+            handleException(e);
+        }
+
+        ConsoleReader reader = getConsoleReader(inputStream);
+        if (!(initArgs(args))) {
+            usage();
+            return;
+        }
+
+        try {
+            info(getApplicationTitle());
+        } catch (Exception e) {
+            handleException(e);
+        }
+
+        // basic setup done. From this point on, honor opts value for showing exception
+        initComplete = true;
+
+        while (!exit) {
+            DispatchCallback callback = new DispatchCallback();
+            try {
+                callback.setStatus(DispatchCallback.Status.RUNNING);
+                dispatch(reader.readLine(getPrompt()), callback);
+            } catch (EOFException eof) {
+                // CTRL-D
+                command.quit(null, callback);
+            } catch (UserInterruptException ioe) {
+                // CTRL-C
+                try {
+                  callback.forceKillSqlQuery();
+                  output(loc("command-canceled"));
+                } catch (SQLException sqle) {
+                  handleException(sqle);
+                }
+            } catch (Throwable t) {
+                handleException(t);
+            }
+        }
+
+        // ### NOTE jvs 10-Aug-2004:  Clean up any outstanding
+        // connections automatically.
+        // nothing is done with the callback beyond
+        command.closeall(null, new DispatchCallback());
+    }

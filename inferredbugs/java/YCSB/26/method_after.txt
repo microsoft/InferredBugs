@@ -1,0 +1,37 @@
+  @Override
+  public Status update(String table, String key,
+      HashMap<String, ByteIterator> values) {
+    if (debug) {
+      System.out.println("Setting up put for key: " + key);
+    }
+    
+    setTable(table);
+    
+    final MutateRowRequest.Builder rowMutation = MutateRowRequest.newBuilder();
+    rowMutation.setRowKey(ByteString.copyFromUtf8(key));
+    rowMutation.setTableNameBytes(ByteStringer.wrap(lastTableBytes));
+    
+    for (final Entry<String, ByteIterator> entry : values.entrySet()) {
+      final Mutation.Builder mutationBuilder = rowMutation.addMutationsBuilder();
+      final SetCell.Builder setCellBuilder = mutationBuilder.getSetCellBuilder();
+      
+      setCellBuilder.setFamilyNameBytes(ByteStringer.wrap(columnFamilyBytes));
+      setCellBuilder.setColumnQualifier(ByteStringer.wrap(entry.getKey().getBytes()));
+      setCellBuilder.setValue(ByteStringer.wrap(entry.getValue().toArray()));
+
+      // Bigtable uses a 1ms granularity
+      setCellBuilder.setTimestampMicros(System.currentTimeMillis() * 1000);
+    }
+    
+    try {
+      if (clientSideBuffering) {
+        bulkMutation.add(rowMutation.build());
+      } else {
+        client.mutateRow(rowMutation.build());
+      }
+      return Status.OK;
+    } catch (RuntimeException e) {
+      System.err.println("Failed to insert key: " + key + " " + e.getMessage());
+      return Status.ERROR;
+    }
+  }

@@ -1,0 +1,42 @@
+    public static boolean setProjectVersion( final ModifiedPomXMLEventReader pom, final String value )
+        throws XMLStreamException
+    {
+        Stack<String> stack = new Stack<String>();
+        String path = "";
+        final Pattern matchScopeRegex;
+        boolean madeReplacement = false;
+        matchScopeRegex = Pattern.compile( "/project/version" );
+
+        pom.rewind();
+
+        while ( pom.hasNext() )
+        {
+            XMLEvent event = pom.nextEvent();
+            if ( event.isStartElement() )
+            {
+                stack.push( path );
+                path = path + "/" + event.asStartElement().getName().getLocalPart();
+
+                if ( matchScopeRegex.matcher( path ).matches() )
+                {
+                    pom.mark( 0 );
+                }
+            }
+            if ( event.isEndElement() )
+            {
+                if ( matchScopeRegex.matcher( path ).matches() )
+                {
+                    pom.mark( 1 );
+                    if ( pom.hasMark( 0 ) && pom.hasMark( 1 ) )
+                    {
+                        pom.replaceBetween( 0, 1, value );
+                        madeReplacement = true;
+                    }
+                    pom.clearMark( 0 );
+                    pom.clearMark( 1 );
+                }
+                path = stack.pop();
+            }
+        }
+        return madeReplacement;
+    }

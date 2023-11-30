@@ -1,0 +1,17 @@
+    public synchronized void release(@NotNull CommonStore store) {
+        store.release();
+
+        long refCount = store.refCount();
+        assert refCount >= 0;
+        if (refCount == 0) {
+            for (Map.Entry<RollDetails, WeakReference<WireStore>> entry : stores.entrySet()) {
+                WeakReference<WireStore> ref = entry.getValue();
+                if (ref != null && ref.get() == store) {
+                    stores.remove(entry.getKey());
+                    storeFileListener.onReleased(entry.getKey().cycle(), store.file());
+                    return;
+                }
+            }
+            LOGGER.warn("Store was not registered {}", store.file().getName());
+        }
+    }

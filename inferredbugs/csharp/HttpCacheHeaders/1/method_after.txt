@@ -1,0 +1,71 @@
+        private void GenerateValidationHeadersOnResponse(HttpContext httpContext)
+        {
+            // don't generate these for 304 - that's taken care of at the
+            // start of the request
+            if (httpContext.Response.StatusCode == StatusCodes.Status304NotModified)
+            {
+                return;
+            }
+
+            // This takes care of storing new tags, also after a succesful PUT/POST/PATCH.
+            // Other PUT/POST/PATCH requests must thus include the new ETag as If-Match,
+            // otherwise the precondition will fail.
+            //
+            // If an API returns a 204 No Content after PUT/PATCH, the ETag will be generated
+            // from an empty response - any other user/cache must GET the response again
+            // before updating it.  Getting it will result in a new ETag value being generated.
+            //
+            // If an API returns a 200 Ok after PUT/PATCH, the ETag will be generated from
+            // that response body - if the update was succesful but nothing was changed,
+            // in those cases the original ETag for other users/caches will still be sufficient.
+
+            // if the response body cannot be read, we can never
+            // generate correct ETags (and it should never be cached)
+            if (!httpContext.Response.Body.CanRead)
+            {
+                return;
+            }
+
+            _logger.LogInformation("Generating Validation headers.");
+
+            var headers = httpContext.Response.Headers;
+
+            // remove any other ETag and Last-Modified headers (could be set
+            // by other pieces of code)
+            headers.Remove(HeaderNames.ETag);
+            headers.Remove(HeaderNames.LastModified);
+
+            // Save the ETag in a store.
+            // Key = generated from request URI & headers (if VaryBy is
+            // set, only use those headers)
+            // ETag itself is generated from the key + response body
+            // (strong ETag)
+
+            // get the request key
+            var requestKey = GenerateRequestKey(httpContext.Request);
+            var requestKeyAsBytes = Encoding.UTF8.GetBytes(requestKey);
+
+            // get the response bytes
+            if (httpContext.Response.Body.CanSeek)
+            {
+                httpContext.Response.Body.Position = 0;
+            }
+
+            var responseBodyContent = new StreamReader(httpContext.Response.Body).ReadToEnd();
+            var responseBodyContentAsBytes = Encoding.UTF8.GetBytes(responseBodyContent);
+
+            // combine both to generate an etag
+            var combinedBytes = Combine(requestKeyAsBytes, responseBodyContentAsBytes);
+
+            var eTag = new ETag(ETagType.Strong, GenerateETag(combinedBytes));
+            var lastModified = DateTimeOffset.UtcNow;
+
+            // store the ETag & LastModified date with the request key as key in the ETag store
+            _store.SetAsync(requestKey, new ValidationValue(eTag, lastModified));
+
+            // set the ETag and LastModified header
+            headers[HeaderNames.ETag] = eTag.Value;
+            headers[HeaderNames.LastModified] = lastModified.ToString("r", CultureInfo.InvariantCulture);
+
+            _logger.LogInformation($"Validation headers generated. ETag: {eTag.Value}. Last-Modified: {lastModified.ToString("r", CultureInfo.InvariantCulture)}");
+        }

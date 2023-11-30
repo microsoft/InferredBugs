@@ -1,0 +1,30 @@
+    @Override
+    public boolean saveLocalTx(Transaction tx) throws IOException {
+        try {
+            ValidateResult validateResult = this.conflictDetectTx(tx, this.getWaitingTxList());
+            if (validateResult.isFailed()) {
+                throw new NulsRuntimeException(validateResult.getErrorCode(), validateResult.getMessage());
+            }
+        } catch (Exception e) {
+            Log.error(e);
+            throw new NulsRuntimeException(e);
+        }
+        TransactionLocalPo localPo = UtxoTransferTool.toLocalTransactionPojo(tx);
+        localPo.setTxStatus(TransactionLocalPo.UNCONFIRM);
+        localTxDao.save(localPo);
+        ledgerCacheService.putLocalTx(tx);
+        // save relation
+        if (tx instanceof AbstractCoinTransaction) {
+            AbstractCoinTransaction abstractTx = (AbstractCoinTransaction) tx;
+            UtxoData utxoData = (UtxoData) abstractTx.getCoinData();
+            if (utxoData.getInputs() != null && !utxoData.getInputs().isEmpty()) {
+                UtxoInput input = utxoData.getInputs().get(0);
+                UtxoOutput output = input.getFrom();
+                TxAccountRelationPo relationPo = new TxAccountRelationPo();
+                relationPo.setTxHash(tx.getHash().getDigestHex());
+                relationPo.setAddress(output.getAddress());
+                relationDataService.save(relationPo);
+            }
+        }
+        return true;
+    }

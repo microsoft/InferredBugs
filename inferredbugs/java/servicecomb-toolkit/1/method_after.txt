@@ -1,0 +1,21 @@
+  public static void compile(String projectPath) throws IOException, TimeoutException, InterruptedException {
+    Runtime runtime = Runtime.getRuntime();
+    Process exec = runtime.exec("mvn clean package -f " + projectPath);
+
+    Worker worker = new Worker(exec);
+    worker.start();
+    ProcessStatus ps = worker.getProcessStatus();
+
+    try {
+      worker.join(30000);
+      if (ps.exitCode == ProcessStatus.CODE_STARTED) {
+        // not finished
+        worker.interrupt();
+        throw new TimeoutException();
+      }
+    } catch (InterruptedException e) {
+      // canceled by other thread.
+      worker.interrupt();
+      throw e;
+    }
+  }

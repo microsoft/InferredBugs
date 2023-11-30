@@ -1,0 +1,66 @@
+  void preHandleMessage() throws Exception {
+    if (!_message.isValid()) {
+      String errorMessage = "Invalid Message, ensure that message: " + _message
+          + " has all the required fields: " + Arrays.toString(Message.Attributes.values());
+
+      _statusUpdateUtil.logError(_message, HelixStateTransitionHandler.class, errorMessage,
+          _manager);
+      logger.error(errorMessage);
+      throw new HelixException(errorMessage);
+    }
+
+    logger.info("handling message: " + _message.getMsgId() + " transit "
+        + _message.getResourceName() + "." + _message.getPartitionName() + "|"
+        + _message.getPartitionNames() + " from:" + _message.getFromState() + " to:"
+        + _message.getToState() + ", relayedFrom: " + _message.getRelaySrcHost());
+
+    HelixDataAccessor accessor = _manager.getHelixDataAccessor();
+    String partitionName = _message.getPartitionName();
+
+    // Set start time right before invoke client logic
+    _currentStateDelta.setStartTime(_message.getPartitionName(), System.currentTimeMillis());
+
+    StaleMessageValidateResult err = staleMessageValidator();
+    if (!err.isValid) {
+      _statusUpdateUtil
+          .logError(_message, HelixStateTransitionHandler.class, err.exception.getMessage(),
+              _manager);
+      logger.error(err.exception.getMessage());
+      throw err.exception;
+    }
+
+    // Reset the REQUESTED_STATE property if it exists.
+    try {
+      String instance = _manager.getInstanceName();
+      String sessionId = _message.getTgtSessionId();
+      String resource = _message.getResourceName();
+      ZNRecordBucketizer bucketizer = new ZNRecordBucketizer(_message.getBucketSize());
+      PropertyKey key = accessor.keyBuilder().currentState(instance, sessionId, resource,
+          bucketizer.getBucketName(partitionName));
+      ZNRecord rec = new ZNRecord(resource);
+      Map<String, String> map = new TreeMap<String, String>();
+      map.put(CurrentState.CurrentStateProperty.REQUESTED_STATE.name(), null);
+      rec.getMapFields().put(partitionName, map);
+      ZNRecordDelta delta = new ZNRecordDelta(rec, ZNRecordDelta.MergeOperation.SUBTRACT);
+      List<ZNRecordDelta> deltaList = new ArrayList<ZNRecordDelta>();
+      deltaList.add(delta);
+      CurrentState currStateUpdate = new CurrentState(resource);
+      currStateUpdate.setDeltaList(deltaList);
+
+      // Update the ZK current state of the node
+      if (!accessor.updateProperty(key, currStateUpdate)) {
+        logger.error("Fails to persist current state back to ZK for resource " + resource
+            + " partition: " + partitionName);
+      }
+    } catch (Exception e) {
+      logger.error("Error when removing " + CurrentState.CurrentStateProperty.REQUESTED_STATE.name()
+          + " from current state.", e);
+      StateTransitionError error =
+          new StateTransitionError(ErrorType.FRAMEWORK, ErrorCode.ERROR, e);
+      _stateModel.rollbackOnError(_message, _notificationContext, error);
+      _statusUpdateUtil.logError(
+          _message, HelixStateTransitionHandler.class, e, "Error when removing "
+              + CurrentState.CurrentStateProperty.REQUESTED_STATE.name() + " from current state.",
+          _manager);
+    }
+  }

@@ -1,0 +1,24 @@
+        public void UpdateConfig(IBucketConfig bucketConfig)
+        {
+            IConfigObserver configObserver;
+            if (!ConfigObservers.TryGetValue(bucketConfig.Name, out configObserver))
+            {
+                throw new ConfigObserverNotFoundException(bucketConfig.Name);
+            }
+
+            IConfigInfo oldConfigInfo;
+            if (!Configs.TryGetValue(bucketConfig.Name, out oldConfigInfo))
+            {
+                throw new ConfigNotFoundException(bucketConfig.Name);
+            }
+
+            var oldBucketConfig = oldConfigInfo.BucketConfig;
+            if (bucketConfig.Rev > oldBucketConfig.Rev)
+            {
+                var configInfo = GetConfig(bucketConfig);
+                if (Configs.TryUpdate(bucketConfig.Name, configInfo, oldConfigInfo))
+                {
+                    configObserver.NotifyConfigChanged(configInfo);
+                }
+            }
+        }

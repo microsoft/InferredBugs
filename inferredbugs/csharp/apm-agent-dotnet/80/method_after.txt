@@ -1,0 +1,20 @@
+ public static void Initialize()
+	{
+
+		var agentLibsToLoad =  new[]{ "Elastic.Apm", "Elastic.Apm.AspNetCore", "Elastic.Apm.EntityFrameworkCore", "Elastic.Apm.SqlClient" };
+		var agentDependencyLibsToLoad = new[] { "System.Diagnostics.PerformanceCounter", "Microsoft.Diagnostics.Tracing.TraceEvent", "Newtonsoft.Json", };
+
+		var startupHookEnvVar = Environment.GetEnvironmentVariable("DOTNET_STARTUP_HOOKS");
+
+		if (string.IsNullOrEmpty(startupHookEnvVar))
+			return;
+
+		var lastIndex = startupHookEnvVar.LastIndexOf(Path.DirectorySeparatorChar);
+		var agentDir = startupHookEnvVar.Substring(0, lastIndex+1);
+
+
+		foreach (var libToLoad in agentDependencyLibsToLoad) AssemblyLoadContext.Default.LoadFromAssemblyPath(agentDir + libToLoad + ".dll");
+		foreach (var libToLoad in agentLibsToLoad) AssemblyLoadContext.Default.LoadFromAssemblyPath(agentDir + libToLoad + ".dll");
+
+		StartAgent();
+	}

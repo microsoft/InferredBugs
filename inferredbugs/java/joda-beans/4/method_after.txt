@@ -1,0 +1,53 @@
+    public static BeanCodeGen createFromArgs(String[] args) {
+        if (args == null) {
+            throw new IllegalArgumentException("Arguments must not be null");
+        }
+        String indent = "    ";
+        String prefix = "";
+        boolean recurse = false;
+        int verbosity = 1;
+        boolean write = true;
+        File file = null;
+        BeanGenConfig config = null;
+        if (args.length == 0) {
+            throw new IllegalArgumentException("No arguments specified");
+        }
+        for (int i = 0; i < args.length - 1; i++) {
+            String arg = args[i];
+            if (arg == null) {
+                throw new IllegalArgumentException("Argument must not be null: " + Arrays.toString(args));
+            }
+            if (arg.startsWith("-indent=tab")) {
+                indent = "\t";
+            } else if (arg.startsWith("-indent=")) {
+                indent = "          ".substring(0, Integer.parseInt(arg.substring(8)));
+            } else if (arg.startsWith("-prefix=")) {
+                prefix = arg.substring(8);
+            } else if (arg.equals("-R")) {
+                recurse = true;
+            } else if (arg.startsWith("-config=")) {
+                if (config != null) {
+                    throw new IllegalArgumentException("Argument 'config' must not be specified twice: " + Arrays.toString(args));
+                }
+                config = BeanGenConfig.parse(arg.substring(8));
+            } else if (arg.startsWith("-verbose=")) {
+                verbosity = Integer.parseInt(arg.substring(9));
+            } else if (arg.startsWith("-v=")) {
+                System.out.println("Deprecated command line argument -v (use -verbose instead)");
+                verbosity = Integer.parseInt(arg.substring(3));
+            } else if (arg.equals("-nowrite")) {
+                write = false;
+            } else {
+                throw new IllegalArgumentException("Unknown argument: " + arg);
+            }
+        }
+        file = new File(args[args.length - 1]);
+        List<File> files = findFiles(file, recurse);
+        
+        if (config == null) {
+            config = BeanGenConfig.parse("guava");
+        }
+        config.setIndent(indent);
+        config.setPrefix(prefix);
+        return new BeanCodeGen(files, config, verbosity, write);
+    }

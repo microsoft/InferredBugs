@@ -1,0 +1,37 @@
+ @Override
+	public void getCondensedPicture(final HttpServletRequest request, final HttpServletResponse response) {
+		// TODO 自动生成的方法存根
+		if (ConfigureReader.instance().authorized((String) request.getSession().getAttribute("ACCOUNT"),
+				AccountAuth.DOWNLOAD_FILES)) {
+			String fileId = request.getParameter("fileId");
+			if (fileId != null) {
+				Node node = fm.queryById(fileId);
+				if (node != null) {
+					File pBlock = fbu.getFileFromBlocks(node);
+					if (pBlock.exists()) {
+						try {
+							int pSize = Integer.parseInt(node.getFileSize());
+							if (pSize < 3) {
+								Thumbnails.of(pBlock).size(1024, 1024).outputFormat("JPG")
+										.toOutputStream(response.getOutputStream());
+							} else if (pSize < 5) {
+								Thumbnails.of(pBlock).size(1440, 1440).outputFormat("JPG")
+										.toOutputStream(response.getOutputStream());
+							} else {
+								Thumbnails.of(pBlock).size(1680, 1680).outputFormat("JPG")
+										.toOutputStream(response.getOutputStream());
+							}
+						} catch (IOException e) {
+							// TODO 自动生成的 catch 块
+							// 压缩失败时，尝试以源文件进行预览
+							try {
+								Files.copy(pBlock.toPath(), response.getOutputStream());
+							} catch (IOException e1) {
+								// TODO 自动生成的 catch 块
+							}
+						}
+					}
+				}
+			}
+		}
+	}

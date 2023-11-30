@@ -1,0 +1,27 @@
+    private void parseHardwareInfo(ChannelHandlerContext ctx, String[] messageParts, HardwareStateHolder state, int msgId) {
+        HardwareInfo hardwareInfo = new HardwareInfo(messageParts);
+        int newHardwareInterval = hardwareInfo.heartbeatInterval;
+
+        log.trace("Info command. heartbeat interval {}", newHardwareInterval);
+
+        if (hardwareIdleTimeout != 0 && newHardwareInterval > 0) {
+            int newReadTimeout = (int) Math.ceil(newHardwareInterval * 2.3D);
+            log.debug("Changing read timeout interval to {}", newReadTimeout);
+            ctx.pipeline().replace(ReadTimeoutHandler.class, "H_ReadTimeout", new ReadTimeoutHandler(newReadTimeout));
+        }
+
+        DashBoard dashBoard = state.user.profile.getDashByIdOrThrow(state.dashId);
+        Device device = dashBoard.getDeviceById(state.deviceId);
+
+        if (device != null) {
+            if (otaManager.isUpdateRequired(hardwareInfo)) {
+                otaManager.sendOtaCommand(ctx, device);
+                log.info("Ota command is sent for user {} and device {}:{}.", state.user.email, device.name, device.id);
+            }
+
+            device.hardwareInfo = hardwareInfo;
+            dashBoard.updatedAt = System.currentTimeMillis();
+        }
+
+        ctx.writeAndFlush(ok(msgId), ctx.voidPromise());
+    }

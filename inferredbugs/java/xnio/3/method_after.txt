@@ -1,0 +1,22 @@
+    public void stop() throws IOException {
+        final List<Channel> channels;
+        synchronized (managedChannelSet) {
+            channels = new ArrayList<Channel>(managedChannelSet);
+            managedChannelSet.clear();
+        }
+        for (Channel channel : channels) {
+            IoUtils.safeClose(channel);
+        }
+        for (NioSelectorRunnable runnable : readers) {
+            runnable.shutdown();
+        }
+        for (NioSelectorRunnable runnable : writers) {
+            runnable.shutdown();
+        }
+        for (NioSelectorRunnable runnable : connectors) {
+            runnable.shutdown();
+        }
+        readers.clear();
+        writers.clear();
+        connectors.clear();
+    }

@@ -1,0 +1,33 @@
+    public HttpResponse execute() throws Exception {
+        StringBuilder requestBody = new StringBuilder();
+        if (request.getEntity() != null) {
+            String content = ObjectMapperSingleton.getContext(request.getEntity().getClass()).writer().writeValueAsString(request.getEntity());
+            requestBody.append(content);
+
+        } else if (request.hasJson()) {
+            requestBody.append(request.getJson());
+        }
+
+        try {
+            connection.setRequestMethod(request.getMethod().name());
+            if (requestBody.length() > 0) {
+                System.out.println(requestBody.toString());
+                connection.setDoOutput(true);
+                BufferedOutputStream out = new BufferedOutputStream(connection.getOutputStream());
+                out.write(requestBody.toString().getBytes());
+                out.flush();
+            }
+            byte[] data = ByteStreams.toByteArray(connection.getInputStream());
+            System.out.println(new String(data));
+            return HttpResponseImpl.wrap(connection.getHeaderFields(),
+                    connection.getResponseCode(), connection.getResponseMessage(),
+                    data);
+
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            throw ex;
+        } finally {
+            connection.disconnect();
+        }
+
+    }

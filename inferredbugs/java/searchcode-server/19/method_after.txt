@@ -1,0 +1,67 @@
+    public RepositoryChanged getDiffBetweenRevisions(String repoLocations, String repoName, String startRevision) {
+        // svn diff -r 4000:HEAD --summarize --xml
+
+        List<String> changedFiles = new ArrayList<>();
+        List<String> deletedFiles = new ArrayList<>();
+
+        ProcessBuilder processBuilder = new ProcessBuilder(this.SVNBINARYPATH, "diff", "-r", startRevision + ":HEAD", "--summarize", "--xml");
+
+        processBuilder.directory(new File(repoLocations + repoName));
+        Process process = null;
+        BufferedReader bufferedReader = null;
+
+        try {
+            process = processBuilder.start();
+
+            InputStream is = process.getInputStream();
+            InputStreamReader isr = new InputStreamReader(is);
+            bufferedReader = new BufferedReader(isr);
+            String line;
+            StringBuffer sb = new StringBuffer();
+
+            while ((line = bufferedReader.readLine()) != null) {
+                Singleton.getLogger().info("svn diff: " + line);
+                sb.append(Helpers.removeUTF8BOM(line));
+            }
+
+            Singleton.getLogger().info("Before XML parsing: " + sb.toString());
+
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(new ByteArrayInputStream(sb.toString().getBytes()));
+            doc.getDocumentElement().normalize();
+
+            Element node = (Element)doc.getElementsByTagName("diff").item(0);
+            node = (Element)node.getElementsByTagName("paths").item(0);
+
+            NodeList nList = node.getElementsByTagName("path");
+
+            for (int temp = 0; temp < nList.getLength(); temp++) {
+                Node nNode = nList.item(temp);
+
+                if (nNode.getNodeType() == Node.ELEMENT_NODE) {
+                    Element eElement = (Element) nNode;
+
+                    String type = eElement.getAttribute("item");
+                    String path = eElement.getTextContent();
+
+                    if ("modified".equals(type) || "added".equals(type)) {
+                        changedFiles.add(path);
+                    }
+                    else {
+                        deletedFiles.add(path);
+                    }
+
+                }
+            }
+        }
+        catch(IOException | ParserConfigurationException | SAXException ex) {
+            Singleton.getLogger().warning("ERROR - caught a " + ex.getClass() + " in " + this.getClass() + " getDiffBetweenRevisions for " + repoName + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(process);
+            Helpers.closeQuietly(bufferedReader);
+        }
+
+        return new RepositoryChanged(true, changedFiles, deletedFiles);
+    }

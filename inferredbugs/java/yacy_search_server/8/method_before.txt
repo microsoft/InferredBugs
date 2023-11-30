@@ -1,0 +1,17 @@
+    public int addEntryToIndexMem(String wordHash, plasmaWordIndexEntry entry) throws IOException {
+	// make space for new words
+	int flushc = 0;
+	//serverLog.logDebug("PLASMA INDEXING", "addEntryToIndexMem: cache.size=" + cache.size() + "; hashScore.size=" + hashScore.size());
+	synchronized (hashScore) {
+	    while (hashScore.size() > maxWords) flushc += flushSpecific(true);
+	}
+	//if (flushc > 0) serverLog.logDebug("PLASMA INDEXING", "addEntryToIndexMem - flushed " + flushc + " entries");
+
+	// put new words into cache
+	Vector v = (Vector) cache.get(wordHash); // null pointer exception? wordhash != null! must be cache==null
+	if (v == null) v = new Vector();
+	v.add(entry);
+	cache.put(wordHash, v);
+	hashScore.incScore(wordHash);
+	return flushc;
+    }

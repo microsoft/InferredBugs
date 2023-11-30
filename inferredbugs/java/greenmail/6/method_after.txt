@@ -1,0 +1,17 @@
+    @Override
+    public boolean waitForIncomingEmail(long timeout, int emailCount) {
+        final CountDownLatch waitObject = managers.getSmtpManager().createAndAddNewWaitObject(emailCount);
+        final long endTime = System.currentTimeMillis() + timeout;
+            while (waitObject.getCount() > 0) {
+                final long waitTime = endTime - System.currentTimeMillis();
+                if (waitTime < 0L) {
+                    return waitObject.getCount() == 0;
+                }
+                try {
+                    waitObject.await(waitTime, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    // Continue loop, in case of premature interruption
+                }
+            }
+        return waitObject.getCount() == 0;
+    }

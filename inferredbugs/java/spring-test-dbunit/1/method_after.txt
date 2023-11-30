@@ -1,0 +1,17 @@
+ private void setupOrTeardown(DbUnitTestContext testContext, boolean isSetup,
+			Collection<AnnotationAttributes> annotations) throws Exception {
+		IDatabaseConnection connection = testContext.getConnection();
+		for (AnnotationAttributes annotation : annotations) {
+			List<IDataSet> datasets = loadDataSets(testContext, annotation);
+			DatabaseOperation operation = annotation.getType();
+			org.dbunit.operation.DatabaseOperation dbUnitOperation = getDbUnitDatabaseOperation(testContext, operation);
+			if (!datasets.isEmpty()) {
+				if (logger.isDebugEnabled()) {
+					logger.debug("Executing " + (isSetup ? "Setup" : "Teardown") + " of @DatabaseTest using "
+							+ operation + " on " + datasets.toString());
+				}
+				IDataSet dataSet = new CompositeDataSet(datasets.toArray(new IDataSet[datasets.size()]));
+				dbUnitOperation.execute(connection, dataSet);
+			}
+		}
+	}

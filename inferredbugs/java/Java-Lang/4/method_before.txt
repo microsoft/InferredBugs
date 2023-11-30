@@ -1,0 +1,20 @@
+    private void manyToggles(DirectStore store1, int lockCount, int from, int to) {
+        long id = Thread.currentThread().getId();
+        assertEquals(0, id >>> 24);
+        System.out.println("Thread " + id);
+
+        DirectBytes slice1 = store1.createSlice();
+
+        for (int i = 0; i < lockCount; i++) {
+            assertTrue(
+                    slice1.tryLockNanosInt(0L, 5 * 1000 * 1000));
+            int toggle1 = slice1.readInt(4);
+            if (toggle1 == from) {
+                slice1.writeInt(4L, to);
+            } else {
+                i--;
+            }
+            slice1.unlockInt(0L);
+            System.nanoTime(); // do something small between locks
+        }
+    }

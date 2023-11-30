@@ -1,0 +1,22 @@
+    @SuppressWarnings("unchecked")
+    private Object getMapArg(ManagedMap<XmlManagedNode, XmlManagedNode> values, Class<?> setterParamType) {
+        Map<Object, Object> m = null;
+        if (VerifyUtils.isNotEmpty(values.getTypeName())) {
+            try {
+                m = (Map<Object, Object>) XmlApplicationContext.class.getClassLoader()
+                        .loadClass(values.getTypeName())
+                        .newInstance();
+            } catch (Throwable t) {
+                log.error("map inject error", t);
+            }
+        } else {
+            m = (setterParamType == null ? new HashMap<>() : ConvertUtils.getMapObj(setterParamType));
+            log.debug("map ret [{}]", m.getClass().getName());
+        }
+        for (XmlManagedNode o : values.keySet()) {
+            Object k = getInjectArg(o, null);
+            Object v = getInjectArg(values.get(o), null);
+            m.put(k, v);
+        }
+        return m;
+    }

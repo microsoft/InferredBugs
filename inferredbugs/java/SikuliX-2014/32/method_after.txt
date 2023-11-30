@@ -1,0 +1,61 @@
+  public static void main(String[] args) throws FindFailed {
+
+    System.out.println("********** Running Sikulix.main");
+
+    int dl = RunTime.checkArgs(args, RunTime.Type.API);
+    if (dl > -1 && dl < 999) {
+      testNumber = dl;
+      Debug.on(3);
+    } else {
+      testNumber = -1;
+    }
+
+    rt = RunTime.get();
+    testNumber = rt.getOptionNumber("testing.test", testNumber);
+
+    if (dl == 999) {
+      int exitCode = Runner.runScripts(args);
+      cleanUp(exitCode);
+      System.exit(exitCode);
+    } else if (testNumber > -1) {
+      if (!rt.testing) {
+        rt.show();
+        rt.testing = true;
+      }
+      Tests.runTest(testNumber);
+      System.exit(1);
+    } else {
+      rt = RunTime.get();
+      Debug.on(3);
+      Settings.InfoLogs = false;
+      Settings.ActionLogs = false;
+      
+      App.focus("NetBeans");
+      File aFile = rt.fSxProject;
+      rt.addToClasspath(new File(aFile, "Setup/target/Setup/sikulix.jar").getPath());
+      String aClass = "org.sikuli.ide.SikuliIDE";
+      String res = "sikulixtessdata/sikulixcontent";
+      URL aURL = rt.resourceLocation(res, aClass);
+      Screen s = new Screen();
+      ImagePath.add("org.sikuli.script.Sikulix/ImagesAPI.sikuli");
+      Image.dump();
+      Match m = s.find("netblogo");
+//      s.hover();
+      Settings.OcrTextRead = true;
+      String t = m.right(1000).highlight(2).text();
+      log(3, "|%s|", t);
+
+      if (rt.runningWinApp) {
+        popup("Hello World\nNot much else to do ( yet ;-)", rt.fSxBaseJar.getName());
+        try {
+        Screen scr = new Screen();
+        scr.find(new Image(scr.userCapture("grab something to find"))).highlight(3);
+        } catch (Exception ex) {
+          popup("Uuups :-(\n" + ex.getMessage(), rt.fSxBaseJar.getName());
+        }
+        popup("Hello World\nNothing else to do ( yet ;-)", rt.fSxBaseJar.getName());
+        System.exit(1);
+      }
+      rt.terminate(1,"Sikulix::main: nothing to test");
+    }
+  }

@@ -1,0 +1,140 @@
+        private IMember GetValueFromBinaryOp(Expression expr) {
+            if (expr is AndExpression a) {
+                GetValueFromExpression(a.Left);
+                GetValueFromExpression(a.Right);
+                return Interpreter.GetBuiltinType(BuiltinTypeId.Bool);
+            }
+
+            if (expr is OrExpression orexp) {
+                // Consider 'self.__params = types.MappingProxyType(params or {})'
+                var leftSide = GetValueFromExpression(orexp.Left);
+                if (!leftSide.IsUnknown()) {
+                    return leftSide;
+                }
+                var rightSide = GetValueFromExpression(orexp.Right);
+                return rightSide.IsUnknown() ? Interpreter.GetBuiltinType(BuiltinTypeId.Bool) : rightSide;
+            }
+
+            if (!(expr is BinaryExpression binop) || binop.Left == null) {
+                return null;
+            }
+
+            var op = binop.Operator;
+
+            var left = GetValueFromExpression(binop.Left) ?? UnknownType;
+            var right = GetValueFromExpression(binop.Right) ?? UnknownType;
+
+            if (left.IsUnknown() && right.IsUnknown()) {
+                // Fast path for when nothing below will give any results.
+                if (op.IsComparison()) {
+                    return Interpreter.GetBuiltinType(BuiltinTypeId.Bool);
+                }
+
+                return UnknownType;
+            }
+
+            var leftType = left.GetPythonType();
+            var rightType = right.GetPythonType();
+
+            var leftTypeId = leftType.TypeId;
+            var rightTypeId = rightType.TypeId;
+
+            if (op == PythonOperator.Add
+                && leftTypeId == rightTypeId
+                && left is IPythonCollection lc && right is IPythonCollection rc) {
+
+                switch (leftTypeId) {
+                    case BuiltinTypeId.List:
+                        return PythonCollectionType.CreateConcatenatedList(Module.Interpreter, lc, rc);
+                    case BuiltinTypeId.Tuple:
+                        return PythonCollectionType.CreateConcatenatedTuple(Module.Interpreter, lc, rc);
+                }
+            }
+
+            // Mod-style string formatting; don't bother looking at the right side.
+            if (op == PythonOperator.Mod && (leftTypeId == BuiltinTypeId.Str || leftTypeId == BuiltinTypeId.Unicode)) {
+                return Interpreter.GetBuiltinType(leftTypeId);
+            }
+
+            var leftIsSupported = IsSupportedBinopBuiltin(leftTypeId);
+            var rightIsSupported = IsSupportedBinopBuiltin(rightTypeId);
+
+            if (leftIsSupported && rightIsSupported) {
+                if (TryGetValueFromBuiltinBinaryOp(op, leftTypeId, rightTypeId, Interpreter.LanguageVersion.Is3x(), out var member)) {
+                    if (member.IsUnknown()) {
+                        ReportOperatorDiagnostics(expr, leftType, rightType, op);
+                    }
+                    return member;
+                }
+            }
+
+            if (leftIsSupported) {
+                IMember ret;
+
+                if (op.IsComparison()) {
+                    // If the op is a comparison, and the thing on the left is the builtin,
+                    // flip the operation and call it instead.
+                    ret = CallOperator(op.InvertComparison(), right, rightType, left, leftType, expr, tryRight: false);
+                } else {
+                    ret = CallOperator(op, left, leftType, right, rightType, expr, tryLeft: false);
+                }
+
+                if (!ret.IsUnknown()) {
+                    return ret;
+                }
+
+                return op.IsComparison() ? Interpreter.GetBuiltinType(BuiltinTypeId.Bool) : left;
+            }
+
+            if (rightIsSupported) {
+                // Try calling the function on the left side, otherwise just return right.
+                var ret = CallOperator(op, left, leftType, right, rightType, expr, tryRight: false);
+
+                if (!ret.IsUnknown()) {
+                    return ret;
+                }
+
+                return op.IsComparison() ? Interpreter.GetBuiltinType(BuiltinTypeId.Bool) : right;
+            }
+
+            var callRet = CallOperator(op, left, leftType, right, rightType, expr);
+            if (!callRet.IsUnknown()) {
+                return callRet;
+            }
+
+            if (op.IsComparison()) {
+                callRet = CallOperator(op.InvertComparison(), right, rightType, left, leftType, expr);
+
+                if (!callRet.IsUnknown()) {
+                    return callRet;
+                }
+            }
+
+            // TODO: Specific parsing
+            // TODO: warn about incompatible types like 'str' + 1
+            switch (op) {
+                case PythonOperator.Equal:
+                case PythonOperator.GreaterThan:
+                case PythonOperator.GreaterThanOrEqual:
+                case PythonOperator.In:
+                case PythonOperator.Is:
+                case PythonOperator.IsNot:
+                case PythonOperator.LessThan:
+                case PythonOperator.LessThanOrEqual:
+                case PythonOperator.Not:
+                case PythonOperator.NotEqual:
+                case PythonOperator.NotIn:
+                    // Assume all of these return True/False
+                    return Interpreter.GetBuiltinType(BuiltinTypeId.Bool);
+
+                case PythonOperator.Divide:
+                case PythonOperator.TrueDivide:
+                    if (Interpreter.LanguageVersion.Is3x()) {
+                        return Interpreter.GetBuiltinType(BuiltinTypeId.Float);
+                    }
+
+                    break;
+            }
+
+            return left.IsUnknown() ? right : left;
+        }

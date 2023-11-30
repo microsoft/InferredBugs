@@ -1,0 +1,110 @@
+    public int start ()
+    {
+        int rc = 0;
+        
+        timers.addAll(newTimers);
+        newTimers.clear();
+
+        //  Recalculate all timers now
+        for (STimer timer: timers) {
+            timer.when = timer.delay + System.currentTimeMillis();
+        }
+        
+        Selector selector;
+        try {
+            selector = Selector.open();
+        } catch (IOException e) {
+            System.err.println (e.getMessage());
+            return -1;
+        }
+        
+        //  Main reactor loop
+        while (!Thread.currentThread().isInterrupted()) {
+            if (dirty) {
+                // If s_rebuild_pollset() fails, break out of the loop and
+                // return its error
+                rebuild ();
+            }
+            long wait = ticklessTimer();
+            rc = zmq.ZMQ.zmq_poll (selector, pollset, wait);
+            if (rc == -1) {
+                if (verbose)
+                    System.out.printf ("I: zloop: interrupted\n", rc);
+                rc = 0;
+                break;              //  Context has been shut down
+            }
+            //  Handle any timers that have now expired
+            Iterator<STimer> it = timers.iterator();
+            while (it.hasNext()) {
+                STimer timer = it.next();
+                if (System.currentTimeMillis() >= timer.when && timer.when != -1) {
+                    if (verbose)
+                        System.out.println ("I: zloop: call timer handler");
+                    rc = timer.handler.handle(this, null, timer.arg);
+                    if (rc == -1)
+                        break;      //  Timer handler signalled break
+                    if (timer.times != 0 && --timer.times == 0) {
+                        it.remove();
+                    }
+                    else
+                        timer.when = timer.delay + System.currentTimeMillis();
+                }
+            }
+            if (rc == -1)
+                break; // Some timer signalled break from the reactor loop
+
+            //  Handle any pollers that are ready
+            for (int item_nbr = 0; item_nbr < poll_size; item_nbr++) {
+                SPoller poller = pollact [item_nbr];
+                assert (pollset [item_nbr].getSocket() == poller.item.getSocket());
+                if (pollset [item_nbr].isError()) {
+                    if (verbose)
+                        System.out.printf ("I: zloop: can't poll %s socket (%s, %s)",
+                            poller.item.getSocket() != null? poller.item.getSocket().typeString(): "FD",
+                            poller.item.getSocket(), poller.item.getChannel());
+                    //  Give handler one chance to handle error, then kill
+                    //  poller because it'll disrupt the reactor otherwise.
+                    if (poller.errors++ > 0) {
+                        pollerEnd (poller.item);
+                    }
+                }
+                else
+                    poller.errors = 0;     //  A non-error happened
+    
+                if (pollset [item_nbr].readyOps() > 0) {
+                    if (verbose)
+                        System.out.printf ("I: zloop: call %s socket handler (%s, %s)\n",
+                              poller.item.getSocket() != null? poller.item.getSocket().typeString(): "FD",
+                              poller.item.getSocket(), poller.item.getChannel());
+                    rc = poller.handler.handle (this, poller.item, poller.arg);
+                    if (rc == -1)
+                        break;      //  Poller handler signalled break
+                } 
+            }
+            
+            //  Now handle any timer zombies
+            //  This is going to be slow if we have many zombies
+            for (Object arg: zombies) {
+                it = timers.iterator();
+                while (it.hasNext()) {
+                    STimer timer = it.next();
+                    if (timer.arg == arg) {
+                        it.remove();
+                    }
+                }
+            }
+            //  Now handle any new timers added inside the loop
+            timers.addAll(newTimers);
+            newTimers.clear();
+
+            if (rc == -1)
+                break;
+        }
+        
+        try {
+            selector.close();
+        } catch (IOException e) {
+        }
+        
+        return rc;
+    }

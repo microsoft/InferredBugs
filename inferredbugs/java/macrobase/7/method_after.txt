@@ -1,0 +1,51 @@
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    public FormattedRowSetResponse getRowsFormatted(RowSetRequest request) {
+        FormattedRowSetResponse response = new FormattedRowSetResponse();
+
+        try {
+            conf.set(MacroBaseConf.DB_URL, request.pgUrl);
+            conf.set(MacroBaseConf.BASE_QUERY, request.baseQuery);
+
+            HashMap<String, String> preds = new HashMap<>();
+            request.columnValues.stream().forEach(a -> preds.put(a.column, a.value));
+
+            if(request.returnType == RETURNTYPE.SQL) {
+                response.response = ((SQLIngester) getLoader()).getRowsSql(request.baseQuery,
+                                                           preds,
+                                                           request.limit,
+                                                           request.offset)+";";
+                return response;
+            }
+
+            RowSet r = getLoader().getRows(request.baseQuery,
+                                                  preds,
+                                                  request.limit,
+                                                  request.offset);
+
+
+            if (request.returnType == RETURNTYPE.JSON) {
+                response.response = new ObjectMapper().writeValueAsString(r);
+            } else {
+                assert (request.returnType == RETURNTYPE.CSV);
+                StringWriter sw = new StringWriter();
+                CSVPrinter printer = new CSVPrinter(sw, CSVFormat.DEFAULT);
+
+                if(r.getRows().isEmpty()) {
+                    printer.printRecord(preds.keySet());
+                } else {
+                    printer.printRecord(r.getRows().get(0).getColumnValues().stream().map(a -> a.getColumn()).toArray());
+                    for (RowSet.Row row : r.getRows()) {
+                        printer.printRecord(row.getColumnValues().stream().map(a -> a.getValue()).toArray());
+                    }
+                }
+
+                response.response = sw.toString();
+            }
+        } catch (Exception e) {
+            log.error("An error occurred while processing a request:", e);
+            response.errorMessage = ExceptionUtils.getStackTrace(e);
+        }
+
+        return response;
+    }

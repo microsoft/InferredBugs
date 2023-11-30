@@ -1,0 +1,63 @@
+  @Override
+  public void run()
+  {
+    while (this.running)
+    {
+      long st = System.currentTimeMillis();
+      //input
+      while (!this.inputs.isEmpty())
+      {
+        DatagramPacket dp = this.inputs.remove();
+        KcpOnUdp ku = this.kcps.get(dp.sender());
+        ByteBuf content = dp.content();
+        if (ku == null)
+        {
+          ku = new KcpOnUdp(this.out, dp.sender(), this.listerner);//初始化
+          ku.noDelay(nodelay, interval, resend, nc);
+          ku.wndSize(sndwnd, rcvwnd);
+          ku.setMtu(mtu);
+          // conv应该在客户端第一次建立时获取
+          int conv = content.getIntLE(0);
+          ku.setConv(conv);
+          ku.setMinRto(minRto);
+          ku.setStream(stream);
+          ku.setTimeout(timeout);
+          this.kcps.put(dp.sender(), ku);
+        }
+        ku.input(content);
+      }
+      //update
+      KcpOnUdp temp = null;
+      for (KcpOnUdp ku : this.kcps.values())
+      {
+        if (ku.isClosed())
+        {
+          temp = ku;
+        } else
+        {
+          ku.update();
+        }
+      }
+      if (temp != null)//删掉过时的kcp
+      {
+        this.kcps.remove((InetSocketAddress) temp.getKcp().getUser());
+      }
+      if (inputs.isEmpty())//如果输入为空则考虑wait
+      {
+        long end = System.currentTimeMillis();
+        if (end - st < this.interval)
+        {
+          synchronized (this.lock)
+          {
+            try
+            {
+              lock.wait(interval - end + st);
+            } catch (InterruptedException e)
+            {
+            }
+          }
+        }
+      }
+    }
+    release();
+  }

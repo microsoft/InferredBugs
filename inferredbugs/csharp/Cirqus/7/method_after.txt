@@ -1,0 +1,22 @@
+        [Test]
+        public void TheSnippet()
+        {
+            MsSqlTestHelper.DropTable("events");
+            MsSqlTestHelper.DropTable("counters");
+
+            var viewManager = new MsSqlViewManager<CounterView>(MsSqlTestHelper.ConnectionString, "counters", automaticallyCreateSchema: true);
+
+            var processor = CommandProcessor.With()
+                .EventStore(e => e.UseSqlServer(MsSqlTestHelper.ConnectionString, "events", automaticallyCreateSchema: true))
+                .EventDispatcher(e => e.UseViewManagerEventDispatcher(viewManager))
+                .Create();
+
+            RegisterForDisposal(processor);
+
+            var aggregateRootId = Guid.NewGuid();
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 1));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 2));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 3));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 5));
+            processor.ProcessCommand(new IncrementCounter(aggregateRootId, 8));
+        }

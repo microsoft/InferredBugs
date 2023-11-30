@@ -1,0 +1,24 @@
+ public Map<CQLQueryType, PreparedStatement> prepareClusteredCounterQueryMap(Session session, EntityMeta meta) {
+		PropertyMeta idMeta = meta.getIdMeta();
+		PropertyMeta counterMeta = meta.getFirstMeta();
+		String tableName = meta.getTableName();
+		String counterName = counterMeta.getPropertyName();
+
+		RegularStatement incrementStatement = prepareWhereClauseForUpdate(idMeta,update(tableName)
+                .with(incr(counterName, bindMarker())),false);
+
+		RegularStatement decrementStatement = prepareWhereClauseForUpdate(idMeta,update(tableName)
+                .with(decr(counterName, bindMarker())), false);
+
+		RegularStatement selectStatement = prepareWhereClauseForSelect(idMeta, select(counterName).from(tableName));
+
+		RegularStatement deleteStatement = prepareWhereClauseForDelete(idMeta, QueryBuilder.delete().from(tableName));
+
+		Map<CQLQueryType, PreparedStatement> clusteredCounterPSMap = new HashMap<>();
+		clusteredCounterPSMap.put(INCR, session.prepare(incrementStatement));
+		clusteredCounterPSMap.put(DECR, session.prepare(decrementStatement));
+		clusteredCounterPSMap.put(SELECT, session.prepare(selectStatement));
+		clusteredCounterPSMap.put(DELETE, session.prepare(deleteStatement));
+
+		return clusteredCounterPSMap;
+	}

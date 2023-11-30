@@ -1,0 +1,52 @@
+ @Override
+	public String visitQuery_specification(VerdictSQLParser.Query_specificationContext ctx) {
+		List<Pair<String, String>> subqueryColName2Aliases = null;
+		BootstrapSelectStatementRewriter singleRewriter = null;
+		
+		StringBuilder unionedFrom = new StringBuilder(2000);
+		int trialNum = vc.getConf().getInt("bootstrap_trial_num");
+		for (int i = 0; i < trialNum; i++) {
+			singleRewriter = new BootstrapSelectStatementRewriter(vc, queryString);
+			singleRewriter.setIndentLevel(2);
+			singleRewriter.setDepth(1);
+			String singleTrialQuery = singleRewriter.visitQuery_specificationForSingleTrial(ctx);
+			if (i == 0) {
+				subqueryColName2Aliases = singleRewriter.getColName2Aliases();
+			}
+			if (i > 0) unionedFrom.append("\n  UNION\n");
+			unionedFrom.append(singleTrialQuery);
+		}
+		
+		StringBuilder sql = new StringBuilder(2000);
+		sql.append("SELECT");
+		int selectElemIndex = 0;
+		for (Pair<String, String> e : subqueryColName2Aliases) {
+			selectElemIndex++;
+			sql.append((selectElemIndex > 1)? ", " : " ");
+			if (singleRewriter.isAggregateColumn(selectElemIndex)) {
+				String alias = genAlias();
+				sql.append(String.format("AVG(%s) AS %s",
+						e.getRight(), alias));
+				colName2Aliases.add(Pair.of(e.getLeft(), alias));
+			} else {
+				if (e.getLeft().equals(e.getRight())) sql.append(e.getLeft());
+				else sql.append(String.format("%s AS %s", e.getLeft(), e.getRight()));
+				colName2Aliases.add(Pair.of(e.getLeft(), e.getRight()));
+			}
+		}
+		sql.append("\nFROM (\n");
+		sql.append(unionedFrom.toString());
+		sql.append("\n) AS t");
+		sql.append("\nGROUP BY");
+		for (int colIndex = 1; colIndex <= subqueryColName2Aliases.size(); colIndex++) {
+			if (!singleRewriter.isAggregateColumn(colIndex)) {
+				if (colIndex > 1) {
+					sql.append(String.format(", %s", subqueryColName2Aliases.get(colIndex-1).getRight()));
+				} else {
+					sql.append(String.format(" %s", subqueryColName2Aliases.get(colIndex-1).getRight()));
+				}
+			}
+		}
+		
+		return sql.toString();
+	}

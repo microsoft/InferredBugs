@@ -1,0 +1,16 @@
+    private String downloadNzb(SearchResultEntity result) throws IOException {
+        Request request = new Request.Builder().url(result.getLink()).build();
+        Indexer indexerByName = searchModuleProvider.getIndexerByName(result.getIndexer().getName());
+        Integer timeout = indexerByName.getConfig().getTimeout().orElse(configProvider.getBaseConfig().getSearching().getTimeout());
+        try (Response response = clientHttpRequestFactory.getOkHttpClientBuilder(request.url().uri()).readTimeout(timeout, TimeUnit.SECONDS).connectTimeout(timeout, TimeUnit.SECONDS).build().newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unsuccessful NZB download from URL " + result.getLink() + ". Message: " + response.message());
+            }
+            ResponseBody body = response.body();
+            if (body == null || Strings.isNullOrEmpty(body.string())) {
+                throw new IOException("NZB downloaded from " + result.getLink() + " is empty");
+            }
+            String content = body.string();
+            return content;
+        }
+    }

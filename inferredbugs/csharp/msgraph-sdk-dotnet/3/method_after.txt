@@ -1,0 +1,23 @@
+        [Fact]
+        public void GetWebRequestWithHeadersAndQueryOptions()
+        {
+            var requestUrl = string.Concat(this.baseUrl, "/me/drive/items/id");
+
+            var options = new List<Option>
+            {
+                new HeaderOption("header1", "value1"),
+                new HeaderOption("header2", "value2"),
+                new QueryOption("query1", "value1"),
+                new QueryOption("query2", "value2"),
+            };
+
+            var baseRequest = new BaseRequest(requestUrl, this.baseClient, options) { Method = "PUT" };
+
+            var httpRequestMessage = baseRequest.GetHttpRequestMessage();
+            Assert.Equal(HttpMethod.Put, httpRequestMessage.Method);
+            Assert.Equal(requestUrl + "?query1=value1&query2=value2",
+                httpRequestMessage.RequestUri.GetComponents(UriComponents.AbsoluteUri & ~UriComponents.Port, UriFormat.Unescaped));
+            Assert.Equal("value1", httpRequestMessage.Headers.GetValues("header1").First());
+            Assert.Equal("value2", httpRequestMessage.Headers.GetValues("header2").First());
+            Assert.NotNull(baseRequest.GetHttpRequestMessage().GetRequestContext().ClientRequestId);
+        }

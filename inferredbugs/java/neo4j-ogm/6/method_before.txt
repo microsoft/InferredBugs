@@ -1,0 +1,32 @@
+    private <T> Iterable<T> executeAndMap(Class<T> type, String cypher, Map<String, ?> parameters, RowModelMapper<T> rowModelMapper) {
+        if (StringUtils.isEmpty(cypher)) {
+            throw new RuntimeException("Supplied cypher statement must not be null or empty.");
+        }
+
+        if (parameters == null) {
+            throw new RuntimeException("Supplied Parameters cannot be null.");
+        }
+
+        String url = session.ensureTransaction().url();
+
+        if (type != null && session.metaData().classInfo(type.getSimpleName()) != null) {
+            Query qry = new GraphModelQuery(cypher, parameters);
+            try (Neo4jResponse<GraphModel> response = session.requestHandler().execute(qry, url)) {
+                return session.responseHandler().loadAll(type, response);
+            }
+        } else {
+            RowModelQuery qry = new RowModelQuery(cypher, parameters);
+            try (Neo4jResponse<RowModel> response = session.requestHandler().execute(qry, url)) {
+
+                String[] variables = response.columns();
+
+                Collection<T> result = new ArrayList<>();
+                RowModel rowModel;
+                while ((rowModel = response.next()) != null) {
+                    rowModelMapper.mapIntoResult(result, rowModel.getValues(), variables);
+                }
+
+                return result;
+            }
+        }
+    }

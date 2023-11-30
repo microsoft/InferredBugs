@@ -1,0 +1,76 @@
+    private void doWriteTo(
+        final HttpMultipartMode mode, 
+        final OutputStream out, 
+        boolean writeContent) throws IOException {
+        
+        List<?> bodyParts = getBodyParts();
+        Charset charset = getCharset();
+        String boundary = getBoundary();
+
+        BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(out, charset),
+                8192);
+        
+        switch (mode) {
+        case STRICT:
+            String preamble = getPreamble();
+            if (preamble != null && preamble.length() != 0) {
+                writer.write(preamble);
+                writer.write("\r\n");
+            }
+
+            for (int i = 0; i < bodyParts.size(); i++) {
+                writer.write("--");
+                writer.write(boundary);
+                writer.write("\r\n");
+                writer.flush();
+                BodyPart part = (BodyPart) bodyParts.get(i);
+                part.getHeader().writeTo(out, MessageUtils.STRICT_IGNORE);
+                if (writeContent) {
+                    part.getBody().writeTo(out, MessageUtils.STRICT_IGNORE);
+                }
+                writer.write("\r\n");
+            }
+
+            writer.write("--");
+            writer.write(boundary);
+            writer.write("--\r\n");
+            String epilogue = getEpilogue();
+            if (epilogue != null && epilogue.length() != 0) {
+                writer.write(epilogue);
+                writer.write("\r\n");
+            }
+            writer.flush();
+            break;
+        case BROWSER_COMPATIBLE:
+
+            // (1) Do not write preamble and epilogue
+            // (2) Only write Content-Disposition 
+            // (3) Use content charset
+            
+            for (int i = 0; i < bodyParts.size(); i++) {
+                writer.write("--");
+                writer.write(boundary);
+                writer.write("\r\n");
+                writer.flush();
+                BodyPart part = (BodyPart) bodyParts.get(i);
+                
+                Field cd = part.getHeader().getField(MIME.CONTENT_DISPOSITION);
+                writer.write(cd.toString());
+                writer.write("\r\n");
+                writer.write("\r\n");
+                writer.flush();
+                if (writeContent) {
+                    part.getBody().writeTo(out, MessageUtils.LENIENT);
+                }
+                
+                writer.write("\r\n");
+            }
+
+            writer.write("--");
+            writer.write(boundary);
+            writer.write("--\r\n");
+            writer.flush();
+            break;
+        }
+    }

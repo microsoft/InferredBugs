@@ -1,0 +1,42 @@
+    public boolean extract(TokenizedSource tokenizedSource) {
+        TokenPatternUnit[] units = pattern.getUnits();
+        ArrayDistributor<TokenPatternUnit> unitsDistributor = new ArrayDistributor<>(units);
+
+        TokenReader tokenReader = new PandaTokenReader(tokenizedSource);
+        TokenHollow hollow = new TokenHollow();
+
+        for (int unitIndex = 0; unitIndex < units.length; unitIndex++) {
+            TokenPatternUnit unit = unitsDistributor.get(unitIndex);
+            tokenReader.synchronize();
+
+            for (TokenRepresentation representation : tokenReader) {
+                Token token = representation.getToken();
+
+                if (unit.equals(token)) {
+                    tokenReader.read();
+                    break;
+                }
+
+                if (!unit.isHollow()) {
+                    return false;
+                }
+
+                TokenPatternUnit nextUnit = unitsDistributor.get(unitIndex + 1);
+
+                if (!token.equals(nextUnit) || extractorOpposites.isLocked()) {
+                    extractorOpposites.report(token);
+
+                    tokenReader.read();
+                    hollow.addToken(token);
+
+                    continue;
+                }
+
+                hollows.add(hollow);
+                hollow = new TokenHollow();
+                break;
+            }
+        }
+
+        return tokenReader.getIndex() + 1 >= tokenizedSource.size();
+    }

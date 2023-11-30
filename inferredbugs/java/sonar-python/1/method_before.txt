@@ -1,0 +1,29 @@
+  public static List<String> callCommand(String command, String[] environ) {
+    List<String> lines = new LinkedList<String>();
+
+    PythonPlugin.LOG.debug("Calling command: '{}'", command);
+
+    BufferedReader stdInput = null;
+    try {
+      Process p = null;
+      if(environ == null){
+        p = Runtime.getRuntime().exec(command);
+      } else {
+        p = Runtime.getRuntime().exec(command, environ);
+      }
+
+      stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
+      String s = null;
+
+      while ((s = stdInput.readLine()) != null) {
+        lines.add(s);
+      }
+    } catch (IOException e) {
+      throw new SonarException("Error calling command '" + command +
+                               "', details: '" + e + "'");
+    } finally {
+      IOUtils.closeQuietly(stdInput);
+    }
+
+    return lines;
+  }

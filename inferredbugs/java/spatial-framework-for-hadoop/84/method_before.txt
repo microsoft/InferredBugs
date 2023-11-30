@@ -1,0 +1,27 @@
+ @Test
+	public void TestIntPoint() throws Exception {
+		Configuration config = new Configuration();
+		Text value = new Text();
+
+		SerDe jserde = new GeoJsonSerDe();
+		Properties proptab = new Properties();
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMNS, "num,shape");
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMN_TYPES, "bigint,binary");
+		jserde.initialize(config, proptab);
+        StructObjectInspector rowOI = (StructObjectInspector)jserde.getObjectInspector();
+
+        value.set("{\"properties\":{\"num\":7},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15.0,5.0]}}");
+		Object row = jserde.deserialize(value);
+		StructField fref = rowOI.getStructFieldRef("num");
+		Object fieldData = rowOI.getStructFieldData(row, fref);
+		Assert.assertEquals(7, ((LongWritable)fieldData).get());
+
+        value.set("{\"properties\":{\"num\":4},\"geometry\":{\"type\":\"Point\",\"coordinates\":[7.0,2.0]}}");
+        row = jserde.deserialize(value);
+		fref = rowOI.getStructFieldRef("num");
+		fieldData = rowOI.getStructFieldData(row, fref);
+		Assert.assertEquals(4, ((LongWritable)fieldData).get());
+		fref = rowOI.getStructFieldRef("shape");
+		fieldData = rowOI.getStructFieldData(row, fref);
+		ckPoint(new Point(7.0, 2.0), (BytesWritable)fieldData);
+	}

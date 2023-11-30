@@ -1,0 +1,40 @@
+    @Override
+    public boolean saveLocalTx(Transaction tx) throws IOException {
+        try {
+            ValidateResult validateResult = this.conflictDetectTx(tx, this.getWaitingTxList());
+            if (validateResult.isFailed()) {
+                throw new NulsRuntimeException(validateResult.getErrorCode(), validateResult.getMessage());
+            }
+        } catch (Exception e) {
+            Log.error(e);
+            throw new NulsRuntimeException(e);
+        }
+        TransactionLocalPo localPo = UtxoTransferTool.toLocalTransactionPojo(tx);
+        localPo.setTxStatus(TransactionLocalPo.UNCONFIRM);
+        localTxDao.save(localPo);
+        // save relation
+        if (tx instanceof AbstractCoinTransaction) {
+            AbstractCoinTransaction abstractTx = (AbstractCoinTransaction) tx;
+            UtxoData utxoData = (UtxoData) abstractTx.getCoinData();
+            if (utxoData.getInputs() != null && !utxoData.getInputs().isEmpty()) {
+                UtxoInput input = utxoData.getInputs().get(0);
+                UtxoOutput output = input.getFrom();
+                TxAccountRelationPo relationPo = new TxAccountRelationPo();
+                relationPo.setTxHash(tx.getHash().getDigestHex());
+                relationPo.setAddress(output.getAddress());
+                relationDataService.save(relationPo);
+            }
+        }
+//        if (tx instanceof AbstractCoinTransaction) {
+//            AbstractCoinTransaction abstractTx = (AbstractCoinTransaction) tx;
+//            UtxoData utxoData = (UtxoData) abstractTx.getCoinData();
+//
+//            for (UtxoOutput output : utxoData.getOutputs()) {
+//                if (output.isUsable() && NulsContext.LOCAL_ADDRESS_LIST.contains(output.getAddress())) {
+//                    output.setTxHash(tx.getHash());
+//                    ledgerCacheService.putUtxo(output.getKey(), output, false);
+//                }
+//            }
+//        }
+        return true;
+    }

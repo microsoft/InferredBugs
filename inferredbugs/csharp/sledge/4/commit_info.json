@@ -1,0 +1,473 @@
+{
+    "hash": "afe4fa975d9c160e941468f8d6c1f21874ab1eff",
+    "message": "A few package interface changes",
+    "file_num_lines": 159,
+    "diff_parsed": {
+        "added": [
+            [
+                4,
+                "using System.Linq;"
+            ],
+            [
+                6,
+                "using System.Text.RegularExpressions;"
+            ],
+            [
+                15,
+                "        public FileInfo PackageFile { get; private set; }"
+            ],
+            [
+                20,
+                "        public PakPackage(FileInfo packageFile)"
+            ],
+            [
+                22,
+                "            PackageFile = packageFile;"
+            ],
+            [
+                26,
+                "            using (var br = new BinaryReader(OpenFile(packageFile)))"
+            ],
+            [
+                36,
+                "                BuildDirectories();"
+            ],
+            [
+                39,
+                ""
+            ],
+            [
+                63,
+                "        public IPackageEntry GetEntry(string path)"
+            ],
+            [
+                64,
+                "        {"
+            ],
+            [
+                65,
+                "            return GetEntries().FirstOrDefault(x => x.FullName == path);"
+            ],
+            [
+                66,
+                "        }"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                80,
+                "            return new SubStream(OpenFile(PackageFile), pe.Offset, pe.Length) { CloseParentOnDispose = true };"
+            ],
+            [
+                92,
+                ""
+            ],
+            [
+                93,
+                "        private Dictionary<string, HashSet<string>> _folders;"
+            ],
+            [
+                94,
+                "        private Dictionary<string, HashSet<string>> _files;"
+            ],
+            [
+                95,
+                ""
+            ],
+            [
+                96,
+                "        private void BuildDirectories()"
+            ],
+            [
+                97,
+                "        {"
+            ],
+            [
+                98,
+                "            _folders = new Dictionary<string, HashSet<string>>();"
+            ],
+            [
+                99,
+                "            _files = new Dictionary<string, HashSet<string>>();"
+            ],
+            [
+                100,
+                "            foreach (var entry in GetEntries())"
+            ],
+            [
+                101,
+                "            {"
+            ],
+            [
+                102,
+                "                var split = entry.FullName.Split('/');"
+            ],
+            [
+                103,
+                "                var joined = \"\";"
+            ],
+            [
+                104,
+                "                for (var i = 0; i < split.Length; i++)"
+            ],
+            [
+                105,
+                "                {"
+            ],
+            [
+                106,
+                "                    var sub = split[i];"
+            ],
+            [
+                107,
+                "                    var name = joined.Length == 0 ? sub : joined + '/' + sub;"
+            ],
+            [
+                108,
+                "                    if (i == split.Length - 1)"
+            ],
+            [
+                109,
+                "                    {"
+            ],
+            [
+                110,
+                "                        // File name"
+            ],
+            [
+                111,
+                "                        if (!_files.ContainsKey(joined)) _files.Add(joined, new HashSet<string>());"
+            ],
+            [
+                112,
+                "                        _files[joined].Add(name);"
+            ],
+            [
+                113,
+                "                    }"
+            ],
+            [
+                114,
+                "                    else"
+            ],
+            [
+                115,
+                "                    {"
+            ],
+            [
+                116,
+                "                        // Folder name"
+            ],
+            [
+                117,
+                "                        if (!_folders.ContainsKey(joined)) _folders.Add(joined, new HashSet<string>());"
+            ],
+            [
+                118,
+                "                        if (!_folders[joined].Contains(sub)) _folders[joined].Add(name);"
+            ],
+            [
+                119,
+                "                    }"
+            ],
+            [
+                120,
+                "                    joined = joined.Length == 0 ? sub : joined + '/' + sub;"
+            ],
+            [
+                121,
+                "                }"
+            ],
+            [
+                122,
+                "            }"
+            ],
+            [
+                123,
+                "        }"
+            ],
+            [
+                124,
+                ""
+            ],
+            [
+                125,
+                "        public IEnumerable<string> GetDirectories(string path)"
+            ],
+            [
+                126,
+                "        {"
+            ],
+            [
+                127,
+                "            if (!_folders.ContainsKey(path)) return new string[0];"
+            ],
+            [
+                128,
+                "            return _folders[path].Where(x => x.Length > 0);"
+            ],
+            [
+                129,
+                "        }"
+            ],
+            [
+                130,
+                ""
+            ],
+            [
+                131,
+                "        public IEnumerable<string> GetFiles(string path)"
+            ],
+            [
+                132,
+                "        {"
+            ],
+            [
+                133,
+                "            if (!_files.ContainsKey(path)) return new string[0];"
+            ],
+            [
+                134,
+                "            return _files[path];"
+            ],
+            [
+                135,
+                "        }"
+            ],
+            [
+                136,
+                ""
+            ],
+            [
+                137,
+                "        public IEnumerable<string> SearchDirectories(string path, string regex, bool recursive)"
+            ],
+            [
+                138,
+                "        {"
+            ],
+            [
+                139,
+                "            var files = recursive ? CollectDirectories(path) : GetDirectories(path);"
+            ],
+            [
+                140,
+                "            return files.Where(x => Regex.IsMatch(GetName(x), regex, RegexOptions.IgnoreCase));"
+            ],
+            [
+                141,
+                "        }"
+            ],
+            [
+                142,
+                ""
+            ],
+            [
+                143,
+                "        public IEnumerable<string> SearchFiles(string path, string regex, bool recursive)"
+            ],
+            [
+                144,
+                "        {"
+            ],
+            [
+                145,
+                "            var files = recursive ? CollectFiles(path) : GetFiles(path);"
+            ],
+            [
+                146,
+                "            return files.Where(x => Regex.IsMatch(GetName(x), regex, RegexOptions.IgnoreCase));"
+            ],
+            [
+                147,
+                "        }"
+            ],
+            [
+                148,
+                ""
+            ],
+            [
+                149,
+                "        private IEnumerable<string> CollectDirectories(string path)"
+            ],
+            [
+                150,
+                "        {"
+            ],
+            [
+                151,
+                "            var files = new List<string>();"
+            ],
+            [
+                152,
+                "            if (_folders.ContainsKey(path))"
+            ],
+            [
+                153,
+                "            {"
+            ],
+            [
+                154,
+                "                files.AddRange(_folders[path].Where(x => x.Length > 0));"
+            ],
+            [
+                155,
+                "                files.AddRange(_folders[path].SelectMany(CollectDirectories));"
+            ],
+            [
+                156,
+                "            }"
+            ],
+            [
+                157,
+                "            return files;"
+            ],
+            [
+                158,
+                "        }"
+            ],
+            [
+                159,
+                ""
+            ],
+            [
+                160,
+                "        private IEnumerable<string> CollectFiles(string path)"
+            ],
+            [
+                161,
+                "        {"
+            ],
+            [
+                162,
+                "            var files = new List<string>();"
+            ],
+            [
+                163,
+                "            if (_folders.ContainsKey(path))"
+            ],
+            [
+                164,
+                "            {"
+            ],
+            [
+                165,
+                "                files.AddRange(_folders[path].SelectMany(CollectFiles));"
+            ],
+            [
+                166,
+                "            }"
+            ],
+            [
+                167,
+                "            if (_files.ContainsKey(path))"
+            ],
+            [
+                168,
+                "            {"
+            ],
+            [
+                169,
+                "                files.AddRange(_files[path]);"
+            ],
+            [
+                170,
+                "            }"
+            ],
+            [
+                171,
+                "            return files;"
+            ],
+            [
+                172,
+                "        }"
+            ],
+            [
+                173,
+                ""
+            ],
+            [
+                174,
+                "        private string GetName(string path)"
+            ],
+            [
+                175,
+                "        {"
+            ],
+            [
+                176,
+                "            var idx = path.LastIndexOf('/');"
+            ],
+            [
+                177,
+                "            if (idx < 0) return path;"
+            ],
+            [
+                178,
+                "            return path.Substring(idx + 1);"
+            ],
+            [
+                179,
+                "        }"
+            ],
+            [
+                180,
+                ""
+            ],
+            [
+                181,
+                "        public Stream OpenFile(string path)"
+            ],
+            [
+                182,
+                "        {"
+            ],
+            [
+                183,
+                "            var entry = GetEntry(path);"
+            ],
+            [
+                184,
+                "            if (entry == null) throw new FileNotFoundException();"
+            ],
+            [
+                185,
+                "            return OpenStream(entry);"
+            ],
+            [
+                186,
+                "        }"
+            ]
+        ],
+        "deleted": [
+            [
+                13,
+                "        public FileInfo File { get; private set; }"
+            ],
+            [
+                18,
+                "        public PakPackage(FileInfo file)"
+            ],
+            [
+                20,
+                "            File = file;"
+            ],
+            [
+                24,
+                "            using (var br = new BinaryReader(OpenFile(file)))"
+            ],
+            [
+                36,
+                ""
+            ],
+            [
+                72,
+                "            return new SubStream(OpenFile(File), pe.Offset, pe.Length) { CloseParentOnDispose = true };"
+            ]
+        ]
+    },
+    "num_lines_added": 109,
+    "num_lines_removed": 6
+}

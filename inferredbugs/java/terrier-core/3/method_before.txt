@@ -1,0 +1,37 @@
+ public void createInvertedIndex() {
+		if (currentIndex == null)
+		{
+			currentIndex = Index.createIndex(path,prefix);
+			if (currentIndex == null)
+			{
+				logger.error("No index at ("+path+","+prefix+") to build an inverted index for ");
+			}
+		}
+		long beginTimestamp = System.currentTimeMillis();
+
+		if (currentIndex.getCollectionStatistics().getNumberOfUniqueTerms() == 0)
+		{
+			logger.error("Index has no terms. Inverted index creation aborted.");
+			return;
+		}
+		if (currentIndex.getCollectionStatistics().getNumberOfDocuments() == 0)
+		{
+			logger.error("Index has no documents. Inverted index creation aborted.");
+			return;
+		}
+
+		logger.info("Started building the block inverted index...");
+		invertedIndexBuilder = new BlockInvertedIndexBuilder(currentIndex, "inverted", compressionInvertedConfig);
+		invertedIndexBuilder.createInvertedIndex();
+		this.finishedInvertedIndexBuild();
+		try{
+			currentIndex.flush();
+		} catch (IOException ioe) {
+			logger.error("Cannot flush index: ", ioe);
+		}
+
+		long endTimestamp = System.currentTimeMillis();
+		logger.info("Finished building the block inverted index...");
+		long seconds = (endTimestamp - beginTimestamp) / 1000;
+		logger.info("Time elapsed for inverted file: " + seconds);
+	}

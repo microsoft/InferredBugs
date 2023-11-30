@@ -1,0 +1,28 @@
+ @Test
+	public void testIndexDumpMatchesDatabaseIndexes() throws IOException {
+
+		createLoginConstraint();
+
+		Components.getConfiguration().setAutoIndex("dump");
+		Components.getConfiguration().setDumpDir(".");
+		Components.getConfiguration().setDumpFilename("test.cql");
+
+		File file = new File("./test.cql");
+
+		try {
+			AutoIndexManager indexManager = new AutoIndexManager(metaData, Components.driver());
+			assertEquals(AutoIndexMode.DUMP.getName(), Components.getConfiguration().getAutoIndex());
+			assertEquals(1, indexManager.getIndexes().size());
+			indexManager.build();
+			assertTrue(file.exists());
+			assertTrue(file.length() > 0);
+			BufferedReader reader = new BufferedReader(new FileReader(file));
+			String actual = reader.readLine();
+			assertEquals(CREATE_LOGIN_CONSTRAINT_CYPHER, actual);
+			reader.close();
+		} finally {
+			file.delete();
+		}
+
+		dropLoginConstraint();
+	}

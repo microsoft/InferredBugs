@@ -1,0 +1,32 @@
+  @Test
+  public void testView() throws IOException {
+    DosFileAttributeView view = provider.getView(attributeStoreSupplier());
+    assertNotNull(view);
+
+    ASSERT.that(view.name()).is("dos");
+
+    DosFileAttributes attrs = view.readAttributes();
+    ASSERT.that(attrs.isHidden()).isFalse();
+    ASSERT.that(attrs.isArchive()).isFalse();
+    ASSERT.that(attrs.isReadOnly()).isFalse();
+    ASSERT.that(attrs.isSystem()).isFalse();
+
+    view.setArchive(true);
+    view.setReadOnly(true);
+    view.setHidden(true);
+    view.setSystem(false);
+
+    ASSERT.that(attrs.isHidden()).isFalse();
+    ASSERT.that(attrs.isArchive()).isFalse();
+    ASSERT.that(attrs.isReadOnly()).isFalse();
+
+    attrs = view.readAttributes();
+    ASSERT.that(attrs.isHidden()).isTrue();
+    ASSERT.that(attrs.isArchive()).isTrue();
+    ASSERT.that(attrs.isReadOnly()).isTrue();
+    ASSERT.that(attrs.isSystem()).isFalse();
+
+    view.setTimes(FileTime.fromMillis(0L), null, null);
+    ASSERT.that(view.readAttributes().lastModifiedTime())
+        .is(FileTime.fromMillis(0L));
+  }

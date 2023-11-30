@@ -1,0 +1,42 @@
+    @Test
+    public void respondsToMilestonedEvent() throws IOException {
+        final MkGithub github = new MkGithub();
+        final Repo repo = github.repos()
+            .create(new Repos.RepoCreate("test", false));
+        final Issue bug = repo
+            .issues().create("bug", "");
+        final Milestone milestone =
+            repo.milestones().create("my milestone");
+        new Issue.Smart(bug).milestone(milestone);
+        MatcherAssert.assertThat(
+            new RbAddToMilestone().react(
+                new FkFarm(),
+                github,
+                Json.createObjectBuilder()
+                    .add(
+                        "repository",
+                        Json.createObjectBuilder()
+                            .add("full_name", repo.coordinates().toString())
+                            .build()
+                    )
+                    .add(
+                        "issue",
+                        Json.createObjectBuilder()
+                            .add("number", 1)
+                            .add(
+                                "milestone",
+                                Json.createObjectBuilder()
+                                    .add("title", "milestone-title")
+                                    .add("number", 1)
+                                    .build()
+                            ).build()
+                    ).build()
+            ),
+            Matchers.is(
+                String.format(
+                    "Issue #%d has been added to milestone #%d",
+                    bug.number(), milestone.number()
+                )
+            )
+        );
+    }

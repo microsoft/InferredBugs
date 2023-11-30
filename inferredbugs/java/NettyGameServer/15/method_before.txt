@@ -1,0 +1,56 @@
+    @SuppressWarnings("unchecked")
+    public void init() throws Exception {
+
+        Element rootElement = JdomUtils.getRootElemet(FileUtil.getConfigURL(GlobalConstants.ConfigFile.RPC_SERVER_CONFIG).getFile());
+
+        Map<Integer, SdServer> serverMap = new HashMap<>();
+
+        List<SdServer> sdWorldServers = new ArrayList<SdServer>();
+        Element element = rootElement.getChild(BOEnum.WORLD.toString().toLowerCase());
+        List<Element> childrenElements = element.getChildren("server");
+        for (Element childElement : childrenElements) {
+            SdServer sdServer = new SdServer();
+            sdServer.load(childElement);
+            sdWorldServers.add(sdServer);
+        }
+
+        List<SdServer> sdGameServers = new ArrayList<SdServer>();
+        element = rootElement.getChild(BOEnum.GAME.toString().toLowerCase());
+        childrenElements = element.getChildren("server");
+        for (Element childElement : childrenElements) {
+            SdServer sdServer = new SdServer();
+            sdServer.load(childElement);
+            sdGameServers.add(sdServer);
+        }
+
+        List<SdServer> sdDbServers = new ArrayList<SdServer>();
+        element = rootElement.getChild(BOEnum.DB.toString().toLowerCase());
+        childrenElements = element.getChildren("server");
+        for (Element childElement : childrenElements) {
+            SdServer sdServer = new SdServer();
+            sdServer.load(childElement);
+            sdDbServers.add(sdServer);
+        }
+
+        synchronized (this.lock) {
+            this.sdWorldServers = sdWorldServers;
+            this.sdGameServers = sdGameServers;
+            this.sdDbServers = sdDbServers;
+        }
+
+        initWorldConnectedServer();
+        initGameConnectedServer();
+        initDbConnectServer();
+
+
+        SdRpcServiceProvider sdRpcServiceProvider = new SdRpcServiceProvider();
+        rootElement = JdomUtils.getRootElemet(FileUtil.getConfigURL(GlobalConstants.ConfigFile.RPC_SERVEICE_CONFIG).getFile());
+        childrenElements = rootElement.getChildren("service");
+        for (Element childElement : childrenElements) {
+            sdRpcServiceProvider.load(childElement);
+        }
+
+        synchronized (this.lock) {
+            this.sdRpcServiceProvider = sdRpcServiceProvider;
+        }
+    }

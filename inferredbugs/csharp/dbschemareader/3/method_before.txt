@@ -1,0 +1,31 @@
+        public override DataSet Table(string tableName)
+        {
+            //if (ProviderType != SqlType.SqlServer && ProviderType != SqlType.SqlServerCe && ProviderType != SqlType.Oracle && ProviderType != SqlType.MySql)
+            //    return base.Table(tableName);
+            //more information from sqlserver, oracle and mysql
+            var ds = new DataSet();
+            ds.Locale = CultureInfo.InvariantCulture;
+            using (DbConnection conn = Factory.CreateConnection())
+            {
+                conn.ConnectionString = ConnectionString;
+                conn.Open();
+
+                //uses friend access to schemaReader
+                LoadTable(tableName, ds, conn);
+                if (ds.Tables.Count == 0) return null; //no data found
+                if (string.IsNullOrEmpty(Owner))
+                {
+                    //we need schema for constraint look ups
+                    Owner = SchemaConverter.FindSchema(ds.Tables[ColumnsCollectionName]);
+                }
+
+                ds.Tables.Add(PrimaryKeys(tableName, conn));
+                ds.Tables.Add(ForeignKeys(tableName, conn));
+                ds.Tables.Add(UniqueKeys(tableName, conn));
+                ds.Tables.Add(CheckConstraints(tableName, conn));
+
+                ds.Tables.Add(IdentityColumns(tableName, conn));
+
+            }
+            return ds;
+        }

@@ -1,0 +1,16 @@
+    private Long calcRemaining(Long limit, Long refreshInterval, long usage,
+                               String key, Rate rate) {
+        rate.setReset(SECONDS.toMillis(refreshInterval));
+        Long current = 0L;
+        try {
+            current = redisTemplate.opsForValue().increment(key, usage);
+            // Redis returns the value of key after the increment, check for the first increment, and the expiration time is set
+            if (current != null && current.equals(usage)) {
+                handleExpiration(key, refreshInterval);
+            }
+        } catch (RuntimeException e) {
+            String msg = "Failed retrieving rate for " + key + ", will return the current value";
+            rateLimiterErrorHandler.handleError(msg, e);
+        }
+        return Math.max(-1, limit - (current != null ? current : 0L));
+    }

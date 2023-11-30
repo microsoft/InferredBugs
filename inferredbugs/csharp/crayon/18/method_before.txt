@@ -1,0 +1,50 @@
+        private static Error[] ExportVmBundle(Command command, WaxHub waxHub)
+        {
+            BuildData buildData = WrappedCompile(command, waxHub);
+
+            if (buildData.HasErrors)
+            {
+                return buildData.Errors;
+            }
+
+            if (command.ShowDependencyTree)
+            {
+                ConsoleWriter.Print(ConsoleMessageType.LIBRARY_TREE, buildData.CbxBundle.DependencyTreeJson);
+            }
+
+            Dictionary<string, object> exportResponseRaw = waxHub.AwaitSendRequest(
+                "export-" + buildData.ExportProperties.ExportPlatform.ToLowerInvariant(),
+                buildData.GetRawData());
+
+            ExportResponse exportResponse = new ExportResponse(exportResponseRaw);
+
+            if (!exportResponse.HasErrors && command.ApkExportPath != null)
+            {
+                if (!buildData.ExportProperties.IsAndroid)
+                {
+                    throw new InvalidOperationException("Cannot have an APK Export Path for non-Android projects");
+                }
+
+                if (!CommonUtil.Android.AndroidUtil.HasAndroidSdk)
+                {
+                    throw new InvalidOperationException("Cannot export APK because the Android SDK is not present.");
+                }
+
+                if (!command.ApkExportPath.ToLowerInvariant().EndsWith(".apk"))
+                {
+                    throw new InvalidOperationException("Cannot export APK to a file path that doesn't end with .apk");
+                }
+
+                CommonUtil.Android.AndroidApkBuildResult apkResult = CommonUtil.Android.AndroidUtil.BuildApk(buildData.ExportProperties.OutputDirectory);
+
+                if (apkResult.HasError)
+                {
+                    throw new InvalidOperationException("An error occurred while generating the APK: " + apkResult.Error);
+                }
+
+                FileUtil.EnsureParentFolderExists(command.ApkExportPath);
+                System.IO.File.Copy(apkResult.ApkPath, command.ApkExportPath);
+            }
+
+            return exportResponse.Errors;
+        }

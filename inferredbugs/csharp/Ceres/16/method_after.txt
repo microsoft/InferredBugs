@@ -1,0 +1,87 @@
+    private void SearchContinueRetainTree(MCTSIterator reuseOtherContextForEvaluatedNodes, PositionWithHistory newPositionAndMoves,
+                                          List<GameMoveStat> gameMoveHistory, bool verbose, DateTime startTime,
+                                          MCTSManager.MCTSProgressCallback progressCallback, bool isFirstMoveOfGame,
+                                          MCTSIterator priorContext, MCTSNodeStore store, int numNodesInitial, MCTSNode newRoot,
+                                          SearchLimit searchLimitTargetAdjusted, bool possiblyUsePositionCache,
+                                          ManagerTreeReuse.Method reuseMethod,
+                                          bool moveImmediateIfOnlyOneMove)
+    {
+      IMCTSNodeCache reuseNodeCache = Manager.Context.Tree.NodeCache;
+
+      // Now rewrite the tree nodes and children "in situ"
+      PositionEvalCache reusePositionCache = null;
+      if (Manager.Context.ParamsSearch.TreeReuseRetainedPositionCacheEnabled)
+      {
+        reusePositionCache = new PositionEvalCache(false, 0);
+      }
+
+      // We will either create a new transposition table (if tree rebuild) 
+      // or modify existing one (if swap root).
+      TranspositionRootsDict newTranspositionRoots = null;
+
+      // TODO: Consider sometimes or always skip rebuild via MakeChildNewRoot,
+      //       instead just set a new root (move it into place as first node).
+      //       Perhaps rebuild only if the MCTSNodeStore would become excessively large.
+      TimingStats makeNewRootTimingStats = new TimingStats();
+      using (new TimingBlock(makeNewRootTimingStats, TimingBlock.LoggingType.None))
+      {
+        //        const float THRESHOLD_RETAIN_TREE = 0.70f;
+
+        //        float fracRetain = (float)newRoot.Ref.N / priorContext.Tree.Root.N;
+        if (newRoot.Index == 1)
+        {
+          // Root not changing. Reuse existing store and transposition roots. No need to clear node cache.
+          newTranspositionRoots = Manager.Context.Tree.TranspositionRoots;
+        }
+        else if (reuseMethod == ManagerTreeReuse.Method.KeepStoreSwapRoot
+         && priorContext.ParamsSearch.TreeReuseSwapRootEnabled)
+        {
+          // For efficiency, keep the entries in the node cache
+          // so they may be reused in next search.
+          if (!MCTSParamsFixed.NEW_ROOT_SWAP_RETAIN_NODE_CACHE)
+          {
+            Manager.Context.Tree.ClearNodeCache(false);
+          }
+          newTranspositionRoots = Manager.Context.Tree.TranspositionRoots;
+          MCTSNodeStructStorage.DoMakeChildNewRootSwapRoot(Manager.Context.Tree, ref newRoot.StructRef, newPositionAndMoves,
+                                                           reusePositionCache, newTranspositionRoots,
+                                                           priorContext.ParamsSearch.Execution.TranspositionMaximizeRootN,
+                                                           MCTSParamsFixed.NEW_ROOT_SWAP_RETAIN_NODE_CACHE);
+        }
+        else
+        {
+          // TODO: We could add logic (similar to swap root case above)
+          //       so the node cache would not be flushed, instead
+          //       the node cache information would be updated (e.g. the field with Index).
+          //       However this might be slightly involved, and performance gain would probably be modest.
+          Manager.Context.Tree.ClearNodeCache(false);
+
+          // Create a new dictionary to recieve the new transposition roots
+          if (priorContext.Tree.TranspositionRoots != null)
+          {
+            newTranspositionRoots = new TranspositionRootsDict(newRoot.N);
+          }
+
+          MCTSNodeStructStorage.MakeChildNewRoot(Manager.Context.Tree, ref newRoot.StructRef, newPositionAndMoves,
+                                                 reusePositionCache, newTranspositionRoots,
+                                                 priorContext.ParamsSearch.Execution.TranspositionMaximizeRootN);
+        }
+      }
+
+      MCTSManager.TotalTimeSecondsInMakeNewRoot += (float) makeNewRootTimingStats.ElapsedTimeSecs;
+
+      CeresEnvironment.LogInfo("MCTS", "MakeChildNewRoot", $"Select {newRoot.N:N0} from {numNodesInitial:N0} "
+                              + $"in {(int)(makeNewRootTimingStats.ElapsedTimeSecs / 1000.0)}ms");
+
+      // Construct a new search manager reusing this modified store and modified transposition roots.
+      Manager = new MCTSManager(store, reuseOtherContextForEvaluatedNodes, reusePositionCache, reuseNodeCache, newTranspositionRoots,
+                                priorContext.NNEvaluators, priorContext.ParamsSearch, priorContext.ParamsSelect,
+                                searchLimitTargetAdjusted, Manager.LimitManager,
+                                startTime, gameMoveHistory, isFirstMoveOfGame: isFirstMoveOfGame);
+      Manager.Context.ContemptManager = priorContext.ContemptManager;
+
+      Manager.Context.Tree.NodeCache.SetContext(Manager.Context);
+
+      (BestMove, TimingInfo) = MCTSManager.Search(Manager, verbose, progressCallback, 
+                                                  possiblyUsePositionCache, moveImmediateIfOnlyOneMove);
+    }

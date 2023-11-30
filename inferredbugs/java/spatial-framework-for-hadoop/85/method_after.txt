@@ -1,0 +1,20 @@
+ @Test
+	public void TestNullAttr() throws Exception {
+        ArrayList<Object> stuff = new ArrayList<Object>();
+		Properties proptab = new Properties();
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMNS, "num");
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMN_TYPES, "int");
+		SerDe jserde = mkSerDe(proptab);
+        StructObjectInspector rowOI = (StructObjectInspector)jserde.getObjectInspector();
+
+        //value.set("{\"properties\":{\"num\":7}}");
+		addWritable(stuff, 7);
+		Object row = runSerDe(stuff, jserde, rowOI);
+		Object fieldData = getField("num", row, rowOI);
+		Assert.assertEquals(7, ((IntWritable)fieldData).get());
+        //value.set("{\"properties\":{}}");
+		stuff.set(0, null);
+		row = runSerDe(stuff, jserde, rowOI);
+		fieldData = getField("num", row, rowOI);
+		Assert.assertNull(fieldData);
+	}

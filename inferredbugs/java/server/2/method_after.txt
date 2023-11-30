@@ -1,0 +1,63 @@
+    public void run() {
+        m_startMillis = System.currentTimeMillis();
+        MQTT mqtt = new MQTT();
+        try {
+//            mqtt.setHost("test.mosquitto.org", 1883);
+            mqtt.setHost("localhost", 1883);
+        } catch (URISyntaxException ex) {
+            LOG.error(null, ex);
+            return;
+        }
+        
+        mqtt.setClientId(m_clientID);
+        BlockingConnection connection = mqtt.blockingConnection();
+        try {
+            connection.connect();
+        } catch (Exception ex) {
+            LOG.error("Cant't CONNECT to the server", ex);
+            return;
+        }
+
+        long time = System.currentTimeMillis() - m_startMillis;
+        LOG.info(String.format("Producer %s connected in %d ms", Thread.currentThread().getName(), time));
+
+        LOG.info("Starting from index " + m_starIndex + " up to " + (m_starIndex + m_len));
+        m_startMillis = System.currentTimeMillis();
+        for (int i = m_starIndex; i < m_starIndex + m_len; i++) {
+            try {
+//                LOG.info("Publishing");
+                String payload = "Hello world MQTT!!" + i;
+                connection.publish("/topic", payload.getBytes(), QoS.AT_MOST_ONCE, false);
+                m_benchMarkOut.println(String.format("%d, %d", i, System.nanoTime()));
+            } catch (Exception ex) {
+                LOG.error("Cant't PUBLISH to the server", ex);
+                return;
+            }
+        }
+
+        time = System.currentTimeMillis() - m_startMillis;
+        LOG.info(String.format("Producer %s published %d messages in %d ms", Thread.currentThread().getName(), m_len, time));
+
+        m_startMillis = System.currentTimeMillis();
+        try {
+            LOG.info("Disconneting");
+            connection.disconnect();
+            LOG.info("Disconnected");
+        } catch (Exception ex) {
+            LOG.error("Cant't DISCONNECT to the server", ex);
+        }
+
+        time = System.currentTimeMillis() - m_startMillis;
+        LOG.info(String.format("Producer %s disconnected in %d ms", Thread.currentThread().getName(), time));
+
+        m_benchMarkOut.flush();
+        m_benchMarkOut.close();
+
+        try {
+            FileOutputStream fw = new FileOutputStream(String.format(BENCHMARK_FILE, m_clientID));
+            fw.write(m_baos.toByteArray());
+            fw.close();
+        } catch (IOException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        }
+    }

@@ -1,0 +1,63 @@
+    public void free()
+    {
+        logger.fine("Free ICE agent");
+
+        shutdown = true;
+
+        //stop sending keep alives (STUN Binding Indications).
+        stunKeepAliveRunner.cancel();
+
+        // cancel termination timer in case agent is freed
+        // before termination timer is triggered
+        synchronized (terminationFutureSyncRoot)
+        {
+            if (terminationFuture != null)
+            {
+                terminationFuture.cancel(true);
+                terminationFuture = null;
+            }
+        }
+
+        //stop responding to STUN Binding Requests.
+        connCheckServer.stop();
+
+        /*
+         * Set the IceProcessingState#TERMINATED state on this Agent unless it
+         * is in a termination state already.
+         */
+        IceProcessingState state = getState();
+
+        if (!IceProcessingState.FAILED.equals(state)
+             && !IceProcessingState.TERMINATED.equals(state))
+        {
+            terminate(IceProcessingState.TERMINATED);
+        }
+
+        // Free its IceMediaStreams, Components and Candidates.
+        boolean interrupted = false;
+
+        logger.fine("remove streams");
+        for (IceMediaStream stream : getStreams())
+        {
+            try
+            {
+                removeStream(stream);
+                logger.fine("remove stream " + stream.getName());
+            }
+            catch (Throwable t)
+            {
+                logger.fine(
+                        "remove stream " + stream.getName() + " failed: " + t);
+                if (t instanceof InterruptedException)
+                    interrupted = true;
+                else if (t instanceof ThreadDeath)
+                    throw (ThreadDeath) t;
+            }
+        }
+        if (interrupted)
+            Thread.currentThread().interrupt();
+
+        getStunStack().shutDown();
+
+        logger.fine("ICE agent freed");
+    }

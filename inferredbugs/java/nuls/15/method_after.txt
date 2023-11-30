@@ -1,0 +1,29 @@
+    public boolean addBlockHashResponse(String nodeId, BlockHashResponse response) {
+        if (!hashesMap.containsKey(nodeId)) {
+            return false;
+        }
+        if (!requesting) {
+            return false;
+        }
+        if (hashesMap.get(nodeId) == null) {
+            hashesMap.put(nodeId, response);
+        } else {
+            BlockHashResponse instance = hashesMap.get(nodeId);
+            instance.merge(response);
+            hashesMap.put(nodeId, instance);
+        }
+        if (response.getHeightList().get(response.getHeightList().size() - 1) < end) {
+            return true;
+        }
+        String key = response.getHash().getDigestHex();
+        List<String> nodes = calcMap.get(key);
+        if (null == nodes) {
+            nodes = new ArrayList<>();
+        }
+        if (!nodes.contains(nodeId)) {
+            nodes.add(nodeId);
+        }
+        calcMap.put(key, nodes);
+        calc();
+        return true;
+    }

@@ -1,0 +1,23 @@
+  protected static Set<String> getExpiredJobs(HelixDataAccessor dataAccessor,
+      HelixPropertyStore propertyStore, WorkflowConfig workflowConfig,
+      WorkflowContext workflowContext) {
+    Set<String> expiredJobs = new HashSet<String>();
+
+    if (workflowContext != null) {
+      Map<String, TaskState> jobStates = workflowContext.getJobStates();
+      for (String job : workflowConfig.getJobDag().getAllNodes()) {
+        JobConfig jobConfig = TaskUtil.getJobConfig(dataAccessor, job);
+        JobContext jobContext = TaskUtil.getJobContext(propertyStore, job);
+        long expiry = jobConfig.getExpiry();
+        if (expiry == workflowConfig.DEFAULT_EXPIRY || expiry < 0) {
+          expiry = workflowConfig.getExpiry();
+        }
+        if (jobContext != null && jobStates.get(job) == TaskState.COMPLETED) {
+          if (System.currentTimeMillis() >= jobContext.getFinishTime() + expiry) {
+            expiredJobs.add(job);
+          }
+        }
+      }
+    }
+    return expiredJobs;
+  }

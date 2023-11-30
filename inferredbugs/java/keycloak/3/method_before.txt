@@ -1,0 +1,38 @@
+    @Override
+    public AuthenticationMechanismOutcome authenticate(HttpServerExchange exchange, SecurityContext securityContext) {
+        BearerTokenAuthenticator bearer = createBearerTokenAuthenticator();
+        AuthenticationMechanismOutcome outcome = bearer.authenticate(exchange);
+        if (outcome == AuthenticationMechanismOutcome.NOT_AUTHENTICATED) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, bearer.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+        }
+        else if (outcome == AuthenticationMechanismOutcome.AUTHENTICATED) {
+            final AccessToken token = bearer.getToken();
+            String surrogate = bearer.getSurrogate();
+            KeycloakAuthenticatedSession session = new KeycloakAuthenticatedSession(bearer.getTokenString(), token, resourceMetadata);
+            KeycloakPrincipal principal = completeAuthentication(securityContext, token, surrogate);
+            propagateBearer(exchange, session, principal);
+            return AuthenticationMechanismOutcome.AUTHENTICATED;
+        }
+        else if (adapterConfig.isBearerOnly()) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, bearer.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_ATTEMPTED;
+        }
+
+        OAuthAuthenticator oauth = createOAuthAuthenticator(exchange);
+        outcome = oauth.authenticate();
+        if (outcome == AuthenticationMechanismOutcome.NOT_AUTHENTICATED) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, oauth.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+        }
+        else if (outcome == AuthenticationMechanismOutcome.NOT_ATTEMPTED) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, oauth.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_ATTEMPTED;
+
+        }
+        KeycloakAuthenticatedSession session = new KeycloakAuthenticatedSession(oauth.getTokenString(), oauth.getToken(), resourceMetadata);
+        KeycloakPrincipal principal = completeAuthentication(securityContext, oauth.getToken(), null);
+        propagateOauth(exchange, session, principal);
+        log.info("AUTHENTICATED");
+        return AuthenticationMechanismOutcome.AUTHENTICATED;
+    }

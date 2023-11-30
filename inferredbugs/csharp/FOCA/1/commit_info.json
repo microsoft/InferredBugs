@@ -1,0 +1,769 @@
+{
+    "hash": "ee9fec198b45787c1b0f2266598422089563623d",
+    "message": "Fixes #85387 DuckDuckGo search does not work properly",
+    "file_num_lines": 188,
+    "diff_parsed": {
+        "added": [
+            [
+                1,
+                "using FOCA.Threads;"
+            ],
+            [
+                2,
+                "using HtmlAgilityPack;"
+            ],
+            [
+                14,
+                "        private const int MAX_PAGES = 3;"
+            ],
+            [
+                15,
+                "        private const string userAgent = \"Mozilla/5.0 (Linux; U; Android 4.1.1; en-gb; Build/KLP) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30\";"
+            ],
+            [
+                16,
+                "        private static readonly string[] supportedFileTypes = new string[] { \"pdf\", \"txt\", \"doc\", \"docx\", \"xls\", \"xlsx\", \"ppt\", \"pptx\", \"rdp\", \"ica\", \"html\", \"htm\" };"
+            ],
+            [
+                20,
+                "            strName = \"DuckDuckGoWeb\";"
+            ],
+            [
+                23,
+                "        private HashSet<string> Query(string searchTerms)"
+            ],
+            [
+                25,
+                "            HashSet<string> results = null;"
+            ],
+            [
+                28,
+                ""
+            ],
+            [
+                29,
+                ""
+            ],
+            [
+                30,
+                "                string response = SendInitialRequest(searchTerms);"
+            ],
+            [
+                31,
+                "                results = ParseResponse(response);"
+            ],
+            [
+                32,
+                "                HashSet<string> pageResults = null;"
+            ],
+            [
+                33,
+                "                int currentPage = 0;"
+            ],
+            [
+                34,
+                "                do"
+            ],
+            [
+                35,
+                "                {"
+            ],
+            [
+                36,
+                "                    string requestParams = GetPostData(response);"
+            ],
+            [
+                37,
+                "                    response = MoreResults(searchTerms, requestParams);"
+            ],
+            [
+                38,
+                "                    pageResults = ParseResponse(response);"
+            ],
+            [
+                39,
+                "                    results.UnionWith(pageResults);"
+            ],
+            [
+                40,
+                "                    currentPage++;"
+            ],
+            [
+                41,
+                "                } while (pageResults != null && pageResults.Count > 0 && currentPage < MAX_PAGES);"
+            ],
+            [
+                43,
+                "            catch (WebException e)"
+            ],
+            [
+                45,
+                "                if (e.Response is HttpWebResponse && ((HttpWebResponse)e.Response).StatusCode == HttpStatusCode.Forbidden)"
+            ],
+            [
+                46,
+                "                {"
+            ],
+            [
+                47,
+                "                    OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.LimitReached));"
+            ],
+            [
+                48,
+                "                    return new HashSet<string>();"
+            ],
+            [
+                49,
+                "                }"
+            ],
+            [
+                50,
+                "                else"
+            ],
+            [
+                51,
+                "                {"
+            ],
+            [
+                52,
+                "                    throw;"
+            ],
+            [
+                53,
+                "                }"
+            ],
+            [
+                55,
+                "            return results;"
+            ],
+            [
+                67,
+                "            var request = (HttpWebRequest)WebRequest.Create(string.Format(\"https://duckduckgo.com/html/?q={0}&t=h_\", System.Web.HttpUtility.UrlEncode(searchString)));"
+            ],
+            [
+                68,
+                "            request.UserAgent = userAgent;"
+            ],
+            [
+                69,
+                "            request.Referer = \"https://duckduckgo.com/\";"
+            ],
+            [
+                70,
+                "            var response = (HttpWebResponse)request.GetResponse();"
+            ],
+            [
+                71,
+                "            responseText = new System.IO.StreamReader(response.GetResponseStream()).ReadToEnd();"
+            ],
+            [
+                83,
+                "            string responseString = String.Empty;"
+            ],
+            [
+                84,
+                "            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(string.Format(\"https://duckduckgo.com/html/?q={0}&t=h_\", System.Web.HttpUtility.UrlEncode(searchString)));"
+            ],
+            [
+                87,
+                "            request.Referer = \"https://duckduckgo.com/\";"
+            ],
+            [
+                93,
+                "            byte[] data = Encoding.ASCII.GetBytes(postParameters);"
+            ],
+            [
+                94,
+                "            using (var stream = request.GetRequestStream())"
+            ],
+            [
+                96,
+                "                stream.Write(data, 0, data.Length);"
+            ],
+            [
+                97,
+                "            }"
+            ],
+            [
+                98,
+                ""
+            ],
+            [
+                99,
+                "            using (var response = (HttpWebResponse)request.GetResponse())"
+            ],
+            [
+                101,
+                "                responseString = new System.IO.StreamReader(response.GetResponseStream()).ReadToEnd();"
+            ],
+            [
+                103,
+                ""
+            ],
+            [
+                107,
+                ""
+            ],
+            [
+                113,
+                "        private HashSet<string> ParseResponse(string response)"
+            ],
+            [
+                115,
+                "            HashSet<string> res = new HashSet<string>(StringComparer.OrdinalIgnoreCase);"
+            ],
+            [
+                116,
+                "            HtmlDocument doc = new HtmlDocument();"
+            ],
+            [
+                122,
+                "            res.UnionWith(links.Select(link => link.Attributes[\"href\"].Value.Split(new string[] { \"uddg=\" }, StringSplitOptions.None)).Select(parts => Uri.UnescapeDataString(parts[parts.Length - 1])));"
+            ],
+            [
+                130,
+                "        private string GetPostData(string response)"
+            ],
+            [
+                132,
+                "            string postParams = String.Empty;"
+            ],
+            [
+                133,
+                "            HtmlDocument doc = new HtmlDocument();"
+            ],
+            [
+                136,
+                "            var inputs = doc.DocumentNode.SelectNodes(\"//input[@type=\\\"hidden\\\"]\");"
+            ],
+            [
+                144,
+                "            return postParams;"
+            ],
+            [
+                147,
+                "        private void GetCustomLinksAsync(object customSearchString)"
+            ],
+            [
+                150,
+                "            try"
+            ],
+            [
+                152,
+                "                SearchAndReport((string)customSearchString);"
+            ],
+            [
+                153,
+                "                OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.NoMoreData));"
+            ],
+            [
+                154,
+                "            }"
+            ],
+            [
+                155,
+                "            catch (ThreadAbortException)"
+            ],
+            [
+                156,
+                "            {"
+            ],
+            [
+                157,
+                "                OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.Stopped));"
+            ],
+            [
+                159,
+                "            catch"
+            ],
+            [
+                161,
+                "                OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.ErrorFound));"
+            ],
+            [
+                165,
+                "        private void SearchAndReport(string searchValue)"
+            ],
+            [
+                167,
+                "            OnSearcherChangeStateEvent(new EventsThreads.ThreadStringEventArgs($\"Searching links in {this.Name} using '{searchValue}' ....\"));"
+            ],
+            [
+                168,
+                "            HashSet<string> results = Query(searchValue);"
+            ],
+            [
+                169,
+                "            List<object> lstCurrentResults = results.Cast<object>().ToList();"
+            ],
+            [
+                173,
+                "        }"
+            ],
+            [
+                175,
+                "        /// <summary>"
+            ],
+            [
+                176,
+                "        /// Get custom links"
+            ],
+            [
+                177,
+                "        /// </summary>"
+            ],
+            [
+                178,
+                "        /// <param name=\"customSearchString\"></param>"
+            ],
+            [
+                179,
+                "        public override void GetCustomLinks(string customSearchString)"
+            ],
+            [
+                180,
+                "        {"
+            ],
+            [
+                181,
+                "            if (thrSearchLinks != null && thrSearchLinks.IsAlive) return;"
+            ],
+            [
+                182,
+                ""
+            ],
+            [
+                183,
+                "            thrSearchLinks = new Thread(GetCustomLinksAsync)"
+            ],
+            [
+                184,
+                "            {"
+            ],
+            [
+                185,
+                "                Priority = ThreadPriority.Lowest,"
+            ],
+            [
+                186,
+                "                IsBackground = true"
+            ],
+            [
+                187,
+                "            };"
+            ],
+            [
+                188,
+                "            thrSearchLinks.Start(customSearchString);"
+            ],
+            [
+                200,
+                "                Priority = ThreadPriority.Lowest,"
+            ],
+            [
+                221,
+                "                            SearchAndReport(\"site:\" + Site + \" filetype:txt \\\"initialprogram\\\"\");"
+            ],
+            [
+                224,
+                "                            SearchAndReport(\"site:\" + Site + \" filetype:txt \\\"full address:s:\\\"\");"
+            ],
+            [
+                227,
+                "                            SearchAndReport(\"site:\" + Site + \" filetype:\" + strExtension);"
+            ]
+        ],
+        "deleted": [
+            [
+                7,
+                "using HtmlAgilityPack;"
+            ],
+            [
+                8,
+                "using FOCA.Threads;"
+            ],
+            [
+                14,
+                "        private string userAgent = \"Mozilla/5.0 (Linux; U; Android 4.1.1; en-gb; Build/KLP) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30\";"
+            ],
+            [
+                15,
+                "        private string postParams = string.Empty;"
+            ],
+            [
+                16,
+                "        private List<string> results;"
+            ],
+            [
+                17,
+                "        private string[] supportedFileTypes = new string[] { \"html\", \"htm\", \"pdf\", \"txt\", \"doc\", \"docx\", \"xls\", \"xlsx\", \"ppt\", \"pptx\" };"
+            ],
+            [
+                21,
+                "            strName = \"DuckduckgoWeb\";"
+            ],
+            [
+                24,
+                ""
+            ],
+            [
+                25,
+                "        public int Query(string searchTerms)"
+            ],
+            [
+                27,
+                "            var response = SendInitialRequest(searchTerms);"
+            ],
+            [
+                28,
+                ""
+            ],
+            [
+                29,
+                "            results = ParseResponse(response);"
+            ],
+            [
+                32,
+                "                GetPostData(response);"
+            ],
+            [
+                33,
+                "                response = MoreResults(searchTerms, postParams);"
+            ],
+            [
+                34,
+                "                results.AddRange(ParseResponse(response));"
+            ],
+            [
+                36,
+                "            catch (Exception)"
+            ],
+            [
+                38,
+                "                OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.ErrorFound));"
+            ],
+            [
+                40,
+                "            return results.Count;"
+            ],
+            [
+                52,
+                "            try"
+            ],
+            [
+                53,
+                "            {"
+            ],
+            [
+                54,
+                "                var request = (HttpWebRequest)WebRequest.Create(string.Format(\"https://duckduckgo.com/html/?q={0}&t=h_\", System.Web.HttpUtility.UrlEncode(searchString)));"
+            ],
+            [
+                55,
+                "                request.UserAgent = userAgent;"
+            ],
+            [
+                56,
+                "                request.Referer = \"https://duckduckgo.com/\";"
+            ],
+            [
+                57,
+                "                var response = (HttpWebResponse)request.GetResponse();"
+            ],
+            [
+                58,
+                "                responseText = new System.IO.StreamReader(response.GetResponseStream()).ReadToEnd();"
+            ],
+            [
+                59,
+                "            } catch (Exception ex)"
+            ],
+            [
+                60,
+                "            {"
+            ],
+            [
+                61,
+                "                OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.ErrorFound));"
+            ],
+            [
+                62,
+                "                throw ex;"
+            ],
+            [
+                63,
+                "            }"
+            ],
+            [
+                75,
+                "            var responseString = string.Empty;"
+            ],
+            [
+                76,
+                "            var request = (HttpWebRequest)WebRequest.Create(string.Format(\"https://duckduckgo.com/html/?q={0}&t=h_\", System.Web.HttpUtility.UrlEncode(searchString)));"
+            ],
+            [
+                79,
+                "            request.Referer = \"https://duckduckgo.com/\";"
+            ],
+            [
+                85,
+                ""
+            ],
+            [
+                86,
+                "            var data = Encoding.ASCII.GetBytes(postParameters);"
+            ],
+            [
+                87,
+                "            try"
+            ],
+            [
+                89,
+                "                using (var stream = request.GetRequestStream())"
+            ],
+            [
+                90,
+                "                {"
+            ],
+            [
+                91,
+                "                    stream.Write(data, 0, data.Length);"
+            ],
+            [
+                92,
+                "                }"
+            ],
+            [
+                93,
+                "                var response = (HttpWebResponse)request.GetResponse();"
+            ],
+            [
+                94,
+                "                responseString = new System.IO.StreamReader(response.GetResponseStream()).ReadToEnd();"
+            ],
+            [
+                95,
+                "            } catch"
+            ],
+            [
+                97,
+                "                OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.ErrorFound));"
+            ],
+            [
+                102,
+                ""
+            ],
+            [
+                108,
+                "        private List<string> ParseResponse(string response)"
+            ],
+            [
+                110,
+                "            var res = new List<string>();"
+            ],
+            [
+                111,
+                "            var doc = new HtmlDocument();"
+            ],
+            [
+                117,
+                "            res.AddRange(links.Select(link => link.Attributes[\"href\"].Value.Split(new string[] {\"uddg=\"}, StringSplitOptions.None)).Select(parts => Uri.UnescapeDataString(parts[parts.Length - 1])));"
+            ],
+            [
+                125,
+                "        private void GetPostData(string response)"
+            ],
+            [
+                127,
+                "            var doc = new HtmlDocument();"
+            ],
+            [
+                130,
+                "            var inputs = doc.DocumentNode.SelectNodes(string.Format(\"//input[@type={0}]\", \"\\\"hidden\\\"\"));"
+            ],
+            [
+                140,
+                "        /// <summary>"
+            ],
+            [
+                141,
+                "        /// Get custom links"
+            ],
+            [
+                142,
+                "        /// </summary>"
+            ],
+            [
+                143,
+                "        /// <param name=\"customSearchString\"></param>"
+            ],
+            [
+                144,
+                "        public override void GetCustomLinks(string customSearchString)"
+            ],
+            [
+                146,
+                ""
+            ],
+            [
+                148,
+                "            OnSearcherChangeStateEvent(new EventsThreads.ThreadStringEventArgs(\"Searching links in \" + Name + \"...\"));"
+            ],
+            [
+                149,
+                "            string valueQuery = string.Empty;"
+            ],
+            [
+                150,
+                "            var completeQuery = customSearchString.Replace(\"site:\",\"site=\");"
+            ],
+            [
+                151,
+                "            int count = 0;"
+            ],
+            [
+                152,
+                "            string endQuery = string.Empty;"
+            ],
+            [
+                153,
+                ""
+            ],
+            [
+                154,
+                "            foreach (var ext in Extensions)"
+            ],
+            [
+                156,
+                "                if (count == 0 && supportedFileTypes.Contains(ext.ToLower()))"
+            ],
+            [
+                157,
+                "                {"
+            ],
+            [
+                158,
+                "                    count++;"
+            ],
+            [
+                159,
+                "                    valueQuery += \"filetype:(\" + ext + \"+OR+\";"
+            ],
+            [
+                160,
+                "                }"
+            ],
+            [
+                161,
+                "                else if (supportedFileTypes.Contains(ext.ToLower()))"
+            ],
+            [
+                162,
+                "                    valueQuery += ext + \"+OR+\";"
+            ],
+            [
+                163,
+                ""
+            ],
+            [
+                165,
+                "            if (valueQuery.Length > 0)"
+            ],
+            [
+                167,
+                "                endQuery = valueQuery.Remove(valueQuery.Length - 4);"
+            ],
+            [
+                168,
+                "                endQuery += \")\" + completeQuery;"
+            ],
+            [
+                169,
+                "                GetDuckduckgoResults(endQuery);"
+            ],
+            [
+                171,
+                "            else"
+            ],
+            [
+                172,
+                "                GetDuckduckgoResults(completeQuery);"
+            ],
+            [
+                173,
+                ""
+            ],
+            [
+                174,
+                "            OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.NoMoreData));"
+            ],
+            [
+                177,
+                "        /// <summary>"
+            ],
+            [
+                178,
+                "        /// Get Duck go results."
+            ],
+            [
+                179,
+                "        /// </summary>"
+            ],
+            [
+                180,
+                "        /// <param name=\"searchTerms\"></param>"
+            ],
+            [
+                181,
+                "        /// <returns></returns>"
+            ],
+            [
+                182,
+                "        private int GetDuckduckgoResults(string searchTerms)"
+            ],
+            [
+                184,
+                "            OnSearcherChangeStateEvent(new EventsThreads.ThreadStringEventArgs(\"Search in \" + Name));"
+            ],
+            [
+                185,
+                "            Query(searchTerms);"
+            ],
+            [
+                186,
+                "            var lstCurrentResults = new List<object>();"
+            ],
+            [
+                187,
+                "            lstCurrentResults = results.Cast<object>().ToList();"
+            ],
+            [
+                191,
+                "            OnSearcherEndEvent(new EventsThreads.ThreadEndEventArgs(EventsThreads.ThreadEndEventArgs.EndReasonEnum.NoMoreData));"
+            ],
+            [
+                193,
+                "            return lstCurrentResults.Count;"
+            ],
+            [
+                205,
+                "                Priority     = ThreadPriority.Lowest,"
+            ],
+            [
+                226,
+                "                            GetCustomLinks(\"site:\" + Site + \" f:txt \\\"initialprogram\\\"\");"
+            ],
+            [
+                229,
+                "                            GetCustomLinks(\"site:\" + Site + \" f:txt \\\"full address:s:\\\"\");"
+            ],
+            [
+                232,
+                "                            GetCustomLinks(\"site:\" + Site);"
+            ]
+        ]
+    },
+    "num_lines_added": 92,
+    "num_lines_removed": 97
+}

@@ -1,0 +1,84 @@
+    @Override
+    public void executeInternal() throws MojoExecutionException, MojoFailureException {
+        if (!basedir.isDirectory() || !basedir.exists()) {
+            throw new MojoExecutionException("No directory for base directory: " + basedir);
+        }
+
+        // lets check for a git repo
+        String gitRemoteURL = null;
+        Repository repository = null;
+        try {
+            repository = GitUtils.findRepository(basedir);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to find local git repository in current directory: " + e, e);
+        }
+        try {
+            gitRemoteURL = GitUtils.getRemoteURL(repository);
+        } catch (Exception e) {
+            throw new MojoExecutionException("Failed to get the current git branch: " + e, e);
+        }
+
+        try {
+            clusterAccess = new ClusterAccess(this.namespace);
+            if (Strings.isNullOrBlank(projectName)) {
+                projectName = basedir.getName();
+            }
+
+            KubernetesClient kubernetes = clusterAccess.createKubernetesClient();
+            KubernetesResourceUtil.validateKubernetesMasterUrl(kubernetes.getMasterUrl());
+
+            String namespace = clusterAccess.getNamespace();
+            OpenShiftClient openShiftClient = getOpenShiftClientOrJenkinsShift(kubernetes, namespace);
+
+            if (gitRemoteURL != null) {
+                // lets check we don't already have this project imported
+                String branch = repository.getBranch();
+                BuildConfig buildConfig = findBuildConfigForGitRepo(openShiftClient, namespace, gitRemoteURL, branch);
+                if (buildConfig != null) {
+                    logBuildConfigLink(kubernetes, namespace, buildConfig, log);
+                    throw new MojoExecutionException("Project already imported into build " +
+                            getName(buildConfig) + " for URI: " + gitRemoteURL + " and branch: " + branch);
+                } else {
+                    Map<String, String> annotations = new HashMap<>();
+                    annotations.put(Annotations.Builds.GIT_CLONE_URL, gitRemoteURL);
+                    buildConfig = createBuildConfig(kubernetes, namespace, projectName, gitRemoteURL, annotations);
+
+                    openShiftClient.buildConfigs().inNamespace(namespace).create(buildConfig);
+
+                    ensureExternalGitSecretsAreSetupFor(kubernetes, namespace, gitRemoteURL);
+
+                    logBuildConfigLink(kubernetes, namespace, buildConfig, log);
+                }
+            } else {
+                // lets create an import a new project
+                UserDetails userDetails = createGogsUserDetails(kubernetes, namespace);
+                BuildConfigHelper.CreateGitProjectResults createGitProjectResults;
+                try {
+                    createGitProjectResults = BuildConfigHelper.importNewGitProject(kubernetes, userDetails, basedir,
+                            namespace, projectName, originBranchName, "Importing project from mvn fabric8:import", false);
+                } catch (WebApplicationException e) {
+                    Response response = e.getResponse();
+                    if (response.getStatus() > 400) {
+                        String message = getEntityMessage(response);
+                        log.warn("Could not create the git repository: %s %s", e, message);
+                        log.warn("Are your username and password correct in the Secret %s/%s?", secretNamespace, gogsSecretName);
+                        log.warn("To re-enter your password rerun this command with -Dfabric8.passsword.retry=true");
+
+                        throw new MojoExecutionException("Could not create the git repository. " +
+                                "Are your username and password correct in the Secret " +
+                                secretNamespace + "/" + gogsSecretName + "?" + e + message, e);
+                    } else {
+                        throw e;
+                    }
+                }
+
+                BuildConfig buildConfig = createGitProjectResults.getBuildConfig();
+                openShiftClient.buildConfigs().inNamespace(namespace).create(buildConfig);
+                logBuildConfigLink(kubernetes, namespace, buildConfig, log);
+            }
+        } catch (KubernetesClientException e) {
+            KubernetesResourceUtil.handleKubernetesClientException(e, this.log);
+        } catch (Exception e) {
+            throw new MojoExecutionException(e.getMessage(), e);
+        }
+    }

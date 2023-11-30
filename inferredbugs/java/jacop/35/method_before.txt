@@ -1,0 +1,45 @@
+    void updateTable(HashSet<IntVar> fdvs) {
+
+        for (IntVar v : fdvs) {
+
+            // recent pruning
+            IntDomain cd = v.dom();
+            IntDomain pd = cd.previousDomain();
+            IntDomain rp;
+            int delta;
+            if (pd == null) {
+                rp = cd;
+                delta = IntDomain.MaxInt;
+            } else {
+                rp = pd.subtract(cd);
+                delta = rp.getSize();
+                if (delta == 0)
+                    continue;
+            }
+
+            mask = 0;  // clear mask
+            int xIndex = varMap.get(v);
+
+            Map<Integer, Long> xSupport = supports[xIndex];
+            if (delta < cd.getSize()) { // incremental update
+                ValueEnumeration e = rp.valueEnumeration();
+                while (e.hasMoreElements()) {
+                    Long bs = xSupport.get(e.nextElement());
+                    if (bs != null)
+                        mask |= (bs.longValue());
+                }
+                mask = ~mask;
+            } else { // reset-based update
+                ValueEnumeration e = cd.valueEnumeration();
+                while (e.hasMoreElements()) {
+                    Long bs = xSupport.get(e.nextElement());
+                    if (bs != null)
+                        mask |= (bs.longValue());
+                }
+            }
+
+            boolean empty = intersectWithMask();
+            if (empty)
+                throw store.failException;
+        }
+    }

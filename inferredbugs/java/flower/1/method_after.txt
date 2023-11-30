@@ -1,0 +1,67 @@
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void onReceive(ServiceContext serviceContext) throws Throwable {
+    FlowMessage fm = serviceContext.getFlowMessage();
+    if (serviceContext.isSync() && !syncActors.containsKey(serviceContext.getId())) {
+      syncActors.putIfAbsent(serviceContext.getId(), getSender());
+    }
+
+    // TODO 没有必要设置默认值,下面执行异常就会抛出异常
+    Object result = null;// DefaultMessage.getMessage();// set default
+    try {
+      this.service = ServiceFactory.getService(serviceName);
+      result = ((Service) service).process(fm.getMessage(), serviceContext);
+    } catch (Throwable e) {
+      Web web = serviceContext.getWeb();
+      if (web != null) {
+        web.complete();
+      }
+      throw new FlowerException("fail to invoke service " + serviceName + " : " + service + ", param : " + fm.getMessage(), e);
+    }
+
+    logger.info("同步处理 ： {}, hasChild : {}", serviceContext.isSync(), hasChildActor());
+    if (serviceContext.isSync() && !hasChildActor()) {
+      logger.info("返回响应 {}", result);
+      ActorRef actor = syncActors.get(serviceContext.getId());
+      if(actor !=null) {
+        actor.tell(result, getSelf());
+        syncActors.remove(serviceContext.getId());
+      }
+      return;
+    }
+
+    Web web = serviceContext.getWeb();
+    if (service instanceof Complete) {
+      // FlowContext.removeServiceContext(fm.getTransactionId());
+    }
+    if (web != null) {
+      if (service instanceof Flush) {
+        web.flush();
+      }
+      if (service instanceof HttpComplete || service instanceof Complete) {
+        web.complete();
+      }
+    }
+
+    if (result == null)// for joint service
+      return;
+    if (hasChildActor()) {
+      for (RefType refType : nextServiceActors) {
+        ServiceContext context = serviceContext.newInstance();
+        context.getFlowMessage().setMessage(result);
+        // if (refType.isJoint()) {
+        // FlowMessage flowMessage1 = CloneUtil.clone(fm);
+        // flowMessage1.setMessage(result);
+        // context.setFlowMessage(flowMessage1);
+        // }
+        // condition fork for one-service to multi-service
+        if (refType.getMessageType().isInstance(result)) {
+          if (!(result instanceof Condition) || !(((Condition) result).getCondition() instanceof String)
+              || stringInStrings(refType.getServiceName(), ((Condition) result).getCondition().toString())) {
+            refType.getActorRef().tell(context, getSelf());
+          }
+        }
+      }
+    } else {
+
+    }
+  }

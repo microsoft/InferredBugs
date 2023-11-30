@@ -1,0 +1,25 @@
+    internal static bool PosIsTablebaseWinWithNoDTZAvailable(ParamsSearch paramsSearch, PositionWithHistory priorMoves)
+    {
+      // Check if this is the unusual situation of a tablebase hit
+      // but only WDL and not DTZ available.
+      Position startPos = priorMoves.FinalPosition;
+      bool forceNoTablebaseTerminals = false;
+      if (startPos.PieceCount <= 7 && paramsSearch.EnableTablebases)
+      {
+        LeafEvaluatorSyzygyLC0 evaluatorTB = new LeafEvaluatorSyzygyLC0(CeresUserSettingsManager.Settings.TablebaseDirectory, false);
+        if (startPos.PieceCount <= evaluatorTB.MaxCardinality)
+        {
+          MGMove ret = evaluatorTB.Evaluator.CheckTablebaseBestNextMove(in startPos, out GameResult result,
+            out List<MGMove> fullWinningMoveList, out bool winningMoveListOrderedByDTM);
+
+          if (result == GameResult.Checkmate && !winningMoveListOrderedByDTM)
+          {
+            // No DTZ were available to guide search, must start a new tree
+            // and perform actual NN search to find the win.
+            forceNoTablebaseTerminals = true;
+          }
+        }
+      }
+
+      return forceNoTablebaseTerminals;
+    }

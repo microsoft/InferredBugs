@@ -1,0 +1,85 @@
+ public void doParsing (String filePath) throws Exception
+	{
+		
+		engine = new SearchEngine2();
+		
+		XMLSENATEDATA senateData = parseStream(new FileReader(new File(filePath)));
+		
+		Iterator<Object> it = senateData.getSencalendarOrSencalendaractive().iterator();
+		
+		Object nextItem = null;
+		
+		String action = null;
+		
+		Calendar calendar = null;
+		Supplemental supplemental = null;
+
+		ArrayList<LuceneObject> objectsToUpdate = new ArrayList<LuceneObject>();
+		
+		PersistenceManager pm = PMF.getPersistenceManager();
+		         
+		while (it.hasNext())
+		{
+			nextItem = it.next();
+
+			Transaction currentTx = pm.currentTransaction();
+	        currentTx.begin();
+
+			if (nextItem instanceof XMLSencalendar)
+			{
+				XMLSencalendar xmlCalendar = (XMLSencalendar)nextItem;
+				
+				action = xmlCalendar.getAction();
+				
+				calendar = getCalendar(pm, Calendar.TYPE_FLOOR,xmlCalendar.getNo(),xmlCalendar.getYear(),xmlCalendar.getSessyr());
+				
+				supplemental = parseSupplemental(pm, calendar,xmlCalendar.getSupplemental());
+				
+				supplemental.setCalendar(calendar);
+				
+				objectsToUpdate.add(calendar);
+			}
+			else if (nextItem instanceof XMLSencalendaractive)
+			{
+				XMLSencalendaractive xmlActiveList = (XMLSencalendaractive)nextItem;
+				action = xmlActiveList.getAction();
+				
+				calendar = getCalendar(pm, Calendar.TYPE_ACTIVE,xmlActiveList.getNo(),xmlActiveList.getYear(),xmlActiveList.getSessyr());
+				
+				supplemental = parseSupplemental(pm, calendar,xmlActiveList.getSupplemental());
+				
+				supplemental.setCalendar(calendar);
+
+				objectsToUpdate.add(calendar);
+			}
+			
+	        
+			if (action.equals("remove") && removeObject != null)
+			{
+				logger.info("REMOVING: " + removeObject.getClass() + "=" + removeObjectId);
+				PMF.removePersistedObject(pm, removeObject.getClass(), removeObjectId);
+
+			}
+			
+
+			currentTx.commit();
+			
+		
+		}
+	
+
+		Transaction currentTx = pm.currentTransaction();
+		try
+		{
+	        currentTx.begin();
+			engine.indexSenateObjects(objectsToUpdate, new LuceneSerializer[]{new XmlSerializer(), new JsonSerializer()});
+			currentTx.commit();
+		}
+		catch (Exception e)
+		{
+			currentTx.rollback();
+		}
+		
+
+        engine.optimize();
+	}

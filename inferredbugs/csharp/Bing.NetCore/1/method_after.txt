@@ -1,0 +1,61 @@
+        private static byte[] MergeQrImg(Bitmap qrImg, Bitmap logoImg, double n = 0.23)
+        {
+            int margin = 10;
+            float dpix = qrImg.HorizontalResolution;
+            float dpiy = qrImg.VerticalResolution;
+
+            var newWidth = (10 * qrImg.Width - 46 * margin) * 1.0f / 46;
+            var newLogoImg = ZoomPic(logoImg, newWidth / logoImg.Width);
+            // 处理Logo
+            int newImgWidth = newLogoImg.Width + margin;
+            Bitmap logoBgImg = new Bitmap(newImgWidth, newImgWidth);
+            logoBgImg.MakeTransparent();
+            Graphics g = Graphics.FromImage(logoBgImg);
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = SmoothingMode.HighQuality;
+            g.Clear(Color.Transparent);
+            Pen p = new Pen(new SolidBrush(Color.White));
+            Rectangle rect = new Rectangle(0, 0, newImgWidth - 1, newImgWidth - 1);
+            using (GraphicsPath path = CreateRoundedRectanglePath(rect, 7))
+            {
+                g.DrawPath(p, path);
+                g.FillPath(new SolidBrush(Color.White), path);
+            }
+            // 画Logo
+            Bitmap img1 = new Bitmap(newLogoImg.Width, newLogoImg.Height);
+            Graphics g1 = Graphics.FromImage(img1);
+            g1.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g1.SmoothingMode = SmoothingMode.HighQuality;
+            g1.Clear(Color.Transparent);
+            Pen p1 = new Pen(new SolidBrush(Color.Gray));
+            Rectangle rect1 = new Rectangle(0, 0, newLogoImg.Width - 1, newLogoImg.Height - 1);
+            using (GraphicsPath path1 = CreateRoundedRectanglePath(rect1, 7))
+            {
+                g1.DrawPath(p1, path1);
+                TextureBrush brush = new TextureBrush(newLogoImg);
+                g1.FillPath(brush, path1);
+            }
+            g1.Dispose();
+
+            PointF center = new PointF((newImgWidth - newLogoImg.Width) / 2, (newImgWidth - newLogoImg.Height) / 2);
+            g.DrawImage(img1, center.X, center.Y, newLogoImg.Width, newLogoImg.Height);
+            g.Dispose();
+
+            Bitmap backgroundImg = new Bitmap(qrImg.Width, qrImg.Height);
+            backgroundImg.MakeTransparent();
+            backgroundImg.SetResolution(dpix, dpiy);
+            logoBgImg.SetResolution(dpix, dpiy);
+
+            Graphics g2 = Graphics.FromImage(backgroundImg);
+            g2.Clear(Color.Transparent);
+            g2.DrawImage(qrImg, 0, 0);
+            PointF center2 = new PointF((qrImg.Width - logoBgImg.Width) / 2, (qrImg.Height - logoBgImg.Height) / 2);
+            g2.DrawImage(logoBgImg, center2);
+            g2.Dispose();
+
+            using (var ms = new MemoryStream())
+            {
+                backgroundImg.Save(ms, ImageFormat.Png);
+                return ms.ToArray();
+            }
+        }

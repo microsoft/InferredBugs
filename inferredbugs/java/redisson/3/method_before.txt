@@ -1,0 +1,55 @@
+    protected void slaveDown(ClusterSlotRange slotRange, String host, int port) {
+        Collection<RedisPubSubConnection> allPubSubConnections = getEntry(slotRange).slaveDown(host, port);
+
+        // reattach listeners to other channels
+        for (Entry<String, PubSubConnectionEntry> mapEntry : name2PubSubConnection.entrySet()) {
+            for (RedisPubSubConnection redisPubSubConnection : allPubSubConnections) {
+                PubSubConnectionEntry entry = mapEntry.getValue();
+                final String channelName = mapEntry.getKey();
+
+                if (!entry.getConnection().equals(redisPubSubConnection)) {
+                    continue;
+                }
+
+                synchronized (entry) {
+                    entry.close();
+
+                    final Collection<RedisPubSubListener> listeners = entry.getListeners(channelName);
+                    if (entry.getConnection().getPatternChannels().get(channelName) != null) {
+                        Codec subscribeCodec = punsubscribe(channelName);
+                        if (!listeners.isEmpty()) {
+                            Future<PubSubConnectionEntry> future = psubscribe(channelName, subscribeCodec);
+                            future.addListener(new FutureListener<PubSubConnectionEntry>() {
+                                @Override
+                                public void operationComplete(Future<PubSubConnectionEntry> future)
+                                        throws Exception {
+                                    PubSubConnectionEntry newEntry = future.getNow();
+                                    for (RedisPubSubListener redisPubSubListener : listeners) {
+                                        newEntry.addListener(channelName, redisPubSubListener);
+                                    }
+                                    log.debug("resubscribed listeners for '{}' channel-pattern", channelName);
+                                }
+                            });
+                        }
+                    } else {
+                        Codec subscribeCodec = unsubscribe(channelName);
+                        if (!listeners.isEmpty()) {
+                            Future<PubSubConnectionEntry> future = subscribe(channelName, subscribeCodec);
+                            future.addListener(new FutureListener<PubSubConnectionEntry>() {
+
+                                @Override
+                                public void operationComplete(Future<PubSubConnectionEntry> future)
+                                        throws Exception {
+                                    PubSubConnectionEntry newEntry = future.getNow();
+                                    for (RedisPubSubListener redisPubSubListener : listeners) {
+                                        newEntry.addListener(channelName, redisPubSubListener);
+                                    }
+                                    log.debug("resubscribed listeners for '{}' channel", channelName);
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }

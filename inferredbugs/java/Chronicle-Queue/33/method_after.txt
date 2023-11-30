@@ -1,0 +1,16 @@
+    @Override
+    public void init() {
+        tableStore.doWithExclusiveLock(ts -> {
+            maxCycleValue = ts.acquireValueFor(HIGHEST_CREATED_CYCLE);
+            minCycleValue = ts.acquireValueFor(LOWEST_CREATED_CYCLE);
+            lock = ts.acquireValueFor(LOCK);
+            modCount = ts.acquireValueFor(MOD_COUNT);
+            if (lock.getVolatileValue() == Long.MIN_VALUE) {
+                lock.compareAndSwapValue(Long.MIN_VALUE, 0);
+            }
+            if (modCount.getVolatileValue() == Long.MIN_VALUE) {
+                modCount.compareAndSwapValue(Long.MIN_VALUE, 0);
+            }
+            return this;
+        });
+    }

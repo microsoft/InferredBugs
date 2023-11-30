@@ -1,0 +1,78 @@
+    @Override
+    public Page download(Request request, Task task) {
+        Site site = null;
+        if (task != null) {
+            site = task.getSite();
+        }
+        int retryTimes = 0;
+        Set<Integer> acceptStatCode;
+        String charset = null;
+        Map<String,String> headers = null;
+        if (site != null) {
+            retryTimes = site.getRetryTimes();
+            acceptStatCode = site.getAcceptStatCode();
+            charset = site.getCharset();
+            headers = site.getHeaders();
+        } else {
+            acceptStatCode = new HashSet<Integer>();
+            acceptStatCode.add(200);
+        }
+        logger.info("downloading page " + request.getUrl());
+        HttpClient httpClient = getHttpClientPool().getClient(site);
+        try {
+            HttpGet httpGet = new HttpGet(request.getUrl());
+            if (headers!=null){
+                for (Map.Entry<String, String> headerEntry : headers.entrySet()) {
+                    httpGet.addHeader(headerEntry.getKey(),headerEntry.getValue());
+                }
+            }
+            HttpResponse httpResponse = null;
+            int tried = 0;
+            boolean retry;
+            do {
+                try {
+                    httpResponse = httpClient.execute(httpGet);
+                    retry = false;
+                } catch (IOException e) {
+                    tried++;
+
+                    if (tried > retryTimes) {
+                        logger.warn("download page " + request.getUrl() + " error", e);
+                        if (site.getCycleRetryTimes() > 0) {
+                            Page page = new Page();
+                            Object cycleTriedTimesObject = request.getExtra(Request.CYCLE_TRIED_TIMES);
+                            if (cycleTriedTimesObject == null) {
+                                page.addTargetRequest(request.setPriority(0).putExtra(Request.CYCLE_TRIED_TIMES, 1));
+                            } else {
+                                int cycleTriedTimes = (Integer) cycleTriedTimesObject;
+                                cycleTriedTimes++;
+                                if (cycleTriedTimes >= site.getCycleRetryTimes()) {
+                                    return null;
+                                }
+                                page.addTargetRequest(request.setPriority(0).putExtra(Request.CYCLE_TRIED_TIMES, 1));
+                            }
+                            return page;
+                        }
+                        return null;
+                    }
+                    logger.info("download page " + request.getUrl() + " error, retry the " + tried + " time!");
+                    retry = true;
+                }
+            } while (retry);
+            int statusCode = httpResponse.getStatusLine().getStatusCode();
+            if (acceptStatCode.contains(statusCode)) {
+                handleGzip(httpResponse);
+                //charset
+                if (charset == null) {
+                    String value = httpResponse.getEntity().getContentType().getValue();
+                    charset = UrlUtils.getCharset(value);
+                }
+                return handleResponse(request, charset, httpResponse, task);
+            } else {
+                logger.warn("code error " + statusCode + "\t" + request.getUrl());
+            }
+        } catch (Exception e) {
+            logger.warn("download page " + request.getUrl() + " error", e);
+        }
+        return null;
+    }

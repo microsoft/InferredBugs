@@ -1,0 +1,51 @@
+    public void toDocuments() throws GenerateException {
+        if (outputTemplate == null) {
+            prepareMustacheTemplate();
+        }
+        if (outputTemplate.getApiDocuments().isEmpty()) {
+            LOG.warn("nothing to write.");
+            return;
+        }
+        LOG.info("Writing doc to " + outputPath + "...");
+
+        FileOutputStream fileOutputStream = null;
+        try {
+            fileOutputStream = new FileOutputStream(outputPath);
+        } catch (FileNotFoundException e) {
+            throw new GenerateException(e);
+        }
+        OutputStreamWriter writer = new OutputStreamWriter(fileOutputStream, Charset.forName("UTF-8"));
+        MustacheFactory mf = new DefaultMustacheFactory();
+
+
+        URI uri = null;
+        try {
+            uri = new URI(templatePath);
+        } catch (URISyntaxException e) {
+            throw new GenerateException(e);
+        }
+        if (!uri.isAbsolute()) {
+            File file = new File(templatePath);
+            if (!file.exists()) {
+                throw new GenerateException("Template " + file.getAbsoluteFile()
+                        + " not found. You can go to https://github.com/kongchen/api-doc-template to get templates.");
+            } else {
+                uri = new File(templatePath).toURI();
+            }
+        }
+
+        URL url = null;
+        try {
+            url = uri.toURL();
+            InputStreamReader reader = new InputStreamReader(url.openStream(), Charset.forName("UTF-8"));
+            Mustache mustache = mf.compile(reader, templatePath);
+
+            mustache.execute(writer, outputTemplate).flush();
+            writer.close();
+            LOG.info("Done!");
+        } catch (MalformedURLException e) {
+            throw new GenerateException(e);
+        } catch (IOException e) {
+            throw new GenerateException(e);
+        }
+    }

@@ -1,0 +1,51 @@
+ @Override
+	public Home createHome(BridgeSettingsDescriptor bridgeSettings) {
+		lifxMap = null;
+		aGsonHandler = null;
+		validLifx = bridgeSettings.isValidLifx();
+		log.info("LifxDevice Home created." + (validLifx ? "" : " No LifxDevices configured."));
+		if(validLifx) {
+	    	try {
+	    		log.info("Open Lifx client....");
+	    		InetAddress configuredAddress = InetAddress.getByName(bridgeSettings.getUpnpConfigAddress());
+	    		NetworkInterface networkInterface = NetworkInterface.getByInetAddress(configuredAddress);
+	    		InetAddress bcastInetAddr = null;
+	            if (networkInterface != null) {
+	                for (InterfaceAddress ifaceAddr : networkInterface.getInterfaceAddresses()) {
+	                    InetAddress addr = ifaceAddr.getAddress();
+	                    if (addr instanceof Inet4Address) {
+	                    	bcastInetAddr = ifaceAddr.getBroadcast();
+	                    	break;
+	                    }
+	                }
+	            }
+	            if(bcastInetAddr != null) {
+		    		lifxMap = new HashMap<String, LifxDevice>();
+		    		log.info("Opening LFX Client with broadcast address: " + bcastInetAddr.getHostAddress());
+		    		client = new LFXClient(bcastInetAddr.getHostAddress());
+		    		client.getLights().addLightCollectionListener(new MyLightListener(lifxMap));
+		    		client.getGroups().addGroupCollectionListener(new MyGroupListener(lifxMap));
+					client.open(false);
+					aGsonHandler =
+							new GsonBuilder()
+							.create();
+	            } else {
+					log.warn("Could not open LIFX, no bcast addr available, check your upnp config address.");
+					client = null;
+					validLifx = false;
+					return this;
+	            }
+			} catch (IOException e) {
+				log.warn("Could not open LIFX, with IO Exception", e);
+				client = null;
+				validLifx = false;
+				return this;
+			} catch (InterruptedException e) {
+				log.warn("Could not open LIFX, with Interruprted Exception", e);
+				client = null;
+				validLifx = false;
+				return this;
+			}
+        }
+		return this;
+	}

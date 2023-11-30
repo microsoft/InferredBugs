@@ -1,0 +1,50 @@
+    @Test(timeout=60000)
+    public void testLastConfirmedAdd() throws Exception {
+        try {
+            // Create a ledger
+            lh = bkc.createLedger(digestType, ledgerPassword);
+            // bkc.initMessageDigest("SHA1");
+            ledgerId = lh.getId();
+            LOG.info("Ledger ID: " + lh.getId());
+
+            writeNEntriesLastWriteSync(lh, numEntriesToWrite);
+            long last = lh.readLastConfirmed();
+            assertTrue("Last confirmed add: " + last, last == (numEntriesToWrite - 2));
+
+            LOG.debug("*** WRITE COMPLETE ***");
+            // close ledger
+            lh.close();
+            /*
+             * Asynchronous call to read last confirmed entry
+             */
+            lh = bkc.createLedger(digestType, ledgerPassword);
+            // bkc.initMessageDigest("SHA1");
+            ledgerId = lh.getId();
+            LOG.info("Ledger ID: " + lh.getId());
+            writeNEntriesLastWriteSync(lh, numEntriesToWrite);
+
+            SyncObj sync = new SyncObj();
+            lh.asyncReadLastConfirmed(this, sync);
+
+            // Wait for for last confirmed
+            synchronized (sync) {
+                while (sync.lastConfirmed == LedgerHandle.INVALID_ENTRY_ID) {
+                    LOG.debug("Counter = " + sync.lastConfirmed);
+                    sync.wait();
+                }
+                assertEquals("Error reading", BKException.Code.OK, sync.getReturnCode());
+            }
+
+            assertTrue("Last confirmed add: " + sync.lastConfirmed, sync.lastConfirmed == (numEntriesToWrite - 2));
+
+            LOG.debug("*** WRITE COMPLETE ***");
+            // close ledger
+            lh.close();
+        } catch (BKException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to BookKeeper exception");
+        } catch (InterruptedException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to interruption");
+        }
+    }

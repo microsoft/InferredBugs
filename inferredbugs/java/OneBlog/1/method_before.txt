@@ -1,0 +1,88 @@
+    @Override
+    @RedisCache(flush = true)
+    public Comment comment(Comment comment) throws ZhydCommentException {
+        if (StringUtils.isEmpty(comment.getNickname())) {
+            throw new ZhydCommentException("必须输入昵称哦~~");
+        }
+        String content = comment.getContent();
+        if (StringUtils.isEmpty(content)) {
+            throw new ZhydCommentException("不说话可不行，必须说点什么哦~~");
+        }
+        if (!XssKillerUtil.isValid(content)) {
+            throw new ZhydCommentException("内容不合法，请不要使用特殊标签哦~~");
+        }
+        content = XssKillerUtil.clean(content.trim());
+        if (content.endsWith("<p><br></p>")) {
+            comment.setContent(content.substring(0, content.length() - "<p><br></p>".length()));
+        }
+        comment.setNickname(HtmlUtil.html2Text(comment.getNickname()));
+        comment.setQq(HtmlUtil.html2Text(comment.getQq()));
+        comment.setAvatar(HtmlUtil.html2Text(comment.getAvatar()));
+        comment.setEmail(HtmlUtil.html2Text(comment.getEmail()));
+        comment.setUrl(HtmlUtil.html2Text(comment.getUrl()));
+        HttpServletRequest request = RequestHolder.getRequest();
+        String ua = request.getHeader("User-Agent");
+        UserAgent agent = UserAgent.parseUserAgentString(ua);
+        // 浏览器
+        Browser browser = agent.getBrowser();
+        String browserInfo = browser.getName();
+//        comment.setBrowserShortName(browser.getShortName());// 此处需开发者自己处理
+        // 浏览器版本
+        Version version = agent.getBrowserVersion();
+        if (version != null) {
+            browserInfo += " " + version.getVersion();
+        }
+        comment.setBrowser(browserInfo);
+        // 操作系统
+        OperatingSystem os = agent.getOperatingSystem();
+        comment.setOs(os.getName());
+//        comment.setOsShortName(os.getShortName());// 此处需开发者自己处理
+        comment.setIp(IpUtil.getRealIp(request));
+        String address = "定位失败";
+        Config config = configService.get();
+        try {
+            String locationJson = RestClientUtil.get(UrlBuildUtil.getLocationByIp(comment.getIp(), config.getBaiduApiAk()));
+            JSONObject localtionContent = JSONObject.parseObject(locationJson).getJSONObject("content");
+            // 地址详情
+            JSONObject addressDetail = localtionContent.getJSONObject("address_detail");
+            // 省
+            String province = addressDetail.getString("province");
+            // 市
+            String city = addressDetail.getString("city");
+            // 区
+            String district = addressDetail.getString("district");
+            // 街道
+            String street = addressDetail.getString("street");
+            // 街道编号
+//            String street_number = addressDetail.getString("street_number");
+            StringBuffer sb = new StringBuffer(province);
+            if (!StringUtils.isEmpty(city)) {
+                sb.append(city);
+            }
+            if (!StringUtils.isEmpty(district)) {
+                sb.append(district);
+            }
+            if (!StringUtils.isEmpty(street)) {
+                sb.append(street);
+            }
+            address = sb.toString();
+            // 经纬度
+            JSONObject point = localtionContent.getJSONObject("point");
+            // 纬度
+            String lat = point.getString("y");
+            // 经度
+            String lng = point.getString("x");
+            comment.setLat(lat);
+            comment.setLng(lng);
+            comment.setAddress(address);
+        } catch (Exception e) {
+            comment.setAddress("未知");
+            log.error("获取地址失败", e);
+        }
+        if (StringUtils.isEmpty(comment.getStatus())) {
+            comment.setStatus(CommentStatusEnum.VERIFYING.toString());
+        }
+        this.insert(comment);
+        this.sendEmail(comment);
+        return comment;
+    }

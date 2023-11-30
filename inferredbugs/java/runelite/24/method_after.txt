@@ -1,0 +1,28 @@
+ private ParallelExecutorMapping mapStaticMethods(ClassGroup one, ClassGroup two)
+	{
+		StaticMethodSignatureMapper smsm = new StaticMethodSignatureMapper();
+		smsm.map(one, two);
+		
+		List<ParallelExecutorMapping> pmes = new ArrayList<>();
+		
+		for (Method m : smsm.getMap().keySet())
+		{
+			Collection<Method> methods = smsm.getMap().get(m);
+
+			ExecutionMapper em = new ExecutionMapper(m, methods);
+
+			ParallelExecutorMapping mapping = em.run();
+			if (mapping == null)
+				continue;
+			
+			mapping.map(mapping.m1, mapping.m2);
+
+			pmes.add(mapping);
+		}
+		
+		ParallelExecutorMapping finalm = new ParallelExecutorMapping(one, two);
+		for (ParallelExecutorMapping pme : pmes)
+			finalm.merge(pme);
+
+		return finalm;
+	}

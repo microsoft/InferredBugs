@@ -1,0 +1,48 @@
+  public static void main(final String... args) throws IOException, ExecutionException, InterruptedException {
+
+    final String project = Util.defaultProject();
+
+    GoogleCredential credential;
+
+    // Use credentials from file if available
+    try {
+      credential = GoogleCredential
+          .fromStream(new FileInputStream("credentials.json"))
+          .createScoped(PubsubScopes.all());
+    } catch (IOException e) {
+      credential = GoogleCredential.getApplicationDefault()
+          .createScoped(PubsubScopes.all());
+    }
+
+    final Pubsub pubsub = Pubsub.builder()
+        .credential(credential)
+        .compressionLevel(Deflater.BEST_SPEED)
+        .enabledCipherSuites(Util.nonGcmCiphers())
+        .build();
+
+    LoggingConfigurator.configureDefaults("benchmark", WARN);
+
+    final String subscription = System.getenv("GOOGLE_PUBSUB_SUBSCRIPTION");
+    if (subscription == null) {
+      System.err.println("Please specify a subscription using the GOOGLE_PUBSUB_SUBSCRIPTION environment variable.");
+      System.exit(1);
+    }
+
+    System.out.println("Consuming from GOOGLE_PUBSUB_SUBSCRIPTION='" + subscription + "'");
+
+    final ProgressMeter meter = new ProgressMeter();
+    final ProgressMeter.Metric receives = meter.group("operations").metric("receives", "messages");
+
+    final Puller puller = Puller.builder()
+        .pubsub(pubsub)
+        .batchSize(1000)
+        .concurrency(PULLER_CONCURRENCY)
+        .project(project)
+        .subscription(subscription)
+        .messageHandler(new Handler(receives))
+        .build();
+
+    while (true) {
+      Thread.sleep(1000);
+    }
+  }

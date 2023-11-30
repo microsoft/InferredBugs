@@ -1,0 +1,50 @@
+    @Override
+    public void start(Configuration conf) {
+        initIfNecessary();
+
+        int metricsOutputFrequency = conf.getInt("codahaleStatsOutputFrequencySeconds", 60);
+        String prefix = conf.getString("codahaleStatsPrefix", "");
+        String graphiteHost = conf.getString("codahaleStatsGraphiteEndpoint");
+        String csvDir = conf.getString("codahaleStatsCSVEndpoint");
+        String slf4jCat = conf.getString("codahaleStatsSlf4jEndpoint");
+
+        if (!Strings.isNullOrEmpty(graphiteHost)) {
+            LOG.info("Configuring stats with graphite");
+            HostAndPort addr = HostAndPort.fromString(graphiteHost);
+            final Graphite graphite = new Graphite(
+                    new InetSocketAddress(addr.getHostText(), addr.getPort()));
+            reporters.add(GraphiteReporter.forRegistry(metrics)
+                          .prefixedWith(prefix)
+                          .convertRatesTo(TimeUnit.SECONDS)
+                          .convertDurationsTo(TimeUnit.MILLISECONDS)
+                          .filter(MetricFilter.ALL)
+                          .build(graphite));
+        }
+        if (!Strings.isNullOrEmpty(csvDir)) {
+            // NOTE: 1/ metrics output files are exclusive to a given process
+            // 2/ the output directory must exist
+            // 3/ if output files already exist they are not overwritten and there is no metrics output
+            File outdir;
+            if (Strings.isNullOrEmpty(prefix)) {
+                outdir = new File(csvDir, prefix);
+            } else {
+                outdir = new File(csvDir);
+            }
+            LOG.info("Configuring stats with csv output to directory [{}]", outdir.getAbsolutePath());
+            reporters.add(CsvReporter.forRegistry(metrics)
+                          .convertRatesTo(TimeUnit.SECONDS)
+                          .convertDurationsTo(TimeUnit.MILLISECONDS)
+                          .build(outdir));
+        }
+        if (!Strings.isNullOrEmpty(slf4jCat)) {
+            LOG.info("Configuring stats with slf4j");
+            reporters.add(Slf4jReporter.forRegistry(metrics)
+                          .outputTo(LoggerFactory.getLogger(slf4jCat))
+                          .convertRatesTo(TimeUnit.SECONDS)
+                          .convertDurationsTo(TimeUnit.MILLISECONDS)
+                          .build());
+        }
+        for (ScheduledReporter r : reporters) {
+            r.start(metricsOutputFrequency, TimeUnit.SECONDS);
+        }
+    }

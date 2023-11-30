@@ -1,0 +1,21 @@
+    private void destroy(Map m, KeyedPoolableObjectFactory factory) {
+        for (Iterator entries = m.entrySet().iterator(); entries.hasNext();) {
+            Map.Entry entry = (Entry) entries.next();
+            Object key = entry.getKey();
+            Collection c = (Collection) entry.getValue();
+            for (Iterator it = c.iterator(); it.hasNext();) {
+                try {
+                    factory.destroyObject(
+                            key,((ObjectTimestampPair)(it.next())).value);
+                } catch(Exception e) {
+                    // ignore error, keep destroying the rest
+                } finally {
+                    synchronized(this) {
+                        _totalInternalProcessing--;
+                        allocate();
+                    }
+                }
+            }
+
+        }
+    }

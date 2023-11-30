@@ -1,0 +1,27 @@
+ @Test
+	public void whenWritingVehicleV2_readingItsLocationsAgainReturnsCorrectLocations(){
+		Builder builder = VehicleRoutingProblem.Builder.newInstance();
+		
+		VehicleTypeImpl type1 = VehicleTypeImpl.Builder.newInstance("vehType").addCapacityDimension(0, 20).build();
+		VehicleTypeImpl type2 = VehicleTypeImpl.Builder.newInstance("vehType2").addCapacityDimension(0, 200).build();
+        VehicleImpl v1 = VehicleImpl.Builder.newInstance("v1").setReturnToDepot(false).setStartLocationId("loc").setType(type1).build();
+        VehicleImpl v2 = VehicleImpl.Builder.newInstance("v2").setStartLocationId("startLoc").setStartLocationCoordinate(Coordinate.newInstance(1, 2))
+				.setEndLocationId("endLoc").setEndLocationCoordinate(Coordinate.newInstance(4, 5)).setType(type2).build();
+		
+		builder.addVehicle(v1);
+		builder.addVehicle(v2);
+		
+		Service s1 = Service.Builder.newInstance("1").addSizeDimension(0, 1).setLocationId("loc").setServiceTime(2.0).build();
+		Service s2 = Service.Builder.newInstance("2").addSizeDimension(0, 1).setLocationId("loc2").setServiceTime(4.0).build();
+		
+		VehicleRoutingProblem vrp = builder.addJob(s1).addJob(s2).build();
+		new VrpXMLWriter(vrp, null).write(infileName);
+		
+		VehicleRoutingProblem.Builder vrpToReadBuilder = VehicleRoutingProblem.Builder.newInstance();
+		new VrpXMLReader(vrpToReadBuilder, null).read(infileName);
+		VehicleRoutingProblem readVrp = vrpToReadBuilder.build();
+		
+		Vehicle v = getVehicle("v2",readVrp.getVehicles());
+		assertEquals("startLoc",v.getStartLocationId());
+		assertEquals("endLoc",v.getEndLocationId());
+	}

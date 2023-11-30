@@ -1,0 +1,40 @@
+  @Test
+  public void testCustomResourceWatch() {
+    Assume.assumeTrue(System.getProperty("os.name").toLowerCase().contains("nix"));
+
+    ClientHolder client = ClientHelper.getInstance().take();
+    try {
+      // create a watch
+
+      Watch<Domain> watch = Watch.createWatch(
+          client.getApiClient(),
+          client.getWeblogicApiClient().listWebLogicOracleV1DomainForAllNamespacesCall(null,
+              null,
+              null,
+              null,
+              5,
+              null,
+              null,
+              60,
+              Boolean.TRUE,
+              null,
+              null),
+          new TypeToken<Watch.Response<Domain>>() {
+          }.getType());
+
+
+      for (Watch.Response<Domain> item : watch) {
+        System.out.printf("%s : %s%n", item.type, item.object.getMetadata().getName());
+      }
+
+    } catch (ApiException e) {
+      if (e.getCode() == 404) {
+        System.out.println("***\n***This test is not able to run because the CRD that I want to watch does not exist on the server\n***");
+      } else {
+        fail();
+      }
+    } catch (RuntimeException e) {
+      System.out.println("stream finished");
+    }
+
+  }

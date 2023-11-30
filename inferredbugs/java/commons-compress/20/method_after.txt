@@ -1,0 +1,61 @@
+    public void testZipArchiveCreation() throws Exception {
+        // Archive
+        final File output = new File(dir, "bla.zip");
+        final File file1 = getFile("test1.xml");
+        final File file2 = getFile("test2.xml");
+
+        final OutputStream out = new FileOutputStream(output);
+        ArchiveOutputStream os = null;
+        try {
+            os = new ArchiveStreamFactory()
+                .createArchiveOutputStream("zip", out);
+            os.putArchiveEntry(new ZipArchiveEntry("testdata/test1.xml"));
+            IOUtils.copy(new FileInputStream(file1), os);
+            os.closeArchiveEntry();
+
+            os.putArchiveEntry(new ZipArchiveEntry("testdata/test2.xml"));
+            IOUtils.copy(new FileInputStream(file2), os);
+            os.closeArchiveEntry();
+        } finally {
+            if (os != null) {
+                os.close();
+            } else {
+                out.close();
+            }
+        }
+
+        // Unarchive the same
+        List results = new ArrayList();
+
+        final InputStream is = new FileInputStream(output);
+        ArchiveInputStream in = null;
+        try {
+            in = new ArchiveStreamFactory()
+                .createArchiveInputStream("zip", is);
+
+            ZipArchiveEntry entry = null;
+            while((entry = (ZipArchiveEntry)in.getNextEntry()) != null) {
+                File outfile = new File(resultDir.getCanonicalPath() + "/result/" + entry.getName());
+                outfile.getParentFile().mkdirs();
+                OutputStream o = new FileOutputStream(outfile);
+                try {
+                    IOUtils.copy(in, o);
+                } finally {
+                    o.close();
+                }
+                results.add(outfile);
+            }
+        } finally {
+            if (in != null) {
+                in.close();
+            } else {
+                is.close();
+            }
+        }
+
+        assertEquals(results.size(), 2);
+        File result = (File)results.get(0);
+        assertEquals(file1.length(), result.length());
+        result = (File)results.get(1);
+        assertEquals(file2.length(), result.length());
+    }

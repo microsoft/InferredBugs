@@ -1,0 +1,30 @@
+  @Override
+  public void enterScope(NodeTraversal t) {
+    Scope scope = t.getScope();
+    if (!shouldOptimizeScope(scope)) {
+      return;
+    }
+
+    ControlFlowGraph<Node> cfg = t.getControlFlowGraph();
+    LiveVariablesAnalysis liveness =
+        new LiveVariablesAnalysis(cfg, scope, compiler);
+    // If the function has exactly 2 params, mark them as escaped. This is
+    // a work-around for an IE bug where it throws an exception if you
+    // write to the parameters of the callback in a sort(). See:
+    // http://code.google.com/p/closure-compiler/issues/detail?id=58
+    if (scope.getRootNode().getFirstChild().getNext().getChildCount() == 2) {
+      liveness.markAllParametersEscaped();
+    }
+    liveness.analyze();
+
+    UndiGraph<Var, Void> interferenceGraph =
+        computeVariableNamesInterferenceGraph(
+            t, cfg, liveness.getEscapedLocals());
+
+    GraphColoring<Var, Void> coloring =
+        new GreedyGraphColoring<Var, Void>(interferenceGraph,
+            coloringTieBreaker);
+
+    coloring.color();
+    colorings.push(coloring);
+  }

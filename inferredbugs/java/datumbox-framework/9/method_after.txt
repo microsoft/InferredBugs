@@ -1,0 +1,26 @@
+    protected static void denormalizeX(Dataset data, Map<Object, Double> minColumnValues, Map<Object, Double> maxColumnValues) {
+        for(Integer rId : data) {
+            Record r = data.get(rId);
+            AssociativeArray xData = new AssociativeArray(r.getX());
+            
+            for(Object column : minColumnValues.keySet()) {
+                Double value = xData.getDouble(column);
+                if(value==null) { //if we have a missing value don't perform any denormalization
+                    continue;
+                }
+                
+                Double min = minColumnValues.get(column);
+                Double max = maxColumnValues.get(column);
+                
+                if(min.equals(max)) {
+                    xData.put(column, min);
+                }
+                else {
+                    xData.put(column, value*(max-min) + min);
+                }
+            }
+            
+            r = new Record(xData, r.getY(), r.getYPredicted(), r.getYPredictedProbabilities());
+            data.set(rId, r);
+        }
+    }

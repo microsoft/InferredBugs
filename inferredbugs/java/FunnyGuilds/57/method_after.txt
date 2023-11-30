@@ -1,0 +1,60 @@
+    @EventHandler
+    public void onDamage(EntityDamageByEntityEvent event) {
+        EntityUtils.getAttacker(event.getDamager()).peek(attacker -> {
+            PluginConfiguration config = FunnyGuilds.getInstance().getPluginConfiguration();
+            User attackerUser = User.get(attacker);
+            Entity victim = event.getEntity();
+
+            if (config.animalsProtection && (victim instanceof Animals || victim instanceof Villager)) {
+                RegionUtils.getAtOpt(victim.getLocation())
+                        .map(Region::getGuild)
+                        .filterNot(guild -> guild.equals(attackerUser.getGuild()))
+                        .peek(guild -> event.setCancelled(true));
+
+                return;
+            }
+
+            if (!(victim instanceof Player)) {
+                return;
+            }
+
+            User victimUser = User.get((Player) event.getEntity());
+
+            if (victimUser.hasGuild() && attackerUser.hasGuild()) {
+                if (victimUser.getUUID().equals(attackerUser.getUUID())) {
+                    return;
+                }
+
+                if (victimUser.getGuild().equals(attackerUser.getGuild())) {
+                    if (!victimUser.getGuild().getPvP()) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+
+                if (victimUser.getGuild().getAllies().contains(attackerUser.getGuild())) {
+                    if (!config.damageAlly) {
+                        event.setCancelled(true);
+                        return;
+                    }
+
+                    if (! (attackerUser.getGuild().getPvP(victimUser.getGuild()) && victimUser.getGuild().getPvP(attackerUser.getGuild()))) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+            }
+
+            if (attacker.equals(victim)) {
+                return;
+            }
+
+            if (config.assistEnable && !event.isCancelled()) {
+                if (PluginHook.isPresent(PluginHook.PLUGIN_WORLDGUARD) && PluginHook.WORLD_GUARD.isInIgnoredRegion(victim.getLocation())) {
+                    return;
+                }
+
+                victimUser.getCache().addDamage(attackerUser, event.getDamage());
+            }
+        });
+    }

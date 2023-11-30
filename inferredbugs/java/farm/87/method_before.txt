@@ -1,0 +1,23 @@
+    @Test
+    public void rechargeIsRequiredIfCashBalanceIsLessThanLocked()
+        throws Exception {
+        final Project project = new FkProject();
+        final String job = "gh:test/test#1";
+        new Wbs(project).bootstrap().add(job);
+        final PropsFarm farm = new PropsFarm();
+        new Orders(farm, project).bootstrap().assign(job, "perf", "0");
+        new Estimates(farm, project).bootstrap()
+            .update(job, new Cash.S("$100"));
+        new Ledger(farm, project).bootstrap().add(
+            new Ledger.Transaction(
+                new Cash.S("$10"),
+                "assets", "cash",
+                "income", "test",
+                "Recharge#required test"
+            )
+        );
+        MatcherAssert.assertThat(
+            new Recharge(new PropsFarm(), project).required(),
+            new IsEqual<>(true)
+        );
+    }

@@ -1,0 +1,48 @@
+    protected void manage(Architecture arch, String version) {
+        httpClient = new HttpClient(config());
+        try (HttpClient wdmHttpClient = httpClient) {
+            downloader = new Downloader(getDriverManagerType());
+            urlFilter = new UrlFilter();
+
+            boolean getLatest = isVersionLatest(version);
+            boolean cache = config().isForceCache();
+
+            if (getLatest) {
+                version = detectDriverVersionFromBrowser();
+            }
+
+            // Special case for Chromium snap packages
+            if (getDriverManagerType() == CHROMIUM && isSnap
+                    && ((ChromiumDriverManager) this).snapDriverExists()) {
+                return;
+            }
+
+            getLatest = isNullOrEmpty(version);
+
+            // Check latest version
+            if (getLatest && !config().isUseBetaVersions()) {
+                Optional<String> lastVersion = getLatestVersion();
+                getLatest = !lastVersion.isPresent();
+                if (!getLatest) {
+                    version = lastVersion.get();
+                }
+            }
+
+            String os = config().getOs();
+            log.trace("Managing {} arch={} version={} getLatest={} cache={}",
+                    getDriverName(), arch, version, getLatest, cache);
+
+            if (getLatest && latestVersion != null) {
+                log.debug("Latest version of {} is {} (recently resolved)",
+                        getDriverName(), latestVersion);
+                version = latestVersion;
+                cache = true;
+            }
+
+            // Manage driver
+            downloadAndExport(arch, version, getLatest, cache, os);
+
+        } catch (Exception e) {
+            handleException(e, arch, version);
+        }
+    }

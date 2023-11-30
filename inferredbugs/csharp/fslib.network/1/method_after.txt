@@ -1,0 +1,73 @@
+  public HttpContext<TResult> Create<TResult>(
+			string method,
+			Uri uri,
+			string refer = null,
+			object data = null,
+			TResult result = default,
+			string saveToFile = null,
+			EventHandler<ResponseStreamContent.RequireProcessStreamEventArgs> streamInvoker = null,
+			bool async = false,
+			bool? isXhr = null,
+			Dictionary<string, object> contextData = null,
+			WebHeaderCollection headers = null,
+			ContentType? contentType = null,
+			bool? allowAutoRedirect = null,
+			Stream targetStream = null
+			) where TResult : class
+		{
+			if (string.IsNullOrEmpty(method))
+				throw new ArgumentException($"{nameof(method)} is null or empty.", nameof(method));
+			if (uri == null)
+				throw new ArgumentNullException(nameof(uri), $"{nameof(uri)} is null.");
+
+			var resultType = typeof(TResult);
+			if (resultType == typeof(object))
+			{
+				throw new InvalidOperationException("context type cannot be object.");
+			}
+
+			contextData ??= new Dictionary<string, object>();
+			method = method.ToUpper();
+
+			if (streamInvoker != null && typeof(Stream) == resultType)
+				throw new InvalidOperationException("非流结果时不可设置流操作");
+
+			var referUri = Setting.ResolveReferUri ? ResolveUri(HttpRequestHeader.Referer, refer, contextData) : null;
+			var request = new HttpRequestMessage(uri, method)
+			{
+				Referer = referUri?.OriginalString ?? refer,
+				ContentType = contentType,
+				SaveToFile = saveToFile,
+				CopyToStream = targetStream,
+				//自动设置格式
+				ExceptType = resultType,
+				ExceptObject = result,
+				streamDataHandler = streamInvoker
+			};
+			if (data != null)
+			{
+				request.RequestPayload = data;
+			}
+			else if (request.AllowRequestBody)
+			{
+				request.RequestData = new byte[0];
+			}
+			request.Async = async;
+
+			var ctx = HttpHandler.GetContext<TResult>(this, request);
+			Setting.InitializeHttpContext(ctx);
+
+			if (isXhr != null)
+				request.AppendAjaxHeader = isXhr.Value;
+			ctx.ContextData = contextData;
+			if (headers?.Count > 0)
+			{
+				if (request.Headers == null)
+					request.Headers = headers;
+				else
+					headers.CopyTo(request.Headers);
+			}
+			request.AllowAutoRedirect = allowAutoRedirect ?? Setting.AllowAutoDirect;
+
+			return ctx;
+		}

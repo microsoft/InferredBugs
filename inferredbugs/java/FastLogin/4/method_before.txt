@@ -1,0 +1,19 @@
+    @Override
+    public void run() {
+        try {
+            BukkitLoginSession session = plugin.getLoginSessions().get(player.getAddress().toString());
+            if (session == null) {
+                disconnect("invalid-request", true
+                        , "GameProfile {0} tried to send encryption response at invalid state", player.getAddress());
+            } else {
+                verifyResponse(session);
+            }
+        } finally {
+            //this is a fake packet; it shouldn't be send to the server
+            synchronized (packetEvent.getAsyncMarker().getProcessingLock()) {
+                packetEvent.setCancelled(true);
+            }
+
+            ProtocolLibrary.getProtocolManager().getAsynchronousManager().signalPacketTransmission(packetEvent);
+        }
+    }

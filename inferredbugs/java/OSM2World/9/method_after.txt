@@ -1,0 +1,48 @@
+ public static int createVertexShader(GL3 gl, String filename) {
+
+		// get the unique id
+		int vertShader = gl.glCreateShader(GL3.GL_VERTEX_SHADER);
+		if (vertShader == 0)
+			throw new RuntimeException("Unable to create vertex shader.");
+
+		// create a single String array index to hold the shader code
+		String[] vertCode = new String[1];
+		vertCode[0] = "";
+		String line;
+
+		// open the file and read the contents into the String array.
+		InputStream stream = loadShaderFile(filename);
+		if (stream == null) {
+			throw new RuntimeException("Vertex shader not found in classpath: \""+ filename +"\"");
+		}
+
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+
+			while ((line = reader.readLine()) != null) {
+				vertCode[0] += line + "\n";
+			}
+
+			// Associate the code string with the unique id
+			gl.glShaderSource(vertShader, 1, vertCode, null);
+			// compile the vertex shader
+			gl.glCompileShader(vertShader);
+
+			// acquire compilation status
+			IntBuffer shaderStatus = IntBuffer.allocate(1);
+			gl.glGetShaderiv(vertShader, GL3.GL_COMPILE_STATUS, shaderStatus);
+
+			// check whether compilation was successful
+			if (shaderStatus.get() == GL.GL_FALSE) {
+				printShaderInfoLog(gl, vertShader);
+				throw new IllegalStateException("compilation error for shader [" + filename + "].");
+			}
+			printShaderInfoLog(gl, vertShader);
+
+			// the int returned is now associated with the compiled shader
+			return vertShader;
+
+		} catch (IOException e) {
+			throw new RuntimeException("Failed reading vertex shader \"" + filename + "\".",e);
+		}
+
+	}

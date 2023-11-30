@@ -1,0 +1,30 @@
+    @Test
+    public void testWithoutZookeeper() throws Exception {
+        LedgerManagerFactory newLedgerManagerFactory = LedgerManagerFactory
+                .newLedgerManagerFactory(baseConf, zkc);
+        LedgerManager ledgerManager = newLedgerManagerFactory
+                .newLedgerManager();
+
+        List<Long> ledgerList = new ArrayList<Long>(3);
+        LedgerHandle lh = createAndAddEntriesToLedger();
+        lh.close();
+        ledgerList.add(lh.getId());
+
+        lh = createAndAddEntriesToLedger();
+        lh.close();
+        ledgerList.add(lh.getId());
+
+        lh = createAndAddEntriesToLedger();
+        lh.close();
+        ledgerList.add(lh.getId());
+
+        BookieLedgerIndexer bookieLedgerIndex = new BookieLedgerIndexer(
+                ledgerManager);
+        stopZKCluster();
+        try {
+            bookieLedgerIndex.getBookieToLedgerIndex();
+            fail("Must throw exception as bookies are not running!");
+        } catch (BKAuditException bkAuditException) {
+            // expected behaviour
+        }
+    }

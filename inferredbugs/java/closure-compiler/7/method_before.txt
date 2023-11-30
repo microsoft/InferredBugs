@@ -1,0 +1,35 @@
+  FunctionTypeBuilder inferThisType(JSDocInfo info,
+      @Nullable Node owner) {
+    ObjectType maybeThisType = null;
+    if (info != null && info.hasThisType()) {
+      maybeThisType = ObjectType.cast(
+          info.getThisType().evaluate(scope, typeRegistry));
+    }
+    if (maybeThisType != null) {
+      // TODO(user): Doing an instanceof check here is too
+      // restrictive as (Date,Error) is, for instance, an object type
+      // even though its implementation is a UnionType. Would need to
+      // create interfaces JSType, ObjectType, FunctionType etc and have
+      // separate implementation instead of the class hierarchy, so that
+      // union types can also be object types, etc.
+      thisType = maybeThisType;
+    } else if (owner != null &&
+               (info == null || !info.hasType())) {
+      // If the function is of the form:
+      // x.prototype.y = function() {}
+      // then we can assume "x" is the @this type. On the other hand,
+      // if it's of the form:
+      // /** @type {Function} */ x.prototype.y;
+      // then we should not give it a @this type.
+      String ownerTypeName = owner.getQualifiedName();
+      ObjectType ownerType = ObjectType.cast(
+          typeRegistry.getType(
+              scope, ownerTypeName, sourceName,
+              owner.getLineno(), owner.getCharno()));
+      if (ownerType != null) {
+        thisType = ownerType;
+      }
+    }
+
+    return this;
+  }

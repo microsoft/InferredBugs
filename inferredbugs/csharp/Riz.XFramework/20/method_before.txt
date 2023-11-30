@@ -1,0 +1,29 @@
+        private static int GetFieldCount(Expression node)
+        {
+            int num = 0;
+
+            switch (node.NodeType)
+            {
+                case ExpressionType.MemberInit:
+                    MemberInitExpression m = node as MemberInitExpression;
+                    foreach (var exp in m.NewExpression.Arguments) num += _typeFieldAggregator(exp);
+                    foreach (MemberAssignment ma in m.Bindings) num += _primitiveAggregator((ma.Member as System.Reflection.PropertyInfo).PropertyType);
+
+                    break;
+
+                case ExpressionType.MemberAccess:
+                    MemberExpression m1 = node as MemberExpression;
+                    num += _typeFieldAggregator(m1);
+
+                    break;
+
+                case ExpressionType.New:
+                    NewExpression m2 = node as NewExpression;
+                    foreach (var exp in m2.Arguments) num += _typeFieldAggregator(exp);
+                    if (m2.Members != null) foreach (var member in m2.Members) num += _primitiveAggregator((member as System.Reflection.PropertyInfo).PropertyType);
+
+                    break;
+            }
+
+            return num;
+        }

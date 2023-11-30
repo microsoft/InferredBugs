@@ -1,0 +1,24 @@
+        public static void SetUp(Func<RemoteWebDriver> driverFactory = null, ILogManager log = null, string testName = null, string baseUrl = null)
+        {
+            if (baseUrl != null && !Uri.IsWellFormedUriString(baseUrl, UriKind.Absolute))
+                throw new ArgumentException("Invalid URL format \"{0}\".".FormatWith(baseUrl), nameof(baseUrl));
+
+            InitGlobalVariables();
+
+            Current = new ATContext
+            {
+                TemporarilyPreservedPageObjectList = new List<UIComponent>(),
+                Log = log ?? new LogManager().Use(new DebugLogConsumer()),
+                TestName = testName,
+                TestStart = DateTime.Now,
+                BaseUrl = baseUrl
+            };
+
+            Current.LogTestStart();
+
+            Current.Log.Start("Init WebDriver");
+            Current.Driver = driverFactory != null ? driverFactory() : new FirefoxDriver();
+            Current.Log.EndSection();
+
+            Current.CleanExecutionStartDateTime = DateTime.Now;
+        }

@@ -1,0 +1,103 @@
+    int estimatePruningRecursive(IntVar xVar, Integer v, List<IntVar> exploredX, List<Integer> exploredV) {
+
+        if (exploredX.contains(xVar))
+            return 0;
+
+        exploredX.add(xVar);
+        exploredV.add(v);
+
+        int pruning = 0;
+
+        IntDomain xDom = xVar.dom();
+        pruning = xDom.getSize() - 1;
+
+        TimeStamp<Integer> stamp = null;
+        SimpleArrayList<IntVar> currentSimpleArrayList = null;
+        ValueEnumeration enumer = xDom.valueEnumeration();
+
+        // Permutation only
+        if (stampValues.value() - stampNotGroundedVariables.value() == 1)
+            for (int i = enumer.nextElement(); enumer.hasMoreElements(); i = enumer.nextElement()) {
+                if (!exploredV.contains(i)) {
+                    Integer iInteger = i;
+
+                    stamp = stamps.get(iInteger);
+
+                    int lastPosition = stamp.value();
+
+                    // lastPosition == 0 means one variable, so check if there
+                    // is atmost one variable for value
+                    if (lastPosition < exploredX.size() + 1) {
+
+                        currentSimpleArrayList = valueMapVariable.get(iInteger);
+
+                        IntVar singleVar = null;
+                        boolean single = true;
+
+                        for (int m = 0; m <= lastPosition; m++)
+                            if (!exploredX.contains(currentSimpleArrayList.get(m)))
+                                if (singleVar == null)
+                                    singleVar = currentSimpleArrayList.get(m);
+                                else
+                                    single = false;
+
+                        if (single && singleVar == null) {
+                            System.out.println(this);
+                            System.out.println("StampValues - 1 " + (stampValues.value() - 1));
+                            System.out.println("Not grounded Var " + stampNotGroundedVariables.value());
+
+                            int lastNotGroundedVariable = stampNotGroundedVariables.value();
+                            Var variable = null;
+
+                            for (int l = 0; l <= lastNotGroundedVariable; l++) {
+                                variable = list[l];
+                                System.out.println("Stamp for " + variable + " " + sccStamp.get(variable).value());
+                                System.out.println("Matching " + matching.get(variable).value());
+
+                            }
+                        }
+
+                        if (single && singleVar != null)
+                            pruning += estimatePruningRecursive(singleVar, iInteger, exploredX, exploredV);
+
+                        singleVar = null;
+                    }
+                    iInteger = null;
+
+                }
+            }
+
+        enumer = null;
+        stamp = stamps.get(v);
+        currentSimpleArrayList = valueMapVariable.get(v);
+
+        int lastPosition = stamp.value();
+
+        for (int i = 0; i <= lastPosition; i++) {
+            IntVar variable = currentSimpleArrayList.get(i);
+
+            // checks if there is at most one value for variable
+            if (!exploredX.contains(variable) && variable.dom().getSize() < exploredV.size() + 2) {
+
+                boolean single = true;
+                Integer singleVal = null;
+
+                for (ValueEnumeration enumerX = variable.dom().valueEnumeration(); enumerX.hasMoreElements(); ) {
+                    Integer next = enumerX.nextElement();
+
+                    if (!exploredV.contains(next))
+                        if (singleVal == null)
+                            singleVal = next;
+                        else
+                            single = false;
+                }
+
+                if (single)
+                    pruning += estimatePruningRecursive(variable, singleVal, exploredX, exploredV);
+            }
+
+        }
+
+        stamp = null;
+        return pruning;
+    }

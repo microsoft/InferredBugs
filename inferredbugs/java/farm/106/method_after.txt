@@ -1,0 +1,23 @@
+    @Loggable
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
+    public static void main(final String... args) throws IOException {
+        final Props props = new Props();
+        if (props.has("//testing")) {
+            throw new IllegalStateException(
+                "Hey, we are in the testing mode!"
+            );
+        }
+        final long start = System.currentTimeMillis();
+        try {
+            new Main(args).exec();
+        } catch (final Throwable ex) {
+            new SafeSentry(new PropsFarm()).capture(ex);
+            Logger.error(Main.class, "The main app crashed: %[exception]s", ex);
+            throw new IOException(ex);
+        } finally {
+            Logger.info(
+                Main.class, "Finished after %[ms]s of activity",
+                System.currentTimeMillis() - start
+            );
+        }
+    }

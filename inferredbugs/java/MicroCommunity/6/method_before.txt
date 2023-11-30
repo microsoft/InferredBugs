@@ -1,0 +1,70 @@
+    private ResponseEntity<String> savedParkingSpaceInfo(IPageData pd, List<ImportParkingSpace> parkingSpaces, ComponentValidateResult result) {
+        String apiUrl = "";
+        JSONObject paramIn = null;
+        ResponseEntity<String> responseEntity = new ResponseEntity<String>("成功",HttpStatus.OK);
+        ImportOwner owner = null;
+        for (ImportParkingSpace parkingSpace : parkingSpaces) {
+            JSONObject savedParkingSpaceInfo = getExistsParkSpace(pd, result, parkingSpace);
+            if (savedParkingSpaceInfo != null) {
+                continue;
+            }
+
+            paramIn = new JSONObject();
+
+            apiUrl = ServiceConstant.SERVICE_API_URL + "/api/parkingSpace.saveParkingSpace";
+
+            paramIn.put("communityId", result.getCommunityId());
+            paramIn.put("userId", result.getUserId());
+            paramIn.put("num", parkingSpace.getPsNum());
+            paramIn.put("area", parkingSpace.getArea());
+            paramIn.put("typeCd", parkingSpace.getTypeCd());
+
+            responseEntity = this.callCenterService(restTemplate, pd, paramIn.toJSONString(), apiUrl, HttpMethod.POST);
+            if (responseEntity.getStatusCode() != HttpStatus.OK) {
+                continue;
+            }
+
+            savedParkingSpaceInfo = getExistsParkSpace(pd, result, parkingSpace);
+            if (savedParkingSpaceInfo != null) {
+                continue;
+            }
+
+            //是否有业主信息
+            if (parkingSpace.getImportOwner() == null) {
+                continue;
+            }
+
+            paramIn.clear();
+
+            paramIn.put("communityId", result.getCommunityId());
+            paramIn.put("ownerId", parkingSpace.getImportOwner().getOwnerId());
+            paramIn.put("carNum", parkingSpace.getCarNum());
+            paramIn.put("carBrand", parkingSpace.getCarBrand());
+            paramIn.put("carType", parkingSpace.getCarType());
+            paramIn.put("carColor", parkingSpace.getCarColor());
+            paramIn.put("psId", savedParkingSpaceInfo.getString("psId"));
+            paramIn.put("storeId", result.getStoreId());
+            paramIn.put("sellOrHire", parkingSpace.getSellOrHire());
+
+            String feeTypeCd = "1001".equals(parkingSpace.getTypeCd())
+                    ? FeeTypeConstant.FEE_TYPE_SELL_UP_PARKING_SPACE : FeeTypeConstant.FEE_TYPE_SELL_DOWN_PARKING_SPACE;
+            apiUrl = ServiceConstant.SERVICE_API_URL + "/api/fee.queryFeeConfig?communityId=" + result.getCommunityId() + "&feeTypeCd=" + feeTypeCd;
+            responseEntity = this.callCenterService(restTemplate, pd, "", apiUrl, HttpMethod.GET);
+
+            if (responseEntity.getStatusCode() != HttpStatus.OK) {
+                continue;
+            }
+
+            JSONObject configInfo = JSONObject.parseObject(responseEntity.getBody());
+            if(!configInfo.containsKey("additionalAmount")){
+                continue;
+            }
+
+            paramIn.put("receivedAmount", configInfo.getString("additionalAmount"));
+
+            apiUrl = ServiceConstant.SERVICE_API_URL + "/api/parkingSpace.sellParkingSpace";
+            responseEntity = this.callCenterService(restTemplate, pd, paramIn.toJSONString(), apiUrl, HttpMethod.POST);
+        }
+
+        return responseEntity;
+    }

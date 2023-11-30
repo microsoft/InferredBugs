@@ -1,0 +1,48 @@
+    public static void main(String... args) throws IOException, InterruptedException {
+        boolean toggleTo = Boolean.parseBoolean(args[0]);
+        File tmpFile = new File(System.getProperty("java.io.tmpdir"), "lock-test.dat");
+        FileChannel fc = new RandomAccessFile(tmpFile, "rw").getChannel();
+        MappedByteBuffer mbb = fc.map(FileChannel.MapMode.READ_WRITE, 0, RECORDS * RECORD_SIZE);
+        ByteBufferBytes bytes = new ByteBufferBytes(mbb);
+
+        long start = 0;
+        for (int i = -WARMUP / RECORDS; i < (RUNS + RECORDS - 1) / RECORDS; i++) {
+            if (i == 0) {
+                start = System.nanoTime();
+                System.out.println("Started");
+            }
+
+            for (int j = 0; j < RECORDS; j++) {
+                int recordOffset = j * RECORD_SIZE;
+                for (int t = 9999; t >= 0; t--) {
+                    if (t == 0)
+                        if (i >= 0) {
+                            throw new AssertionError("Didn't toggle in time !??");
+                        } else {
+                            System.out.println("waiting");
+                            t = 9999;
+                            Thread.sleep(200);
+                        }
+                    bytes.busyLockLong(recordOffset + LOCK);
+                    try {
+                        boolean flag = bytes.readBoolean(recordOffset + FLAG);
+                        if (flag == toggleTo) {
+                            if (t % 100 == 0)
+                                System.out.println("j: " + j + " is " + flag);
+                            continue;
+                        }
+                        bytes.writeBoolean(recordOffset + FLAG, toggleTo);
+                        break;
+                    } finally {
+                        bytes.unlockLong(recordOffset + LOCK);
+                    }
+                }
+            }
+        }
+        long time = System.nanoTime() - start;
+        final int toggles = (RUNS + RECORDS - 1) / RECORDS * RECORDS * 2; // one for each of two processes.
+        System.out.printf("Toogled %,d times with an average delay of %,d ns%n",
+                toggles, time / toggles);
+        fc.close();
+        tmpFile.deleteOnExit();
+    }

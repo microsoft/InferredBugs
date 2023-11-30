@@ -1,0 +1,73 @@
+  public void locateMain(final String cmd) 
+  throws IOException {
+
+    GetOpts g = new GetOpts(cmd, "chl:V:", 1);
+    char version = (char) -1;
+    int limit = -1;
+    // get all Options
+    int ch = g.getopt();
+    while (ch != -1) {
+      switch (ch) {
+        case 'c':
+          //Suppress normal output; instead print a 
+          //count of matching file names.
+          cFlag = true;
+          break;
+        case 'h':
+          printHelp();
+          fAccomplished = true;
+          break;
+
+        case 'l':
+          // Limit output to number of file names and exit.
+          limit = Integer.parseInt(g.getOptarg());
+          lFlag = true;
+          break;          
+        case 'V':
+          version = g.getOptarg().charAt(0);
+          break;          
+        case ':':         
+          fError = true;
+          out.print("ls: missing argument");
+          break;  
+        case '?':         
+          fError = true;
+          out.print("ls: illegal option");
+          break;
+      }      
+      if(fError || fAccomplished) {
+        // more options ?
+        return;
+      }
+      ch = g.getopt();
+    }
+    fileToFind = g.getPath();
+    fileToFindByte = Token.token(fileToFind);
+    
+    if(fileToFind == null) {
+      out.print("usage: locate  [-l limit] [-c] [-h] -V 1 ...");
+      out.print(NL);
+    }
+
+    // Version -  1 = use table
+    //            2 = use xquery
+    //            3 = use xquery + index
+    switch (version) {
+      case '1':
+        locateTable(FSUtils.getROOTDIR(), limit);
+        break;
+      case '2':
+        locateXQuery(limit);
+        break;
+      case '3':
+        out.print("Not yet implemented");
+        break;
+      default:
+        locateXQuery(limit);
+      break;        
+    }
+
+    if(cFlag) {
+      printCount();
+    }
+  }

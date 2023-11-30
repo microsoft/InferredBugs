@@ -1,0 +1,28 @@
+  @Override
+  public Status scan(String table, String startkey, int recordcount, Set<String> fields,
+                     Vector<HashMap<String, ByteIterator>> result) {
+    List<Document> documents;
+    FeedResponse<Document> feedResponse = null;
+    try {
+      feedResponse = AzureCosmosClient.client.queryDocuments(getDocumentCollectionLink(this.databaseName, table),
+            new SqlQuerySpec(queryText,
+                    new SqlParameterCollection(new SqlParameter("@recordcount", recordcount),
+                            new SqlParameter("@startkey", startkey))),
+            getFeedOptions(startkey));
+      documents = feedResponse.getQueryIterable().toList();
+    } catch (Exception e) {
+      if (!this.includeExceptionStackInLog) {
+        e = null;
+      }
+      LOGGER.error("Failed to scan with startKey={}, recordCount={}", startkey, recordcount, e);
+      return Status.ERROR;
+    }
+
+    if (documents != null) {
+      for (Document document : documents) {
+        result.add(this.extractResult(document));
+      }
+    }
+
+    return Status.OK;
+  }

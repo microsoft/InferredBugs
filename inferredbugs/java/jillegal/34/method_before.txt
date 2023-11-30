@@ -1,0 +1,42 @@
+ protected long allocateStringFromOffHeap(String str) {
+		long addressOfStr = JvmUtil.addressOf(str);
+		char[] valueArray = (char[]) directMemoryService.getObject(str, valueArrayOffsetInString);
+		int valueArraySize = charArrayIndexStartOffset + (charArrayIndexScale * valueArray.length);
+		int strSize = stringSize + valueArraySize + JvmUtil.getAddressSize(); // Extra memory for possible aligning
+		
+		long addressMod1 = currentAddress % JvmUtil.getAddressSize();
+		if (addressMod1 != 0) {
+			currentAddress += (JvmUtil.getAddressSize() - addressMod1);
+		}
+		
+		if (currentAddress + strSize > allocationEndAddress) {
+			return 0;
+		}
+		
+		// Copy string object content to allocated area
+		directMemoryService.copyMemory(addressOfStr, currentAddress, strSize);
+		
+		long valueAddress = currentAddress + stringSize;
+		long addressMod2 = valueAddress % JvmUtil.getAddressSize();
+		if (addressMod2 != 0) {
+			valueAddress += (JvmUtil.getAddressSize() - addressMod2);
+		}
+		
+		// Copy value array in allocated string to allocated char array
+		directMemoryService.copyMemory(
+				JvmUtil.toNativeAddress(
+						directMemoryService.getAddress(addressOfStr + valueArrayOffsetInString)),
+				valueAddress, 
+				valueArraySize);
+
+		// Now, value array in allocated string points to allocated char array
+		directMemoryService.putAddress(
+				currentAddress + valueArrayOffsetInString, 
+				JvmUtil.toJvmAddress(valueAddress));
+		
+		long allocatedStrAddress = currentAddress;
+
+		currentAddress += strSize;
+		
+		return allocatedStrAddress;
+	}

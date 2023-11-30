@@ -1,0 +1,45 @@
+    public DeviceNotification deviceSave(DeviceUpdate deviceUpdate,
+                                         Set<Equipment> equipmentSet) {
+        Network network = networkService.createOrVeriryNetwork(deviceUpdate.getNetwork());
+        DeviceClass deviceClass = deviceClassService
+            .createOrUpdateDeviceClass(deviceUpdate.getDeviceClass(), equipmentSet);
+        Device existingDevice = deviceDAO.findByUUIDWithNetworkAndDeviceClass(deviceUpdate.getGuid().getValue());
+
+        if (existingDevice == null) {
+            Device device = deviceUpdate.convertTo();
+            if (deviceClass != null) {
+                device.setDeviceClass(deviceClass);
+            }
+            if (network != null) {
+                device.setNetwork(network);
+            }
+            existingDevice = deviceDAO.createDevice(device);
+            final DeviceNotification addDeviceNotification = ServerResponsesFactory.createNotificationForDevice
+                (existingDevice,
+                 SpecialNotifications.DEVICE_ADD);
+            deviceNotificationService.submitDeviceNotification(addDeviceNotification, existingDevice.getGuid());
+            return addDeviceNotification;
+        } else {
+            if (deviceUpdate.getKey() == null || !existingDevice.getKey().equals(deviceUpdate.getKey().getValue())) {
+                LOGGER.error("Device update key is null or doesn't equal to the authenticated device key {}", existingDevice.getKey());
+                throw new HiveException(Messages.INCORRECT_CREDENTIALS, UNAUTHORIZED.getStatusCode());
+            }
+            if (deviceUpdate.getDeviceClass() != null) {
+                existingDevice.setDeviceClass(deviceClass);
+            }
+            if (deviceUpdate.getStatus() != null) {
+                existingDevice.setStatus(deviceUpdate.getStatus().getValue());
+            }
+            if (deviceUpdate.getData() != null) {
+                existingDevice.setData(deviceUpdate.getData().getValue());
+            }
+            if (deviceUpdate.getNetwork() != null) {
+                existingDevice.setNetwork(network);
+            }
+            final DeviceNotification addDeviceNotification = ServerResponsesFactory.createNotificationForDevice
+                (existingDevice,
+                 SpecialNotifications.DEVICE_UPDATE);
+            deviceNotificationService.submitDeviceNotification(addDeviceNotification, existingDevice.getGuid());
+            return addDeviceNotification;
+        }
+    }

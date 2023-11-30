@@ -1,0 +1,28 @@
+    @Test
+    public void rendersHomePage() throws Exception {
+        final Farm farm = new PropsFarm(new FkFarm());
+        final String uid = "yegor256";
+        final People people = new People(farm).bootstrap();
+        people.touch(uid);
+        people.invite(uid, "mentor");
+        new Awards(farm, uid).bootstrap().add(1, "gh:test/test#1", "reason");
+        new Agenda(farm, uid).bootstrap().add("gh:test/test#2", "QA");
+        final String pid = "9A0007788";
+        new Projects(farm, uid).bootstrap().add(pid);
+        new Catalog(farm).bootstrap().add(pid, "2018/01/9A0007788/");
+        final Take take = new TkApp(farm);
+        MatcherAssert.assertThat(
+            XhtmlMatchers.xhtml(
+                new RsPrint(
+                    take.act(
+                        new RqWithHeaders(
+                            new RqFake("GET", "/u/Yegor256"),
+                            // @checkstyle LineLength (1 line)
+                            "Cookie: PsCookie=0975A5A5-F6DB193E-AF18000A-75726E3A-74657374-3A310005-6C6F6769-6E000879-65676F72-323536AE"
+                        )
+                    )
+                ).printBody()
+            ),
+            XhtmlMatchers.hasXPaths("//xhtml:body")
+        );
+    }

@@ -1,0 +1,23 @@
+    @Procedure(mode = Mode.READ)
+    public Stream<StreamedStatement> streamRDF(@Name("url") String url, @Name("format") String format,
+                                               @Name("props") Map<String, Object> props) {
+
+        StatementStreamer statementStreamer = new StatementStreamer();
+        try {
+
+            InputStream inputStream = getInputStream(url, props);
+            RDFFormat rdfFormat = getFormat(format);
+            log.info("Data set to be parsed as " + rdfFormat);
+            RDFParser rdfParser = Rio.createParser(rdfFormat);
+            rdfParser.setRDFHandler(statementStreamer);
+            rdfParser.parse(inputStream, "http://neo4j.com/base/");
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (IOException | RDFHandlerException | QueryExecutionException | RDFParseException | RDFImportPreRequisitesNotMet e) {
+            e.printStackTrace();
+        }
+
+        return statementStreamer.getStatements().stream();
+
+
+    }

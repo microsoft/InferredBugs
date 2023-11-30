@@ -1,0 +1,81 @@
+  private void InitializeServerContext(
+			X509Certificate serverCertificate,
+			bool clientCertificateRequired,
+			X509Chain caCerts,
+			SslProtocols enabledSslProtocols,
+			SslStrength sslStrength,
+			bool checkCertificateRevocation)
+		{
+			if (serverCertificate == null)
+			{
+				throw new ArgumentNullException("serverCertificate", "Server certificate cannot be null");
+			}
+			if (!serverCertificate.HasPrivateKey)
+			{
+				throw new ArgumentException("Server certificate must have a private key", "serverCertificate");
+			}
+
+			// Initialize the context with specified TLS version
+			sslContext = new SslContext(SslMethod.TLSv12_server_method, ConnectionEnd.Server, new[] {
+				Protocols.Http2,
+				Protocols.Http1
+			});
+            
+			// Remove support for protocols not specified in the enabledSslProtocols
+			if ((enabledSslProtocols & SslProtocols.Ssl2) != SslProtocols.Ssl2)
+			{
+				sslContext.Options |= SslOptions.SSL_OP_NO_SSLv2;
+			}
+			if ((enabledSslProtocols & SslProtocols.Ssl3) != SslProtocols.Ssl3 &&
+			    ((enabledSslProtocols & SslProtocols.Default) != SslProtocols.Default))
+			{
+				// no SSLv3 support
+				sslContext.Options |= SslOptions.SSL_OP_NO_SSLv3;
+			}
+			if ((enabledSslProtocols & SslProtocols.Tls) != SslProtocols.Tls &&
+			    (enabledSslProtocols & SslProtocols.Default) != SslProtocols.Default)
+			{
+				sslContext.Options |= SslOptions.SSL_OP_NO_TLSv1;
+			}
+
+			// Set the context mode
+			sslContext.Mode = SslMode.SSL_MODE_AUTO_RETRY;
+			// Set the workaround options
+			sslContext.Options = SslOptions.SSL_OP_ALL;
+			// Set the client certificate verification callback if we are requiring client certs
+			if (clientCertificateRequired)
+			{
+				sslContext.SetVerify(VerifyMode.SSL_VERIFY_PEER | VerifyMode.SSL_VERIFY_FAIL_IF_NO_PEER_CERT, OnRemoteCertificate);
+			}
+			else
+			{
+				sslContext.SetVerify(VerifyMode.SSL_VERIFY_NONE, null);
+			}
+
+			// Set the client certificate max verification depth
+			sslContext.SetVerifyDepth(10);
+			// Set the certificate store and ca list
+			if (caCerts != null)
+			{
+				// Don't take ownership of the X509Store IntPtr.  When we
+				// SetCertificateStore, the context takes ownership of the store pointer.
+				var cert_store = new X509Store(caCerts, false);
+				sslContext.SetCertificateStore(cert_store);
+				var name_stack = new Core.Stack<X509Name>();
+				foreach (var cert in caCerts)
+				{
+					var subject = cert.Subject;
+					name_stack.Add(subject);
+				}
+				// Assign the stack to the context
+				sslContext.CAList = name_stack;
+			}
+			// Set the cipher string
+			sslContext.SetCipherList(GetCipherString(false, enabledSslProtocols, sslStrength));
+			// Set the certificate
+			sslContext.UseCertificate(serverCertificate);
+			// Set the private key
+			sslContext.UsePrivateKey(serverCertificate.PrivateKey);
+			// Set the session id context
+			sslContext.SetSessionIdContext(Encoding.ASCII.GetBytes(AppDomain.CurrentDomain.FriendlyName));
+		}

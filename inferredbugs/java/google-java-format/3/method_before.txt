@@ -1,0 +1,31 @@
+  private static boolean isUnused(
+      JCCompilationUnit unit,
+      Set<String> usedNames,
+      Multimap<String, Range<Integer>> usedInJavadoc,
+      JCImport importTree,
+      String simpleName) {
+    String qualifier =
+        importTree.getQualifiedIdentifier() instanceof JCFieldAccess
+            ? ((JCFieldAccess) importTree.getQualifiedIdentifier()).getExpression().toString()
+            : null;
+    if (qualifier.equals("java.lang")) {
+      return true;
+    }
+    if (unit.getPackageName() != null && unit.getPackageName().toString().equals(qualifier)) {
+      return true;
+    }
+    if (importTree.getQualifiedIdentifier() instanceof JCFieldAccess
+        && ((JCFieldAccess) importTree.getQualifiedIdentifier())
+            .getIdentifier()
+            .contentEquals("*")) {
+      return false;
+    }
+
+    if (usedNames.contains(simpleName)) {
+      return false;
+    }
+    if (usedInJavadoc.containsKey(simpleName)) {
+      return false;
+    }
+    return true;
+  }

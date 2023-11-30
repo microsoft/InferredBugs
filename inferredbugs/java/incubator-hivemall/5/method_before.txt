@@ -1,0 +1,57 @@
+    private long loadPredictionModel(Map<Object, PredictionModel> label2model, File file, PrimitiveObjectInspector labelOI, PrimitiveObjectInspector featureOI, WritableFloatObjectInspector weightOI, WritableFloatObjectInspector covarOI)
+            throws IOException, SerDeException {
+        long count = 0L;
+        if(!file.exists()) {
+            return count;
+        }
+        if(!file.getName().endsWith(".crc")) {
+            if(file.isDirectory()) {
+                for(File f : file.listFiles()) {
+                    count += loadPredictionModel(label2model, f, labelOI, featureOI, weightOI, covarOI);
+                }
+            } else {
+                LazySimpleSerDe serde = HiveUtils.getLineSerde(labelOI, featureOI, weightOI, covarOI);
+                StructObjectInspector lineOI = (StructObjectInspector) serde.getObjectInspector();
+                StructField c1ref = lineOI.getStructFieldRef("c1");
+                StructField c2ref = lineOI.getStructFieldRef("c2");
+                StructField c3ref = lineOI.getStructFieldRef("c3");
+                StructField c4ref = lineOI.getStructFieldRef("c4");
+                PrimitiveObjectInspector c1refOI = (PrimitiveObjectInspector) c1ref.getFieldObjectInspector();
+                PrimitiveObjectInspector c2refOI = (PrimitiveObjectInspector) c2ref.getFieldObjectInspector();
+                FloatObjectInspector c3refOI = (FloatObjectInspector) c3ref.getFieldObjectInspector();
+                FloatObjectInspector c4refOI = (FloatObjectInspector) c4ref.getFieldObjectInspector();
+
+                final BufferedReader reader = HadoopUtils.getBufferedReader(file);
+                try {
+                    String line;
+                    while((line = reader.readLine()) != null) {
+                        count++;
+                        Text lineText = new Text(line);
+                        Object lineObj = serde.deserialize(lineText);
+                        List<Object> fields = lineOI.getStructFieldsDataAsList(lineObj);
+                        Object f0 = fields.get(0);
+                        Object f1 = fields.get(1);
+                        Object f2 = fields.get(2);
+                        Object f3 = fields.get(3);
+                        if(f0 == null || f1 == null || f2 == null) {
+                            continue; // avoid unexpected case
+                        }
+                        Object label = c1refOI.getPrimitiveWritableObject(c1refOI.copyObject(f0));
+                        PredictionModel model = label2model.get(label);
+                        if(model == null) {
+                            model = createModel();
+                            label2model.put(label, model);
+                        }
+                        Object k = c2refOI.getPrimitiveWritableObject(c2refOI.copyObject(f1));
+                        float v = c3refOI.get(f2);
+                        float cov = (f3 == null) ? WeightValueWithCovar.DEFAULT_COVAR
+                                : c4refOI.get(f3);
+                        model.set(k, new WeightValueWithCovar(v, cov, false));
+                    }
+                } finally {
+                    reader.close();
+                }
+            }
+        }
+        return count;
+    }

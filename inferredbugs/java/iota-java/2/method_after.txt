@@ -1,0 +1,28 @@
+    public GetTransferResponse getTransfers(String seed, Integer start, Integer end, Boolean inclusionStates) throws ArgumentException, InvalidBundleException, InvalidSignatureException {
+        // validate & if needed pad seed
+        if ( (seed = InputValidator.validateSeed(seed)) == null) {
+            throw new IllegalStateException("Invalid Seed");
+        }
+
+        start = start != null ? 0 : start;
+        end = end == null ? null : end;
+        inclusionStates = inclusionStates != null ? inclusionStates : null;
+
+        if (start > end || end > (start + 500)) {
+            throw new ArgumentException();
+        }
+        StopWatch sw = new StopWatch();
+        sw.start();
+        System.out.println("GetTransfer started");
+        GetNewAddressResponse gnr = getNewAddress(seed, start, false, end == null ? end - start : end, true);
+        if (gnr != null && gnr.getAddresses() != null) {
+            System.out.println("GetTransfers after getNewAddresses " + sw.getTime() + " ms");
+            Bundle[] bundles = bundlesFromAddresses(gnr.getAddresses().toArray(new String[gnr.getAddresses().size()]), inclusionStates);
+            System.out.println("GetTransfers after bundlesFromAddresses " + sw.getTime() + " ms");
+            sw.stop();
+
+            return GetTransferResponse.create(bundles);
+        }
+        sw.stop();
+        return null;
+    }

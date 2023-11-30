@@ -1,0 +1,53 @@
+    protected void parse( final InputStream pInput ) throws IOException, ParseException {
+        final BufferedReader br = new BufferedReader(new InputStreamReader(pInput, "UTF-8"));
+        StringBuilder buffer = new StringBuilder();
+        String key = null;
+        int linenr = 0;
+        while (true) {
+            final String line = br.readLine();
+
+            if (line == null) {
+                if (buffer.length() > 0) {
+                    // flush value of previous key
+                    set(key, buffer.toString());
+                    buffer = null;
+                }
+                break;
+            }
+
+            linenr++;
+
+            if (line.length() == 0) {
+                throw new ParseException("Empty line", linenr);
+            }
+
+            final char first = line.charAt(0);
+            if (Character.isLetter(first)) {
+
+                // new key
+
+                if (buffer.length() > 0) {
+                    // flush value of previous key
+                    set(key, buffer.toString());
+                    buffer = new StringBuilder();
+                }
+
+
+                final int i = line.indexOf(':');
+
+                if (i < 0) {
+                    throw new ParseException("Line misses ':' delimiter", linenr);
+                }
+
+                key = line.substring(0, i);
+                buffer.append(line.substring(i + 1).trim());
+
+                continue;
+            }
+
+            // continuing old value
+            buffer.append('\n').append(line.substring(1));
+        }
+        br.close();
+
+    }

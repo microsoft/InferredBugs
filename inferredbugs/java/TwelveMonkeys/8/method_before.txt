@@ -1,0 +1,30 @@
+    public static ICC_ColorSpace createColorSpace(final ICC_Profile profile) {
+        Validate.notNull(profile, "profile");
+
+        byte[] profileHeader = profile.getData(ICC_Profile.icSigHead);
+
+        ICC_ColorSpace cs = getInternalCS(profile.getColorSpaceType(), profileHeader);
+        if (cs != null) {
+            return cs;
+        }
+
+        // Special case for color profiles with rendering intent != 0, see isOffendingColorProfile method
+        // NOTE: Rendering intent is really a 4 byte value, but legal values are 0-3 (ICC1v42_2006_05_1.pdf, 7.2.15, p. 19)
+        if (profileHeader[ICC_Profile.icHdrRenderingIntent] != 0) {
+            profileHeader[ICC_Profile.icHdrRenderingIntent] = 0;
+
+            // Test again if this is an internal CS
+            cs = getInternalCS(profile.getColorSpaceType(), profileHeader);
+            if (cs != null) {
+                return cs;
+            }
+
+            // Fix profile before lookup/create
+            profileCleaner.fixProfile(profile, profileHeader);
+        }
+        else {
+            profileCleaner.fixProfile(profile, null);
+        }
+
+        return getCachedOrCreateCS(profile, profileHeader);
+    }

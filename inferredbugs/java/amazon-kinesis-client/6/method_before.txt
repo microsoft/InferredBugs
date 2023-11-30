@@ -1,0 +1,17 @@
+    @Test
+    public void testGetRecords() {
+        record = Record.builder().data(createByteBufferWithSize(SIZE_512_KB)).build();
+
+        when(records.size()).thenReturn(1000);
+
+        final List<KinesisClientRecord> expectedRecords = records.stream()
+                .map(KinesisClientRecord::fromRecord).collect(Collectors.toList());
+
+        getRecordsCache.start(sequenceNumber, initialPosition);
+        ProcessRecordsInput result = getRecordsCache.getNextResult().processRecordsInput();
+
+        assertEquals(expectedRecords, result.records());
+
+        verify(executorService).execute(any());
+        verify(getRecordsRetrievalStrategy, atLeast(1)).getRecords(eq(MAX_RECORDS_PER_CALL));
+    }

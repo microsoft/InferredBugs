@@ -1,0 +1,24 @@
+    public void messageReceived(ChannelHandlerContext ctx, User user, StringMessage message) {
+        String[] split = StringUtils.split2(message.body);
+
+        int dashId = ParseUtil.parseInt(split[0]);
+        DashBoard dash = user.profile.getDashByIdOrThrow(dashId);
+
+        if (split.length == 2) {
+            int deviceId = ParseUtil.parseInt(split[1]);
+            Device device = dash.getDeviceById(deviceId);
+
+            if (device == null || device.token == null) {
+                throw new IllegalCommandBodyException("Wrong device id.");
+            }
+
+            makeSingleTokenEmail(ctx, dash, device, user.name, message.id);
+        } else {
+            if (dash.devices.length == 1) {
+                makeSingleTokenEmail(ctx, dash, dash.devices[0], user.name, message.id);
+            } else {
+                sendMultiTokenEmail(ctx, dash, user.name, message.id);
+            }
+
+        }
+    }

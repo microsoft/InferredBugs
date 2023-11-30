@@ -1,0 +1,133 @@
+    @SuppressWarnings({"unchecked"})
+    private Object getMethod(Object ctx, String name) throws Exception {
+        int st = cursor;
+        String tk = cursor != length
+                && expr[cursor] == '(' && ((cursor = balancedCapture(expr, cursor, '(')) - st) > 1 ?
+                new String(expr, st + 1, cursor - st - 1) : "";
+        cursor++;
+
+        Object[] args;
+        Accessor[] es;
+
+        if (tk.length() == 0) {
+            args = ParseTools.EMPTY_OBJ_ARR;
+            es = null;
+        }
+        else {
+            String[] subtokens = parseParameterList(tk.toCharArray(), 0, -1);
+            es = new ExecutableStatement[subtokens.length];
+            args = new Object[subtokens.length];
+            for (int i = 0; i < subtokens.length; i++) {
+                args[i] = (es[i] = (ExecutableStatement) subCompileExpression(subtokens[i].toCharArray()))
+                        .getValue(this.ctx, thisRef, variableFactory);
+            }
+        }
+
+        if (first && variableFactory != null && variableFactory.isResolveable(name)) {
+            Object ptr = variableFactory.getVariableResolver(name).getValue();
+            if (ptr instanceof Method) {
+                ctx = ((Method) ptr).getDeclaringClass();
+                name = ((Method) ptr).getName();
+            }
+            else if (ptr instanceof MethodStub) {
+                ctx = ((MethodStub) ptr).getClassReference();
+                name = ((MethodStub) ptr).getMethodName();
+            }
+            else if (ptr instanceof Function) {
+                addAccessorNode(new FunctionAccessor((Function) ptr, es));
+
+                Object[] parm = null;
+                if (es != null) {
+                    parm = new Object[es.length];
+                    for (int i = 0; i < es.length; i++) {
+                        parm[i] = es[i].getValue(ctx, thisRef, variableFactory);
+                    }
+                }
+                return ((Function) ptr).call(ctx, thisRef, variableFactory, parm);
+            }
+            else {
+                throw new OptimizationFailure("attempt to optimize a method call for a reference that does not point to a method: "
+                        + name + " (reference is type: " + (ctx != null ? ctx.getClass().getName() : null) + ")");
+            }
+
+            first = false;
+        }
+
+        if (ctx == null) throw new PropertyAccessException("unable to access property (null parent): " + name);
+
+
+        /**
+         * If the target object is an instance of java.lang.Class itself then do not
+         * adjust the Class scope target.
+         */
+        Class<?> cls = ctx instanceof Class ? (Class<?>) ctx : ctx.getClass();
+
+
+
+        Method m;
+        Class[] parameterTypes = null;
+
+        /**
+         * If we have not cached the method then we need to go ahead and try to resolve it.
+         */
+        /**
+         * Try to find an instance method from the class target.
+         */
+
+        if ((m = getBestCandidate(args, name, cls, cls.getMethods(), false)) != null) {
+            parameterTypes = m.getParameterTypes();
+        }
+
+        if (m == null) {
+            /**
+             * If we didn't find anything, maybe we're looking for the actual java.lang.Class methods.
+             */
+            if ((m = getBestCandidate(args, name, cls, cls.getClass().getDeclaredMethods(), false)) != null) {
+                parameterTypes = m.getParameterTypes();
+            }
+        }
+
+        if (m == null) {
+            StringAppender errorBuild = new StringAppender();
+            for (int i = 0; i < args.length; i++) {
+                errorBuild.append(args[i] != null ? args[i].getClass().getName() : null);
+                if (i < args.length - 1) errorBuild.append(", ");
+            }
+
+            if ("size".equals(name) && args.length == 0 && cls.isArray()) {
+                addAccessorNode(new ArrayLength());
+                return getLength(ctx);
+            }
+
+            throw new PropertyAccessException("unable to resolve method: " + cls.getName() + "." + name + "(" + errorBuild.toString() + ") [arglength=" + args.length + "]");
+        }
+        else {
+            if (es != null) {
+                ExecutableStatement cExpr;
+                for (int i = 0; i < es.length; i++) {
+                    cExpr = (ExecutableStatement) es[i];
+                    if (cExpr.getKnownIngressType() == null) {
+                        cExpr.setKnownIngressType(parameterTypes[i]);
+                        cExpr.computeTypeConversionRule();
+                    }
+                    if (!cExpr.isConvertableIngressEgress()) {
+                        args[i] = convert(args[i], parameterTypes[i]);
+                    }
+                }
+            }
+            else {
+                /**
+                 * Coerce any types if required.
+                 */
+                for (int i = 0; i < args.length; i++)
+                    args[i] = convert(args[i], parameterTypes[i]);
+            }
+
+            addAccessorNode(new MethodAccessor(getWidenedTarget(m), (ExecutableStatement[]) es));
+
+            /**
+             * Invoke the target method and return the response.
+             */
+            return m.invoke(ctx, args);
+        }
+    }

@@ -1,0 +1,23 @@
+        private static SetDelegateRef<TInstance, TValue> CreateSetDelegateRef<TInstance, TValue>(this FieldInfo field) where TInstance : struct {
+            if (field == null) {
+                throw new ArgumentException("Field cannot be null.", nameof(field));
+            }
+
+            if (field.FieldType != typeof(TValue)) {
+                throw new Exception($"Value type type {typeof(TValue)} does not match the requested type {field.FieldType}.");
+            }
+
+            var method = new DynamicMethodDefinition($"{field} SetterByRef", typeof(void),
+                new[] { typeof(TInstance).MakeByRefType(), typeof(TValue) });
+            var il = method.GetILProcessor();
+
+            if (!field.IsStatic) {
+                il.Emit(OpCodes.Ldarg_0);
+            }
+
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(!field.IsStatic ? OpCodes.Stfld : OpCodes.Stsfld, field);
+            il.Emit(OpCodes.Ret);
+
+            return (SetDelegateRef<TInstance, TValue>)method.Generate().CreateDelegate(typeof(SetDelegateRef<TInstance, TValue>));
+        }

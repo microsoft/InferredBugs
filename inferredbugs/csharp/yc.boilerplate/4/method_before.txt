@@ -1,0 +1,53 @@
+        public override void OnActionExecuted(ActionExecutedContext context)
+        {
+            if (_requestInfoDto.Key == context.ActionDescriptor.Id)
+            {
+                _requestInfoDto.StopTime = DateTime.Now;
+                _requestInfoDto.ElapsedMilliseconds = Convert.ToInt64((_requestInfoDto.StopTime - _requestInfoDto.StartTime).TotalMilliseconds);
+                var obj = context.Result;
+                 if (obj==null)
+                {
+                    throw new Exception(DefaultConfig.DefaultAppConfigDto.ExceptionKey + "获取context.Result 对象为空！");
+                }
+                 _requestInfoDto.ResponseState = false;
+                 var resultType = context.Result?.GetType();
+                try  
+                {
+
+                    if (resultType.FullName.Equals(typeof(JsonResult).FullName))
+                    {
+                        var result = (JsonResult)obj;
+                        //_requestInfoDto.ResponseData = result.Value == null ? "" : System.Text.Json.JsonSerializer.Serialize(result.Value);
+                        //aop拦截处理 如果不是我们已经定义标准化返回，那么我们需要在外层包一层，如果不是，就直接让他自己按照正常处理返回
+                        if ((result.Value.GetType().Name.Contains(typeof(ApiResult).Name) || result.Value.GetType().Name.Contains(typeof(ApiResult<>).Name)))
+                        {
+                            var State = System.Text.Json.JsonSerializer.Serialize(result.Value).ToJObject().GetValue("State");
+                            _requestInfoDto.ResponseState =Convert.ToBoolean(State);
+                        }
+                    }
+                    if (resultType.FullName.Equals(typeof(ObjectResult).FullName))
+                    {
+                        var result = (ObjectResult)context.Result;
+                        //_requestInfoDto.ResponseData = result.Value == null ? "" : System.Text.Json.JsonSerializer.Serialize(result.Value);
+                        //aop拦截处理 如果不是我们已经定义标准化返回，那么我们需要在外层包一层，如果不是，就直接让他自己按照正常处理返回
+                        if ((result.Value.GetType().Name.Contains(typeof(ApiResult).Name) || result.Value.GetType().Name.Contains(typeof(ApiResult<>).Name)))
+                        {
+                            var State = System.Text.Json.JsonSerializer.Serialize(result.Value).ToJObject().GetValue("State");
+                            _requestInfoDto.ResponseState = Convert.ToBoolean(State);
+                        }
+                    }
+
+              
+                   
+
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception(DefaultConfig.DefaultAppConfigDto.ExceptionKey + "审计日志拦截返回值处理失败！" + ex.ToString());
+                }
+               
+
+                WriteRequestLog(context, _requestInfoDto);
+            }
+
+        }

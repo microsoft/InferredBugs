@@ -1,0 +1,26 @@
+    private String makeQueryString(JobConf jobConf, String tableName, List<String>
+            readColumnList, String whereClause, String queryTemplate, String hints, Map<String,
+            TypeInfo> columnTypeMap) throws IOException {
+        StringBuilder sql = new StringBuilder();
+        List<String> conditionColumnList = buildWhereClause(jobConf, sql, whereClause, columnTypeMap);
+        readColumnList  = replaceColumns(jobConf, readColumnList);
+
+        if (conditionColumnList.size() > 0) {
+            addConditionColumnToReadColumn(readColumnList, conditionColumnList);
+            readColumnList = ColumnMappingUtils.quoteColumns(readColumnList);
+            sql.insert(0, queryTemplate.replace("$HINT$", hints).replace("$COLUMN_LIST$",
+                    getSelectColumns(jobConf, tableName, readColumnList)).replace("$TABLE_NAME$",
+                    tableName));
+        } else {
+            readColumnList = ColumnMappingUtils.quoteColumns(readColumnList);
+            sql.append(queryTemplate.replace("$HINT$", hints).replace("$COLUMN_LIST$",
+                    getSelectColumns(jobConf, tableName, readColumnList)).replace("$TABLE_NAME$",
+                    tableName));
+        }
+
+        if (LOG.isInfoEnabled()) {
+            LOG.info("Input query : " + sql.toString());
+        }
+
+        return sql.toString();
+    }

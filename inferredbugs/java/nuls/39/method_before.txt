@@ -1,0 +1,35 @@
+    public boolean processing(long height) {
+        if (chainList.isEmpty()) {
+            return false;
+        }
+        lock.lock();
+        try {
+            List<String> hashList = this.getHashList(height);
+            if (hashList.size() == 1) {
+                return true;
+            }
+            if (hashList.isEmpty()) {
+                Log.warn("lost a block:" + height);
+                return false;
+            }
+            List<BlockHeaderChain> longestChainList = new ArrayList<>();
+            int size = 0;
+            for (BlockHeaderChain chain : chainList) {
+                if (chain.size() == size) {
+                    longestChainList.add(chain);
+                } else if (chain.size() > size && size == 0) {
+                    longestChainList.add(chain);
+                } else if (chain.size() > size && size != 0) {
+                    longestChainList.clear();
+                    longestChainList.add(chain);
+                }
+            }
+            if (longestChainList.size() != 1) {
+                return false;
+            }
+            chainList = longestChainList;
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }

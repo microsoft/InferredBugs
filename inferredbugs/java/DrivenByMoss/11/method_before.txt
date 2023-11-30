@@ -1,0 +1,61 @@
+    public void sendDisplayData ()
+    {
+        if (this.usbEndpointDisplay == null)
+            return;
+
+        synchronized (this.busySendingDisplay)
+        {
+            final ByteBuffer displayBuffer = this.displayBlock.createByteBuffer ();
+            displayBuffer.rewind ();
+
+            for (int row = 0; row < 3; row++)
+            {
+                fillHeader (displayBuffer, row);
+
+                if (row == 0)
+                {
+                    for (int j = 0; j < 72; j++)
+                    {
+                        final int col = j / 8;
+                        displayBuffer.put ((byte) this.bars[col][j - col * 8]);
+
+                        if (j % 8 == 7)
+                        {
+                            displayBuffer.put ((byte) this.bars[col][8]);
+                        }
+                        else
+                        {
+                            if (this.dots[0][j] && this.dots[1][j])
+                                displayBuffer.put ((byte) 255);
+                            else if (this.dots[0][j])
+                                displayBuffer.put ((byte) 253);
+                            else if (this.dots[1][j])
+                                displayBuffer.put ((byte) 254);
+                            else
+                                displayBuffer.put ((byte) 0);
+                        }
+                    }
+
+                    // Padding
+                    for (int j = 0; j < 96; j++)
+                        displayBuffer.put ((byte) 0);
+                }
+                else
+                {
+                    for (int j = 0; j < 72; j++)
+                        displayBuffer.put (this.getCharacter (row - 1, j));
+
+                    // Padding
+                    for (int j = 0; j < 96; j++)
+                        displayBuffer.put ((byte) 0);
+                }
+
+                // TODO TEST
+                final byte [] data = new byte [DATA_SZ];
+                displayBuffer.get (data);
+                this.hidDevice.sendOutputReport ((byte) 0, data, DATA_SZ);
+
+                // this.usbEndpointDisplay.send (this.displayBlock, TIMEOUT);
+            }
+        }
+    }

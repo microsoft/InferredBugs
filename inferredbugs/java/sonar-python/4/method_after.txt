@@ -1,0 +1,29 @@
+  public ForStatement forStatement(AstNode astNode) {
+    AstNode forStatementNode = astNode;
+    Token asyncToken = null;
+    if (astNode.is(PythonGrammar.ASYNC_STMT)) {
+      asyncToken = toPyToken(astNode.getFirstChild().getToken());
+      forStatementNode = astNode.getFirstChild(PythonGrammar.FOR_STMT);
+    }
+    Token forKeyword = toPyToken(forStatementNode.getFirstChild(PythonKeyword.FOR).getToken());
+    Token inKeyword = toPyToken(forStatementNode.getFirstChild(PythonKeyword.IN).getToken());
+    Token colon = toPyToken(forStatementNode.getFirstChild(PythonPunctuator.COLON).getToken());
+    List<Expression> expressions = expressionsFromExprList(forStatementNode.getFirstChild(PythonGrammar.EXPRLIST));
+    List<Expression> testExpressions = expressionsFromTest(forStatementNode.getFirstChild(PythonGrammar.TESTLIST));
+    AstNode firstSuite = forStatementNode.getFirstChild(PythonGrammar.SUITE);
+    StatementList body = getStatementListFromSuite(firstSuite);
+    AstNode lastSuite = forStatementNode.getLastChild(PythonGrammar.SUITE);
+    AstNode elseKeywordNode = forStatementNode.getFirstChild(PythonKeyword.ELSE);
+    Token elseKeyword = null;
+    Token elseColonKeyword = null;
+    if (elseKeywordNode != null) {
+      elseKeyword = toPyToken(elseKeywordNode.getToken());
+      elseColonKeyword = toPyToken(elseKeywordNode.getNextSibling().getToken());
+    }
+    Token lastIndent = firstSuite == lastSuite ? null : suiteIndent(lastSuite);
+    Token lastNewLine = firstSuite == lastSuite ? null : suiteNewLine(lastSuite);
+    Token lastDedent = firstSuite == lastSuite ? null : suiteDedent(lastSuite);
+    StatementList elseBody = firstSuite == lastSuite ? null : getStatementListFromSuite(lastSuite);
+    return new ForStatementImpl(forStatementNode, forKeyword, expressions, inKeyword, testExpressions, colon, suiteNewLine(firstSuite), suiteIndent(firstSuite),
+      body, suiteDedent(firstSuite), elseKeyword, elseColonKeyword, lastNewLine, lastIndent, elseBody, lastDedent, asyncToken);
+  }

@@ -1,0 +1,34 @@
+ @Override
+	public Object handle(HttpExchange x) throws Exception {
+
+		int event = U.num(x.data("event"));
+
+		TagContext ctx = Pages.ctx(x);
+
+		Map<Integer, Object> inp = Pages.inputs(x);
+		ctx.emit(inp, event);
+
+		Object page = U.newInstance(currentPage(x));
+
+		ctx = Tags.context();
+		x.setSession(Pages.SESSION_CTX, ctx);
+
+		Object body = Pages.contentOf(x, page);
+
+		if (body == null) {
+
+		}
+
+		if (body instanceof HttpExchange) {
+			return body;
+		}
+
+		System.out.println(body);
+		String html = PageRenderer.get().toHTML(ctx, body, x);
+
+		Map<String, String> changes = U.map();
+		changes.put("body", html);
+
+		x.json();
+		return changes;
+	}

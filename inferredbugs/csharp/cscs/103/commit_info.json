@@ -1,0 +1,392 @@
+{
+    "hash": "b9df886b78f727af3a79eceab22e45934f85567b",
+    "message": "Merge from Dan Spear",
+    "file_num_lines": 2395,
+    "diff_parsed": {
+        "added": [
+            [
+                5,
+                "using System.Linq;"
+            ],
+            [
+                1422,
+                ""
+            ],
+            [
+                1444,
+                ""
+            ],
+            [
+                2455,
+                "    class TypeRefFunction : ParserFunction"
+            ],
+            [
+                2456,
+                "    {"
+            ],
+            [
+                2457,
+                "        protected override Variable Evaluate(ParsingScript script)"
+            ],
+            [
+                2458,
+                "        {"
+            ],
+            [
+                2459,
+                "            List<Variable> args = script.GetFunctionArgs();"
+            ],
+            [
+                2460,
+                "            Utils.CheckArgs(args.Count, 1, m_name);"
+            ],
+            [
+                2461,
+                ""
+            ],
+            [
+                2462,
+                "            string typeName = Utils.GetSafeString(args, 0);"
+            ],
+            [
+                2463,
+                ""
+            ],
+            [
+                2464,
+                "            Type t = GetTypeAnywhere(typeName, true);"
+            ],
+            [
+                2465,
+                ""
+            ],
+            [
+                2466,
+                "            // TODO: Support Using to look in other namespaces"
+            ],
+            [
+                2467,
+                "            if (t == null)"
+            ],
+            [
+                2468,
+                "                throw new ArgumentException($\"Type [{typeName}] not found\");"
+            ],
+            [
+                2469,
+                "            return new Variable(t);"
+            ],
+            [
+                2470,
+                "        }"
+            ],
+            [
+                2471,
+                ""
+            ],
+            [
+                2472,
+                "        public static Type GetTypeAnywhere(string typeName, bool ignoreCase = false)"
+            ],
+            [
+                2473,
+                "        {"
+            ],
+            [
+                2474,
+                "            // If this is called often and is slow, we could save the Assembly array globally"
+            ],
+            [
+                2475,
+                "            // We could also save the answer in a Dictionary<string, Type>"
+            ],
+            [
+                2476,
+                "            Type type = Type.GetType(typeName, false, ignoreCase);"
+            ],
+            [
+                2477,
+                "            if (type != null)"
+            ],
+            [
+                2478,
+                "                return type;"
+            ],
+            [
+                2479,
+                ""
+            ],
+            [
+                2480,
+                "            var assemblies = AppDomain.CurrentDomain.GetAssemblies();"
+            ],
+            [
+                2481,
+                "            foreach (var a in assemblies)"
+            ],
+            [
+                2482,
+                "            {"
+            ],
+            [
+                2483,
+                "                type = a.GetType(typeName, false, ignoreCase);"
+            ],
+            [
+                2484,
+                "                if (type != null)"
+            ],
+            [
+                2485,
+                "                    return type;"
+            ],
+            [
+                2486,
+                "            }"
+            ],
+            [
+                2487,
+                ""
+            ],
+            [
+                2488,
+                "            return GetTypeFromAssembly(typeName, ignoreCase, System.Reflection.Assembly.GetEntryAssembly(), assemblies.ToList(), new List<System.Reflection.Assembly>());"
+            ],
+            [
+                2489,
+                "        }"
+            ],
+            [
+                2490,
+                ""
+            ],
+            [
+                2491,
+                "        static Type GetTypeFromAssembly(string typeName, bool ignoreCase, System.Reflection.Assembly assembly,"
+            ],
+            [
+                2492,
+                "            List<System.Reflection.Assembly> loadedAssemblies, List<System.Reflection.Assembly> checkedAssemblies)"
+            ],
+            [
+                2493,
+                "        {"
+            ],
+            [
+                2494,
+                "            Type type;"
+            ],
+            [
+                2495,
+                ""
+            ],
+            [
+                2496,
+                "            // Maybe it's not loaded yet. Try to load them all and look again."
+            ],
+            [
+                2497,
+                "            // I could put in an optimization to first look for any assemblies whose name begins with part of the type name"
+            ],
+            [
+                2498,
+                "            var location = assembly.Location;"
+            ],
+            [
+                2499,
+                "            var folder = Path.GetDirectoryName(location);"
+            ],
+            [
+                2500,
+                ""
+            ],
+            [
+                2501,
+                "            var refAssemblies = assembly.GetReferencedAssemblies();"
+            ],
+            [
+                2502,
+                "            foreach (var refAssemblyName in refAssemblies)"
+            ],
+            [
+                2503,
+                "            {"
+            ],
+            [
+                2504,
+                "                try"
+            ],
+            [
+                2505,
+                "                {"
+            ],
+            [
+                2506,
+                "                    var loadedAssembly = FindAssembly(loadedAssemblies, refAssemblyName);"
+            ],
+            [
+                2507,
+                "                    if (loadedAssembly == null)"
+            ],
+            [
+                2508,
+                "                    {"
+            ],
+            [
+                2509,
+                "                        string name = refAssemblyName.Name;"
+            ],
+            [
+                2510,
+                "                        string assemblyPath = Path.Combine(folder, name + \".dll\");"
+            ],
+            [
+                2511,
+                "                        if (File.Exists(assemblyPath))"
+            ],
+            [
+                2512,
+                "                        {"
+            ],
+            [
+                2513,
+                "                            loadedAssembly = System.Reflection.Assembly.LoadFrom(assemblyPath);"
+            ],
+            [
+                2514,
+                "                            if (loadedAssembly != null)"
+            ],
+            [
+                2515,
+                "                            {"
+            ],
+            [
+                2516,
+                "                                type = loadedAssembly.GetType(typeName, false, ignoreCase);"
+            ],
+            [
+                2517,
+                "                                if (type != null)"
+            ],
+            [
+                2518,
+                "                                    return type;"
+            ],
+            [
+                2519,
+                "                                loadedAssemblies.Add(loadedAssembly);"
+            ],
+            [
+                2520,
+                "                            }"
+            ],
+            [
+                2521,
+                "                        }"
+            ],
+            [
+                2522,
+                "                    }"
+            ],
+            [
+                2523,
+                "                    if (loadedAssembly != null)"
+            ],
+            [
+                2524,
+                "                    {"
+            ],
+            [
+                2525,
+                "                        if (FindAssembly(checkedAssemblies, refAssemblyName) == null)"
+            ],
+            [
+                2526,
+                "                        {"
+            ],
+            [
+                2527,
+                "                            checkedAssemblies.Add(loadedAssembly);"
+            ],
+            [
+                2528,
+                "                            type = GetTypeFromAssembly(typeName, ignoreCase, loadedAssembly, loadedAssemblies, checkedAssemblies);"
+            ],
+            [
+                2529,
+                "                            if (type != null)"
+            ],
+            [
+                2530,
+                "                                return type;"
+            ],
+            [
+                2531,
+                "                        }"
+            ],
+            [
+                2532,
+                "                    }"
+            ],
+            [
+                2533,
+                "                }"
+            ],
+            [
+                2534,
+                "                catch"
+            ],
+            [
+                2535,
+                "                {"
+            ],
+            [
+                2536,
+                "                }"
+            ],
+            [
+                2537,
+                "            }"
+            ],
+            [
+                2538,
+                "            return null;"
+            ],
+            [
+                2539,
+                "        }"
+            ],
+            [
+                2540,
+                ""
+            ],
+            [
+                2541,
+                "        private static System.Reflection.Assembly FindAssembly(List<System.Reflection.Assembly> assemblies, System.Reflection.AssemblyName assemblyName)"
+            ],
+            [
+                2542,
+                "        {"
+            ],
+            [
+                2543,
+                "            return assemblies.Where((a) => a.FullName == assemblyName.FullName).FirstOrDefault();"
+            ],
+            [
+                2544,
+                "        }"
+            ],
+            [
+                2545,
+                "    }"
+            ],
+            [
+                2546,
+                ""
+            ]
+        ],
+        "deleted": []
+    },
+    "num_lines_added": 95,
+    "num_lines_removed": 0
+}

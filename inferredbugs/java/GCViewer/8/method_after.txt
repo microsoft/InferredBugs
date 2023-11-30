@@ -1,0 +1,29 @@
+    @Test
+    public void testSystemGc() throws Exception {
+        TestLogHandler handler = new TestLogHandler();
+        handler.setLevel(Level.WARNING);
+        GCResource gcResource = new GCResource("SampleIBMJ9_R26_GAFP1_global.txt");
+        gcResource.getLogger().addHandler(handler);
+
+        DataReader reader = getDataReader(gcResource);
+        GCModel model = reader.read();
+
+        assertThat("model size", model.size(), is(1));
+
+        GCEvent event = (GCEvent) model.get(0);
+        assertThat("pause", event.getPause(), closeTo(0.036392, 0.0000001));
+
+        assertThat("total before", event.getTotal(), is(toKiloBytes(514064384)));
+        assertThat("free before", event.getPreUsed(), is(toKiloBytes(514064384 - 428417552)));
+        assertThat("free after", event.getPostUsed(), is(toKiloBytes(514064384 - 479900360)));
+
+        assertThat("total young before", event.getYoung().getTotal(), is(toKiloBytes(111411200)));
+        assertThat("young before", event.getYoung().getPreUsed(), is(toKiloBytes(111411200 - 29431656)));
+        assertThat("young after", event.getYoung().getPostUsed(), is(toKiloBytes(111411200 - 80831520)));
+
+        assertThat("total tenured before", event.getTenured().getTotal(), is(toKiloBytes(402653184)));
+        assertThat("tenured before", event.getTenured().getPreUsed(), is(toKiloBytes(402653184 - 398985896)));
+        assertThat("tenured after", event.getTenured().getPostUsed(), is(toKiloBytes(402653184 - 399068840)));
+
+        assertThat("number of errors", handler.getCount(), is(0));
+    }

@@ -1,0 +1,1637 @@
+{
+    "hash": "c612ebf0538d181f011a25e84379316a6e376b94",
+    "message": "Add Methods for Executing requests\n\nAdds CreateAndExecuteRequest, which takes a URL and returns the json response.\r\nAdds ExecuteRequest, which takes a request and returns the json response.\r\nBoth methods implement error checking.\r\nAlso adds methods that take Uris in the place of strings.",
+    "file_num_lines": 190,
+    "diff_parsed": {
+        "added": [
+            [
+                1,
+                "using System;"
+            ],
+            [
+                2,
+                "using System.Dynamic;"
+            ],
+            [
+                3,
+                "using System.IO;"
+            ],
+            [
+                4,
+                "using System.Linq;"
+            ],
+            [
+                5,
+                "using System.Net;"
+            ],
+            [
+                6,
+                "using System.Reflection;"
+            ],
+            [
+                7,
+                "using System.Text;"
+            ],
+            [
+                8,
+                "using System.Threading;"
+            ],
+            [
+                9,
+                "using System.Web;"
+            ],
+            [
+                10,
+                "using Newtonsoft.Json.Linq;"
+            ],
+            [
+                11,
+                ""
+            ],
+            [
+                12,
+                "namespace RedditSharp"
+            ],
+            [
+                13,
+                "{"
+            ],
+            [
+                14,
+                "    public sealed class WebAgent : IWebAgent"
+            ],
+            [
+                15,
+                "    {"
+            ],
+            [
+                16,
+                "        /// <summary>"
+            ],
+            [
+                17,
+                "        /// Additional values to append to the default RedditSharp user agent."
+            ],
+            [
+                18,
+                "        /// </summary>"
+            ],
+            [
+                19,
+                "        public static string UserAgent { get; set; }"
+            ],
+            [
+                20,
+                ""
+            ],
+            [
+                21,
+                "        /// <summary>"
+            ],
+            [
+                22,
+                "        /// It is strongly advised that you leave this enabled. Reddit bans excessive"
+            ],
+            [
+                23,
+                "        /// requests with extreme predjudice."
+            ],
+            [
+                24,
+                "        /// </summary>"
+            ],
+            [
+                25,
+                "        public static bool EnableRateLimit { get; set; }"
+            ],
+            [
+                26,
+                ""
+            ],
+            [
+                27,
+                "        public static string Protocol { get; set; }"
+            ],
+            [
+                28,
+                ""
+            ],
+            [
+                29,
+                "        /// <summary>"
+            ],
+            [
+                30,
+                "        /// It is strongly advised that you leave this set to Burst or Pace. Reddit bans excessive"
+            ],
+            [
+                31,
+                "        /// requests with extreme predjudice."
+            ],
+            [
+                32,
+                "        /// </summary>"
+            ],
+            [
+                33,
+                "        public static RateLimitMode RateLimit { get; set; }"
+            ],
+            [
+                34,
+                ""
+            ],
+            [
+                35,
+                "        /// <summary>"
+            ],
+            [
+                36,
+                "        /// The method by which the WebAgent will limit request rate"
+            ],
+            [
+                37,
+                "        /// </summary>"
+            ],
+            [
+                38,
+                "        public enum RateLimitMode"
+            ],
+            [
+                39,
+                "        {"
+            ],
+            [
+                40,
+                "            /// <summary>"
+            ],
+            [
+                41,
+                "            /// Limits requests to one every two seconds"
+            ],
+            [
+                42,
+                "            /// </summary>"
+            ],
+            [
+                43,
+                "            Pace,"
+            ],
+            [
+                44,
+                "            /// <summary>"
+            ],
+            [
+                45,
+                "            /// Restricts requests to thirty per minute"
+            ],
+            [
+                46,
+                "            /// </summary>"
+            ],
+            [
+                47,
+                "            Burst,"
+            ],
+            [
+                48,
+                "            /// <summary>"
+            ],
+            [
+                49,
+                "            /// Does not restrict request rate. ***NOT RECOMMENDED***"
+            ],
+            [
+                50,
+                "            /// </summary>"
+            ],
+            [
+                51,
+                "            None"
+            ],
+            [
+                52,
+                "        }"
+            ],
+            [
+                53,
+                ""
+            ],
+            [
+                54,
+                "        /// <summary>"
+            ],
+            [
+                55,
+                "        /// The root domain RedditSharp uses to address Reddit."
+            ],
+            [
+                56,
+                "        /// www.reddit.com by default"
+            ],
+            [
+                57,
+                "        /// </summary>"
+            ],
+            [
+                58,
+                "        public static string RootDomain { get; set; }"
+            ],
+            [
+                59,
+                ""
+            ],
+            [
+                60,
+                "        /// <summary>"
+            ],
+            [
+                61,
+                "        /// Used to make calls against Reddit's API using OAuth23"
+            ],
+            [
+                62,
+                "        /// </summary>"
+            ],
+            [
+                63,
+                "        public string AccessToken { get; set; }"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                65,
+                "        public CookieContainer Cookies { get; set; }"
+            ],
+            [
+                66,
+                "        public string AuthCookie { get; set; }"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                68,
+                "        private static DateTime _lastRequest;"
+            ],
+            [
+                69,
+                "        private static DateTime _burstStart;"
+            ],
+            [
+                70,
+                "        private static int _requestsThisBurst;"
+            ],
+            [
+                71,
+                ""
+            ],
+            [
+                72,
+                "        public JToken CreateAndExecuteRequest(string url)"
+            ],
+            [
+                73,
+                "        {"
+            ],
+            [
+                74,
+                "            Uri uri;"
+            ],
+            [
+                75,
+                "            if (!Uri.TryCreate(url, UriKind.Absolute, out uri))"
+            ],
+            [
+                76,
+                "            {"
+            ],
+            [
+                77,
+                "                if (!Uri.TryCreate(String.Format(\"{0}://{1}{2}\", Protocol, RootDomain, url), UriKind.Absolute, out uri))"
+            ],
+            [
+                78,
+                "                    throw new Exception(\"Could not parse Uri\");"
+            ],
+            [
+                79,
+                "            }"
+            ],
+            [
+                80,
+                "            var request = CreateGet(uri);"
+            ],
+            [
+                81,
+                "            try { return ExecuteRequest(request); }"
+            ],
+            [
+                82,
+                "            catch (Exception)"
+            ],
+            [
+                83,
+                "            {"
+            ],
+            [
+                84,
+                "                var tempProtocol = Protocol;"
+            ],
+            [
+                85,
+                "                var tempRootDomain = RootDomain;"
+            ],
+            [
+                86,
+                "                Protocol = \"http\";"
+            ],
+            [
+                87,
+                "                RootDomain = \"www.reddit.com\";"
+            ],
+            [
+                88,
+                "                var retval = CreateAndExecuteRequest(url);"
+            ],
+            [
+                89,
+                "                Protocol = tempProtocol;"
+            ],
+            [
+                90,
+                "                RootDomain = tempRootDomain;"
+            ],
+            [
+                91,
+                "                return retval;"
+            ],
+            [
+                92,
+                "            }"
+            ],
+            [
+                93,
+                "        }"
+            ],
+            [
+                94,
+                ""
+            ],
+            [
+                95,
+                "        /// <summary>"
+            ],
+            [
+                96,
+                "        /// Executes the web request and handles errors in the response"
+            ],
+            [
+                97,
+                "        /// </summary>"
+            ],
+            [
+                98,
+                "        /// <param name=\"request\"></param>"
+            ],
+            [
+                99,
+                "        /// <returns></returns>"
+            ],
+            [
+                100,
+                "        public JToken ExecuteRequest(HttpWebRequest request)"
+            ],
+            [
+                101,
+                "        {"
+            ],
+            [
+                102,
+                "            EnforceRateLimit();"
+            ],
+            [
+                103,
+                "            var response = request.GetResponse();"
+            ],
+            [
+                104,
+                "            var result = GetResponseString(response.GetResponseStream());"
+            ],
+            [
+                105,
+                ""
+            ],
+            [
+                106,
+                "            var json = JToken.Parse(result);"
+            ],
+            [
+                107,
+                "            try"
+            ],
+            [
+                108,
+                "            {"
+            ],
+            [
+                109,
+                "                if (json[\"json\"] != null)"
+            ],
+            [
+                110,
+                "                {"
+            ],
+            [
+                111,
+                "                    json = json[\"json\"]; //get json object if there is a root node"
+            ],
+            [
+                112,
+                "                }"
+            ],
+            [
+                113,
+                "                if (json[\"error\"] != null)"
+            ],
+            [
+                114,
+                "                {"
+            ],
+            [
+                115,
+                "                    switch (json[\"error\"].ToString())"
+            ],
+            [
+                116,
+                "                    {"
+            ],
+            [
+                117,
+                "                        case \"404\":"
+            ],
+            [
+                118,
+                "                            throw new Exception(\"File Not Found\");"
+            ],
+            [
+                119,
+                "                        case \"403\":"
+            ],
+            [
+                120,
+                "                            throw new Exception(\"Restricted\");"
+            ],
+            [
+                121,
+                "                        case \"invalid_grant\":"
+            ],
+            [
+                122,
+                "                            //Refresh authtoken"
+            ],
+            [
+                123,
+                "                            //AccessToken = authProvider.GetRefreshToken();"
+            ],
+            [
+                124,
+                "                            //ExecuteRequest(request);"
+            ],
+            [
+                125,
+                "                            break;"
+            ],
+            [
+                126,
+                "                    }"
+            ],
+            [
+                127,
+                "                }"
+            ],
+            [
+                128,
+                "            }"
+            ],
+            [
+                129,
+                "            catch"
+            ],
+            [
+                130,
+                "            {"
+            ],
+            [
+                131,
+                "            }"
+            ],
+            [
+                132,
+                "            return json;"
+            ],
+            [
+                133,
+                ""
+            ],
+            [
+                134,
+                "        }"
+            ],
+            [
+                135,
+                ""
+            ],
+            [
+                136,
+                "        private static void EnforceRateLimit()"
+            ],
+            [
+                137,
+                "        {"
+            ],
+            [
+                138,
+                "            switch (RateLimit)"
+            ],
+            [
+                139,
+                "            {"
+            ],
+            [
+                140,
+                "                case RateLimitMode.Pace:"
+            ],
+            [
+                141,
+                "                    while ((DateTime.Now - _lastRequest).TotalSeconds < 2)// Rate limiting"
+            ],
+            [
+                142,
+                "                        Thread.Sleep(250);"
+            ],
+            [
+                143,
+                "                    _lastRequest = DateTime.Now;"
+            ],
+            [
+                144,
+                "                    break;"
+            ],
+            [
+                145,
+                "                case RateLimitMode.Burst:"
+            ],
+            [
+                146,
+                "                    if (_requestsThisBurst == 0)//this is first request"
+            ],
+            [
+                147,
+                "                        _burstStart = DateTime.Now;"
+            ],
+            [
+                148,
+                "                    if (_requestsThisBurst >= 30) //limit has been reached"
+            ],
+            [
+                149,
+                "                    {"
+            ],
+            [
+                150,
+                "                        while ((DateTime.UtcNow - _burstStart).TotalSeconds < 60)"
+            ],
+            [
+                151,
+                "                            Thread.Sleep(250);"
+            ],
+            [
+                152,
+                "                        _burstStart = DateTime.Now;"
+            ],
+            [
+                153,
+                "                    }"
+            ],
+            [
+                154,
+                "                    _requestsThisBurst++;"
+            ],
+            [
+                155,
+                "                    break;"
+            ],
+            [
+                156,
+                "            }"
+            ],
+            [
+                157,
+                "        }"
+            ],
+            [
+                158,
+                ""
+            ],
+            [
+                159,
+                "        public HttpWebRequest CreateRequest(string url, string method)"
+            ],
+            [
+                160,
+                "        {"
+            ],
+            [
+                161,
+                "            EnforceRateLimit();"
+            ],
+            [
+                162,
+                "            var prependDomain = !Uri.IsWellFormedUriString(url, UriKind.Absolute);"
+            ],
+            [
+                163,
+                ""
+            ],
+            [
+                164,
+                "            HttpWebRequest request;"
+            ],
+            [
+                165,
+                "            if (prependDomain)"
+            ],
+            [
+                166,
+                "                request = (HttpWebRequest)WebRequest.Create(String.Format(\"{0}://{1}{2}\", Protocol, RootDomain, url));"
+            ],
+            [
+                167,
+                "            else"
+            ],
+            [
+                168,
+                "                request = (HttpWebRequest)WebRequest.Create(url);"
+            ],
+            [
+                169,
+                "            request.CookieContainer = Cookies;"
+            ],
+            [
+                170,
+                "            if (Type.GetType(\"Mono.Runtime\") != null)"
+            ],
+            [
+                171,
+                "            {"
+            ],
+            [
+                172,
+                "                var cookieHeader = Cookies.GetCookieHeader(new Uri(\"http://reddit.com\"));"
+            ],
+            [
+                173,
+                "                request.Headers.Set(\"Cookie\", cookieHeader);"
+            ],
+            [
+                174,
+                "            }"
+            ],
+            [
+                175,
+                "            if (RootDomain == \"oauth.reddit.com\")// use OAuth"
+            ],
+            [
+                176,
+                "            {"
+            ],
+            [
+                177,
+                "                request.Headers.Set(\"Authorization\", \"bearer \" + AccessToken);//Must be included in OAuth calls"
+            ],
+            [
+                178,
+                "            }"
+            ],
+            [
+                179,
+                "            request.Method = method;"
+            ],
+            [
+                180,
+                "            request.UserAgent = UserAgent + \" - with RedditSharp by /u/sircmpwn\";"
+            ],
+            [
+                181,
+                "            return request;"
+            ],
+            [
+                182,
+                "        }"
+            ],
+            [
+                183,
+                ""
+            ],
+            [
+                184,
+                "        private HttpWebRequest CreateRequest(Uri uri, string method)"
+            ],
+            [
+                185,
+                "        {"
+            ],
+            [
+                186,
+                "            EnforceRateLimit();"
+            ],
+            [
+                187,
+                "            var request = (HttpWebRequest)WebRequest.Create(uri);"
+            ],
+            [
+                188,
+                "            request.CookieContainer = Cookies;"
+            ],
+            [
+                189,
+                "            if (Type.GetType(\"Mono.Runtime\") != null)"
+            ],
+            [
+                190,
+                "            {"
+            ],
+            [
+                191,
+                "                var cookieHeader = Cookies.GetCookieHeader(new Uri(\"http://reddit.com\"));"
+            ],
+            [
+                192,
+                "                request.Headers.Set(\"Cookie\", cookieHeader);"
+            ],
+            [
+                193,
+                "            }"
+            ],
+            [
+                194,
+                "            if (RootDomain == \"oauth.reddit.com\")// use OAuth"
+            ],
+            [
+                195,
+                "            {"
+            ],
+            [
+                196,
+                "                request.Headers.Set(\"Authorization\", \"bearer \" + AccessToken);//Must be included in OAuth calls"
+            ],
+            [
+                197,
+                "            }"
+            ],
+            [
+                198,
+                "            request.Method = method;"
+            ],
+            [
+                199,
+                "            request.UserAgent = UserAgent + \" - with RedditSharp by /u/sircmpwn\";"
+            ],
+            [
+                200,
+                "            return request;"
+            ],
+            [
+                201,
+                "        }"
+            ],
+            [
+                202,
+                ""
+            ],
+            [
+                203,
+                "        public HttpWebRequest CreateGet(string url)"
+            ],
+            [
+                204,
+                "        {"
+            ],
+            [
+                205,
+                "            return CreateRequest(url, \"GET\");"
+            ],
+            [
+                206,
+                "        }"
+            ],
+            [
+                207,
+                ""
+            ],
+            [
+                208,
+                "        private HttpWebRequest CreateGet(Uri url)"
+            ],
+            [
+                209,
+                "        {"
+            ],
+            [
+                210,
+                "            return CreateRequest(url, \"GET\");"
+            ],
+            [
+                211,
+                "        }"
+            ],
+            [
+                212,
+                ""
+            ],
+            [
+                213,
+                "        public HttpWebRequest CreatePost(string url)"
+            ],
+            [
+                214,
+                "        {"
+            ],
+            [
+                215,
+                "            var request = CreateRequest(url, \"POST\");"
+            ],
+            [
+                216,
+                "            request.ContentType = \"application/x-www-form-urlencoded\";"
+            ],
+            [
+                217,
+                "            return request;"
+            ],
+            [
+                218,
+                "        }"
+            ],
+            [
+                219,
+                ""
+            ],
+            [
+                220,
+                "        public string GetResponseString(Stream stream)"
+            ],
+            [
+                221,
+                "        {"
+            ],
+            [
+                222,
+                "            var data = new StreamReader(stream).ReadToEnd();"
+            ],
+            [
+                223,
+                "            stream.Close();"
+            ],
+            [
+                224,
+                "            return data;"
+            ],
+            [
+                225,
+                "        }"
+            ],
+            [
+                226,
+                ""
+            ],
+            [
+                227,
+                "        public void WritePostBody(Stream stream, object data, params string[] additionalFields)"
+            ],
+            [
+                228,
+                "        {"
+            ],
+            [
+                229,
+                "            var type = data.GetType();"
+            ],
+            [
+                230,
+                "            var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);"
+            ],
+            [
+                231,
+                "            string value = \"\";"
+            ],
+            [
+                232,
+                "            foreach (var property in properties)"
+            ],
+            [
+                233,
+                "            {"
+            ],
+            [
+                234,
+                "                var attr = property.GetCustomAttributes(typeof(RedditAPINameAttribute), false).FirstOrDefault() as RedditAPINameAttribute;"
+            ],
+            [
+                235,
+                "                string name = attr == null ? property.Name : attr.Name;"
+            ],
+            [
+                236,
+                "                var entry = Convert.ToString(property.GetValue(data, null));"
+            ],
+            [
+                237,
+                "                value += name + \"=\" + HttpUtility.UrlEncode(entry).Replace(\";\", \"%3B\").Replace(\"&\", \"%26\") + \"&\";"
+            ],
+            [
+                238,
+                "            }"
+            ],
+            [
+                239,
+                "            for (int i = 0; i < additionalFields.Length; i += 2)"
+            ],
+            [
+                240,
+                "            {"
+            ],
+            [
+                241,
+                "                var entry = Convert.ToString(additionalFields[i + 1]) ?? string.Empty;"
+            ],
+            [
+                242,
+                "                value += additionalFields[i] + \"=\" + HttpUtility.UrlEncode(entry).Replace(\";\", \"%3B\").Replace(\"&\", \"%26\") + \"&\";"
+            ],
+            [
+                243,
+                "            }"
+            ],
+            [
+                244,
+                "            value = value.Remove(value.Length - 1); // Remove trailing &"
+            ],
+            [
+                245,
+                "            var raw = Encoding.UTF8.GetBytes(value);"
+            ],
+            [
+                246,
+                "            stream.Write(raw, 0, raw.Length);"
+            ],
+            [
+                247,
+                "            stream.Close();"
+            ],
+            [
+                248,
+                "        }"
+            ],
+            [
+                249,
+                "    }"
+            ],
+            [
+                250,
+                "}"
+            ]
+        ],
+        "deleted": [
+            [
+                1,
+                "using System;"
+            ],
+            [
+                2,
+                "using System.IO;"
+            ],
+            [
+                3,
+                "using System.Linq;"
+            ],
+            [
+                4,
+                "using System.Net;"
+            ],
+            [
+                5,
+                "using System.Reflection;"
+            ],
+            [
+                6,
+                "using System.Text;"
+            ],
+            [
+                7,
+                "using System.Threading;"
+            ],
+            [
+                8,
+                "using System.Web;"
+            ],
+            [
+                9,
+                ""
+            ],
+            [
+                10,
+                "namespace RedditSharp"
+            ],
+            [
+                11,
+                "{"
+            ],
+            [
+                12,
+                "    public sealed class WebAgent : IWebAgent"
+            ],
+            [
+                13,
+                "    {"
+            ],
+            [
+                14,
+                "        /// <summary>"
+            ],
+            [
+                15,
+                "        /// Additional values to append to the default RedditSharp user agent."
+            ],
+            [
+                16,
+                "        /// </summary>"
+            ],
+            [
+                17,
+                "        public static string UserAgent { get; set; }"
+            ],
+            [
+                18,
+                ""
+            ],
+            [
+                19,
+                "        /// <summary>"
+            ],
+            [
+                20,
+                "        /// It is strongly advised that you leave this enabled. Reddit bans excessive"
+            ],
+            [
+                21,
+                "        /// requests with extreme predjudice."
+            ],
+            [
+                22,
+                "        /// </summary>"
+            ],
+            [
+                23,
+                "        public static bool EnableRateLimit { get; set; }"
+            ],
+            [
+                24,
+                ""
+            ],
+            [
+                25,
+                "        public static string Protocol { get; set; }"
+            ],
+            [
+                26,
+                ""
+            ],
+            [
+                27,
+                "        /// <summary>"
+            ],
+            [
+                28,
+                "        /// It is strongly advised that you leave this set to Burst or Pace. Reddit bans excessive"
+            ],
+            [
+                29,
+                "        /// requests with extreme predjudice."
+            ],
+            [
+                30,
+                "        /// </summary>"
+            ],
+            [
+                31,
+                "        public static RateLimitMode RateLimit { get; set; }"
+            ],
+            [
+                32,
+                ""
+            ],
+            [
+                33,
+                "        /// <summary>"
+            ],
+            [
+                34,
+                "        /// The method by which the WebAgent will limit request rate"
+            ],
+            [
+                35,
+                "        /// </summary>"
+            ],
+            [
+                36,
+                "        public enum RateLimitMode"
+            ],
+            [
+                37,
+                "        {"
+            ],
+            [
+                38,
+                "            /// <summary>"
+            ],
+            [
+                39,
+                "            /// Limits requests to one every two seconds"
+            ],
+            [
+                40,
+                "            /// </summary>"
+            ],
+            [
+                41,
+                "            Pace,"
+            ],
+            [
+                42,
+                "            /// <summary>"
+            ],
+            [
+                43,
+                "            /// Restricts requests to thirty per minute"
+            ],
+            [
+                44,
+                "            /// </summary>"
+            ],
+            [
+                45,
+                "            Burst,"
+            ],
+            [
+                46,
+                "            /// <summary>"
+            ],
+            [
+                47,
+                "            /// Does not restrict request rate. ***NOT RECOMMENDED***"
+            ],
+            [
+                48,
+                "            /// </summary>"
+            ],
+            [
+                49,
+                "            None"
+            ],
+            [
+                50,
+                "        }"
+            ],
+            [
+                51,
+                ""
+            ],
+            [
+                52,
+                "        /// <summary>"
+            ],
+            [
+                53,
+                "        /// The root domain RedditSharp uses to address Reddit."
+            ],
+            [
+                54,
+                "        /// www.reddit.com by default"
+            ],
+            [
+                55,
+                "        /// </summary>"
+            ],
+            [
+                56,
+                "        public static string RootDomain { get; set; }"
+            ],
+            [
+                57,
+                ""
+            ],
+            [
+                58,
+                "        /// <summary>"
+            ],
+            [
+                59,
+                "        /// Used to make calls against Reddit's API using OAuth23"
+            ],
+            [
+                60,
+                "        /// </summary>"
+            ],
+            [
+                61,
+                "        public string AccessToken { get; set; }"
+            ],
+            [
+                62,
+                ""
+            ],
+            [
+                63,
+                "        public CookieContainer Cookies { get; set; }"
+            ],
+            [
+                64,
+                "        public string AuthCookie { get; set; }"
+            ],
+            [
+                65,
+                ""
+            ],
+            [
+                66,
+                "        private static DateTime _lastRequest;"
+            ],
+            [
+                67,
+                "        private static DateTime _burstStart;"
+            ],
+            [
+                68,
+                "        private static int _requestsThisBurst;"
+            ],
+            [
+                69,
+                ""
+            ],
+            [
+                70,
+                "        public HttpWebRequest CreateRequest(string url, string method)"
+            ],
+            [
+                71,
+                "        {"
+            ],
+            [
+                72,
+                "            var prependDomain = !Uri.IsWellFormedUriString(url, UriKind.Absolute);"
+            ],
+            [
+                73,
+                "            switch (RateLimit)"
+            ],
+            [
+                74,
+                "            {"
+            ],
+            [
+                75,
+                "                case RateLimitMode.Pace:"
+            ],
+            [
+                76,
+                "                    while ((DateTime.Now - _lastRequest).TotalSeconds < 2)// Rate limiting"
+            ],
+            [
+                77,
+                "                        Thread.Sleep(250);"
+            ],
+            [
+                78,
+                "                    _lastRequest = DateTime.Now;"
+            ],
+            [
+                79,
+                "                    break;"
+            ],
+            [
+                80,
+                "                case RateLimitMode.Burst:"
+            ],
+            [
+                81,
+                "                    if (_requestsThisBurst == 0)//this is first request"
+            ],
+            [
+                82,
+                "                        _burstStart = DateTime.Now;"
+            ],
+            [
+                83,
+                "                    if (_requestsThisBurst >= 30) //limit has been reached"
+            ],
+            [
+                84,
+                "                    {"
+            ],
+            [
+                85,
+                "                        while ((DateTime.UtcNow - _burstStart).TotalSeconds < 60)"
+            ],
+            [
+                86,
+                "                            Thread.Sleep(250);"
+            ],
+            [
+                87,
+                "                        _burstStart = DateTime.Now;"
+            ],
+            [
+                88,
+                "                    }"
+            ],
+            [
+                89,
+                "                    _requestsThisBurst++;"
+            ],
+            [
+                90,
+                "                    break;"
+            ],
+            [
+                91,
+                "            }"
+            ],
+            [
+                92,
+                "            HttpWebRequest request;"
+            ],
+            [
+                93,
+                "            if (prependDomain)"
+            ],
+            [
+                94,
+                "                request = (HttpWebRequest)WebRequest.Create(String.Format(\"{0}://{1}{2}\", Protocol, RootDomain, url));"
+            ],
+            [
+                95,
+                "            else"
+            ],
+            [
+                96,
+                "                request = (HttpWebRequest)WebRequest.Create(url);"
+            ],
+            [
+                97,
+                "            request.CookieContainer = Cookies;"
+            ],
+            [
+                98,
+                "            if (Type.GetType(\"Mono.Runtime\") != null)"
+            ],
+            [
+                99,
+                "            {"
+            ],
+            [
+                100,
+                "                var cookieHeader = Cookies.GetCookieHeader(new Uri(\"http://reddit.com\"));"
+            ],
+            [
+                101,
+                "                request.Headers.Set(\"Cookie\", cookieHeader);"
+            ],
+            [
+                102,
+                "            }"
+            ],
+            [
+                103,
+                "            if (!string.IsNullOrEmpty(AccessToken))// use OAuth"
+            ],
+            [
+                104,
+                "            {"
+            ],
+            [
+                105,
+                "                request.Headers.Set(\"Authorization\", \"bearer \" + AccessToken);//Must be included in OAuth calls"
+            ],
+            [
+                106,
+                "            }"
+            ],
+            [
+                107,
+                "            request.Method = method;"
+            ],
+            [
+                108,
+                "            request.UserAgent = UserAgent + \" - with RedditSharp by /u/sircmpwn\";"
+            ],
+            [
+                109,
+                "            return request;"
+            ],
+            [
+                110,
+                "        }"
+            ],
+            [
+                111,
+                ""
+            ],
+            [
+                112,
+                "        public HttpWebRequest CreateGet(string url)"
+            ],
+            [
+                113,
+                "        {"
+            ],
+            [
+                114,
+                "            return CreateRequest(url, \"GET\");"
+            ],
+            [
+                115,
+                "        }"
+            ],
+            [
+                116,
+                ""
+            ],
+            [
+                117,
+                "        public HttpWebRequest CreatePost(string url)"
+            ],
+            [
+                118,
+                "        {"
+            ],
+            [
+                119,
+                "            var request = CreateRequest(url, \"POST\");"
+            ],
+            [
+                120,
+                "            request.ContentType = \"application/x-www-form-urlencoded\";"
+            ],
+            [
+                121,
+                "            return request;"
+            ],
+            [
+                122,
+                "        }"
+            ],
+            [
+                123,
+                ""
+            ],
+            [
+                124,
+                "        public string GetResponseString(Stream stream)"
+            ],
+            [
+                125,
+                "        {"
+            ],
+            [
+                126,
+                "            var data = new StreamReader(stream).ReadToEnd();"
+            ],
+            [
+                127,
+                "            stream.Close();"
+            ],
+            [
+                128,
+                "            return data;"
+            ],
+            [
+                129,
+                "        }"
+            ],
+            [
+                130,
+                ""
+            ],
+            [
+                131,
+                "        public void WritePostBody(Stream stream, object data, params string[] additionalFields)"
+            ],
+            [
+                132,
+                "        {"
+            ],
+            [
+                133,
+                "            var type = data.GetType();"
+            ],
+            [
+                134,
+                "            var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);"
+            ],
+            [
+                135,
+                "            string value = \"\";"
+            ],
+            [
+                136,
+                "            foreach (var property in properties)"
+            ],
+            [
+                137,
+                "            {"
+            ],
+            [
+                138,
+                "                var attr = property.GetCustomAttributes(typeof(RedditAPINameAttribute), false).FirstOrDefault() as RedditAPINameAttribute;"
+            ],
+            [
+                139,
+                "                string name = attr == null ? property.Name : attr.Name;"
+            ],
+            [
+                140,
+                "                var entry = Convert.ToString(property.GetValue(data, null));"
+            ],
+            [
+                141,
+                "                value += name + \"=\" + HttpUtility.UrlEncode(entry).Replace(\";\", \"%3B\").Replace(\"&\", \"%26\") + \"&\";"
+            ],
+            [
+                142,
+                "            }"
+            ],
+            [
+                143,
+                "            for (int i = 0; i < additionalFields.Length; i += 2)"
+            ],
+            [
+                144,
+                "            {"
+            ],
+            [
+                145,
+                "                var entry = Convert.ToString(additionalFields[i + 1]);"
+            ],
+            [
+                146,
+                "                if (entry == null)"
+            ],
+            [
+                147,
+                "                    entry = string.Empty;"
+            ],
+            [
+                148,
+                "                value += additionalFields[i] + \"=\" + HttpUtility.UrlEncode(entry).Replace(\";\", \"%3B\").Replace(\"&\", \"%26\") + \"&\";"
+            ],
+            [
+                149,
+                "            }"
+            ],
+            [
+                150,
+                "            value = value.Remove(value.Length - 1); // Remove trailing &"
+            ],
+            [
+                151,
+                "            var raw = Encoding.UTF8.GetBytes(value);"
+            ],
+            [
+                152,
+                "            stream.Write(raw, 0, raw.Length);"
+            ],
+            [
+                153,
+                "            stream.Close();"
+            ],
+            [
+                154,
+                "        }"
+            ],
+            [
+                155,
+                "    }"
+            ],
+            [
+                156,
+                "}"
+            ]
+        ]
+    },
+    "num_lines_added": 250,
+    "num_lines_removed": 156
+}

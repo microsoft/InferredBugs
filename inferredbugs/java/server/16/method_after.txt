@@ -1,0 +1,62 @@
+    @Override
+    public WFCMessage.PullMessageResult fetchChatroomMessage(String fromUser, String chatroomId, String exceptClientId, long fromMessageId) {
+        WFCMessage.PullMessageResult.Builder builder = WFCMessage.PullMessageResult.newBuilder();
+
+        HazelcastInstance hzInstance = m_Server.getHazelcastInstance();
+        IMap<Long, MessageBundle> mIMap = hzInstance.getMap(MESSAGES_MAP);
+
+
+        long head = fromMessageId;
+        long current = fromMessageId;
+
+        TreeMap<Long, Long> maps = chatroomMessages.get(chatroomId);
+        if (maps == null) {
+            mWriteLock.lock();
+            try {
+                maps = chatroomMessages.get(chatroomId);
+                if (maps == null) {
+                    maps = new TreeMap<>();
+                    chatroomMessages.put(chatroomId, maps);
+                }
+            } finally {
+                mWriteLock.unlock();
+            }
+        }
+
+        mReadLock.lock();
+        int size = 0;
+        try {
+            maps = chatroomMessages.get(chatroomId);
+
+            while (true) {
+                Map.Entry<Long, Long> entry = maps.higherEntry(current);
+                if (entry == null) {
+                    break;
+                }
+                current = entry.getKey();
+                long targetMessageId = entry.getValue();
+
+                MessageBundle bundle = mIMap.get(targetMessageId);
+                if (bundle != null) {
+                    if (exceptClientId == null || !exceptClientId.equals(bundle.getFromClientId()) || !fromUser.equals(bundle.getFromUser())) {
+                        size += bundle.getMessage().getSerializedSize();
+                        if (size >= 3 * 1024 * 1024) { //3M
+                            break;
+                        }
+                        builder.addMessage(bundle.getMessage());
+                    }
+                }
+            }
+
+            Map.Entry<Long, Long> lastEntry = maps.lastEntry();
+            if (lastEntry != null) {
+                head = lastEntry.getKey();
+            }
+        } finally {
+            mReadLock.unlock();
+        }
+
+        builder.setCurrent(current);
+        builder.setHead(head);
+        return builder.build();
+    }

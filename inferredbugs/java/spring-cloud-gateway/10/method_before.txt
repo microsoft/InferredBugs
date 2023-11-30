@@ -1,0 +1,40 @@
+ @Override
+	public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+		Map<String, String> weights = getWeights(exchange);
+
+		for (String group : groupWeights.keySet()) {
+			GroupWeightConfig config = groupWeights.get(group);
+
+			if (config == null) {
+				if (log.isDebugEnabled()) {
+					log.debug("No GroupWeightConfig found for group: " + group);
+				}
+				continue; // nothing we can do, but this is odd
+			}
+
+			double r = this.random.nextDouble();
+
+			synchronized (config) {
+				List<Double> ranges = config.ranges;
+
+				if (log.isTraceEnabled()) {
+					log.trace("Weight for group: " + group + ", ranges: " + ranges
+							+ ", r: " + r);
+				}
+
+				for (int i = 0; i < ranges.size() - 1; i++) {
+					if (r >= ranges.get(i) && r < ranges.get(i + 1)) {
+						String routeId = config.rangeIndexes.get(i);
+						weights.put(group, routeId);
+						break;
+					}
+				}
+			}
+		}
+
+		if (log.isTraceEnabled()) {
+			log.trace("Weights attr: " + weights);
+		}
+
+		return chain.filter(exchange);
+	}

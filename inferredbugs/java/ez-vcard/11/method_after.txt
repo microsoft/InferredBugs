@@ -1,0 +1,30 @@
+ @Test
+	public void doUnmarshalValue() throws Exception {
+		VCardVersion version = VCardVersion.V3_0;
+		List<String> warnings = new ArrayList<String>();
+		CompatibilityMode compatibilityMode = CompatibilityMode.RFC;
+		VCardSubTypes subTypes;
+		AgentType t;
+
+		//with URL
+		t = new AgentType();
+		subTypes = new VCardSubTypes();
+		subTypes.setValue(ValueParameter.URL);
+		t.unmarshalValue(subTypes, "http://mi5.co.uk/007", version, warnings, compatibilityMode);
+		assertEquals("http://mi5.co.uk/007", t.getUrl());
+		assertNull(t.getVcard());
+
+		//with vCard
+		VCard vcard = new VCard();
+		t = new AgentType();
+		subTypes = new VCardSubTypes();
+		try {
+			t.unmarshalValue(subTypes, "BEGIN:VCARD\\nEND:VCARD", version, warnings, compatibilityMode);
+			fail();
+		} catch (EmbeddedVCardException e) {
+			//should be thrown
+			e.injectVCard(vcard);
+		}
+		assertNull(t.getUrl());
+		assertEquals(vcard, t.getVcard());
+	}

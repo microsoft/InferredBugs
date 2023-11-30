@@ -1,0 +1,24 @@
+        private static GetDelegate<TReturn> CreateGetDelegate<TReturn>(this PropertyInfo property) {
+            if (property == null) {
+                throw new ArgumentException("Property cannot be null.", nameof(property));
+            }
+
+            if (!typeof(TReturn).IsAssignableFrom(property.PropertyType)) {
+                throw new Exception($"Field type {property.PropertyType} does not match the requested type {typeof(TReturn)}.");
+            }
+
+            using (var method = new DynamicMethodDefinition($"{property} Getter", typeof(TReturn), new[] { typeof(object) })) {
+                var il = method.GetILProcessor();
+
+                var getMethod = property.GetGetMethod(nonPublic: true);
+
+                if (!getMethod.IsStatic) {
+                    il.Emit(OpCodes.Ldarg_0);
+                }
+
+                il.Emit(OpCodes.Call, getMethod);
+                il.Emit(OpCodes.Ret);
+
+                return (GetDelegate<TReturn>)method.Generate().CreateDelegate(typeof(GetDelegate<TReturn>));
+            }
+        }

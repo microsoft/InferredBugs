@@ -1,0 +1,53 @@
+    @Override
+    protected void doInject(Class<?> targetClass, Object targetObject, int injectDepth) throws ReflectiveOperationException {
+        if ((injectDepth--) <= 0) {
+            return;
+        }
+
+        targetClass = getUsefulClass(targetClass);
+        Field[] fields = targetClass.getDeclaredFields();
+        if (fields.length == 0) {
+            return;
+        }
+
+        for (Field field : fields) {
+//            Inject inject = field.getAnnotation(Inject.class);
+//            if (inject == null) {
+//                continue ;
+//            }
+//
+//            Class<?> fieldInjectedClass = inject.value();
+//            if (fieldInjectedClass == Void.class) {
+//                fieldInjectedClass = field.getType();
+//            }
+//
+//            Object fieldInjectedObject = doGet(fieldInjectedClass, injectDepth);
+//            field.setAccessible(true);
+//            field.set(targetObject, fieldInjectedObject);
+
+            Inject inject = field.getAnnotation(Inject.class);
+            if (inject != null) {
+                injectByJFinalInject(targetObject, field, inject, injectDepth);
+                continue;
+            }
+
+            InjectConfigValue injectConfigValue = field.getAnnotation(InjectConfigValue.class);
+            if (injectConfigValue != null) {
+                doInjectConfigValue(targetObject, field, injectConfigValue);
+                continue;
+            }
+
+            InjectConfigModel injectConfigModel = field.getAnnotation(InjectConfigModel.class);
+            if (injectConfigModel != null) {
+                doInjectConfigModel(targetObject, field, injectConfigModel);
+                continue;
+            }
+
+            RPCInject rpcInject = field.getAnnotation(RPCInject.class);
+            if (rpcInject != null) {
+                doInjectRPC(targetObject, field, rpcInject);
+                continue;
+            }
+
+        }
+    }

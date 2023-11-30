@@ -1,0 +1,16 @@
+  private InputStream buildWrappedInputStream(InputStream downloadInputStream)
+      throws TransformerException, IOException {
+
+    // Pass the download input stream through a transformer that removes the XML
+    // declaration.
+    Transformer omitXmlDeclarationTransformer = getTransformer();
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    StreamResult streamResult = new StreamResult(outputStream);
+    Source xmlSource = new StreamSource(downloadInputStream);
+    omitXmlDeclarationTransformer.transform(xmlSource, streamResult);
+    
+    return ByteSource.concat(
+        ByteSource.wrap(SOAP_START_BODY.getBytes()),
+        ByteSource.wrap(outputStream.toByteArray()),
+        ByteSource.wrap(SOAP_END_BODY.getBytes())).openStream();
+  }

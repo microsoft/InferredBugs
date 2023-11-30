@@ -1,0 +1,33 @@
+    public void release(RrdDb rrdDb) throws IOException {
+        // null pointer should not kill the thread, just ignore it
+        if (rrdDb == null) {
+            return;
+        }
+
+        RrdEntry ref;
+        try {
+            ref = getEntry(rrdDb.getPath(), false);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("release interrupted for " + rrdDb, e);
+        }
+        if(ref == null) {
+            return;
+        }
+
+        if (ref.count <= 0) {
+            passNext(ACTION.DROP, ref);
+            throw new IllegalStateException("Could not release [" + rrdDb.getPath() + "], the file was never requested");
+        }
+        if (--ref.count == 0) {
+            if(ref.rrdDb == null) {
+                passNext(ACTION.DROP, ref);
+                throw new IllegalStateException("Could not release [" + rrdDb.getPath() + "], pool corruption");                    
+            }
+            ref.rrdDb.close();
+            passNext(ACTION.DROP, ref);                
+            //If someone is waiting for an empty entry, signal it
+            ref.waitempty.countDown();
+        } else {
+            passNext(ACTION.SWAP, ref);
+        }
+    }

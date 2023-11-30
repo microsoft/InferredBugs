@@ -1,0 +1,47 @@
+    public Archive findMatchingArchive(FetchRequest request) throws IOException {
+        ConsolFun consolFun = request.getConsolFun();
+        long fetchStart = request.getFetchStart();
+        long fetchEnd = request.getFetchEnd();
+        long resolution = request.getResolution();
+        Archive bestFullMatch = null, bestPartialMatch = null;
+        long bestStepDiff = 0, bestMatch = 0;
+        for (Archive archive : archives) {
+            if (archive.getConsolFun() == consolFun) {
+                long arcStep = archive.getArcStep();
+                long arcStart = archive.getStartTime() - arcStep;
+                long arcEnd = archive.getEndTime();
+                long fullMatch = fetchEnd - fetchStart;
+                if (arcEnd >= fetchEnd && arcStart <= fetchStart) {
+                    long tmpStepDiff = Math.abs(archive.getArcStep() - resolution);
+
+                    if (tmpStepDiff < bestStepDiff || bestFullMatch == null) {
+                        bestStepDiff = tmpStepDiff;
+                        bestFullMatch = archive;
+                    }
+                }
+                else {
+                    long tmpMatch = fullMatch;
+
+                    if (arcStart > fetchStart) {
+                        tmpMatch -= (arcStart - fetchStart);
+                    }
+                    if (arcEnd < fetchEnd) {
+                        tmpMatch -= (fetchEnd - arcEnd);
+                    }
+                    if (bestPartialMatch == null || bestMatch < tmpMatch) {
+                        bestPartialMatch = archive;
+                        bestMatch = tmpMatch;
+                    }
+                }
+            }
+        }
+        if (bestFullMatch != null) {
+            return bestFullMatch;
+        }
+        else if (bestPartialMatch != null) {
+            return bestPartialMatch;
+        }
+        else {
+            throw new IllegalStateException("RRD file does not contain RRA: " + consolFun + " archive");
+        }
+    }

@@ -1,0 +1,19 @@
+        private static Method<D> UnreflectStatic(MethodInfo method)
+        {
+            var delegateType = typeof(D);
+            if(delegateType.IsGenericInstanceOf(typeof(Function<,>)) && delegateType.GetGenericArguments().Take(out var argumentsType, out var returnType) == 2L)
+            {
+                var (parameters, arglist, input) = Signature.Reflect(argumentsType);
+                return returnType == method.ReturnType && method.SignatureEquals(parameters) ? new Method<D>(method, arglist, new[]{ input }) : null;
+            }
+            else if(delegateType.IsGenericInstanceOf(typeof(Procedure<>)))
+            {
+                argumentsType = delegateType.GetGenericArguments()[0];
+                var (parameters, arglist, input) = Signature.Reflect(argumentsType);
+                return typeof(void) == method.ReturnType && method.SignatureEquals(parameters) ? new Method<D>(method, arglist, new[]{ input }) : null; 
+            }
+			else if(Delegates.GetInvokeMethod<D>().SignatureEquals(method))
+                return new Method<D>(method);
+            else
+                return null;
+        }

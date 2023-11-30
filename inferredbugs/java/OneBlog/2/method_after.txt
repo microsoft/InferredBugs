@@ -1,0 +1,44 @@
+    public static String template2String(String templateContent, Map<String, Object> map,
+                                         boolean isNeedFilter) {
+        if (StringUtils.isEmpty(templateContent)) {
+            return null;
+        }
+        if (map == null) {
+            map = new HashMap<>();
+        }
+        Map<String, Object> newMap = new HashMap<>(1);
+
+        Set<String> keySet = map.keySet();
+        if (keySet.size() > 0) {
+            for (String key : keySet) {
+                Object o = map.get(key);
+                if (o != null) {
+                    if (o instanceof String) {
+                        String value = o.toString();
+                        value = value.trim();
+                        if (isNeedFilter) {
+                            value = filterXmlString(value);
+                        }
+                        newMap.put(key, value);
+                    } else {
+                        newMap.put(key, o);
+                    }
+                }
+            }
+        }
+        Template t = null;
+        try {
+            t = new Template("", new StringReader(templateContent), new Configuration());
+            StringWriter writer = new StringWriter();
+            t.process(newMap, writer);
+            return writer.toString();
+        } catch (IOException e) {
+            log.error("TemplateUtil -> template2String IOException.", e);
+        } catch (TemplateException e) {
+            log.error("TemplateUtil -> template2String TemplateException.", e);
+        } finally {
+            newMap.clear();
+            newMap = null;
+        }
+        return null;
+    }

@@ -1,0 +1,20 @@
+  [Fact]
+		public void StringTruncationTest()
+		{
+			var str = new string('a', 1200);
+
+			string json;
+			using (var agent = new ApmAgent(new TestAgentComponents()))
+			{
+				var transaction = new Transaction(agent, str, "test") { Duration = 1, Result = "fail" };
+				json = SerializePayloadItem(transaction);
+			}
+
+			var deserializedTransaction = JsonConvert.DeserializeObject<JObject>(json);
+
+			deserializedTransaction.Should().NotBeNull();
+			deserializedTransaction["name"].Value<string>().Length.Should().Be(PropertyMaxLength);
+			deserializedTransaction["name"].Value<string>().Substring(PropertyMaxLength - Ellipsis.Length, Ellipsis.Length).Should().Be(Ellipsis);
+			deserializedTransaction["type"].Value<string>().Should().Be("test");
+			deserializedTransaction["result"].Value<string>().Should().Be("fail");
+		}

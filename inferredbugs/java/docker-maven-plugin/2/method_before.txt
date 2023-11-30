@@ -1,0 +1,40 @@
+    @Test
+    public void variableReplacement() throws MojoExecutionException {
+
+        PortMapping mapping = createPortMapping("jolokia.port:8080","18181:8181","127.0.0.1:9090:9090", "127.0.0.1:other.port:5678");
+
+        updateDynamicMapping(mapping, 8080, 49900);
+        updateDynamicMapping(mapping, 5678, 49901);
+
+        mapAndVerifyReplacement(mapping,
+                                "http://localhost:49900/", "http://localhost:${jolokia.port}/",
+                                "http://pirx:49900/", "http://pirx:${    jolokia.port}/");
+
+        mapAndVerifyReplacement(mapping,
+                                "http://localhost:49901/", "http://localhost:${other.port}/",
+                                "http://pirx:49901/", "http://pirx:${    other.port}/");
+
+        assertEquals((int) mapping.getPortVariables().get("jolokia.port"), 49900);
+        assertEquals((int) mapping.getPortVariables().get("other.port"), 49901);
+
+        assertTrue(mapping.containsDynamicPorts());
+        assertEquals(4, mapping.getContainerPorts().size());
+
+        assertEquals(4, mapping.getPortsMap().size());
+        assertEquals(2, mapping.getBindToHostMap().size());
+
+        assertEquals(49900, (long) mapping.getPortVariables().get("jolokia.port"));
+        assertEquals(49901, (long) mapping.getPortVariables().get("other.port"));
+
+        Map<String,Integer> p = mapping.getPortsMap();
+        assertEquals(p.size(),4);
+
+        assertNull(p.get("8080/tcp"));
+        assertNull(p.get("5678/tcp"));
+
+        assertEquals(18181, (long) p.get("8181/tcp"));
+        assertEquals(9090, (long) p.get("9090/tcp"));
+
+        assertEquals("127.0.0.1", mapping.getBindToHostMap().get("9090/tcp"));
+        assertEquals("127.0.0.1", mapping.getBindToHostMap().get("5678/tcp"));
+    }

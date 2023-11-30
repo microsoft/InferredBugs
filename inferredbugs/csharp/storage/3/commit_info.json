@@ -1,0 +1,537 @@
+{
+    "hash": "8e4f09f8dca57be98ed255ebadf0943e724a2a0a",
+    "message": "inmemory storage support for metadata",
+    "file_num_lines": 192,
+    "diff_parsed": {
+        "added": [
+            [
+                19,
+                "         public Blob blob;"
+            ],
+            [
+                23,
+                "      private readonly Dictionary<string, Tag> _pathToTag = new Dictionary<string, Tag>();"
+            ],
+            [
+                29,
+                "         IEnumerable<KeyValuePair<string, Tag>> query = _pathToTag;"
+            ],
+            [
+                31,
+                "         //limit by folder path"
+            ],
+            [
+                32,
+                "         if(options.Recurse)"
+            ],
+            [
+                33,
+                "         {"
+            ],
+            [
+                34,
+                "            if(!StoragePath.IsRootPath(options.FolderPath))"
+            ],
+            [
+                35,
+                "            {"
+            ],
+            [
+                36,
+                "               string prefix = options.FolderPath + StoragePath.PathSeparatorString;"
+            ],
+            [
+                37,
+                ""
+            ],
+            [
+                38,
+                "               query = query.Where(p => p.Key.StartsWith(prefix));"
+            ],
+            [
+                39,
+                "            }"
+            ],
+            [
+                40,
+                "         }"
+            ],
+            [
+                41,
+                "         else"
+            ],
+            [
+                42,
+                "         {"
+            ],
+            [
+                43,
+                "            query = query.Where(p => StoragePath.ComparePath(p.Value.blob.FolderPath, options.FolderPath));"
+            ],
+            [
+                44,
+                "         }"
+            ],
+            [
+                45,
+                ""
+            ],
+            [
+                46,
+                "         //prefix"
+            ],
+            [
+                47,
+                "         query = query.Where(p => options.IsMatch(p.Value.blob));"
+            ],
+            [
+                49,
+                "         //browser filter"
+            ],
+            [
+                50,
+                "         query = query.Where(p => options.BrowseFilter == null || options.BrowseFilter(p.Value.blob));"
+            ],
+            [
+                52,
+                "         //limit"
+            ],
+            [
+                53,
+                "         if(options.MaxResults != null)"
+            ],
+            [
+                54,
+                "         {"
+            ],
+            [
+                55,
+                "            query = query.Take(options.MaxResults.Value);"
+            ],
+            [
+                56,
+                "         }"
+            ],
+            [
+                57,
+                ""
+            ],
+            [
+                58,
+                "         IReadOnlyCollection<Blob> matches = query.Select(p => p.Value.blob).ToList();"
+            ],
+            [
+                60,
+                "         return Task.FromResult(matches);"
+            ],
+            [
+                76,
+                "               Tag tag = _pathToTag[fullPath];"
+            ],
+            [
+                78,
+                "               Write(fullPath, new MemoryStream(data));"
+            ],
+            [
+                109,
+                "         if (!_pathToTag.TryGetValue(fullPath, out Tag tag)) return Task.FromResult<Stream>(null);"
+            ],
+            [
+                120,
+                "            //try to delete as file firts"
+            ],
+            [
+                121,
+                "            Blob pb = path;"
+            ],
+            [
+                122,
+                "            if(_pathToTag.ContainsKey(pb))"
+            ],
+            [
+                123,
+                "            {"
+            ],
+            [
+                124,
+                "               _pathToTag.Remove(pb);"
+            ],
+            [
+                125,
+                "            }"
+            ],
+            [
+                126,
+                "            else"
+            ],
+            [
+                127,
+                "            {"
+            ],
+            [
+                128,
+                "               string prefix = StoragePath.Normalize(path) + StoragePath.PathSeparatorString;"
+            ],
+            [
+                130,
+                "               List<Blob> candidates = _pathToTag.Where(p => p.Value.blob.FullPath.StartsWith(prefix)).Select(p => p.Value.blob).ToList();"
+            ],
+            [
+                132,
+                "               foreach(Blob candidate in candidates)"
+            ],
+            [
+                133,
+                "               {"
+            ],
+            [
+                134,
+                "                  _pathToTag.Remove(candidate);"
+            ],
+            [
+                135,
+                "               }"
+            ],
+            [
+                147,
+                "            result.Add(_pathToTag.ContainsKey(StoragePath.Normalize(id)));"
+            ],
+            [
+                161,
+                "            if (!_pathToTag.TryGetValue(StoragePath.Normalize(fullPath), out Tag tag))"
+            ],
+            [
+                167,
+                "               result.Add(tag.blob);"
+            ],
+            [
+                181,
+                "            if(_pathToTag.TryGetValue(blob, out Tag tag))"
+            ],
+            [
+                183,
+                "               tag.blob.Metadata = new Dictionary<string, string>(blob.Metadata);"
+            ],
+            [
+                195,
+                "         if(sourceStream is MemoryStream ms)"
+            ],
+            [
+                196,
+                "            ms.Position = 0;"
+            ],
+            [
+                197,
+                "         byte[] data = sourceStream.ToByteArray();"
+            ],
+            [
+                199,
+                "         if(!_pathToTag.TryGetValue(fullPath, out Tag tag))"
+            ],
+            [
+                200,
+                "         {"
+            ],
+            [
+                201,
+                "            tag = new Tag"
+            ],
+            [
+                202,
+                "            {"
+            ],
+            [
+                203,
+                "               data = data,"
+            ],
+            [
+                204,
+                "               blob = new Blob(fullPath)"
+            ],
+            [
+                205,
+                "               {"
+            ],
+            [
+                206,
+                "                  Size = data.Length,"
+            ],
+            [
+                207,
+                "                  LastModificationTime = DateTime.UtcNow,"
+            ],
+            [
+                208,
+                "                  MD5 = data.GetHash(HashType.Md5).ToHexString()"
+            ],
+            [
+                209,
+                "               }"
+            ],
+            [
+                210,
+                "            };"
+            ],
+            [
+                211,
+                "         }"
+            ],
+            [
+                212,
+                "         else"
+            ],
+            [
+                213,
+                "         {"
+            ],
+            [
+                214,
+                "            tag.data = data;"
+            ],
+            [
+                215,
+                "            tag.blob.Size = data.Length;"
+            ],
+            [
+                216,
+                "            tag.blob.LastModificationTime = DateTime.UtcNow;"
+            ],
+            [
+                217,
+                "            tag.blob.MD5 = data.GetHash(HashType.Md5).ToHexString();"
+            ],
+            [
+                218,
+                "         }"
+            ],
+            [
+                219,
+                "         _pathToTag[fullPath] = tag;"
+            ],
+            [
+                226,
+                "         return _pathToTag.ContainsKey(fullPath);"
+            ]
+        ],
+        "deleted": [
+            [
+                20,
+                "         public DateTimeOffset lastMod;"
+            ],
+            [
+                21,
+                "         public string md5;"
+            ],
+            [
+                24,
+                "      private readonly Dictionary<Blob, Tag> _blobToTag = new Dictionary<Blob, Tag>();"
+            ],
+            [
+                30,
+                "         options.FolderPath = StoragePath.Normalize(options.FolderPath);"
+            ],
+            [
+                32,
+                "         List<Blob> matches = _blobToTag"
+            ],
+            [
+                34,
+                "            .Where(e => options.Recurse"
+            ],
+            [
+                35,
+                "               ? e.Key.FolderPath.StartsWith(options.FolderPath)"
+            ],
+            [
+                36,
+                "               : StoragePath.ComparePath(e.Key.FolderPath, options.FolderPath))"
+            ],
+            [
+                38,
+                "            .Select(e => e.Key)"
+            ],
+            [
+                39,
+                "            .Where(options.IsMatch)"
+            ],
+            [
+                40,
+                "            .Where(e => options.BrowseFilter == null || options.BrowseFilter(e))"
+            ],
+            [
+                41,
+                "            .Take(options.MaxResults == null ? int.MaxValue : options.MaxResults.Value)"
+            ],
+            [
+                42,
+                "            .ToList();"
+            ],
+            [
+                44,
+                "         return Task.FromResult((IReadOnlyCollection<Blob>)matches);"
+            ],
+            [
+                60,
+                "               Tag tag = _blobToTag[fullPath];"
+            ],
+            [
+                62,
+                ""
+            ],
+            [
+                63,
+                "               _blobToTag[fullPath] = ToTag(data);"
+            ],
+            [
+                94,
+                "         if (!_blobToTag.TryGetValue(fullPath, out Tag tag)) return Task.FromResult<Stream>(null);"
+            ],
+            [
+                105,
+                "            string prefix = StoragePath.Normalize(path) + StoragePath.PathSeparatorString;"
+            ],
+            [
+                107,
+                "            List<Blob> candidates = _blobToTag.Where(p => p.Key.FullPath.StartsWith(prefix)).Select(p => p.Key).ToList();"
+            ],
+            [
+                109,
+                "            foreach(Blob candidate in candidates)"
+            ],
+            [
+                110,
+                "            {"
+            ],
+            [
+                111,
+                "               _blobToTag.Remove(candidate);"
+            ],
+            [
+                123,
+                "            result.Add(_blobToTag.ContainsKey(StoragePath.Normalize(id)));"
+            ],
+            [
+                137,
+                "            if (!_blobToTag.TryGetValue(StoragePath.Normalize(fullPath), out Tag tag))"
+            ],
+            [
+                143,
+                "               var r = new Blob(fullPath)"
+            ],
+            [
+                144,
+                "               {"
+            ],
+            [
+                145,
+                "                  Size = tag.data.Length,"
+            ],
+            [
+                146,
+                "                  MD5 = tag.md5,"
+            ],
+            [
+                147,
+                "                  LastModificationTime = tag.lastMod"
+            ],
+            [
+                148,
+                "               };"
+            ],
+            [
+                149,
+                ""
+            ],
+            [
+                150,
+                "               result.Add(r);"
+            ],
+            [
+                164,
+                "            if(_blobToTag.TryGetValue(blob, out Tag tag))"
+            ],
+            [
+                166,
+                "               _blobToTag.Remove(blob);"
+            ],
+            [
+                167,
+                "               _blobToTag[blob] = tag;"
+            ],
+            [
+                179,
+                "         Tag tag = ToTag(sourceStream);"
+            ],
+            [
+                180,
+                ""
+            ],
+            [
+                181,
+                "         _blobToTag[fullPath] = tag;"
+            ],
+            [
+                182,
+                "      }"
+            ],
+            [
+                183,
+                ""
+            ],
+            [
+                184,
+                "      private static Tag ToTag(Stream s)"
+            ],
+            [
+                185,
+                "      {"
+            ],
+            [
+                186,
+                "         if (s is MemoryStream ms) ms.Position = 0;"
+            ],
+            [
+                187,
+                "         return ToTag(s.ToByteArray());"
+            ],
+            [
+                188,
+                "      }"
+            ],
+            [
+                190,
+                "      private static Tag ToTag(byte[] data)"
+            ],
+            [
+                191,
+                "      {"
+            ],
+            [
+                192,
+                "         var tag = new Tag();"
+            ],
+            [
+                193,
+                "         tag.data = data;"
+            ],
+            [
+                194,
+                "         tag.lastMod = DateTimeOffset.UtcNow;"
+            ],
+            [
+                195,
+                "         tag.md5 = tag.data.GetHash(HashType.Md5).ToHexString();"
+            ],
+            [
+                196,
+                "         return tag;"
+            ],
+            [
+                203,
+                "         return _blobToTag.ContainsKey(fullPath);"
+            ]
+        ]
+    },
+    "num_lines_added": 77,
+    "num_lines_removed": 54
+}

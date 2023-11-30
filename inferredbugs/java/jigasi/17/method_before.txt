@@ -1,0 +1,59 @@
+    public synchronized void stop()
+    {
+        if (!started)
+        {
+            logger.error(this.callContext + " Already stopped !");
+            return;
+        }
+
+        started = false;
+
+        JigasiBundleActivator.osgiContext.removeServiceListener(this);
+
+        if (telephony != null)
+        {
+            telephony.removeCallListener(callListener);
+            telephony = null;
+        }
+
+        if (muteIqHandler != null)
+        {
+            // we need to remove it from the connection, or we break some Smack
+            // weak references map where the key is connection and the value
+            // holds a connection and we leak connection/conferences.
+            getConnection().unregisterIQRequestHandler(muteIqHandler);
+        }
+
+        gatewaySession.onJvbConferenceWillStop(this, endReasonCode, endReason);
+
+        leaveConferenceRoom();
+
+        if (jvbCall != null)
+        {
+            CallManager.hangupCall(jvbCall, true);
+        }
+
+        if (xmppProvider != null)
+        {
+            xmppProvider.removeRegistrationStateChangeListener(this);
+
+            // in case we were not able to create jvb call, unit tests case
+            if (jvbCall == null)
+            {
+                logger.info(
+                    callContext + " Removing account " + xmppAccount);
+
+                xmppProviderFactory.unloadAccount(xmppAccount);
+            }
+
+            xmppProviderFactory = null;
+
+            xmppAccount = null;
+
+            xmppProvider = null;
+        }
+
+        gatewaySession.onJvbConferenceStopped(this, endReasonCode, endReason);
+
+        setJvbCall(null);
+    }

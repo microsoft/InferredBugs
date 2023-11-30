@@ -1,0 +1,29 @@
+    @Test
+    public void testStartNewSpanSampleNullNotPartOfExistingSpan() {
+
+        final ServerSpan mockServerSpan = mock(ServerSpan.class);
+        when(mockServerSpan.getSpan()).thenReturn(null);
+        when(mockState.sample()).thenReturn(null);
+        when(mockState.getCurrentServerSpan()).thenReturn(mockServerSpan);
+        when(mockRandom.nextLong()).thenReturn(1l).thenReturn(2l);
+
+        final SpanId newSpanId = clientTracer.startNewSpan(REQUEST_NAME);
+        assertNotNull(newSpanId);
+        assertEquals(1l, newSpanId.getTraceId());
+        assertEquals(1l, newSpanId.getSpanId());
+        assertNull(newSpanId.getParentSpanId());
+
+        final Span expectedSpan = new Span();
+        expectedSpan.setTrace_id(1);
+        expectedSpan.setId(1);
+        expectedSpan.setName(REQUEST_NAME);
+
+        verify(mockState).sample();
+        verify(mockTraceFilter).trace(REQUEST_NAME);
+        verify(mockTraceFilter2).trace(REQUEST_NAME);
+        verify(mockRandom, times(1)).nextLong();
+        verify(mockState).getCurrentServerSpan();
+        verify(mockState).setCurrentClientSpan(expectedSpan);
+
+        verifyNoMoreInteractions(mockState, mockRandom, mockCollector, mockTraceFilter, mockTraceFilter2);
+    }

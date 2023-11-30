@@ -1,0 +1,25 @@
+    @Override
+    public int[] getFanSpeeds() {
+        int[] fanSpeeds = new int[1];
+        ArrayList<String> hwInfo = ExecutingCommand
+                .runNative("wmic /namespace:\\\\root\\cimv2 PATH Win32_Fan get DesiredSpeed");
+        for (String checkLine : hwInfo) {
+            if (checkLine.length() == 0 || checkLine.toLowerCase().contains("desiredspeed")) {
+                continue;
+            } else {
+                // If successful
+                try {
+                    int rpm = Integer.parseInt(checkLine.trim());
+                    // Check if 8th bit (of 16 bit number) is set
+                    if (rpm > 0) {
+                        fanSpeeds[0] = rpm;
+                        return fanSpeeds;
+                    }
+                } catch (NumberFormatException e) {
+                    // If we failed to parse, give up
+                }
+                break;
+            }
+        }
+        return fanSpeeds;
+    }

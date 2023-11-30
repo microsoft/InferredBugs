@@ -1,0 +1,21 @@
+  public void process(final Reader reader, final Writer writer)
+    throws IOException {
+    final StopWatch watch = new StopWatch();
+    watch.start("pack");
+    final String content = IOUtils.toString(reader);
+    try {
+      final JavaScriptCompressor compressor = new JavaScriptCompressor(new StringReader(content), new YUIErrorReporter());
+      compressor.compress(writer, linebreakpos, munge, verbose, preserveAllSemiColons, disableOptimizations);
+    } catch (final RuntimeException e) {
+      LOG.error("Problem while applying YUI compressor", e);
+      //keep js unchanged if it contains errors -> this should be configurable
+      LOG.debug("Leave resource unchanged...");
+      IOUtils.copy(new StringReader(content), writer);
+      //throw new WroRuntimeException("Problem while applying YUI compressor", e);
+    } finally {
+      reader.close();
+      writer.close();
+      watch.stop();
+      LOG.debug(watch.prettyPrint());
+    }
+  }

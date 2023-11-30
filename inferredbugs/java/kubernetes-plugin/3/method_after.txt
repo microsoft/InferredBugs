@@ -1,0 +1,36 @@
+    private Pod getPodTemplate(KubernetesSlave slave, Label label) {
+        final PodTemplate template = getTemplate(label);
+        String id = getIdForLabel(label);
+        List<EnvVar> env = new ArrayList<EnvVar>(3);
+        // always add some env vars
+        env.add(new EnvVar("JENKINS_SECRET", slave.getComputer().getJnlpMac(), null));
+        env.add(new EnvVar("JENKINS_LOCATION_URL", JenkinsLocationConfiguration.get().getUrl(), null));
+        String url = StringUtils.isBlank(jenkinsUrl) ? JenkinsLocationConfiguration.get().getUrl() : jenkinsUrl;
+        env.add(new EnvVar("JENKINS_URL", url, null));
+        if (!StringUtils.isBlank(jenkinsTunnel)) {
+            env.add(new EnvVar("JENKINS_TUNNEL", jenkinsTunnel, null));
+        }
+        url = url.endsWith("/") ? url : url + "/";
+        env.add(new EnvVar("JENKINS_JNLP_URL", url + slave.getComputer().getUrl() + "slave-agent.jnlp", null));
+
+        return new PodBuilder()
+                .withNewMetadata()
+                    .withName(slave.getNodeName())
+                    .withLabels(getLabelsFor(id))
+                .endMetadata()
+                .withNewSpec()
+                    .addNewContainer()
+                        .withName(CONTAINER_NAME)
+                        .withImage(template.getImage())
+                        .withNewSecurityContext()
+                            .withPrivileged(template.isPrivileged())
+                        .endSecurityContext()
+                        .withEnv(env)
+                        .withCommand(parseDockerCommand(template.getCommand()))
+                        .addToArgs(slave.getComputer().getJnlpMac())
+                        .addToArgs(slave.getComputer().getName())
+                .endContainer()
+                .withRestartPolicy("Never")
+                .endSpec()
+                .build();
+    }

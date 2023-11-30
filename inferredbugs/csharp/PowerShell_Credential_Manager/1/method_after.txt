@@ -1,0 +1,30 @@
+        public IEnumerable<Credential> ReadCred()
+        {
+            int count;
+            int flags;
+
+            if (6 <= Environment.OSVersion.Version.Major)
+            {
+                flags = 0x1;
+            }
+            else
+            {
+                string message = "Retrieving all credentials is only possible on Windows version Vista or later.";
+                throw new Exception(message);
+            }
+
+            IntPtr pCredentials;
+            bool read = Imports.CredEnumerate(null, flags, out count, out pCredentials);
+            int lastError = Marshal.GetLastWin32Error();
+
+            if (read)
+            {
+                CriticalCredentialHandle credHandle = new CriticalCredentialHandle(pCredentials);
+                return credHandle.GetCredentials(count);
+            }
+            else
+            {
+                string message = $"CredEnumerate failed with the error code {lastError}.";
+                throw new Exception(message);
+            }
+        }

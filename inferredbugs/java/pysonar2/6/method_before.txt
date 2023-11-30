@@ -1,0 +1,21 @@
+    public static void bindIter(@NotNull Scope s, Node target, @NotNull Node iter, Binding.Kind kind) {
+        Type iterType = Node.resolveExpr(iter, s);
+
+        if (iterType.isListType()) {
+            bind(s, target, iterType.asListType().getElementType(), kind);
+        } else if (iterType.isTupleType()) {
+            bind(s, target, iterType.asTupleType().toListType().getElementType(), kind);
+        } else {
+            List<Binding> ents = iterType.getTable().lookupAttr("__iter__");
+            for (Binding ent : ents) {
+                if (ent == null || !ent.getType().isFuncType()) {
+                    if (!iterType.isUnknownType()) {
+                        iter.addWarning("not an iterable type: " + iterType);
+                    }
+                    bind(s, target, Indexer.idx.builtins.unknown, kind);
+                } else {
+                    bind(s, target, ent.getType().asFuncType().getReturnType(), kind);
+                }
+            }
+        }
+    }

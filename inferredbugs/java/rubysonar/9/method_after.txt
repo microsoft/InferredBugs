@@ -1,0 +1,32 @@
+    @NotNull
+    @Override
+    public Type transform(@NotNull State s) {
+        if (locator != null) {
+            Type existing = transformExpr(locator, s);
+            if (existing instanceof ClassType) {
+                if (body != null) {
+                    transformExpr(body, existing.table);
+                }
+                return Type.CONT;
+            }
+        }
+
+        ClassType classType = new ClassType(name.id, s);
+
+        if (base != null) {
+            Type baseType = transformExpr(base, s);
+            if (baseType.isClassType()) {
+                classType.addSuper(baseType);
+            } else {
+                Analyzer.self.putProblem(base, base + " is not a class");
+            }
+        }
+
+        // Bind ClassType to name here before resolving the body because the
+        // methods need this type as self.
+        Binder.bind(s, name, classType, Binding.Kind.CLASS);
+        if (body != null) {
+            transformExpr(body, classType.getTable());
+        }
+        return Type.CONT;
+    }

@@ -1,0 +1,42 @@
+    @Override
+    public void run() {
+        checkRunningStat();
+        initComponent();
+        logger.info("Spider " + getUUID() + " started!");
+        while (!Thread.currentThread().isInterrupted() && stat.get() == STAT_RUNNING) {
+            Request request = scheduler.poll(this);
+            if (request == null) {
+                if (threadPool.getThreadAlive() == 0 && exitWhenComplete) {
+                    break;
+                }
+                // wait until new url added
+                waitNewUrl();
+            } else {
+                final Request requestFinal = request;
+                threadPool.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            processRequest(requestFinal);
+                            onSuccess(requestFinal);
+                        } catch (Exception e) {
+                            onError(requestFinal);
+                            logger.error("process request " + requestFinal + " error", e);
+                        } finally {
+							if (site.getHttpProxyPool().isEnable()) {
+								site.returnHttpProxyToPool((HttpHost) requestFinal.getExtra(Request.PROXY), (Integer) requestFinal
+										.getExtra(Request.STATUS_CODE));
+							}
+                            pageCount.incrementAndGet();
+                            signalNewUrl();
+                        }
+                    }
+                });
+            }
+        }
+        stat.set(STAT_STOPPED);
+        // release some resources
+        if (destroyWhenExit) {
+            close();
+        }
+    }

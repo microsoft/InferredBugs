@@ -1,0 +1,25 @@
+        private void HandlePostRequest(HttpMessage message) {
+            string path = message.Path;
+
+            bool? success = null;
+            if (String.CompareOrdinal(path, "/log/success") == 0) {
+                success = true;
+            }
+            else if (String.CompareOrdinal(path, "/log/failure") == 0) {
+                success = false;
+            }
+
+            if (success.HasValue) {
+                string log = new StreamReader(message.RequestStream).ReadToEnd();
+                message.WriteStatus(HttpStatusCode.NoContent);
+
+                if (Log != null) {
+                    WebTestLogEventArgs logEvent = new WebTestLogEventArgs(success.Value, log);
+                    Log(this, logEvent);
+                }
+
+                return;
+            }
+
+            message.WriteStatus(HttpStatusCode.NotFound);
+        }

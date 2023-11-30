@@ -1,0 +1,18 @@
+  @Test
+  public void test_dispatcher_local_greeting_request_completes_before_timeout() {
+
+    Microservices gateway = Microservices.builder()
+        .discoveryPort(port.incrementAndGet())
+        .services(new GreetingServiceImpl())
+        .build();
+
+    Call service = gateway.call();
+
+    Publisher<ServiceMessage> result = service.requestOne(GREETING_REQUEST_REQ, GreetingResponse.class);
+
+    GreetingResponse greetings = Mono.from(result).timeout(Duration.ofSeconds(TIMEOUT)).block().data();
+    System.out.println("1. greeting_request_completes_before_timeout : " + greetings.getResult());
+    assertTrue(greetings.getResult().equals(" hello to: joe"));
+
+    gateway.shutdown().block();
+  }

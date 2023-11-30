@@ -1,0 +1,16 @@
+ @Transactional(propagation=Propagation.REQUIRED, readOnly=false)
+	public void forgotPassword(@Valid @Email @NotBlank String email) {
+		
+		log.debug("Processing forgot password for email: " + email);
+		final U user = userRepository.findByEmail(email);
+
+		LemonUtil.check(user != null, "com.naturalprogrammer.spring.userNotFound").go();
+		
+		user.setForgotPasswordCode(UUID.randomUUID().toString());
+		userRepository.save(user);
+
+		LemonUtil.afterCommit(() -> {
+		    mailForgotPasswordLink(user);
+		});
+		
+	}

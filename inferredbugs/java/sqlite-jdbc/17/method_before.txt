@@ -1,0 +1,47 @@
+    @Test
+    public void testUnregister() throws Exception {
+        final int[] calls = {0};
+        BusyHandler.setHandler(conn, new BusyHandler() {
+            @Override
+            protected int callback(int nbPrevInvok) throws SQLException {
+                assertEquals(nbPrevInvok, calls[0]);
+                calls[0]++;
+
+                if (nbPrevInvok <= 1) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
+        });
+
+        BusyWork busyWork = new BusyWork();
+        busyWork.start();
+        // I let busyWork prepare a huge insert
+        Thread.sleep(1000);
+        synchronized(busyWork){
+            try{
+                workWork();
+            } catch(SQLException ex) {
+                assertEquals(SQLiteErrorCode.SQLITE_BUSY.code, ex.getErrorCode());
+            }
+        }
+        assertEquals(3, calls[0]);
+
+        int totalCalls = calls[0];
+        BusyHandler.clearHandler(conn);
+        busyWork = new BusyWork();
+        busyWork.start();
+        // I let busyWork prepare a huge insert
+        Thread.sleep(1000);
+        synchronized(busyWork){
+            try{
+                workWork();
+            } catch(SQLException ex) {
+                assertEquals(SQLiteErrorCode.SQLITE_BUSY.code, ex.getErrorCode());
+            }
+        }
+
+        busyWork.interrupt();
+        assertEquals(totalCalls, calls[0]);
+    }

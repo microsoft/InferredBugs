@@ -1,0 +1,81 @@
+    boolean putEntry(long newHashEntryAdr, long hash, long keyLen, long bytes, boolean ifAbsent, long oldValueAddr, long oldValueOffset, long oldValueLen)
+    {
+        long removeHashEntryAdr = 0L;
+        LongArrayList derefList = null;
+        lock.lock();
+        try
+        {
+            long oldHashEntryAdr = 0L;
+            long hashEntryAdr;
+            long prevEntryAdr = 0L;
+            for (hashEntryAdr = table.getFirst(hash);
+                 hashEntryAdr != 0L;
+                 prevEntryAdr = hashEntryAdr, hashEntryAdr = HashEntries.getNext(hashEntryAdr))
+            {
+                if (notSameKey(newHashEntryAdr, hash, keyLen, hashEntryAdr))
+                    continue;
+
+                // replace existing entry
+
+                if (ifAbsent)
+                    return false;
+
+                if (oldValueAddr != 0L)
+                {
+                    // code for replace() operation
+                    long valueLen = HashEntries.getValueLen(hashEntryAdr);
+                    if (valueLen != oldValueLen || !HashEntries.compare(hashEntryAdr, Util.ENTRY_OFF_DATA + Util.roundUpTo8(keyLen), oldValueAddr, oldValueOffset, oldValueLen))
+                        return false;
+                }
+
+                removeInternal(hashEntryAdr, prevEntryAdr);
+                removeHashEntryAdr = hashEntryAdr;
+
+                oldHashEntryAdr = hashEntryAdr;
+
+                break;
+            }
+
+            while (freeCapacity < bytes)
+            {
+                long eldestHashAdr = removeEldest();
+                if (eldestHashAdr == 0L)
+                {
+                    if (oldHashEntryAdr != 0L)
+                        size--;
+                    return false;
+                }
+                if (derefList == null)
+                    derefList = new LongArrayList();
+                derefList.add(eldestHashAdr);
+            }
+
+            if (hashEntryAdr == 0L)
+            {
+                if (size >= threshold)
+                    rehash();
+
+                size++;
+            }
+
+            freeCapacity -= bytes;
+
+            add(newHashEntryAdr, hash);
+
+            if (hashEntryAdr == 0L)
+                putAddCount++;
+            else
+                putReplaceCount++;
+
+            return true;
+        }
+        finally
+        {
+            lock.unlock();
+            if (removeHashEntryAdr != 0L)
+                HashEntries.dereference(removeHashEntryAdr);
+            if (derefList != null)
+                for (int i = 0; i < derefList.size(); i++)
+                    HashEntries.dereference(derefList.getLong(i));
+        }
+    }

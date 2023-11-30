@@ -1,0 +1,38 @@
+    @Before
+    public void init() throws NoSuchFieldException, SecurityException, IOException {
+        Yaml ymal = new Yaml();
+        String home = System.getProperty(MixAll.ROCKETMQ_HOME_PROPERTY, System.getenv(MixAll.ROCKETMQ_HOME_ENV));
+        InputStream fis = null;
+        if (home == null) {
+            URL url = PlainAclPlugEngineTest.class.getResource("/");
+            home = url.toString();
+            home = home.substring(0, home.length() - 1).replace("file:/", "").replace("target/test-classes", "");
+            home = home + "src/test/resources";
+            String filePath = home + "/conf/transport.yml";
+            fis = new FileInputStream(new File(filePath));
+        } else {
+            String filePath = home + "/conf/transport.yml";
+            fis = new FileInputStream(new File(filePath));
+        }
+        transport = ymal.loadAs(fis, BorkerAccessControlTransport.class);
+
+        ControllerParameters controllerParametersEntity = new ControllerParameters();
+        controllerParametersEntity.setFileHome(home);
+        plainAclPlugEngine = new PlainAclPlugEngine(controllerParametersEntity);
+
+        accessControl = new BorkerAccessControl();
+        accessControl.setAccount("rokcetmq");
+        accessControl.setPassword("aliyun11");
+        accessControl.setNetaddress("127.0.0.1");
+        accessControl.setRecognition("127.0.0.1:1");
+
+        accessControlTwo = new BorkerAccessControl();
+        accessControlTwo.setAccount("rokcet1");
+        accessControlTwo.setPassword("aliyun1");
+        accessControlTwo.setNetaddress("127.0.0.1");
+        accessControlTwo.setRecognition("127.0.0.1:2");
+
+        loginInfoMap = new ConcurrentHashMap<>();
+        FieldSetter.setField(plainAclPlugEngine, plainAclPlugEngine.getClass().getSuperclass().getDeclaredField("loginInfoMap"), loginInfoMap);
+
+    }

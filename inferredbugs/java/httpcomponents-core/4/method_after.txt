@@ -1,0 +1,27 @@
+    private void processResponse(
+            final NHttpClientConnection conn, 
+            final ClientConnState connState) throws IOException, HttpException {
+
+        HttpContext context = conn.getContext();
+        HttpResponse response = connState.getResponse();
+        
+        if (response.getEntity() != null) {
+            response.setEntity(new ContentBufferEntity(
+                    response.getEntity(), 
+                    connState.getInbuffer()));
+        }
+        
+        context.setAttribute(HttpExecutionContext.HTTP_RESPONSE, response);
+        
+        this.httpProcessor.process(response, context);
+        
+        this.execHandler.handleResponse(response, context);
+        
+        if (!this.connStrategy.keepAlive(response, context)) {
+            conn.close();
+        } else {
+            // Ready for another request
+            connState.resetInput();
+            conn.requestOutput();
+        }
+    }

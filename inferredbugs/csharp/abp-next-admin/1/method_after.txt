@@ -1,0 +1,21 @@
+    public virtual Task<bool> TryLockAsync(string jobKey, int lockSeconds, CancellationToken cancellationToken = default)
+    {
+        Check.NotNullOrWhiteSpace(jobKey, nameof(jobKey));
+        if (_localSyncObjects.TryGetValue(jobKey, out var jobLock))
+        {
+            if (jobLock.ExpirationTime > DateTime.UtcNow)
+            {
+                return Task.FromResult(false);
+            }
+            jobLock.ExpirationTime = DateTime.UtcNow.AddSeconds(lockSeconds);
+            return Task.FromResult(true);
+        }
+
+        jobLock = new JobLock
+        {
+            ExpirationTime = DateTime.UtcNow.AddSeconds(lockSeconds),
+            Semaphore = new SemaphoreSlim(1, 1)
+        };
+
+        return Task.FromResult(_localSyncObjects.TryAdd(jobKey, jobLock));
+    }

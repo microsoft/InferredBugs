@@ -1,0 +1,22 @@
+  private InputStream getInputStream(String url, Map<String, Object> props) throws IOException {
+    URLConnection urlConn;
+    //This should be delegated to APOC to do handle different protocols, deal with redirection, etc.
+    urlConn = new URL(url).openConnection();
+    if (props.containsKey("headerParams")) {
+      Map<String, String> headerParams = (Map<String, String>) props.get("headerParams");
+      Object method = headerParams.get("method");
+      if (method != null && urlConn instanceof HttpURLConnection) {
+        HttpURLConnection http = (HttpURLConnection) urlConn;
+        http.setRequestMethod(method.toString());
+      }
+      headerParams.forEach((k, v) -> urlConn.setRequestProperty(k, v));
+      if (props.containsKey("payload")) {
+        urlConn.setDoOutput(true);
+        BufferedWriter writer = new BufferedWriter(
+            new OutputStreamWriter(urlConn.getOutputStream(), "UTF-8"));
+        writer.write(props.get("payload").toString());
+        writer.close();
+      }
+    }
+    return urlConn.getInputStream();
+  }

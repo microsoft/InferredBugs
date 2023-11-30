@@ -1,0 +1,33 @@
+        void C2G_PlayerInput(Player player, BaseMsg data){
+            if (State != EGameState.PartLoaded && State != EGameState.Playing) return;
+            if (State == EGameState.PartLoaded) {
+                Log("First input: game start playing");
+                State = EGameState.Playing;
+            }
+
+            var input = data as Msg_PlayerInput;
+#if DEBUG_SHOW_INPUT
+            if (input.Commands.Length > 0) {
+                var cmd = input.Commands[0];
+                var playerInput = new Deserializer(cmd.content).Parse<Lockstep.Game.PlayerInput>();
+                if (playerInput.inputUV != LVector2.zero) {
+                    Debug.Log( $"curTick{Tick} isOutdate{input.Tick < Tick} RecvInput actorID:{input.ActorId}  inputTick:{input.Tick}  move:{playerInput.inputUV}");
+                }
+            }
+#endif
+
+            //Debug.Log($"RecvInput actorID:{input.ActorId} inputTick:{input.Tick} Tick{Tick}");
+            if (input.Tick < Tick) {
+                return;
+            }
+
+            var frame = GetOrCreateFrame(input.Tick);
+
+            var id = input.ActorId;
+            if (!_allNeedWaitInputPlayerIds.Contains(id)) {
+                _allNeedWaitInputPlayerIds.Add(id);
+            }
+
+            frame.Inputs[id] = input;
+            _CheckBorderServerFrame(false);
+        }

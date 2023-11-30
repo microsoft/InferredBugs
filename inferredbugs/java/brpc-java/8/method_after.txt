@@ -1,0 +1,39 @@
+    public Response executeWithRetry(Request request) {
+        Response response = null;
+        RpcException exception = null;
+        int currentTryTimes = 0;
+        int maxTryTimes = rpcClient.getRpcClientOptions().getMaxTryTimes();
+        while (currentTryTimes < maxTryTimes) {
+            try {
+                // if it is a retry request, add the last selected instance to request,
+                // so that load balance strategy can exclude the selected instance.
+                // if it is the initial request, not init HashSet, so it is more fast.
+                // therefore, it need LoadBalanceStrategy to judge if selectInstances is null.
+                if (currentTryTimes > 0) {
+                    if (request.getChannel() != null) {
+                        if (request.getSelectedInstances() == null) {
+                            request.setSelectedInstances(new HashSet<CommunicationClient>(maxTryTimes - 1));
+                        }
+                        request.getSelectedInstances().add(request.getCommunicationClient());
+                    }
+                }
+                response = rpcClient.execute(request, rpcClient.getCommunicationOptions());
+                break;
+            } catch (RpcException ex) {
+                exception = ex;
+                if (exception.getCode() == RpcException.INTERCEPT_EXCEPTION) {
+                    break;
+                }
+            } finally {
+                currentTryTimes++;
+            }
+        }
+
+        if (response == null || (response.getResult() == null && response.getRpcFuture() == null)) {
+            if (exception == null) {
+                exception = new RpcException(RpcException.UNKNOWN_EXCEPTION, "unknown error");
+            }
+            throw exception;
+        }
+        return response;
+    }

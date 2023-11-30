@@ -1,0 +1,37 @@
+  @Override
+  public List<String> listRecursive(final String path) throws KeeperException {
+    assertClusterIdFlagTrue();
+
+    // namespace the path since we're using zookeeper directly
+    final String namespace = emptyToNull(client.getNamespace());
+    final String namespacedPath = ZKPaths.fixForNamespace(namespace, path);
+
+    try {
+      final List<String> paths = ZKUtil.listSubTreeBFS(
+          client.getZookeeperClient().getZooKeeper(), namespacedPath);
+
+      if (isNullOrEmpty(namespace)) {
+        return paths;
+      } else {
+        // hide the namespace in the paths returned from zookeeper
+        final ImmutableList.Builder<String> builder = ImmutableList.builder();
+        for (final String p : paths) {
+          final String fixed;
+          if (p.startsWith("/" + namespace)) {
+            fixed = (p.length() > namespace.length() + 1)
+                    ? p.substring(namespace.length() + 1)
+                    : "/";
+          } else {
+            fixed = p;
+          }
+
+          builder.add(fixed);
+        }
+
+        return builder.build();
+      }
+    } catch (Exception e) {
+      propagateIfInstanceOf(e, KeeperException.class);
+      throw propagate(e);
+    }
+  }

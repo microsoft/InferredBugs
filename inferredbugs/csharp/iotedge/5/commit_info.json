@@ -1,0 +1,125 @@
+{
+    "hash": "1f6460d40fb0a109af138f262ab773ec982f3709",
+    "message": "Enable twin encrypt by default (#3189)\n\nEnable twin encryption by default.\nTwinStore is using EdgeTwin as entity name when it is not encrypted and underlyingEdgeTwin for the entity name when is encrypted. Because of that even if we it has implemented a way to update from uncrypted to encrypted data is actually not doing that because the store is different. I updated the code to use underlyingEdgeTwin  if it already exist and use EdgeTwin if underlyingEdgeTwin  was never created, that way data from unencrypted store is updated to encrypted while it is accessed.\n\nPlease note: if customer changes from encrypted to unencrypted data won't be recovered. In this case if edgeHub is set  to unencrypted and immediately after it goes offline it won't be able to get the configuration from store.",
+    "file_num_lines": 76,
+    "diff_parsed": {
+        "added": [
+            [
+                28,
+                "            return this.GetEntityStore<TK, TV>(entityName, entityDbStore);"
+            ],
+            [
+                29,
+                "        }"
+            ],
+            [
+                30,
+                ""
+            ],
+            [
+                31,
+                "        public IEntityStore<TK, TV> GetEntityStore<TK, TV>(string backwardCompatibleEntityName, string entityName)"
+            ],
+            [
+                32,
+                "        {"
+            ],
+            [
+                33,
+                "            Preconditions.CheckNonWhiteSpace(backwardCompatibleEntityName, nameof(backwardCompatibleEntityName));"
+            ],
+            [
+                34,
+                "            Preconditions.CheckNonWhiteSpace(entityName, nameof(entityName));"
+            ],
+            [
+                35,
+                ""
+            ],
+            [
+                36,
+                "            var entityDbStore = this.dbStoreProvider.GetIfExistsDbStore(backwardCompatibleEntityName);"
+            ],
+            [
+                37,
+                "            return entityDbStore.Match("
+            ],
+            [
+                38,
+                "                some: backwardCompatibleDbStore => this.GetEntityStore<TK, TV>(backwardCompatibleEntityName, backwardCompatibleDbStore),"
+            ],
+            [
+                39,
+                "                none: () =>"
+            ],
+            [
+                40,
+                "                {"
+            ],
+            [
+                41,
+                "                    var dbstore = this.dbStoreProvider.GetDbStore(entityName);"
+            ],
+            [
+                42,
+                "                    return this.GetEntityStore<TK, TV>(entityName, dbstore);"
+            ],
+            [
+                43,
+                "                });"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                82,
+                "        IEntityStore<TK, TV> GetEntityStore<TK, TV>(string entityName, IDbStore entityDbStore)"
+            ],
+            [
+                83,
+                "        {"
+            ],
+            [
+                84,
+                "            IKeyValueStore<TK, TV> dbStoreMapper = new KeyValueStoreMapper<TK, byte[], TV, byte[]>(entityDbStore, new BytesMapper<TK>(), new BytesMapper<TV>());"
+            ],
+            [
+                85,
+                "            IEntityStore<TK, TV> entityStore = new EntityStore<TK, TV>(dbStoreMapper, entityName, 12);"
+            ],
+            [
+                86,
+                "            IEntityStore<TK, TV> timedEntityStore = new TimedEntityStore<TK, TV>(entityStore, this.operationTimeout);"
+            ],
+            [
+                87,
+                "            return timedEntityStore;"
+            ],
+            [
+                88,
+                "        }"
+            ]
+        ],
+        "deleted": [
+            [
+                28,
+                "            IKeyValueStore<TK, TV> dbStoreMapper = new KeyValueStoreMapper<TK, byte[], TV, byte[]>(entityDbStore, new BytesMapper<TK>(), new BytesMapper<TV>());"
+            ],
+            [
+                29,
+                "            IEntityStore<TK, TV> entityStore = new EntityStore<TK, TV>(dbStoreMapper, entityName, 12);"
+            ],
+            [
+                30,
+                "            IEntityStore<TK, TV> timedEntityStore = new TimedEntityStore<TK, TV>(entityStore, this.operationTimeout);"
+            ],
+            [
+                31,
+                "            return timedEntityStore;"
+            ]
+        ]
+    },
+    "num_lines_added": 24,
+    "num_lines_removed": 4
+}

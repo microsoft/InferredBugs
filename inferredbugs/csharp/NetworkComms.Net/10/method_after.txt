@@ -1,0 +1,43 @@
+        private static void SelectLogging()
+        {
+            //If the user wants to enable logging 
+            Console.WriteLine("\nTo enable comms logging press 'y'. To leave logging disabled and continue press any other key.");
+            var loggingEnableKey = Console.ReadKey(true);
+
+            if (loggingEnableKey.Key == ConsoleKey.Y)
+            {
+                //////////////////////////////////////////////////////////////////////
+                //// SIMPLE CONSOLE ONLY LOGGING
+                //// See http://nlog-project.org/ for more information
+                //// Requires that the file NLog.dll is present 
+                //////////////////////////////////////////////////////////////////////
+                //LoggingConfiguration logConfig = new LoggingConfiguration();
+                //ConsoleTarget consoleTarget = new ConsoleTarget();
+                //consoleTarget.Layout = "${date:format=HH\\:MM\\:ss} [${level}] - ${message}";
+                //logConfig.AddTarget("console", consoleTarget);
+                //logConfig.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, consoleTarget));
+                //NetworkComms.EnableLogging(logConfig);
+
+                //////////////////////////////////////////////////////////////////////
+                //// THE FOLLOWING CONFIG LOGS TO BOTH A FILE AND CONSOLE
+                //// See http://nlog-project.org/ for more information
+                //// Requires that the file NLog.dll is present 
+                //////////////////////////////////////////////////////////////////////
+                LoggingConfiguration logConfig = new LoggingConfiguration();
+                FileTarget fileTarget = new FileTarget();
+                fileTarget.FileName = "${basedir}/log.txt";
+                fileTarget.Layout = "${date:format=HH\\:MM\\:ss} [${level}] - ${message}";
+                ConsoleTarget consoleTarget = new ConsoleTarget();
+                consoleTarget.Layout = "${date:format=HH\\:MM\\:ss} ${message}";
+
+                logConfig.AddTarget("file", fileTarget);
+                logConfig.AddTarget("console", consoleTarget);
+
+                logConfig.LoggingRules.Add(new LoggingRule("*", LogLevel.Trace, fileTarget));
+                logConfig.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, consoleTarget));
+                NetworkComms.EnableLogging(logConfig);
+
+                //We can write to our logger from an external program as well
+                NetworkComms.Logger.Info("NetworkCommsDotNet logging enabled. DEBUG level ouput and above directed to console. ALL output also directed to log file, log.txt.");
+            }
+        }

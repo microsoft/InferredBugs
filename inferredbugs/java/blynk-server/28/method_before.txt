@@ -1,0 +1,45 @@
+    @POST
+    @Path("{token}/notify")
+    @Consumes(value = MediaType.APPLICATION_JSON)
+    @Metric(HTTP_NOTIFY)
+    public Response notify(@PathParam("token") String token,
+                           PushMessagePojo message) {
+
+        TokenValue tokenValue = tokenManager.getTokenValueByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return Response.badRequest("Invalid token.");
+        }
+
+        final User user = tokenValue.user;
+        final int dashId = tokenValue.dashId;
+
+        if (message == null || Notification.isWrongBody(message.body)) {
+            log.debug("Notification body is wrong. '{}'", message == null ? "" : message.body);
+            return Response.badRequest("Body is empty or larger than 255 chars.");
+        }
+
+        DashBoard dash = user.profile.getDashById(dashId);
+
+        if (!dash.isActive) {
+            log.debug("Project is not active.");
+            return Response.badRequest("Project is not active.");
+        }
+
+        Notification notification = dash.getWidgetByType(Notification.class);
+
+        if (notification == null || notification.hasNoToken()) {
+            log.debug("No notification tokens.");
+            if (notification == null) {
+                return Response.badRequest("No notification widget.");
+            } else {
+                return Response.badRequest("Notification widget not initialized.");
+            }
+        }
+
+        log.trace("Sending push for user {}, with message : '{}'.", user.email, message.body);
+        notification.push(gcmWrapper, message.body, dash.id);
+
+        return Response.ok();
+    }

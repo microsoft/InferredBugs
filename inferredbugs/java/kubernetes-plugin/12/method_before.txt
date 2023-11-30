@@ -1,0 +1,42 @@
+    @Override
+    public AbstractFolderProperty<?> reconfigure(StaplerRequest req, JSONObject form) throws FormException {
+        if (form == null) {
+            return null;
+        }
+
+        // ignore modifications silently and return the unmodified object if the user
+        // does not have the ADMINISTER Permission
+        if (!userHasAdministerPermission()) {
+            return this;
+        }
+
+        try {
+            KubernetesFolderProperty newKubernetesFolderProperty = new KubernetesFolderProperty();
+
+            Set<String> inheritedGrants = new HashSet<>();
+            collectAllowedClouds(inheritedGrants, getOwner().getParent());
+
+            JSONArray names = form.names();
+            if (names != null) {
+                for (Object name : names) {
+                    String strName = (String) name;
+
+                    if (strName.startsWith(PREFIX_USAGE_PERMISSION) && form.getBoolean(strName)) {
+                        String cloud = StringUtils.replaceOnce(strName, PREFIX_USAGE_PERMISSION, "");
+
+                        if (isUsageRestrictedKubernetesCloud(Jenkins.getInstance().getCloud(cloud))
+                                && !inheritedGrants.contains(cloud)) {
+                            newKubernetesFolderProperty.getPermittedClouds().add(cloud);
+                        }
+                    }
+                }
+            }
+
+            return newKubernetesFolderProperty;
+        } catch (JSONException jsonException) {
+            LOGGER.severe(String.format("reconfigure failed: %s", jsonException.getMessage()));
+            jsonException.printStackTrace();
+
+            return this;
+        }
+    }

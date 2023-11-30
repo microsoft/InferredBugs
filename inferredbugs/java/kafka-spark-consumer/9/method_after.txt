@@ -1,0 +1,81 @@
+ public void next() {
+
+		
+		if (_waitingToEmit.isEmpty()) {
+			
+			fill();
+		}
+		
+		
+		while (true) {
+			MessageAndOffset msgAndOffset = _waitingToEmit.pollFirst();
+
+			if (msgAndOffset != null) {
+
+				Long key = msgAndOffset.offset();
+				Message msg = msgAndOffset.message();
+
+				try {
+					_lastEnquedOffset = key;
+					if (_lastEnquedOffset >= _lastComittedOffset) {
+
+						if (msg.payload() != null) {
+
+							MessageAndMetadata mmeta = new MessageAndMetadata();
+							mmeta.setTopic(_topic);
+							mmeta.setConsumer(_ConsumerId);
+							mmeta.setOffset(_lastEnquedOffset);
+							mmeta.setPartition(_partition);
+							byte[] payload = new byte[msg.payload().remaining()];
+							msg.payload().get(payload);
+							mmeta.setPayload(payload);
+
+							if (msg.hasKey()){
+								
+								byte[] msgKey = new byte[msg.key().remaining()];
+								msg.key().get(msgKey);
+								mmeta.setKey(msgKey);
+							}
+								
+							
+							_dataBuffer.add(mmeta);
+
+							LOG.info("Store for topic " + _topic
+									+ " for partition " + _partition.partition
+									+ " is : " + _lastEnquedOffset);
+
+						}
+					}
+				} catch (Exception e) {
+					LOG.error("Process Failed for offset " + key + " for  "
+							+ _partition + " for topic " + _topic
+							+ " with Exception" + e.getMessage());
+					e.printStackTrace();
+				}
+			} else {
+
+				break;
+			}
+		}
+
+		if ((_lastEnquedOffset >= _lastComittedOffset)
+				&& (_waitingToEmit.isEmpty())) {
+				
+				try{
+					synchronized (_receiver) {
+						
+						if(!_dataBuffer.isEmpty())
+							_receiver.store(_dataBuffer.iterator());
+						
+						commit();
+						_dataBuffer.clear();
+					}
+					
+				}catch(Exception ex){
+					
+					_emittedToOffset = _lastComittedOffset;
+					_dataBuffer.clear();
+					_receiver.reportError("Error While Store for Partition "+ _partition, ex);
+				}			
+		}
+	}

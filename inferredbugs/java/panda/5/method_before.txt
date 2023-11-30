@@ -1,0 +1,80 @@
+    public Expression parse(ParserInfo info, TokenizedSource expressionSource) {
+        if (expressionSource.size() == 1) {
+            Token token = expressionSource.getToken(0);
+            String value = token.getTokenValue();
+
+            if (token.getType() == TokenType.LITERAL) {
+                switch (token.getTokenValue()) {
+                    case "null":
+                        return new Expression(new PandaValue(null, null));
+                    case "true":
+                        return toSimpleKnownExpression("panda.lang:Boolean", true);
+                    case "false":
+                        return toSimpleKnownExpression("panda.lang:Boolean", false);
+                    case "this":
+                        ClassPrototype type = info.getComponent(Components.CLASS_PROTOTYPE);
+                        return new Expression(type, new ThisExpressionCallback());
+                    default:
+                        throw new PandaParserException("Unknown literal: " + token);
+                }
+            }
+
+            if (token.getType() == TokenType.SEQUENCE) {
+                switch (token.getName()) {
+                    case "String":
+                        return toSimpleKnownExpression("panda.lang:String", value);
+                    default:
+                        throw new PandaParserException("Unknown sequence: " + token);
+                }
+            }
+
+            if (NumberUtils.isNumber(value)) {
+                return toSimpleKnownExpression("panda.lang:Int", Integer.parseInt(value));
+            }
+
+            ScopeLinker scopeLinker = info.getComponent(Components.SCOPE_LINKER);
+            Scope scope = scopeLinker.getCurrentScope();
+            Variable variable = VariableParserUtils.getVariable(scope, value);
+
+            if (variable != null) {
+                int memoryIndex = VariableParserUtils.indexOf(scope, variable);
+                return new Expression(variable.getType(), new VariableExpressionCallback(memoryIndex));
+            }
+
+            ClassPrototype prototype = info.getComponent(Components.CLASS_PROTOTYPE);
+            Field field = prototype.getField(value);
+
+            if (field != null) {
+                int memoryIndex = prototype.getFields().indexOf(field);
+                return new Expression(field.getType(), new FieldExpressionCallback(field, memoryIndex));
+            }
+        }
+        else if (TokenUtils.equals(expressionSource.get(0), TokenType.KEYWORD, "new")) {
+            InstanceExpressionParser callbackParser = new InstanceExpressionParser();
+
+            callbackParser.parse(expressionSource, info);
+            InstanceExpressionCallback callback = callbackParser.toCallback();
+
+            return new Expression(callback.getReturnType(), callback);
+        }
+
+        PandaTokenReader expressionReader = new PandaTokenReader(expressionSource);
+        List<TokenizedSource> methodMatches = MethodInvokerExpressionParser.PATTERN.match(expressionReader);
+
+        if (methodMatches != null && methodMatches.size() > 0) {
+            MethodInvokerExpressionParser callbackParser = new MethodInvokerExpressionParser(methodMatches);
+
+            callbackParser.parse(expressionSource, info);
+            MethodInvokerExpressionCallback callback = callbackParser.toCallback();
+
+            return new Expression(callback.getReturnType(), callback);
+        }
+
+        List<TokenizedSource> fieldMatches = FieldParser.PATTERN.match(expressionReader);
+
+        if (fieldMatches != null && fieldMatches.size() > 0) {
+
+        }
+
+        throw new PandaParserException("Cannot recognize expression: " + expressionSource.toString());
+    }

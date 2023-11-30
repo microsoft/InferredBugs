@@ -1,0 +1,24 @@
+  private ElementSerializer startDoc(
+      XmlSerializer serializer, Object element, boolean errorOnUnknown, String extraNamespace)
+      throws IOException {
+    serializer.startDocument(null, null);
+    SortedSet<String> aliases = new TreeSet<String>();
+    computeAliases(element, aliases);
+    boolean foundExtra = extraNamespace == null;
+    for (String alias : aliases) {
+      String uri = getUriForAlias(alias);
+      serializer.setPrefix(alias, uri);
+      if (!foundExtra && uri.equals(extraNamespace)) {
+        foundExtra = true;
+      }
+    }
+    if (!foundExtra) {
+      for (Map.Entry<String, String> entry : getAliasToUriMap().entrySet()) {
+        if (extraNamespace.equals(entry.getValue())) {
+          serializer.setPrefix(entry.getKey(), extraNamespace);
+          break;
+        }
+      }
+    }
+    return new ElementSerializer(element, errorOnUnknown);
+  }

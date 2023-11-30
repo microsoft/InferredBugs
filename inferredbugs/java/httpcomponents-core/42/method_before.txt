@@ -1,0 +1,24 @@
+    @Test
+    public void testBasicDecoding() throws Exception {
+        String s = "5\r\n01234\r\n5\r\n56789\r\n6\r\nabcdef\r\n0\r\n\r\n";
+        ReadableByteChannel channel = new ReadableByteChannelMockup(
+                new String[] {s}, "US-ASCII");
+        HttpParams params = new BasicHttpParams();
+
+        SessionInputBuffer inbuf = new SessionInputBufferImpl(1024, 256, params);
+        HttpTransportMetricsImpl metrics = new HttpTransportMetricsImpl();
+        ChunkDecoder decoder = new ChunkDecoder(channel, inbuf, metrics);
+
+        ByteBuffer dst = ByteBuffer.allocate(1024);
+
+        int bytesRead = decoder.read(dst);
+        Assert.assertEquals(16, bytesRead);
+        Assert.assertEquals("0123456789abcdef", convert(dst));
+        Header[] footers = decoder.getFooters();
+        Assert.assertEquals(0, footers.length);
+
+        dst.clear();
+        bytesRead = decoder.read(dst);
+        Assert.assertEquals(-1, bytesRead);
+        Assert.assertTrue(decoder.isCompleted());
+    }

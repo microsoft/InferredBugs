@@ -1,0 +1,52 @@
+    protected void initialize(boolean strict) {
+        try {
+            activator = DOMHelper.getElementByAttribute("data-activates", getId());
+            MaterialWidget navMenu = new MaterialWidget(activator);
+            navMenu.setShowOn(ShowOn.SHOW_ON_MED_DOWN);
+            if (alwaysShowActivator) {
+                navMenu.setShowOn(ShowOn.SHOW_ON_LARGE);
+            } else {
+                navMenu.setHideOn(HideOn.HIDE_ON_LARGE);
+            }
+            activator.removeClassName(CssName.NAVMENU_PERMANENT);
+        } catch (Exception ex) {
+            if (strict) {
+                throw new IllegalArgumentException("Could not setup MaterialSideNav please ensure you have MaterialNavBar with an activator setup to match this widgets id.");
+            }
+        }
+
+        SideNavType type = getType();
+        processType(type);
+
+        JsSideNavOptions options = new JsSideNavOptions();
+        options.menuWidth = width;
+        options.edge = edge != null ? edge.getCssName() : null;
+        options.closeOnClick = closeOnClick;
+
+        JsMaterialElement element = $(activator);
+        element.sideNav(options);
+
+        element.off("side-nav-closing");
+        element.on("side-nav-closing", e1 -> {
+            onClosing();
+            return true;
+        });
+
+        element.off("side-nav-closed");
+        element.on("side-nav-closed", e1 -> {
+            onClosed();
+            return true;
+        });
+
+        element.off("side-nav-opening");
+        element.on("side-nav-opening", e1 -> {
+            onOpening();
+            return true;
+        });
+
+        element.off("side-nav-opened");
+        element.on("side-nav-opened", e1 -> {
+            onOpened();
+            return true;
+        });
+    }

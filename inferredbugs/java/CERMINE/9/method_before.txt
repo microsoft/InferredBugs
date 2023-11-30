@@ -1,0 +1,124 @@
+    public static void main(String[] args) throws JDOMException, IOException, AnalysisException {
+        if (args.length != 3) {
+            System.err.println("USAGE: ReferenceParsingEvaluator <foldness> <model_path> <test_path>");
+            System.exit(1);
+        }
+        
+        int foldness = Integer.parseInt(args[0]);
+        String modelPathSuffix = args[1];
+        String testPathSuffix = args[2];
+
+        Map<String, List<Result>> results = new HashMap<String, List<Result>>();
+        
+        for (int i = 0; i < foldness; i++) {
+            System.out.println("Fold "+i);
+            String modelPath = modelPathSuffix + i;
+            CRFBibReferenceParser parser = new CRFBibReferenceParser(modelPath);
+            
+            String testPath = testPathSuffix + i;
+
+            File testFile = new File(testPath);
+            List<Citation> testCitations;
+        
+            InputStream testIS = null;
+            try {
+                testIS = new FileInputStream(testFile);
+                InputSource testSource = new InputSource(testIS);
+                testCitations = NlmCitationExtractor.extractCitations(testSource);
+            } finally {
+                if (testIS != null) {
+                    testIS.close();
+                }
+            }
+            
+            System.out.println(testCitations.size());
+            
+            List<BibEntry> testEntries = new ArrayList<BibEntry>();
+
+            for (Citation c : testCitations) {
+                BibEntry entry = CitationUtils.citationToBibref(c);
+                testEntries.add(entry);
+                for (String key : entry.getFieldKeys()) {
+                    if (results.get(key) == null) {
+                        results.put(key, new ArrayList<Result>());
+                    }
+                }
+            }
+            
+            int j = 0;
+            for (BibEntry orig : testEntries) {
+                BibEntry test = parser.parseBibReference(orig.getText());
+
+                System.out.println();
+                System.out.println();
+                System.out.println(orig.toBibTeX());
+                System.out.println(test.toBibTeX());
+            
+                Map<String, Result> map = new HashMap<String, Result>();
+                for (String s : orig.getFieldKeys()) {
+                    if (map.get(s) == null) {
+                        map.put(s, new Result());
+                    }
+                    map.get(s).addOrig(orig.getAllFieldValues(s).size());
+                }
+                for (String s : test.getFieldKeys()) {
+                    if (map.get(s) == null) {
+                        map.put(s, new Result());
+                    }
+                    map.get(s).addExtr(test.getAllFieldValues(s).size());
+                }
+                for (String s : test.getFieldKeys()) {
+                    List<String> origVals = orig.getAllFieldValues(s);
+                    for (String testVal : test.getAllFieldValues(s)) {
+                        boolean found = false;
+                        if (origVals.contains(testVal)) {
+                            map.get(s).addSuccess();
+                            origVals.remove(testVal);
+                            found = true;
+                        }
+                        if (!found) {
+                            System.out.println("WRONG "+s);
+                        }
+                    }
+                }
+                
+                for (Map.Entry<String, Result> s : map.entrySet()) {
+                    System.out.println("");
+                    System.out.println(s.getKey());
+                    System.out.println(s.getValue());
+                    System.out.println(s.getValue().getPrecision());
+                    System.out.println(s.getValue().getRecall());
+                    results.get(s.getKey()).add(s.getValue());
+                }
+                
+                j++;
+                System.out.println("Tested "+j+" out of "+testEntries.size());
+            }
+            
+        }
+        
+        for (String s : results.keySet()) {
+            System.out.println("");
+            System.out.println(s);
+            System.out.println(results.get(s).size());
+            double precision = 0;
+            int precisionCount = 0;
+            double recall = 0;
+            int recallCount = 0;
+            for (Result r : results.get(s)) {
+                if (r.getPrecision() != null) {
+                    precision += r.getPrecision();
+                    precisionCount++;
+                }
+                if (r.getRecall() != null) {
+                    recall += r.getRecall();
+                    recallCount++;
+                }
+            }
+            System.out.println("Precision count "+precisionCount);
+            System.out.println("Mean precision "+(precision / precisionCount));
+            System.out.println("Recall count "+recallCount);
+            System.out.println("Mean recall "+(recall / recallCount));
+            
+        }
+    }

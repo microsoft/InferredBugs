@@ -1,0 +1,29 @@
+    public void handleReference(Reference<?> ref) {
+
+        poolLock.lock();
+        try {
+
+            if (ref instanceof BasicPoolEntryRef) {
+                // check if the GCed pool entry was still in use
+                //@@@ find a way to detect this without lookup
+                //@@@ flag in the BasicPoolEntryRef, to be reset when freed?
+                final boolean lost = issuedConnections.remove(ref);
+                if (lost) {
+                    final HttpRoute route =
+                        ((BasicPoolEntryRef)ref).getRoute();
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Connection garbage collected. " + route);
+                    }
+                    handleLostEntry(route);
+                }
+            } else if (ref instanceof ConnMgrRef) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Connection manager garbage collected.");
+                }
+                shutdown();
+            }
+
+        } finally {
+            poolLock.unlock();
+        }
+    }

@@ -1,0 +1,38 @@
+  public static InterfaceGen CreateInterface (XElement pkg, XElement elem, CodeGenerationOptions options)
+		{
+			var iface = new InterfaceGen (CreateGenBaseSupport (pkg, elem, true)) {
+				ArgsType = elem.XGetAttribute ("argsType"),
+				HasManagedName = elem.Attribute ("managedName") != null,
+				NoAlternatives = elem.XGetAttribute ("no-alternatives") == "true",
+				// Only use an explicitly set XML attribute
+				Unnest = elem.XGetAttribute ("unnest") == "true" ? true :
+					 elem.XGetAttribute ("unnest") == "false" ? false :
+					 !options.SupportNestedInterfaceTypes
+			};
+
+			FillApiSince (iface, pkg, elem);
+			SetLineInfo (iface, elem, options);
+
+			foreach (var child in elem.Elements ()) {
+				switch (child.Name.LocalName) {
+					case "implements":
+						string iname = child.XGetAttribute ("name-generic-aware");
+						iname = iname.Length > 0 ? iname : child.XGetAttribute ("name");
+						iface.AddImplementedInterface (iname);
+						break;
+					case "method":
+						iface.AddMethod (CreateMethod (iface, child, options));
+						break;
+					case "field":
+						iface.AddField (CreateField (iface, child, options));
+						break;
+					case "typeParameters":
+						break; // handled at GenBaseSupport
+					default:
+						Report.LogCodedWarning (0, Report.WarningUnexpectedInterfaceChild, iface, child.ToString ());
+						break;
+				}
+			}
+
+			return iface;
+		}

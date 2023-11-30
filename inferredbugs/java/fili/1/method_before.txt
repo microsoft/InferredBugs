@@ -1,0 +1,45 @@
+    @Override
+    public void refreshIndex(Map<String, Pair<DimensionRow, DimensionRow>> changedRows) {
+        // Make a single Document instance to hold field data being updated to Lucene
+        // Creating documents is costly and so Document will be reused for each record being processed due to
+        // performance best practices.
+        Document doc = new Document();
+        Map<DimensionField, Field> dimFieldToLuceneField = new HashMap<>(dimension.getDimensionFields().size());
+
+        // Create the document fields for this dimension and add them to the document
+        for (DimensionField dimensionField : dimension.getDimensionFields()) {
+            Field luceneField = new StringField(
+                    DimensionStoreKeyUtils.getColumnKey(dimensionField.getName()),
+                    "",
+                    dimensionField.equals(dimension.getKey()) ? Field.Store.YES : Field.Store.NO
+            );
+
+            // Store the lucene field in the doc and in our lookup map
+            dimFieldToLuceneField.put(dimensionField, luceneField);
+            doc.add(luceneField);
+        }
+
+        // Write the rows to the document
+        IndexWriterConfig indexWriterConfig = new IndexWriterConfig(LUCENE_ANALYZER).setRAMBufferSizeMB(BUFFER_SIZE);
+        lock.writeLock().lock();
+        try (IndexWriter luceneIndexWriter = new IndexWriter(luceneDirectory, indexWriterConfig)) {
+            // Update the document fields for each row and update the document
+            for (String rowId : changedRows.keySet()) {
+                // Get the new row from the pair
+                DimensionRow newDimensionRow = changedRows.get(rowId).getKey();
+
+                // Update the index
+                updateDimensionRow(doc, dimFieldToLuceneField, luceneIndexWriter, newDimensionRow);
+            }
+
+            // Commit all the changes to the index (on .close, called by try-resources) and refresh the cardinality
+        } catch (IOException e) {
+            luceneIndexIsHealthy = false;
+            LOG.error("Failed to refresh index for dimension rows", e);
+            throw new RuntimeException(e);
+        } finally {
+            lock.writeLock().unlock();
+        }
+        reopenIndexSearcher(true);
+        refreshCardinality();
+    }

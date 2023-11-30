@@ -1,0 +1,70 @@
+    @PostMapping("comment")
+    public Object comment(@LoginUser Integer userId, @RequestBody String body) {
+        if (userId == null) {
+            return ResponseUtil.unlogin();
+        }
+
+        Integer orderGoodsId = JacksonUtil.parseInteger(body, "orderGoodsId");
+        if(orderGoodsId == null){
+            return ResponseUtil.badArgument();
+        }
+        LitemallOrderGoods orderGoods = orderGoodsService.findById(orderGoodsId);
+        if(orderGoods == null){
+            return ResponseUtil.badArgumentValue();
+        }
+        Integer orderId =  orderGoods.getOrderId();
+        LitemallOrder order = orderService.findById(orderId);
+        if(order == null){
+            return ResponseUtil.badArgumentValue();
+        }
+        Short orderStatus = order.getOrderStatus();
+        if(!OrderUtil.isConfirmStatus(order) && !OrderUtil.isAutoConfirmStatus(order)) {
+            return ResponseUtil.fail(404, "当前商品不能评价");
+        }
+        if(!order.getUserId().equals(userId)){
+            return ResponseUtil.fail(404, "当前商品不属于用户");
+        }
+        Integer commentId = orderGoods.getComment();
+        if(commentId == -1){
+            return ResponseUtil.fail(404, "当前商品评价时间已经过期");
+        }
+        if(commentId != 0){
+            return ResponseUtil.fail(404, "订单商品已评价");
+        }
+
+        String content = JacksonUtil.parseString(body, "content");
+        Integer star = JacksonUtil.parseInteger(body, "star");
+        if(star == null || star < 0 || star > 5){
+            return ResponseUtil.badArgumentValue();
+        }
+        Boolean hasPicture = JacksonUtil.parseBoolean(body, "hasPicture");
+        List<String> picUrls = JacksonUtil.parseStringList(body, "picUrls");
+        if(hasPicture == null || !hasPicture){
+            picUrls = new ArrayList<>(0);
+        }
+
+        // 1. 创建评价
+        LitemallComment comment = new LitemallComment();
+        comment.setUserId(userId);
+        comment.setType((byte)0);
+        comment.setValueId(orderGoods.getGoodsId());
+        comment.setStar(star.shortValue());
+        comment.setContent(content);
+        comment.setHasPicture(hasPicture);
+        comment.setPicUrls(picUrls.toArray(new String[]{}));
+        commentService.save(comment);
+
+        // 2. 更新订单商品的评价列表
+        orderGoods.setComment(comment.getId());
+        orderGoodsService.updateById(orderGoods);
+
+        // 3. 更新订单中未评价的订单商品可评价数量
+        Short commentCount = order.getComments();
+        if(commentCount > 0){
+            commentCount--;
+        }
+        order.setComments(commentCount);
+        orderService.updateWithOptimisticLocker(order);
+
+        return ResponseUtil.ok();
+    }

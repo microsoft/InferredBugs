@@ -1,0 +1,52 @@
+        private void ExecuteInput(SearchContext context)
+        {
+            string input = Options.Input;
+            int count = 0;
+            var maxReason = MaxReason.None;
+            Match match = Options.ContentFilter.Match(input, context.CancellationToken);
+
+            if (match.Success)
+            {
+                ContentWriter contentWriter = null;
+                List<Group> groups = null;
+
+                try
+                {
+                    groups = ListCache<Group>.GetInstance();
+
+                    maxReason = GetGroups(match, FileWriterOptions.GroupNumber, context, isPathWritten: false, predicate: Options.ContentFilter.Predicate, groups: groups);
+
+                    if (ShouldLog(Verbosity.Normal))
+                    {
+                        MatchOutputInfo outputInfo = Options.CreateOutputInfo(input, match);
+
+                        contentWriter = ContentWriter.CreateReplace(Options.ContentDisplayStyle, input, Options.ReplaceOptions, FileWriterOptions, outputInfo: outputInfo);
+                    }
+                    else
+                    {
+                        contentWriter = new EmptyContentWriter(null, FileWriterOptions);
+                    }
+
+                    WriteMatches(contentWriter, groups, context);
+                    count = contentWriter.MatchCount;
+                }
+                finally
+                {
+                    contentWriter?.Dispose();
+
+                    if (groups != null)
+                        ListCache<Group>.Free(groups);
+                }
+            }
+
+            if (ShouldLog(Verbosity.Detailed)
+                || Options.IncludeSummary)
+            {
+                Verbosity verbosity = (Options.IncludeSummary) ? Verbosity.Minimal : Verbosity.Detailed;
+
+                WriteLine(verbosity);
+                WriteCount("Replacements", count, Colors.Message_OK, verbosity);
+                WriteIf(maxReason == MaxReason.CountExceedsMax, "+", Colors.Message_OK, verbosity);
+                WriteLine(verbosity);
+            }
+        }

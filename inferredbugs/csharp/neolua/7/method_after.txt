@@ -1,0 +1,48 @@
+  public static LuaFile OpenFile(string fileName, string mode, Encoding encoding)
+		{
+			if (String.IsNullOrEmpty(mode))
+				throw new ArgumentNullException("mode");
+
+			var fileMode = FileMode.Open;
+			var fileAccess = (FileAccess)0;
+
+			// interpret mode
+			var i = 0;
+			while (i < mode.Length)
+			{
+				var c = mode[i];
+				var isExtend = i < mode.Length - 1 && mode[i + 1] == '+';
+				switch (c)
+				{
+					case 'r':
+						fileAccess |= FileAccess.Read;
+						if (isExtend)
+						{
+							fileAccess |= FileAccess.Write;
+							fileMode = FileMode.Open;
+						}
+						break;
+					case 'w':
+						fileAccess |= FileAccess.Write;
+						if (isExtend)
+							fileMode = FileMode.Create;
+						else
+							fileMode = FileMode.OpenOrCreate;
+						break;
+					case 'a':
+						fileAccess |= FileAccess.Write;
+						fileMode = FileMode.Append;
+						break;
+					case 'b':
+						break;
+					default:
+						throw new ArgumentException("mode", "Invalid mode format.");
+				}
+				i++;
+				if (isExtend)
+					i++;
+			}
+
+			// open the file
+			return OpenFile(fileName, encoding, fileMode, fileAccess);
+		}

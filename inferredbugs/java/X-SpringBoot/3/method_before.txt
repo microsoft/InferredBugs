@@ -1,0 +1,11 @@
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws IOException, ServletException {
+        String token = request.getHeader(Constant.TOKEN);
+        if(StrUtil.isNotBlank(token)){
+            byte[] key = serialization.serialize(token);
+            byte[] value = redisTemplate.getConnectionFactory().getConnection().get(key);
+            Authentication authentication = serialization.deserialize(value,Authentication.class);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        }
+        chain.doFilter(request, response);
+    }

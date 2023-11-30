@@ -1,0 +1,35 @@
+ private void updateMemoryPool() throws IOException {
+		JmxMemoryPoolManager memoryPoolManager = jmxClient.getMemoryPoolManager();
+
+		edenUsedBytes = memoryPoolManager.getEdenMemoryPool().getUsage().getUsed();
+		edenMaxBytes = getMemoryPoolMaxOrCommited(memoryPoolManager.getEdenMemoryPool());
+
+		MemoryPoolMXBean survivorMemoryPool = memoryPoolManager.getSurvivorMemoryPool();
+		if (survivorMemoryPool != null) {
+			surUsedBytes = survivorMemoryPool.getUsage().getUsed();
+			surMaxBytes = getMemoryPoolMaxOrCommited(survivorMemoryPool);
+		}
+
+		oldUsedBytes = memoryPoolManager.getOldMemoryPool().getUsage().getUsed();
+		oldMaxBytes = getMemoryPoolMaxOrCommited(memoryPoolManager.getOldMemoryPool());
+
+		permUsedBytes = memoryPoolManager.getPermMemoryPool().getUsage().getUsed();
+		permMaxBytes = getMemoryPoolMaxOrCommited(memoryPoolManager.getPermMemoryPool());
+
+		if (jvmMajorVersion >= 8) {
+			MemoryPoolMXBean compressedClassSpaceMemoryPool = memoryPoolManager.getCompressedClassSpaceMemoryPool();
+			if (compressedClassSpaceMemoryPool != null) {
+				ccsUsedBytes = compressedClassSpaceMemoryPool.getUsage().getUsed();
+				ccsMaxBytes = getMemoryPoolMaxOrCommited(compressedClassSpaceMemoryPool);
+			}
+		}
+
+		codeCacheUsedBytes = memoryPoolManager.getCodeCacheMemoryPool().getUsage().getUsed();
+		codeCacheMaxBytes = getMemoryPoolMaxOrCommited(memoryPoolManager.getCodeCacheMemoryPool());
+
+		directUsedBytes = jmxClient.getBufferPoolManager().getDirectBufferPool().getMemoryUsed();
+		directMaxBytes = jmxClient.getBufferPoolManager().getDirectBufferPool().getTotalCapacity();
+
+		mapUsedBytes = jmxClient.getBufferPoolManager().getMappedBufferPool().getMemoryUsed();
+		mapMaxBytes = jmxClient.getBufferPoolManager().getMappedBufferPool().getTotalCapacity();
+	}

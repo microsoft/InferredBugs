@@ -1,0 +1,30 @@
+        protected virtual string ReadLine() {
+            if (this.StreamReader != null) {
+                string buf; // = this.StreamReader.ReadLine();
+
+                if (this.ResponseReadTimeout > 0) {
+                    GetLineFromSocket GetLine = new GetLineFromSocket(this.StreamReader.ReadLine);
+                    IAsyncResult ar = GetLine.BeginInvoke(null, null);
+
+                    ar.AsyncWaitHandle.WaitOne(this.ResponseReadTimeout);
+                    if (!ar.IsCompleted) {
+                        // close the socket because we'll need to reconnect to recover
+                        // from this failure
+                        this.Socket.Close();
+                        throw new FtpResponseTimeoutException("Timed out waiting for the server to respond to the last command.");
+                    }
+
+                    buf = GetLine.EndInvoke(ar);
+                }
+                else {
+                    buf = this.StreamReader.ReadLine();
+                }
+               
+                WriteLineToLogStream(string.Format("> {0}", buf));
+                this.LastSocketActivity = DateTime.Now;
+
+                return buf;
+            }
+
+            throw new IOException("The reader object is null. Are we connected?");
+        }

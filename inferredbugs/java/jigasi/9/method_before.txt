@@ -1,0 +1,40 @@
+    public void start()
+    {
+        if (State.NOT_STARTED.equals(this.state))
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("Transcriber is now transcribing");
+
+            StatsDClient dClient = JigasiBundleActivator.getDataDogClient();
+            if(dClient != null)
+            {
+                dClient.increment(DD_ASPECT_START);
+                if(logger.isDebugEnabled())
+                {
+                    logger.debug("thrown stat: " + DD_ASPECT_START);
+                }
+            }
+
+            this.state = State.TRANSCRIBING;
+            this.executorService = Executors.newSingleThreadExecutor();
+
+            List<Participant> participantsClone;
+            synchronized (this.participants)
+            {
+                participantsClone = new ArrayList<>(this.participants.size());
+                participantsClone.addAll(this.participants.values());
+            }
+
+            TranscriptEvent event
+                = this.transcript.started(roomName, roomUrl, participantsClone);
+            if (event != null)
+            {
+                fireTranscribeEvent(event);
+            }
+        }
+        else
+        {
+            logger.warn("Trying to start Transcriber while it is" +
+                            "already started");
+        }
+    }

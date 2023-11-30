@@ -1,0 +1,46 @@
+        protected override Expression VisitConstant(ConstantExpression node)
+        {
+            if (node.Value is ITable)
+            {
+                var table = (node.Value as ITable);
+                TableName = table.GetTableName();
+                AllowFiltering = table.GetEntityType().GetCustomAttributes(typeof(AllowFilteringAttribute), false).Any();
+                
+                var props = table.GetEntityType().GetPropertiesOrFields();
+                foreach (var prop in props)
+                {
+                    var memName = CqlQueryTools.CalculateMemberName(prop);
+                    Alter[prop.Name] = memName;
+                }
+                return node;
+            }
+            else if (phasePhase.get() == ParsePhase.Condition)
+            {
+                WhereClause.Append(AddValue(node.Value));
+                return node;
+            }
+            else if (phasePhase.get() == ParsePhase.SelectBinding)
+            {
+                if (Alter.ContainsKey(currentBindingName.get()))
+                {
+                    Mappings[currentBindingName.get()] = Tuple.Create(currentBindingName.get(), node.Value, Mappings.Count);
+                    SelectFields.Add(currentBindingName.get());
+                }
+                else
+                {
+                    Mappings[currentBindingName.get()] = Tuple.Create<string, object, int>(null, node.Value, Mappings.Count);
+                }
+                return node;
+            }
+            else if (phasePhase.get() == ParsePhase.Take)
+            {
+                Limit = (int)node.Value;
+                return node;
+            }
+            else if (phasePhase.get() == ParsePhase.OrderBy || phasePhase.get() == ParsePhase.OrderByDescending)
+            {
+                OrderBy.Add(Alter[(string)node.Value].CqlIdentifier() + (phasePhase.get() == ParsePhase.OrderBy ? " ASC" : " DESC"));
+                return node;
+            }
+            throw new CqlLinqNotSupportedException(node, phasePhase.get());
+        }

@@ -1,0 +1,47 @@
+  public static void main(final String[] args) {
+
+    ExitCode exitCode = ExitCode.OK;
+    Socket s = null;
+    try {
+
+      final int port = Integer.valueOf(args[0]);
+      s = new Socket("localhost", port);
+
+      final SafeDataInputStream dis = new SafeDataInputStream(
+          s.getInputStream());
+
+      final SlaveArguments paramsFromParent = dis.read(SlaveArguments.class);
+
+      System.setProperties(paramsFromParent.getSystemProperties());
+
+      Log.setVerbose(paramsFromParent.isVerbose());
+
+      HotSwapAgent.addTransformer(new CoverageTransformer(paramsFromParent
+          .getFilter()));
+
+      final List<TestUnit> tus = getTestsFromParent(dis);
+
+      LOG.info(tus.size() + " tests received");
+
+      final CoverageWorker worker = new CoverageWorker(s.getOutputStream(), tus);
+
+      worker.run();
+
+    } catch (final Throwable ex) {
+      LOG.log(Level.SEVERE, "Error calculating coverage. Process will exit.",
+          ex);
+      ex.printStackTrace();
+      exitCode = ExitCode.UNKNOWN_ERROR;
+    } finally {
+      try {
+        if (s != null) {
+          s.close();
+        }
+      } catch (final IOException e) {
+        throw translateCheckedException(e);
+      }
+    }
+
+    System.exit(exitCode.getCode());
+
+  }

@@ -1,0 +1,78 @@
+    @Override
+    public void onResponse(SearchResponse response) {
+        long timeTaken = System.currentTimeMillis() - timeStartESQuery;
+
+        Aggregations aggregs = response.getAggregations();
+
+        SingleBucketAggregation sample = aggregs.get("sample");
+        if (sample != null) {
+            aggregs = sample.getAggregations();
+        }
+
+        Terms agg = aggregs.get("partition");
+
+        int numhits = 0;
+        int numBuckets = 0;
+        int alreadyprocessed = 0;
+
+        synchronized (buffer) {
+            // For each entry
+            for (Terms.Bucket entry : agg.getBuckets()) {
+                String key = (String) entry.getKey(); // bucket key
+                long docCount = entry.getDocCount(); // Doc count
+
+                int hitsForThisBucket = 0;
+
+                // filter results so that we don't include URLs we are already
+                // being processed
+                TopHits topHits = entry.getAggregations().get("docs");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    hitsForThisBucket++;
+
+                    Map<String, Object> keyValues = hit.sourceAsMap();
+                    String url = (String) keyValues.get("url");
+
+                    LOG.debug("{} -> id [{}], _source [{}]", logIdprefix,
+                            hit.getId(), hit.getSourceAsString());
+
+                    // is already being processed - skip it!
+                    if (beingProcessed.containsKey(url)) {
+                        alreadyprocessed++;
+                        continue;
+                    }
+                    Metadata metadata = fromKeyValues(keyValues);
+                    buffer.add(new Values(url, metadata));
+                }
+
+                if (hitsForThisBucket > 0)
+                    numBuckets++;
+
+                numhits += hitsForThisBucket;
+
+                LOG.debug("{} key [{}], hits[{}], doc_count [{}]", logIdprefix,
+                        key, hitsForThisBucket, docCount, alreadyprocessed);
+            }
+
+            // Shuffle the URLs so that we don't get blocks of URLs from the
+            // same
+            // host or domain
+            Collections.shuffle((List) buffer);
+        }
+
+        LOG.info(
+                "{} ES query returned {} hits from {} buckets in {} msec with {} already being processed",
+                logIdprefix, numhits, numBuckets, timeTaken, alreadyprocessed);
+
+        esQueryTimes.addMeasurement(timeTaken);
+        eventCounter.scope("already_being_processed").incrBy(alreadyprocessed);
+        eventCounter.scope("ES_queries").incrBy(1);
+        eventCounter.scope("ES_docs").incrBy(numhits);
+
+        // change the date only if we don't get any results at all
+        if (numBuckets == 0) {
+            lastDate = null;
+        }
+
+        // remove lock
+        isInESQuery.set(false);
+    }

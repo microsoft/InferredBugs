@@ -1,0 +1,107 @@
+    @Override
+    public ErrorCode handleFriendRequest(String userId, WFCMessage.HandleFriendRequest request, WFCMessage.Message.Builder msgBuilder, long[] heads, boolean isAdmin) {
+        HazelcastInstance hzInstance = m_Server.getHazelcastInstance();
+
+        if (isAdmin) {
+            MultiMap<String, FriendData> friendsMap = hzInstance.getMultiMap(USER_FRIENDS);
+
+            FriendData friendData1 = null;
+            Collection<FriendData> friendDatas = friendsMap.get(userId);
+            if (friendDatas == null || friendDatas.size() == 0) {
+                friendDatas = loadFriend(friendsMap, userId);
+            }
+            for (FriendData fd : friendDatas) {
+                if (fd.getFriendUid().equals(request.getTargetUid())) {
+                    friendData1 = fd;
+                    break;
+                }
+            }
+            if (friendData1 == null) {
+                friendData1 = new FriendData(userId, request.getTargetUid(), "", request.getStatus(), System.currentTimeMillis());
+            } else {
+                friendData1.setState(request.getStatus());
+                friendData1.setTimestamp(System.currentTimeMillis());
+            }
+
+            databaseStore.persistOrUpdateFriendData(friendData1);
+
+            if (request.getStatus() != 2) {
+                FriendData friendData2 = null;
+
+                friendDatas = friendsMap.get(request.getTargetUid());
+                for (FriendData fd : friendDatas) {
+                    if (fd.getFriendUid().equals(userId)) {
+                        friendData2 = fd;
+                        break;
+                    }
+                }
+                if (friendData2 == null) {
+                    friendData2 = new FriendData(request.getTargetUid(), userId, "", request.getStatus(), friendData1.getTimestamp());
+                } else {
+                    friendsMap.remove(request.getTargetUid(), friendData2);
+                    friendData2.setState(request.getStatus());
+                    friendData2.setTimestamp(System.currentTimeMillis());
+                }
+
+                databaseStore.persistOrUpdateFriendData(friendData2);
+
+                heads[0] = friendData2.getTimestamp();
+            } else {
+                heads[0] = 0;
+            }
+            heads[1] = friendData1.getTimestamp();
+            friendsMap.remove(userId);
+            friendsMap.remove(request.getTargetUid());
+            return ErrorCode.ERROR_CODE_SUCCESS;
+        }
+
+        MultiMap<String, WFCMessage.FriendRequest> requestMap = hzInstance.getMultiMap(USER_FRIENDS_REQUEST);
+        Collection<WFCMessage.FriendRequest> requests = requestMap.get(userId);
+        if (requests == null || requests.size() == 0) {
+            requests = databaseStore.getPersistFriendRequests(userId);
+            if (requests != null) {
+                for (WFCMessage.FriendRequest r : requests
+                    ) {
+                    requestMap.put(userId, r);
+                }
+            }
+        }
+
+        WFCMessage.FriendRequest existRequest = null;
+        for (WFCMessage.FriendRequest tmpRequest : requests) {
+            if (tmpRequest.getFromUid().equals(request.getTargetUid())) {
+                existRequest = tmpRequest;
+                break;
+            }
+        }
+
+        if (existRequest != null) {
+            if (System.currentTimeMillis() - existRequest.getUpdateDt() > 7 * 24 * 60 * 60 * 1000) {
+                return ErrorCode.ERROR_CODE_FRIEND_REQUEST_OVERTIME;
+            } else {
+                existRequest = existRequest.toBuilder().setStatus(ProtoConstants.FriendRequestStatus.RequestStatus_Accepted).setUpdateDt(System.currentTimeMillis()).build();
+                databaseStore.persistOrUpdateFriendRequest(existRequest);
+                MultiMap<String, FriendData> friendsMap = hzInstance.getMultiMap(USER_FRIENDS);
+
+                FriendData friendData1 = new FriendData(userId, request.getTargetUid(), "", 0, System.currentTimeMillis());
+                databaseStore.persistOrUpdateFriendData(friendData1);
+
+                FriendData friendData2 = new FriendData(request.getTargetUid(), userId, "", 0, friendData1.getTimestamp());
+                databaseStore.persistOrUpdateFriendData(friendData2);
+
+                requestMap.remove(userId);
+                requestMap.remove(request.getTargetUid());
+                friendsMap.remove(userId);
+                friendsMap.remove(request.getTargetUid());
+
+                heads[0] = friendData2.getTimestamp();
+                heads[1] = friendData1.getTimestamp();
+
+                msgBuilder.setConversation(WFCMessage.Conversation.newBuilder().setTarget(userId).setLine(0).setType(ProtoConstants.ConversationType.ConversationType_Private).build());
+                msgBuilder.setContent(WFCMessage.MessageContent.newBuilder().setType(1).setSearchableContent(existRequest.getReason()).build());
+                return ErrorCode.ERROR_CODE_SUCCESS;
+            }
+        } else {
+            return ErrorCode.ERROR_CODE_NOT_EXIST;
+        }
+    }

@@ -1,0 +1,92 @@
+ @Override
+	public void visit(ClassOrInterfaceDeclaration n, GenerationContext context) {
+		printComments(n, context);
+
+		ClassScope scope = (ClassScope) scope(n);
+		
+		if (resolvedType(n) == null) {
+			// for anonymous object creation the type is set already
+			resolvedType(n, scope.resolveType(n.getName()).getType());
+		}
+
+		ClassWrapper type = (ClassWrapper)resolvedType(n);
+		String namespace = null;
+
+		if (ClassUtils.isRootType(type)) {
+			namespace = ClassUtils.getNamespace(type);
+			if (namespace != null) {
+				printer.printLn("stjs.ns(\"" + namespace + "\");");
+			}
+		}
+
+		String className = null;
+		if(!type.isAnonymousClass()){
+			if(!type.isInnerType() && !type.isAnonymousClass() && namespace == null){
+				printer.print("var ");
+			}
+			className = names.getTypeName(type);
+			if(type.isInnerType()){
+				printer.print("constructor.");
+				printer.print(type.getSimpleName());
+			} else {
+				className = names.getTypeName(type);
+				printer.print(className);
+			}
+			printer.print(" = ");
+			printConstructorImplementation(n, context, scope, type.isAnonymousClass());
+			printer.printLn(";");
+		}else{
+			printer.print("(");
+		}
+		
+		printer.print("stjs.extend(");
+		if(type.isAnonymousClass()){
+			printConstructorImplementation(n, context, scope, type.isAnonymousClass());
+		}else{
+			printer.print(className);
+		}
+		printer.print(", ");
+		
+		// print the super class
+		List<TypeWrapper> interfaces;
+		if(n.isInterface()){
+			// interfaces do not have super classes. For interfaces, extends actually means implements
+			printer.print("null, ");
+			interfaces = getExtends(n);
+		} else {
+			List<TypeWrapper> superClass = getExtends(n);
+			if(superClass.size() > 0){
+				printer.print(names.getTypeName(superClass.get(0)));
+			}else{
+				printer.print("null");
+			}
+			printer.print(", ");
+			interfaces = getImplements(n);
+		}
+		
+		// print the implemented interfaces
+		printer.print("[");
+		for (int i = 0; i < interfaces.size(); i ++) {
+			if(i > 0){
+				printer.print(", ");
+			}
+			printer.print(names.getTypeName(interfaces.get(i)));
+		}
+		printer.print("], ");
+	
+		printMembers(n.getMembers(), context);
+		printer.print(", ");
+		printTypeDescription(n, context);
+		printer.print(")");
+		
+		if(!type.isAnonymousClass()){
+			printer.printLn(";");
+			if(!type.isInnerType()){
+				printGlobals(filterGlobals(n, type), context);
+				printStaticInitializers(n, context);
+				printMainMethodCall(n, type);
+			}
+		}else {
+			printer.print(")");
+		}
+	}

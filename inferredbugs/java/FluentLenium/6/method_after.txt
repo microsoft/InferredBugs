@@ -1,0 +1,36 @@
+    @Override
+    @SuppressWarnings({"PMD.StdCyclomaticComplexity", "PMD.CyclomaticComplexity", "PMD.ModifiedCyclomaticComplexity",
+            "PMD.NPathComplexity"})
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if (TO_STRING.equals(method)) {
+            return proxyToString(!loaded() ? null : (String) invoke(method, args));
+        }
+        if (!loaded()) {
+            if (EQUALS.equals(method)) {
+                LocatorHandler otherLocatorHandler = LocatorProxies.getLocatorHandler(args[0]);
+                if (otherLocatorHandler != null) {
+                    if (!otherLocatorHandler.loaded() || args[0] == null) {
+                        return equals(otherLocatorHandler);
+                    } else {
+                        return args[0].equals(proxy);
+                    }
+                }
+            }
+
+            if (HASH_CODE.equals(method)) {
+                return HASH_CODE_SEED + locator.hashCode();
+            }
+        }
+
+        if (EQUALS.equals(method)) {
+            LocatorHandler otherLocatorHandler = LocatorProxies.getLocatorHandler(args[0]);
+            if (otherLocatorHandler != null && !otherLocatorHandler.loaded()) {
+                otherLocatorHandler.now();
+                return otherLocatorHandler.equals(this);
+            }
+        }
+
+        getLocatorResult();
+
+        return invokeWithRetry(method, args);
+    }

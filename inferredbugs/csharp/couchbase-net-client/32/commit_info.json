@@ -1,0 +1,185 @@
+{
+    "hash": "db34d715b135969df4c379b4fef968a3b2a0d495",
+    "message": "NCBC-644: ops/sec is not restored to the expected value - part 2\n\nThis rewrite's the ViewClient implementation to use HttpWebRequest as\nopposed to HttpClient, because HttpClient does not handle the number of\nrequests pushed through during a test. It's Task based and eventually\nqueued up Task's began timing out causing the client to become unstable.\nCurrently the ExecuteAsync method is still using HttpClient, but that will\nchange in a later commit to use the older Begin/End async methods. In\naddition to the switch to HttpClientRequest, this commit also contains\nseveral performance tweaks and 'knobs' for controlling them from an\napplication. `\n\nChange-Id: I96f8884484d3d58be57d0dc2ab4b3ff356ee6d2a\nReviewed-on: http://review.couchbase.org/42069\nTested-by: Jeffry Morris <jeffrymorris@gmail.com>\nReviewed-by: Brett Lawson <brett19@gmail.com>",
+    "file_num_lines": 89,
+    "diff_parsed": {
+        "added": [
+            [
+                8,
+                "using Couchbase.Configuration.Client;"
+            ],
+            [
+                9,
+                "using Couchbase.Configuration.Server.Serialization;"
+            ],
+            [
+                12,
+                "using Wintellect;"
+            ],
+            [
+                26,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper(), new BucketConfig{Name = \"beer-sample\"}, new ClientConfiguration());"
+            ],
+            [
+                39,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper(), new BucketConfig { Name = \"beer-sample\" }, new ClientConfiguration());"
+            ],
+            [
+                41,
+                ""
+            ],
+            [
+                57,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper(), new BucketConfig { Name = \"beer-sample\" }, new ClientConfiguration());"
+            ],
+            [
+                59,
+                ""
+            ],
+            [
+                60,
+                "            Assert.AreEqual(\"The remote server returned an error: (400) Bad Request.\", result.Error);"
+            ],
+            [
+                75,
+                "            var client = new ViewClient(new HttpClient(),"
+            ],
+            [
+                76,
+                "                new JsonDataMapper(),"
+            ],
+            [
+                77,
+                "                new BucketConfig { Name = \"beer-sample\" },"
+            ],
+            [
+                78,
+                "                new ClientConfiguration{ViewRequestTimeout = 30000});"
+            ],
+            [
+                79,
+                ""
+            ],
+            [
+                84,
+                "            Assert.AreEqual(typeof(WebException), result.Exception.GetType());"
+            ],
+            [
+                85,
+                "        }"
+            ],
+            [
+                86,
+                ""
+            ],
+            [
+                87,
+                "        [Test]"
+            ],
+            [
+                88,
+                "        public void Test_ExecuteAsync()"
+            ],
+            [
+                89,
+                "        {"
+            ],
+            [
+                90,
+                "            var query = new ViewQuery()."
+            ],
+            [
+                91,
+                "                From(\"docs\", \"all_docs\")."
+            ],
+            [
+                92,
+                "                Bucket(\"default\");"
+            ],
+            [
+                93,
+                ""
+            ],
+            [
+                94,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper(), new BucketConfig { Name = \"beer-sample\" }, new ClientConfiguration());"
+            ],
+            [
+                95,
+                ""
+            ],
+            [
+                96,
+                "            int n = 10000;"
+            ],
+            [
+                97,
+                "            var options = new ParallelOptions { MaxDegreeOfParallelism = 4};"
+            ],
+            [
+                98,
+                ""
+            ],
+            [
+                99,
+                "            Parallel.For(0, n, options, async i =>"
+            ],
+            [
+                100,
+                "            {"
+            ],
+            [
+                101,
+                "                var result = await client.ExecuteAsync<dynamic>(query);"
+            ],
+            [
+                102,
+                "                Console.WriteLine(\"{0} {1} {2}\", i, result.Success, result.Message);"
+            ],
+            [
+                103,
+                "            });"
+            ]
+        ],
+        "deleted": [
+            [
+                23,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper());"
+            ],
+            [
+                36,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper());"
+            ],
+            [
+                38,
+                ""
+            ],
+            [
+                54,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper());"
+            ],
+            [
+                56,
+                ""
+            ],
+            [
+                57,
+                "            Assert.AreEqual(\"query_parse_error\", result.Error);"
+            ],
+            [
+                58,
+                "            Assert.AreEqual(\"Invalid URL parameter 'group' or  'group_level' for non-reduce view.\", result.Message);"
+            ],
+            [
+                73,
+                "            var client = new ViewClient(new HttpClient(), new JsonDataMapper());"
+            ],
+            [
+                78,
+                "            Assert.AreEqual(typeof(HttpRequestException), result.Exception.GetType());"
+            ]
+        ]
+    },
+    "num_lines_added": 34,
+    "num_lines_removed": 9
+}

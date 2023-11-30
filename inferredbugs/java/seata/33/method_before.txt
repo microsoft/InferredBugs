@@ -1,0 +1,29 @@
+    @Test
+    public void testBigDataWrite() throws Exception {
+        File seataFile = Files.newTemporaryFile();
+        try {
+            FileTransactionStoreManager fileTransactionStoreManager = new FileTransactionStoreManager(seataFile.getAbsolutePath(), null);
+            BranchSession branchSessionA = Mockito.mock(BranchSession.class);
+            GlobalSession global = new GlobalSession();
+            Mockito.when(branchSessionA.encode())
+                    .thenReturn(createBigBranchSessionData(global, (byte) 'A'));
+            Mockito.when(branchSessionA.getApplicationData())
+                    .thenReturn(new String(createBigApplicationData((byte) 'A')));
+            BranchSession branchSessionB = Mockito.mock(BranchSession.class);
+            Mockito.when(branchSessionB.encode())
+                    .thenReturn(createBigBranchSessionData(global, (byte) 'B'));
+            Mockito.when(branchSessionB.getApplicationData())
+                    .thenReturn(new String(createBigApplicationData((byte) 'B')));
+            Assertions.assertTrue(fileTransactionStoreManager.writeSession(TransactionStoreManager.LogOperation.BRANCH_ADD, branchSessionA));
+            Assertions.assertTrue(fileTransactionStoreManager.writeSession(TransactionStoreManager.LogOperation.BRANCH_ADD, branchSessionB));
+            List<TransactionWriteStore> list = fileTransactionStoreManager.readWriteStore(2000, false);
+            Assertions.assertNotNull(list);
+            Assertions.assertEquals(2, list.size());
+            BranchSession loadedBranchSessionA = (BranchSession) list.get(0).getSessionRequest();
+            Assertions.assertEquals(branchSessionA.getApplicationData(), loadedBranchSessionA.getApplicationData());
+            BranchSession loadedBranchSessionB = (BranchSession) list.get(1).getSessionRequest();
+            Assertions.assertEquals(branchSessionB.getApplicationData(), loadedBranchSessionB.getApplicationData());
+        } finally {
+            Assertions.assertTrue(seataFile.delete());
+        }
+    }

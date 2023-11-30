@@ -1,0 +1,30 @@
+    @Override
+    public Optional<MethodUsage> solveMethodAsUsage(String name, List<TypeUsage> parameterTypes, TypeSolver typeSolver, Context invokationContext, List<TypeUsage> typeParameterValues) {
+        List<MethodUsage> methods = new ArrayList<>();
+        for (Method method : Arrays.stream(clazz.getDeclaredMethods()).filter((m) -> m.getName().equals(name)).sorted(new MethodComparator()).collect(Collectors.toList())) {
+            if (method.isBridge() || method.isSynthetic()) continue;
+            MethodDeclaration methodDeclaration = new ReflectionMethodDeclaration(method, typeSolver);
+            MethodUsage methodUsage = new MethodUsage(methodDeclaration, typeSolver);
+            for (int i=0;i<getTypeParameters().size();i++){
+                String nameToReplace = getTypeParameters().get(i).getName();
+                TypeUsage newValue = typeParameterValues.get(i);
+                methodUsage = methodUsage.replaceNameParam(nameToReplace, newValue);
+            }
+            methods.add(methodUsage);
+        }
+        if (getSuperClass(typeSolver) != null) {
+            ClassDeclaration superClass = (ClassDeclaration)getSuperClass(typeSolver).getTypeDeclaration();
+            Optional<MethodUsage> ref = superClass.solveMethodAsUsage(name, parameterTypes, typeSolver, invokationContext, typeParameterValues);
+            if (ref.isPresent()) {
+                methods.add(ref.get());
+            }
+        }
+        for (InterfaceDeclaration interfaceDeclaration : getInterfaces(typeSolver)) {
+            Optional<MethodUsage> ref = interfaceDeclaration.solveMethodAsUsage(name, parameterTypes, typeSolver, invokationContext, typeParameterValues);
+            if (ref.isPresent()) {
+                methods.add(ref.get());
+            }
+        }
+        Optional<MethodUsage> ref = MethodResolutionLogic.findMostApplicableUsage(methods, name, parameterTypes, typeSolver);
+        return ref;
+    }

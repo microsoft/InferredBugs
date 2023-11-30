@@ -1,0 +1,22 @@
+    @Test
+    public void testDoReadSession() throws NoSuchFieldException, IllegalAccessException {
+        Session nullSession = redisSessionDAO.doReadSession(null);
+        assertThat(nullSession, is(nullValue()));
+
+        RedisSessionDAO redisSessionDAO2 = new RedisSessionDAO();
+        redisSessionDAO2.setRedisManager(redisManager);
+        redisSessionDAO2.setKeyPrefix(testPrefix);
+        redisSessionDAO2.setExpire(2);
+        ThreadLocal sessionsInThread = mock(ThreadLocal.class);
+        Map<Serializable, SessionInMemory> sessionMap = new HashMap<Serializable, SessionInMemory>();
+        SessionInMemory sessionInMemory = new SessionInMemory();
+        sessionInMemory.setSession(new FakeSession(1, "Billy"));
+        sessionInMemory.setCreateTime(new Date());
+        sessionMap.put("1", sessionInMemory);
+        when(sessionsInThread.get()).thenReturn(sessionMap);
+        TestUtils.setPrivateField(redisSessionDAO2, "sessionsInThread", sessionsInThread);
+        FakeSession actualSession = (FakeSession)redisSessionDAO2.doReadSession("1");
+        assertThat(actualSession.getId().toString(), is("1"));
+        assertThat(actualSession.getName(), is("Billy"));
+        verify(redisManager, times(0)).get(any((new byte[0]).getClass()));
+    }

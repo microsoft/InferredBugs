@@ -1,0 +1,51 @@
+ @SuppressWarnings("unchecked")
+	@Produces
+	@Param
+	public <V> ParamValue<V> produce(InjectionPoint injectionPoint) {
+
+		Param requestParameter = getQualifier(injectionPoint, Param.class);
+
+		FacesContext context = getContext();
+		UIComponent component = getViewRoot();
+
+		// Get raw submitted value from the request
+		String submittedValue = getRequestParameter(getName(requestParameter, injectionPoint));
+		Object convertedValue = null;
+		boolean valid = true;
+
+		try {
+			
+			// Convert the submitted value
+			
+			Converter converter = getConverter(requestParameter, getTargetType(injectionPoint));
+			if (converter != null) {
+				convertedValue = converter.getAsObject(context, component, submittedValue);
+			} else {
+				convertedValue = submittedValue;
+			}
+
+			// Validate the converted value
+			
+			for (Validator validator : getValidators(requestParameter)) {
+				try {
+					validator.validate(context, component, convertedValue);
+				} catch (ValidatorException ve) {
+					valid = false;
+					String clientId = component.getClientId(context);
+					for (FacesMessage facesMessage : getFacesMessages(ve)) {
+						context.addMessage(clientId, facesMessage);
+					}
+				}
+			}
+		} catch (ConverterException ce) {
+			valid = false;
+			addConverterMessage(context, component, submittedValue, ce, requestParameter.converterMessage());
+		}
+
+		if (!valid) {
+			context.validationFailed();
+			convertedValue = null;
+		}
+
+		return (ParamValue<V>) new ParamValue<Object>(convertedValue);
+	}

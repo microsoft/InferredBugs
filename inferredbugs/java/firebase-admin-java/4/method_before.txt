@@ -1,0 +1,25 @@
+  @Test
+  public void refreshTokenReadThrowsRuntimeException()
+      throws ExecutionException, InterruptedException, IOException {
+    MockTokenServerTransport transport = new MockTokenServerTransport();
+    transport.addServiceAccount(ServiceAccount.EDITOR.getEmail(), ACCESS_TOKEN);
+
+    InputStream inputStream =
+        new InputStream() {
+          @Override
+          public int read() throws IOException {
+            throw new IOException("Expected");
+          }
+        };
+
+    FirebaseCredential credential =
+        FirebaseCredentials.fromRefreshToken(inputStream, transport, Utils.getDefaultJsonFactory());
+
+    try {
+      Tasks.await(credential.getAccessToken(false));
+      Assert.fail();
+    } catch (Exception e) {
+      Assert.assertEquals("java.io.IOException: Failed to read refresh token", e.getMessage());
+      Assert.assertEquals("Expected", e.getCause().getCause().getMessage());
+    }
+  }

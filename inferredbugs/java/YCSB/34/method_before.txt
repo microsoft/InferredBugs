@@ -1,0 +1,32 @@
+  @Override
+  public Status update(String table, String key, Map<String, ByteIterator> values) {
+    String documentLink = getDocumentLink(this.databaseName, table, key);
+    Document document = getDocumentDefinition(key, values);
+
+    RequestOptions reqOptions = getRequestOptions(key);
+    if (reqOptions == null) {
+      reqOptions = new RequestOptions();
+    }
+    AccessCondition accessCondition = new AccessCondition();
+    accessCondition.setCondition(document.getETag());
+    accessCondition.setType(AccessConditionType.IfMatch);
+    reqOptions.setAccessCondition(accessCondition);
+
+    ResourceResponse<Document> updatedResource = null;
+    long startTime = System.nanoTime();
+    try {
+      updatedResource = AzureCosmosClient.client.replaceDocument(documentLink, document, reqOptions);
+    } catch (DocumentClientException e) {
+      if (!this.includeExceptionStackInLog) {
+        e = null;
+      }
+      LOGGER.error("Failed to update key {}", key, e);
+      return Status.ERROR;
+    } finally {
+      long elapsed = (System.nanoTime() - startTime) / NS_IN_US;
+      LOGGER.debug("Updated key {} in {}us - ActivityID: {}", key, elapsed,
+              updatedResource != null ? updatedResource.getActivityId() : NA_STRING);
+    }
+
+    return Status.OK;
+  }

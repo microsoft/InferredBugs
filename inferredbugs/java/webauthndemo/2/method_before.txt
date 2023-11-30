@@ -1,0 +1,33 @@
+  @ApiMethod(name = "processSignResponse")
+  public List<String> processSignResponse(
+      @Named("responseData") String responseData, User user)
+      throws OAuthRequestException, ResponseException {
+    if (user == null) {
+      throw new OAuthRequestException("User is not authenticated");
+    }
+
+    AuthenticatorAssertionResponse assertion =
+        new AuthenticatorAssertionResponse(responseData);
+
+    // TODO
+    String credentialId = BaseEncoding.base64Url().encode(
+        assertion.getAuthenticatorData().getAttData().getCredentialId());
+    String type = null;
+    String session = null;
+
+    PublicKeyCredential cred = new PublicKeyCredential(credentialId, type,
+        BaseEncoding.base64Url().decode(credentialId), assertion);
+
+    try {
+      U2fServer.verifyAssertion(cred, user.getEmail(), session);
+    } catch (ServletException e) {
+      // TODO
+    }
+
+    Credential credential = new Credential(cred);
+    credential.save(user.getEmail());
+
+    List<String> resultList = new ArrayList<String>();
+    resultList.add(credential.toJson());
+    return resultList;
+  }

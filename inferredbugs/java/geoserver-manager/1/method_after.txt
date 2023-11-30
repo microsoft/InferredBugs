@@ -1,0 +1,52 @@
+    public void testCreateDeletePostGISDatastore() {
+        if (!enabled()) {
+            return;
+        }
+        deleteAll();
+        
+        String wsName = DEFAULT_WS;
+        String datastoreName = "resttestpostgis";
+        String description = "description";
+        String dsNamespace = "http://www.geo-solutions.it";
+        boolean exposePrimaryKeys = true;
+        boolean validateConnections = false;
+        String primaryKeyMetadataTable = "test";
+
+        GSPostGISDatastoreEncoder datastoreEncoder = new GSPostGISDatastoreEncoder();
+        datastoreEncoder.defaultInit();
+        datastoreEncoder.addName(datastoreName);
+        datastoreEncoder.addDescription(description);
+        datastoreEncoder.addNamespace(dsNamespace);
+        datastoreEncoder.addHost(pgHost);
+        datastoreEncoder.addPort(pgPort);
+        datastoreEncoder.addDatabase(pgDatabase);
+        datastoreEncoder.addSchema(pgSchema);
+        datastoreEncoder.addUser(pgUser);
+        datastoreEncoder.addPassword(pgPassword);
+        datastoreEncoder.addExposePrimaryKeys(exposePrimaryKeys);
+        datastoreEncoder.addValidateConnections(validateConnections);
+        datastoreEncoder.addPrimaryKeyMetadataTable(primaryKeyMetadataTable);
+        
+        assertTrue(publisher.createWorkspace(wsName));
+        
+        // creation test
+        boolean created = publisher.createPostGISDatastore(wsName, datastoreEncoder);
+
+        if( ! pgIgnore )
+            assertTrue("PostGIS datastore not created", created);
+        else if( ! created)
+            LOGGER.error("*** Datastore " + datastoreName + " has not been created.");
+
+
+        RESTDataStore datastore = reader.getDatastore(wsName, datastoreName);
+        LOGGER.info("The type of the created datastore is: " + datastore.getType());
+
+        // removing test
+        boolean removed = publisher.removeDatastore(wsName, datastoreName);
+        if( ! pgIgnore )
+            assertTrue("PostGIS datastore not removed", removed);
+        else if( ! removed )
+            LOGGER.error("*** Datastore " + datastoreName + " has not been removed.");
+        
+        assertTrue(publisher.removeWorkspace(wsName));
+    }

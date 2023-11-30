@@ -1,0 +1,32 @@
+    @Override
+    public void execute (final ButtonEvent event)
+    {
+        if (event != ButtonEvent.DOWN)
+            return;
+
+        final ViewManager viewManager = this.surface.getViewManager ();
+        final AbstractTrackBankProxy tb = this.model.getCurrentTrackBank ();
+        final TrackData sel = tb.getSelectedTrack ();
+        if (sel == null)
+        {
+            viewManager.setActiveView (Views.VIEW_SESSION);
+            return;
+        }
+
+        Integer viewID;
+        if (Views.isNoteView (viewManager.getActiveViewId ()))
+        {
+            if (this.surface.isShiftPressed ())
+                viewID = viewManager.isActiveView (Views.VIEW_SEQUENCER) ? Views.VIEW_RAINDROPS : Views.VIEW_SEQUENCER;
+            else
+                viewID = viewManager.isActiveView (Views.VIEW_PLAY) ? Views.VIEW_DRUM : Views.VIEW_PLAY;
+        }
+        else
+        {
+            viewID = viewManager.getPreferredView (sel.getPosition ());
+            if (viewID == null)
+                viewID = this.surface.isShiftPressed () ? Views.VIEW_SEQUENCER : Views.VIEW_PLAY;
+        }
+        viewManager.setActiveView (viewID);
+        viewManager.setPreferredView (sel.getPosition (), viewID);
+    }

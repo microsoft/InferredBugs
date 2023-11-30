@@ -1,0 +1,16 @@
+        static void checkCanGenerate() {
+            if (EditorApplication.isCompiling) {
+                throw new Exception("Cannot generate because Unity is still compiling. Please wait...");
+            }
+
+            var assembly = typeof(UnityEditor.Editor).Assembly;
+
+            var logEntries = assembly.GetType("UnityEditorInternal.LogEntries")
+                          ?? assembly.GetType("UnityEditor.LogEntries");
+
+            logEntries.GetMethod("Clear").Invoke(new object(), null);
+            var canCompile = (int)logEntries.GetMethod("GetCount").Invoke(new object(), null) == 0;
+            if (!canCompile) {
+                Debug.Log("There are compile errors! Generated code will be based on last compiled executable.");
+            }
+        }

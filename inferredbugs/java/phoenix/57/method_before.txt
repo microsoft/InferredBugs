@@ -1,0 +1,118 @@
+    @Override
+    public boolean next(List<Cell> results) throws IOException {
+        if (indexRowKey != null &&
+                singleRowRebuildReturnCode == GlobalIndexChecker.RebuildReturnCode.NO_DATA_ROW.getValue()) {
+            byte[] rowCountBytes =
+                    PLong.INSTANCE.toBytes(Long.valueOf(singleRowRebuildReturnCode));
+            final Cell aggKeyValue = PhoenixKeyValueUtil.newKeyValue(UNGROUPED_AGG_ROW_KEY, SINGLE_COLUMN_FAMILY,
+                    SINGLE_COLUMN, AGG_TIMESTAMP, rowCountBytes, 0, rowCountBytes.length);
+            results.add(aggKeyValue);
+            return false;
+        }
+        Cell lastCell = null;
+        int rowCount = 0;
+        region.startRegionOperation();
+        RegionScanner localScanner = null;
+        try {
+            byte[] uuidValue = ServerCacheClient.generateId();
+            localScanner = getLocalScanner();
+            if (localScanner == null) {
+                return false;
+            }
+            synchronized (localScanner) {
+                if (!shouldVerify()) {
+                    skipped = true;
+                    return false;
+                }
+                do {
+                    List<Cell> row = new ArrayList<Cell>();
+                    hasMore = localScanner.nextRaw(row);
+                    if (!row.isEmpty()) {
+                        lastCell = row.get(0); // lastCell is any cell from the last visited row
+                        Put put = null;
+                        Delete del = null;
+                        for (Cell cell : row) {
+                            if (KeyValue.Type.codeToType(cell.getTypeByte()) == KeyValue.Type.Put) {
+                                if (!partialRebuild && familyMap != null && !isColumnIncluded(cell)) {
+                                    continue;
+                                }
+                                if (put == null) {
+                                    put = new Put(CellUtil.cloneRow(cell));
+                                }
+                                put.add(cell);
+                            } else {
+                                if (del == null) {
+                                    del = new Delete(CellUtil.cloneRow(cell));
+                                }
+                                del.addDeleteMarker(cell);
+                            }
+                        }
+                        if (put == null && del == null) {
+                            continue;
+                        }
+                        // Always add the put first and then delete for a given row. This simplifies the logic in
+                        // IndexRegionObserver
+                        if (put != null) {
+                            mutations.add(put);
+                        }
+                        if (del != null) {
+                            mutations.add(del);
+                        }
+                        if (!verify) {
+                            if (put != null) {
+                                setMutationAttributes(put, uuidValue);
+                            }
+                            if (del != null) {
+                                setMutationAttributes(del, uuidValue);
+                            }
+                            uuidValue = commitIfReady(uuidValue, mutations);
+                        } else {
+                            byte[] dataKey = (put != null) ? put.getRow() : del.getRow();
+                            prepareIndexMutations(put, del);
+                            dataKeyToMutationMap.put(dataKey, new Pair<Put, Delete>(put, del));
+                        }
+                        rowCount++;
+                    }
+                } while (hasMore && rowCount < pageSizeInRows);
+                if (!mutations.isEmpty()) {
+                    if (verify) {
+                        verifyAndOrRebuildIndex();
+                    } else {
+                        ungroupedAggregateRegionObserver.checkForRegionClosingOrSplitting();
+                        ungroupedAggregateRegionObserver.commitBatchWithRetries(region, mutations, blockingMemstoreSize);
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            LOGGER.error("Exception in IndexRebuildRegionScanner for region "
+                    + region.getRegionInfo().getRegionNameAsString(), e);
+            throw e;
+        } finally {
+            region.closeRegionOperation();
+            mutations.clear();
+            if (verify) {
+              dataKeyToMutationMap.clear();
+              indexKeyToMutationMap.clear();
+            }
+            if (localScanner!=null && localScanner!=innerScanner) {
+                localScanner.close();
+            }
+        }
+        if (indexRowKey != null) {
+            rowCount = singleRowRebuildReturnCode;
+        }
+        if (minTimestamp != 0) {
+            nextStartKey = ByteUtil.calculateTheClosestNextRowKeyForPrefix(CellUtil.cloneRow(lastCell));
+        }
+        byte[] rowCountBytes = PLong.INSTANCE.toBytes(Long.valueOf(rowCount));
+        final Cell aggKeyValue;
+        if (lastCell == null) {
+            aggKeyValue = PhoenixKeyValueUtil.newKeyValue(UNGROUPED_AGG_ROW_KEY, SINGLE_COLUMN_FAMILY,
+                    SINGLE_COLUMN, AGG_TIMESTAMP, rowCountBytes, 0, rowCountBytes.length);
+        } else {
+            aggKeyValue = PhoenixKeyValueUtil.newKeyValue(CellUtil.cloneRow(lastCell), SINGLE_COLUMN_FAMILY,
+                    SINGLE_COLUMN, AGG_TIMESTAMP, rowCountBytes, 0, rowCountBytes.length);
+        }
+        results.add(aggKeyValue);
+        return hasMore || hasMoreIncr;
+    }

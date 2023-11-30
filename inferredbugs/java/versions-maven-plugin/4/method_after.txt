@@ -1,0 +1,40 @@
+    private void useNextReleases( ModifiedPomXMLEventReader pom, Collection dependencies )
+        throws XMLStreamException, MojoExecutionException
+    {
+        Iterator i = dependencies.iterator();
+
+        while ( i.hasNext() )
+        {
+            Dependency dep = (Dependency) i.next();
+
+            if ( isExcludeReactor() && isProducedByReactor( dep ) )
+            {
+                getLog().info( "Ignoring reactor dependency: " + toString( dep ) );
+                continue;
+            }
+
+            String version = dep.getVersion();
+            Matcher versionMatcher = matchSnapshotRegex.matcher( version );
+            if ( !versionMatcher.matches() )
+            {
+                getLog().debug( "Looking for newer versions of " + toString( dep ) );
+                Artifact artifact = this.toArtifact( dep );
+                if ( !isIncluded( artifact ) )
+                {
+                    continue;
+                }
+
+                ArtifactVersions versions = getHelper().lookupArtifactVersions( artifact, false );
+                ArtifactVersion[] newer = versions.getNewerVersions( version, false );
+                if ( newer.length > 0 )
+                {
+                    String newVersion = newer[0].toString();
+                    if ( PomHelper.setDependencyVersion( pom, dep.getGroupId(), dep.getArtifactId(), version,
+                                                         newVersion ) )
+                    {
+                        getLog().info( "Updated " + toString( dep ) + " to version " + newVersion );
+                    }
+                }
+            }
+        }
+    }

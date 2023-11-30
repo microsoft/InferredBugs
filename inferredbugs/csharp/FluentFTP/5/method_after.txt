@@ -1,0 +1,55 @@
+        public override int Read(byte[] buffer, int offset, int count) {
+            IAsyncResult res;
+            int read = 0;
+
+            if (!this.CanRead) {
+                //throw new IOException("This stream is not readable!");
+                return 0;
+            }
+
+            if (this.BaseStream == null) {
+                //throw new IOException("The base stream is null. Has a socket connection been opened yet?");
+                return 0;
+            }
+
+
+            // old blocking read
+            //read = this.BaseStream.Read(buffer, offset, count);
+            //this._position += read;
+
+            if ((this.Position + count) > this.Length) {
+                count = (int)(this.Length - this.Position);
+            }
+
+            // new read code that supports read timeout
+            res = this.BaseStream.BeginRead(buffer, offset, count, null, null);
+            res.AsyncWaitHandle.WaitOne(this.ReadTimeout);
+            if (!res.IsCompleted) {
+                // can just set this.Socket = null due to strange bug
+                // where _socket gets reset and causes another exception
+                // in the Close method of this class.
+                this._socket.Close();
+                this._socket = null;
+                this._netstream = null;
+                this._reader = null;
+                throw new IOException("Timed out waiting for a response on the data channel.");
+            }
+
+            read = this.BaseStream.EndRead(res);
+            this._position += read;
+            // end new read code
+
+            // if EOF close stream
+            if (read == 0 || (this.Position == this.Length)) {
+                this.Close();
+            }
+            else {
+                // keep-alive hack
+                if (this.ControlConnection.KeepAliveInterval > 0 && DateTime.Now.Subtract(this.LastNoOp).Seconds >= this.ControlConnection.KeepAliveInterval) {
+                    this.ControlConnection.Execute("NOOP");
+                    this.LastNoOp = DateTime.Now;
+                }
+            }
+
+            return read;
+        }

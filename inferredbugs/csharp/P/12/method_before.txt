@@ -1,0 +1,58 @@
+        public override void PrtEnqueueEvent(PrtValue e, PrtValue arg, PrtMachine source)
+        {
+            
+            if (e is PrtNullValue)
+            {
+                throw new PrtIllegalEnqueueException("Enqueued event must be non-null");
+            }
+            PrtType prtType;
+            PrtEventValue ev = e as PrtEventValue;
+            
+
+            //assertion to check if argument passed inhabits the payload type.
+            prtType = ev.evt.payloadType;
+
+            if (!(prtType is PrtNullType) && !PrtValue.PrtInhabitsType(arg, prtType))
+            {
+                throw new PrtInhabitsTypeException(String.Format("Payload <{0}> does not match the expected type <{1}> with event <{2}>", arg.GetString(), prtType.GetString(), ev.evt.name));
+            }
+            else if (prtType is PrtNullType && !(arg is PrtNullValue))
+            {
+                throw new PrtIllegalEnqueueException("Did not expect a payload value");
+            }
+
+            if (currentStatus == PrtMachineStatus.Halted)
+            {
+                stateImpl.Trace(
+                    @"<EnqueueLog> {0}-{1} Machine has been halted and Event {2} is dropped",
+                    this.Name, this.instanceNumber, ev.evt.name);
+            }
+            else
+            {
+                stateImpl.Trace(
+                    @"<EnqueueLog> Enqueued Event <{0}, {1}> in {2}-{3} by {4}-{5}",
+                    ev.evt.name, arg.GetString(), this.Name, this.instanceNumber, source.Name, source.instanceNumber);
+
+                this.eventQueue.EnqueueEvent(e, arg);
+                if (this.maxBufferSize != -1 && this.eventQueue.Size() > this.maxBufferSize)
+                {
+                    if (this.doAssume)
+                    {
+                        throw new PrtAssumeFailureException();
+                    }
+                    else
+                    {
+                        throw new PrtMaxBufferSizeExceededException(
+                            String.Format(@"<EXCEPTION> Event Buffer Size Exceeded {0} in Machine {1}-{2}",
+                            this.maxBufferSize, this.Name, this.instanceNumber));
+                    }
+                }
+                if (currentStatus == PrtMachineStatus.Blocked && this.eventQueue.IsEnabled(this))
+                {
+                    currentStatus = PrtMachineStatus.Enabled;
+                }
+            }
+
+            //Announce it to all the monitors
+            stateImpl.Announce(e, arg, source);
+        }

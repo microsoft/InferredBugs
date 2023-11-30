@@ -1,0 +1,16 @@
+    @Test
+    void shouldSendReadAccessModeInStatementMetadata() throws Exception
+    {
+        StubServer server = StubServer.start( "hello_run_exit_read.script", 9001 );
+
+        try ( Driver driver = GraphDatabase.driver( "bolt://localhost:9001", INSECURE_CONFIG );
+                Session session = driver.session( AccessMode.READ ) )
+        {
+            List<String> names = session.run( "MATCH (n) RETURN n.name" ).list( record -> record.get( 0 ).asString() );
+            assertEquals( asList( "Foo", "Bar" ), names );
+        }
+        finally
+        {
+            assertEquals( 0, server.exitStatus() );
+        }
+    }

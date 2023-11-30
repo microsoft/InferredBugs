@@ -1,0 +1,28 @@
+  Node tryOptimizeBlock(Node n) {
+    // Remove any useless children
+    for (Node c = n.getFirstChild(); c != null; ) {
+      Node next = c.getNext();  // save c.next, since 'c' may be removed
+      if (!mayHaveSideEffects(c)) {
+        // TODO(johnlenz): determine what this is actually removing. Candidates
+        //    include: EMPTY nodes, control structures without children
+        //    (removing infinite loops), empty try blocks.  What else?
+        n.removeChild(c);  // lazy kids
+        reportCodeChange();
+      } else {
+        tryOptimizeConditionalAfterAssign(c);
+      }
+      c = next;
+    }
+
+    if (n.isSyntheticBlock() ||  n.getParent() == null) {
+      return n;
+    }
+
+    // Try to remove the block.
+    if (NodeUtil.tryMergeBlock(n)) {
+      reportCodeChange();
+      return null;
+    }
+
+    return n;
+  }

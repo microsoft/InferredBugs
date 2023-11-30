@@ -1,0 +1,841 @@
+{
+    "hash": "f7f9bb1db57c4f661f3615ac13d9571741a1aebf",
+    "message": "test: Tests for batch event encoding/decoding\n\nSigned-off-by: Jon Skeet <jonskeet@google.com>",
+    "file_num_lines": 850,
+    "diff_parsed": {
+        "added": [
+            [
+                23,
+                "        private static readonly ContentType s_jsonCloudEventBatchContentType = new ContentType(\"application/cloudevents-batch+json; charset=utf-8\");"
+            ],
+            [
+                100,
+                "            JObject dataProperty = (JObject) obj[\"data\"];"
+            ],
+            [
+                122,
+                "            JObject dataProperty = (JObject) obj[\"data\"];"
+            ],
+            [
+                137,
+                "            JObject dataProperty = (JObject) obj[\"data\"];"
+            ],
+            [
+                154,
+                "            Assert.Equal(100, (int) data);"
+            ],
+            [
+                176,
+                "            Assert.Equal(\"some text\", (string) dataProperty);"
+            ],
+            [
+                190,
+                "            Assert.Equal(SampleBinaryDataBase64, (string) dataBase64);"
+            ],
+            [
+                213,
+                "            Assert.Equal(SampleBinaryDataBase64, (string) dataBase64);"
+            ],
+            [
+                349,
+                "        // Note: batch mode testing is restricted to the batch aspects; we assume that the"
+            ],
+            [
+                350,
+                "        // per-CloudEvent implementation is shared with structured mode, so we rely on"
+            ],
+            [
+                351,
+                "        // structured mode testing for things like custom serialization."
+            ],
+            [
+                352,
+                ""
+            ],
+            [
+                353,
+                "        [Fact]"
+            ],
+            [
+                354,
+                "        public void EncodeBatchModeMessage_Empty()"
+            ],
+            [
+                355,
+                "        {"
+            ],
+            [
+                356,
+                "            var cloudEvents = new CloudEvent[0];"
+            ],
+            [
+                357,
+                "            var formatter = new JsonEventFormatter();"
+            ],
+            [
+                358,
+                "            byte[] bytes = formatter.EncodeBatchModeMessage(cloudEvents, out var contentType);"
+            ],
+            [
+                359,
+                "            Assert.Equal(\"application/cloudevents-batch+json; charset=utf-8\", contentType.ToString());"
+            ],
+            [
+                360,
+                "            var array = ParseJsonArray(bytes);"
+            ],
+            [
+                361,
+                "            Assert.Empty(array);"
+            ],
+            [
+                362,
+                "        }"
+            ],
+            [
+                363,
+                ""
+            ],
+            [
+                364,
+                "        [Fact]"
+            ],
+            [
+                365,
+                "        public void EncodeBatchModeMessage_TwoEvents()"
+            ],
+            [
+                366,
+                "        {"
+            ],
+            [
+                367,
+                "            var event1 = new CloudEvent().PopulateRequiredAttributes();"
+            ],
+            [
+                368,
+                "            event1.Id = \"event1\";"
+            ],
+            [
+                369,
+                "            event1.Data = \"simple text\";"
+            ],
+            [
+                370,
+                "            event1.DataContentType = \"text/plain\";"
+            ],
+            [
+                371,
+                ""
+            ],
+            [
+                372,
+                "            var event2 = new CloudEvent().PopulateRequiredAttributes();"
+            ],
+            [
+                373,
+                "            event2.Id = \"event2\";"
+            ],
+            [
+                374,
+                ""
+            ],
+            [
+                375,
+                "            var cloudEvents = new[] { event1, event2 };"
+            ],
+            [
+                376,
+                "            var formatter = new JsonEventFormatter();"
+            ],
+            [
+                377,
+                "            byte[] bytes = formatter.EncodeBatchModeMessage(cloudEvents, out var contentType);"
+            ],
+            [
+                378,
+                "            Assert.Equal(\"application/cloudevents-batch+json; charset=utf-8\", contentType.ToString());"
+            ],
+            [
+                379,
+                "            var array = ParseJsonArray(bytes);"
+            ],
+            [
+                380,
+                "            Assert.Equal(2, array.Count);"
+            ],
+            [
+                381,
+                ""
+            ],
+            [
+                382,
+                "            var asserter1 = new JTokenAsserter"
+            ],
+            [
+                383,
+                "            {"
+            ],
+            [
+                384,
+                "                { \"specversion\", JTokenType.String, \"1.0\" },"
+            ],
+            [
+                385,
+                "                { \"id\", JTokenType.String, event1.Id },"
+            ],
+            [
+                386,
+                "                { \"type\", JTokenType.String, event1.Type },"
+            ],
+            [
+                387,
+                "                { \"source\", JTokenType.String, \"//test\" },"
+            ],
+            [
+                388,
+                "                { \"data\", JTokenType.String, \"simple text\" },"
+            ],
+            [
+                389,
+                "                { \"datacontenttype\", JTokenType.String, event1.DataContentType }"
+            ],
+            [
+                390,
+                "            };"
+            ],
+            [
+                391,
+                "            asserter1.AssertProperties((JObject) array[0], assertCount: true);"
+            ],
+            [
+                392,
+                ""
+            ],
+            [
+                393,
+                "            var asserter2 = new JTokenAsserter"
+            ],
+            [
+                394,
+                "            {"
+            ],
+            [
+                395,
+                "                { \"specversion\", JTokenType.String, \"1.0\" },"
+            ],
+            [
+                396,
+                "                { \"id\", JTokenType.String, event2.Id },"
+            ],
+            [
+                397,
+                "                { \"type\", JTokenType.String, event2.Type },"
+            ],
+            [
+                398,
+                "                { \"source\", JTokenType.String, \"//test\" },"
+            ],
+            [
+                399,
+                "            };"
+            ],
+            [
+                400,
+                "            asserter2.AssertProperties((JObject) array[1], assertCount: true);"
+            ],
+            [
+                401,
+                "        }"
+            ],
+            [
+                402,
+                ""
+            ],
+            [
+                403,
+                "        [Fact]"
+            ],
+            [
+                404,
+                "        public void EncodeBatchModeMessage_Invalid()"
+            ],
+            [
+                405,
+                "        {"
+            ],
+            [
+                406,
+                "            var formatter = new JsonEventFormatter();"
+            ],
+            [
+                407,
+                "            // Invalid CloudEvent"
+            ],
+            [
+                408,
+                "            Assert.Throws<ArgumentException>(() => formatter.EncodeBatchModeMessage(new[] { new CloudEvent() }, out _));"
+            ],
+            [
+                409,
+                "            // Null argument"
+            ],
+            [
+                410,
+                "            Assert.Throws<ArgumentNullException>(() => formatter.EncodeBatchModeMessage(null, out _));"
+            ],
+            [
+                411,
+                "            // Null value within the argument. Arguably this should throw ArgumentException instead of"
+            ],
+            [
+                412,
+                "            // ArgumentNullException, but it's unlikely to cause confusion."
+            ],
+            [
+                413,
+                "            Assert.Throws<ArgumentNullException>(() => formatter.EncodeBatchModeMessage(new CloudEvent[1], out _));"
+            ],
+            [
+                414,
+                "        }"
+            ],
+            [
+                415,
+                ""
+            ],
+            [
+                573,
+                "            Assert.True((bool) cloudEvent[\"boolean\"]);"
+            ],
+            [
+                576,
+                "            AssertTimestampsEqual(SampleTimestamp, (DateTimeOffset) cloudEvent[\"timestamp\"]);"
+            ],
+            [
+                697,
+                "            var token = (JToken) cloudEvent.Data;"
+            ],
+            [
+                783,
+                "        [Fact]"
+            ],
+            [
+                784,
+                "        public void DecodeBatchMode_NotArray()"
+            ],
+            [
+                785,
+                "        {"
+            ],
+            [
+                786,
+                "            var formatter = new JsonEventFormatter();"
+            ],
+            [
+                787,
+                "            var data = Encoding.UTF8.GetBytes(CreateMinimalValidJObject().ToString());"
+            ],
+            [
+                788,
+                "            Assert.Throws<JsonReaderException>(() => formatter.DecodeBatchModeMessage(data, s_jsonCloudEventBatchContentType, extensionAttributes: null));"
+            ],
+            [
+                789,
+                "        }"
+            ],
+            [
+                790,
+                ""
+            ],
+            [
+                791,
+                "        [Fact]"
+            ],
+            [
+                792,
+                "        public void DecodeBatchMode_ArrayContainingNonObject()"
+            ],
+            [
+                793,
+                "        {"
+            ],
+            [
+                794,
+                "            var formatter = new JsonEventFormatter();"
+            ],
+            [
+                795,
+                "            var array = new JArray { CreateMinimalValidJObject(), \"text\" };"
+            ],
+            [
+                796,
+                "            var data = Encoding.UTF8.GetBytes(array.ToString());"
+            ],
+            [
+                797,
+                "            Assert.Throws<ArgumentException>(() => formatter.DecodeBatchModeMessage(data, s_jsonCloudEventBatchContentType, extensionAttributes: null));"
+            ],
+            [
+                798,
+                "        }"
+            ],
+            [
+                799,
+                ""
+            ],
+            [
+                800,
+                "        [Fact]"
+            ],
+            [
+                801,
+                "        public void DecodeBatchMode_Empty()"
+            ],
+            [
+                802,
+                "        {"
+            ],
+            [
+                803,
+                "            var cloudEvents = DecodeBatchModeMessage(new JArray());"
+            ],
+            [
+                804,
+                "            Assert.Empty(cloudEvents);"
+            ],
+            [
+                805,
+                "        }"
+            ],
+            [
+                806,
+                ""
+            ],
+            [
+                807,
+                "        [Fact]"
+            ],
+            [
+                808,
+                "        public void DecodeBatchMode_Minimal()"
+            ],
+            [
+                809,
+                "        {"
+            ],
+            [
+                810,
+                "            var cloudEvents = DecodeBatchModeMessage(new JArray { CreateMinimalValidJObject() });"
+            ],
+            [
+                811,
+                "            var cloudEvent = Assert.Single(cloudEvents);"
+            ],
+            [
+                812,
+                "            Assert.Equal(\"event-type\", cloudEvent.Type);"
+            ],
+            [
+                813,
+                "            Assert.Equal(\"event-id\", cloudEvent.Id);"
+            ],
+            [
+                814,
+                "            Assert.Equal(new Uri(\"//event-source\", UriKind.RelativeOrAbsolute), cloudEvent.Source);"
+            ],
+            [
+                815,
+                "        }"
+            ],
+            [
+                816,
+                ""
+            ],
+            [
+                817,
+                "        // Just a single test for the code that parses asynchronously... the guts are all the same."
+            ],
+            [
+                818,
+                "        [Fact]"
+            ],
+            [
+                819,
+                "        public async Task DecodeBatchModeMessageAsync_Minimal()"
+            ],
+            [
+                820,
+                "        {"
+            ],
+            [
+                821,
+                "            var obj = new JObject"
+            ],
+            [
+                822,
+                "            {"
+            ],
+            [
+                823,
+                "                [\"specversion\"] = \"1.0\","
+            ],
+            [
+                824,
+                "                [\"type\"] = \"test-type\","
+            ],
+            [
+                825,
+                "                [\"id\"] = \"test-id\","
+            ],
+            [
+                826,
+                "                [\"source\"] = SampleUriText,"
+            ],
+            [
+                827,
+                "            };"
+            ],
+            [
+                828,
+                "            byte[] bytes = Encoding.UTF8.GetBytes(new JArray { obj }.ToString());"
+            ],
+            [
+                829,
+                "            var stream = new MemoryStream(bytes);"
+            ],
+            [
+                830,
+                "            var formatter = new JsonEventFormatter();"
+            ],
+            [
+                831,
+                "            var cloudEvents = await formatter.DecodeBatchModeMessageAsync(stream, s_jsonCloudEventBatchContentType, null);"
+            ],
+            [
+                832,
+                "            var cloudEvent = Assert.Single(cloudEvents);"
+            ],
+            [
+                833,
+                "            Assert.Equal(\"test-type\", cloudEvent.Type);"
+            ],
+            [
+                834,
+                "            Assert.Equal(\"test-id\", cloudEvent.Id);"
+            ],
+            [
+                835,
+                "            Assert.Equal(SampleUri, cloudEvent.Source);"
+            ],
+            [
+                836,
+                "        }"
+            ],
+            [
+                837,
+                ""
+            ],
+            [
+                838,
+                ""
+            ],
+            [
+                839,
+                "        [Fact]"
+            ],
+            [
+                840,
+                "        public void DecodeBatchMode_Multiple()"
+            ],
+            [
+                841,
+                "        {"
+            ],
+            [
+                842,
+                "            var array = new JArray"
+            ],
+            [
+                843,
+                "            {"
+            ],
+            [
+                844,
+                "                new JObject"
+            ],
+            [
+                845,
+                "                {"
+            ],
+            [
+                846,
+                "                    [\"specversion\"] = \"1.0\","
+            ],
+            [
+                847,
+                "                    [\"type\"] = \"type1\","
+            ],
+            [
+                848,
+                "                    [\"id\"] = \"event1\","
+            ],
+            [
+                849,
+                "                    [\"source\"] = \"//event-source1\","
+            ],
+            [
+                850,
+                "                    [\"data\"] = \"simple text\","
+            ],
+            [
+                851,
+                "                    [\"datacontenttype\"] = \"text/plain\""
+            ],
+            [
+                852,
+                "                },"
+            ],
+            [
+                853,
+                "                new JObject"
+            ],
+            [
+                854,
+                "                {"
+            ],
+            [
+                855,
+                "                    [\"specversion\"] = \"1.0\","
+            ],
+            [
+                856,
+                "                    [\"type\"] = \"type2\","
+            ],
+            [
+                857,
+                "                    [\"id\"] = \"event2\","
+            ],
+            [
+                858,
+                "                    [\"source\"] = \"//event-source2\""
+            ],
+            [
+                859,
+                "                },"
+            ],
+            [
+                860,
+                "            };"
+            ],
+            [
+                861,
+                "            var cloudEvents = DecodeBatchModeMessage(array);"
+            ],
+            [
+                862,
+                "            Assert.Equal(2, cloudEvents.Count);"
+            ],
+            [
+                863,
+                ""
+            ],
+            [
+                864,
+                "            var event1 = cloudEvents[0];"
+            ],
+            [
+                865,
+                "            Assert.Equal(\"type1\", event1.Type);"
+            ],
+            [
+                866,
+                "            Assert.Equal(\"event1\", event1.Id);"
+            ],
+            [
+                867,
+                "            Assert.Equal(new Uri(\"//event-source1\", UriKind.RelativeOrAbsolute), event1.Source);"
+            ],
+            [
+                868,
+                "            Assert.Equal(\"simple text\", event1.Data);"
+            ],
+            [
+                869,
+                "            Assert.Equal(\"text/plain\", event1.DataContentType);"
+            ],
+            [
+                870,
+                ""
+            ],
+            [
+                871,
+                "            var event2 = cloudEvents[1];"
+            ],
+            [
+                872,
+                "            Assert.Equal(\"type2\", event2.Type);"
+            ],
+            [
+                873,
+                "            Assert.Equal(\"event2\", event2.Id);"
+            ],
+            [
+                874,
+                "            Assert.Equal(new Uri(\"//event-source2\", UriKind.RelativeOrAbsolute), event2.Source);"
+            ],
+            [
+                875,
+                "            Assert.Null(event2.Data);"
+            ],
+            [
+                876,
+                "            Assert.Null(event2.DataContentType);"
+            ],
+            [
+                877,
+                "        }"
+            ],
+            [
+                878,
+                ""
+            ],
+            [
+                899,
+                "        internal static JObject ParseJson(byte[] data) => ParseJsonImpl<JObject>(data);"
+            ],
+            [
+                900,
+                ""
+            ],
+            [
+                901,
+                "        /// <summary>"
+            ],
+            [
+                902,
+                "        /// Parses JSON as a JArray with settings that prevent any additional conversions."
+            ],
+            [
+                903,
+                "        /// </summary>"
+            ],
+            [
+                904,
+                "        internal static JArray ParseJsonArray(byte[] data) => ParseJsonImpl<JArray>(data);"
+            ],
+            [
+                905,
+                ""
+            ],
+            [
+                906,
+                "        private static T ParseJsonImpl<T>(byte[] data)"
+            ],
+            [
+                913,
+                "            return serializer.Deserialize<T>(new JsonTextReader(new StringReader(text)));"
+            ],
+            [
+                916,
+                ""
+            ],
+            [
+                939,
+                "        /// <summary>"
+            ],
+            [
+                940,
+                "        /// Convenience method to serialize a JArray to bytes, then"
+            ],
+            [
+                941,
+                "        /// decode it as a batch mode message with the default JsonEventFormatter and no extension attributes."
+            ],
+            [
+                942,
+                "        /// </summary>"
+            ],
+            [
+                943,
+                "        private static IReadOnlyList<CloudEvent> DecodeBatchModeMessage(JArray array)"
+            ],
+            [
+                944,
+                "        {"
+            ],
+            [
+                945,
+                "            byte[] bytes = Encoding.UTF8.GetBytes(array.ToString());"
+            ],
+            [
+                946,
+                "            var formatter = new JsonEventFormatter();"
+            ],
+            [
+                947,
+                "            return formatter.DecodeBatchModeMessage(bytes, s_jsonCloudEventContentType, null);"
+            ],
+            [
+                948,
+                "        }"
+            ],
+            [
+                949,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                99,
+                "            JObject dataProperty = (JObject)obj[\"data\"];"
+            ],
+            [
+                121,
+                "            JObject dataProperty = (JObject)obj[\"data\"];"
+            ],
+            [
+                136,
+                "            JObject dataProperty = (JObject)obj[\"data\"];"
+            ],
+            [
+                153,
+                "            Assert.Equal(100, (int)data);"
+            ],
+            [
+                175,
+                "            Assert.Equal(\"some text\", (string)dataProperty);"
+            ],
+            [
+                189,
+                "            Assert.Equal(SampleBinaryDataBase64, (string)dataBase64);"
+            ],
+            [
+                212,
+                "            Assert.Equal(SampleBinaryDataBase64, (string)dataBase64);"
+            ],
+            [
+                505,
+                "            Assert.True((bool)cloudEvent[\"boolean\"]);"
+            ],
+            [
+                508,
+                "            AssertTimestampsEqual(SampleTimestamp, (DateTimeOffset)cloudEvent[\"timestamp\"]);"
+            ],
+            [
+                629,
+                "            var token = (JToken)cloudEvent.Data;"
+            ],
+            [
+                735,
+                "        internal static JObject ParseJson(byte[] data)"
+            ],
+            [
+                742,
+                "            return serializer.Deserialize<JObject>(new JsonTextReader(new StringReader(text)));"
+            ]
+        ]
+    },
+    "num_lines_added": 195,
+    "num_lines_removed": 12
+}

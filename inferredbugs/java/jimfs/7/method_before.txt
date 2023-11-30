@@ -1,0 +1,25 @@
+  @Test
+  public void testAsynchronousClose() throws IOException, InterruptedException {
+    RegularFile file = regularFile(10);
+    final FileChannel channel = channel(file, READ, WRITE);
+
+    file.writeLock().lock(); // ensure all operations on the channel will block
+
+    ExecutorService executor = Executors.newCachedThreadPool();
+
+    List<Future<?>> futures = queueAllBlockingOperations(channel, executor);
+
+    // ensure time for operations to start blocking
+    Uninterruptibles.sleepUninterruptibly(10, MILLISECONDS);
+
+    channel.close();
+
+    for (Future<?> future : futures) {
+      try {
+        future.get();
+        fail();
+      } catch (ExecutionException expected) {
+        assertTrue(expected.getCause() instanceof AsynchronousCloseException);
+      }
+    }
+  }

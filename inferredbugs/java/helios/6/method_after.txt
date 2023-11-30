@@ -1,0 +1,49 @@
+  @After
+  public void baseTeardown() throws Exception {
+    tearDownJobs();
+    for (final HeliosClient client : clients) {
+      client.close();
+    }
+    clients.clear();
+
+    for (Service service : services) {
+      try {
+        service.stopAsync();
+      } catch (Exception e) {
+        log.error("Uncaught exception", e);
+      }
+    }
+    for (Service service : services) {
+      try {
+        service.awaitTerminated();
+      } catch (Exception e) {
+        log.error("Service failed", e);
+      }
+    }
+    services.clear();
+
+    // Clean up docker
+    try (final DefaultDockerClient dockerClient = new DefaultDockerClient(DOCKER_HOST.uri())) {
+      final List<Container> containers = dockerClient.listContainers();
+      for (final Container container : containers) {
+        for (final String name : container.names()) {
+          if (name.contains(testTag)) {
+            try {
+              dockerClient.killContainer(container.id());
+            } catch (DockerException e) {
+              e.printStackTrace();
+            }
+            break;
+          }
+        }
+      }
+    } catch (Exception e) {
+      log.error("Docker client exception", e);
+    }
+
+    if (zk != null) {
+      zk.close();
+    }
+
+    listThreads();
+  }

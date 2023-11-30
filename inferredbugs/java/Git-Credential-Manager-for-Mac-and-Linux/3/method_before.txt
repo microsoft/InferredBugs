@@ -1,0 +1,35 @@
+    private void initialize(
+        final String methodName,
+        final AtomicReference<OperationArguments> operationArgumentsRef,
+        final AtomicReference<IAuthentication> authenticationRef
+    ) throws IOException, URISyntaxException
+    {
+        // parse the operations arguments from stdin (this is how git sends commands)
+        // see: https://www.kernel.org/pub/software/scm/git/docs/technical/api-credentials.html
+        // see: https://www.kernel.org/pub/software/scm/git/docs/git-credential.html
+        final OperationArguments operationArguments;
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(standardIn));
+        try
+        {
+            operationArguments = new OperationArguments(reader);
+        }
+        finally
+        {
+            IOUtils.closeQuietly(reader);
+        }
+
+        Debug.Assert(operationArguments.TargetUri != null, "The operationArguments.TargetUri is null");
+
+        final Configuration config = componentFactory.createConfiguration();
+        loadOperationArguments(operationArguments, config);
+        enableTraceLogging(operationArguments);
+
+        Trace.writeLine("Program::" + methodName);
+        Trace.writeLine("   targetUri = " + operationArguments.TargetUri);
+
+        final ISecureStore secureStore = componentFactory.createSecureStore();
+        final IAuthentication authentication = componentFactory.createAuthentication(operationArguments, secureStore);
+
+        operationArgumentsRef.set(operationArguments);
+        authenticationRef.set(authentication);
+    }

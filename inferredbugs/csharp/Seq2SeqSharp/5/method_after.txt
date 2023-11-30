@@ -1,0 +1,34 @@
+        private bool CreateTrainableParameters(IModelMetaData mmd)
+        {
+            Logger.WriteLine($"Creating encoders and decoders...");
+            SeqLabelModelMetaData modelMetaData = mmd as SeqLabelModelMetaData;
+            RoundArray<int> raDeviceIds = new RoundArray<int>(DeviceIds);
+
+            if (modelMetaData.EncoderType == EncoderTypeEnums.BiLSTM)
+            {
+                m_encoder = new MultiProcessorNetworkWrapper<IEncoder>(
+                    new BiEncoder("BiLSTMEncoder", modelMetaData.HiddenDim, modelMetaData.EmbeddingDim, modelMetaData.EncoderLayerDepth, raDeviceIds.GetNextItem(), isTrainable: true), DeviceIds);
+                m_decoderFFLayer = new MultiProcessorNetworkWrapper<FeedForwardLayer>(new FeedForwardLayer("FeedForward", modelMetaData.HiddenDim * 2, modelMetaData.Vocab.TargetWordSize, dropoutRatio: 0.0f, deviceId: raDeviceIds.GetNextItem(), isTrainable: true), DeviceIds);
+            }
+            else
+            {
+                m_encoder = new MultiProcessorNetworkWrapper<IEncoder>(
+                    new TransformerEncoder("TransformerEncoder", modelMetaData.MultiHeadNum, modelMetaData.HiddenDim, modelMetaData.EmbeddingDim, modelMetaData.EncoderLayerDepth, m_dropoutRatio, raDeviceIds.GetNextItem(), isTrainable: true), DeviceIds);
+                m_decoderFFLayer = new MultiProcessorNetworkWrapper<FeedForwardLayer>(new FeedForwardLayer("FeedForward", modelMetaData.HiddenDim, modelMetaData.Vocab.TargetWordSize, dropoutRatio: 0.0f, deviceId: raDeviceIds.GetNextItem(), isTrainable: true), DeviceIds);
+            }
+
+            m_srcEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(new WeightTensor(new long[2] { modelMetaData.Vocab.SourceWordSize, modelMetaData.EmbeddingDim }, raDeviceIds.GetNextItem(), normType: NormType.Uniform, name: "SrcEmbeddings", isTrainable: true), DeviceIds);
+            //      m_crfDecoder = new CRFDecoder(modelMetaData.Vocab.TargetWordSize);
+
+
+            if (modelMetaData.EncoderType == EncoderTypeEnums.Transformer)
+            {
+                m_posEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(BuildPositionWeightTensor(Math.Max(m_maxSntSize, m_maxSntSize) + 2, modelMetaData.EmbeddingDim, raDeviceIds.GetNextItem(), "PosEmbedding", false), DeviceIds, true);
+            }
+            else
+            {
+                m_posEmbedding = null;
+            }
+
+            return true;
+        }

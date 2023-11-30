@@ -1,0 +1,25 @@
+ private static void extractLibrary(File librarySystemPath, InputStream input) throws IOException {
+		if (input != null) {
+			try (FileOutputStream output = new FileOutputStream(librarySystemPath)) {
+				byte[] buffer = new byte[4096];
+				while (true) {
+					int length = input.read(buffer);
+					if (length == -1) break;
+					output.write(buffer, 0, length);
+				}
+				output.close();
+			} catch (IOException e) {
+				/*
+					Extracting the library may fail, for example because 'nativeFile' already exists and is in
+					use by another process. In this case, we fail silently and just try to load the existing file.
+				 */
+				if (!librarySystemPath.exists()) {
+					throw e;
+				}
+			} finally {
+				input.close();
+			}
+		} else {
+			throw new IOException("Failed to read input stream for " + librarySystemPath.getCanonicalPath());
+		}
+	}

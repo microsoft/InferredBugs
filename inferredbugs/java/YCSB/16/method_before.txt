@@ -1,0 +1,28 @@
+  @Override
+  public void cleanup() throws DBException {
+    // Get the measurements instance as this is the only client that should
+    // count clean up time like an update if client-side buffering is
+    // enabled.
+    Measurements measurements = Measurements.getMeasurements();
+    try {
+      long st = System.nanoTime();
+      if (bufferedMutator != null) {
+        bufferedMutator.close();
+      }
+      if (currentTable != null) {
+        currentTable.close();
+      }
+      long en = System.nanoTime();
+      final String type = clientSideBuffering ? "UPDATE" : "CLEANUP";
+      measurements.measure(type, (int) ((en - st) / 1000));
+      synchronized(threadCount) {
+        --threadCount;
+        if (threadCount <= 0 && connection != null) {
+          connection.close();
+          connection = null;
+        }
+      }
+    } catch (IOException e) {
+      throw new DBException(e);
+    }
+  }

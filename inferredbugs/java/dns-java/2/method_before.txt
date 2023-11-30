@@ -1,0 +1,37 @@
+  public static void main(String[] args) throws IOException {
+    DnsSrvResolver resolver = DnsSrvResolvers.newBuilder()
+        .cachingLookups(true)
+        .retainingDataOnFailures(true)
+        .dnsLookupTimeoutMillis(1000)
+        .build();
+
+    PollingDnsSrvResolver<String> poller = DnsSrvResolvers.pollingResolver(resolver,
+      new Function<LookupResult, String>() {
+        @Nullable
+        @Override
+        public String apply(@Nullable LookupResult input) {
+          return input.toString() + System.currentTimeMillis() / 5000;
+        }
+      }
+    );
+
+    boolean quit = false;
+    BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+
+    while (!quit) {
+      System.out.print("Enter a SRV name (empty to quit): ");
+      String line = in.readLine();
+
+      if (line == null || line.isEmpty()) {
+        quit = true;
+      } else {
+        try {
+          poller.poll(line, 1, TimeUnit.SECONDS)
+              .setListener(new EndpointListener(line), false);
+        }
+        catch (DnsException e) {
+          e.printStackTrace(System.out);
+        }
+      }
+    }
+  }

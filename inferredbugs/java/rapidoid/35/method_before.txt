@@ -1,0 +1,47 @@
+ public static byte[] render(ReqImpl req, Resp resp) {
+
+		Object result = resp.result();
+
+		if (result != null) {
+			result = wrapGuiContent(result);
+			resp.model().put("result", result);
+			resp.result(result);
+		}
+
+		ViewRenderer viewRenderer = req.routes().custom().viewRenderer();
+		U.must(viewRenderer != null, "A view renderer wasn't configured!");
+
+		PageRenderer pageRenderer = req.routes().custom().pageRenderer();
+		U.must(pageRenderer != null, "A page renderer wasn't configured!");
+
+		boolean rendered;
+		String viewName = resp.view();
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+		MVCModel basicModel = new MVCModel(req, resp, resp.model(), resp.screen(), result);
+
+		Object[] renderModel = result != null
+			? new Object[]{basicModel, resp.model(), result}
+			: new Object[]{basicModel, resp.model()};
+
+		try {
+			rendered = viewRenderer.render(req, viewName, renderModel, out);
+		} catch (Throwable e) {
+			throw U.rte("Error while rendering view: " + viewName, e);
+		}
+
+		String renderResult = rendered ? new String(out.toByteArray()) : null;
+
+		if (renderResult == null) {
+			Object cnt = U.or(result, "");
+			renderResult = new String(HttpUtils.responseToBytes(req, cnt, MediaType.HTML_UTF_8, null));
+		}
+
+		try {
+			Object response = U.or(pageRenderer.renderPage(req, resp, renderResult), "");
+			return HttpUtils.responseToBytes(req, response, MediaType.HTML_UTF_8, null);
+
+		} catch (Exception e) {
+			throw U.rte("Error while rendering page!", e);
+		}
+	}

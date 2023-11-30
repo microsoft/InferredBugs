@@ -1,0 +1,18 @@
+ @Transactional(propagation=Propagation.REQUIRED, readOnly=false)
+	public void resetPassword(String forgotPasswordCode, @Valid @Password String newPassword) {
+		
+		log.debug("Resetting password ...");
+
+		U user = userRepository
+			.findByForgotPasswordCode(forgotPasswordCode)
+			.orElseThrow(() -> MultiErrorException.of(
+				"com.naturalprogrammer.spring.invalidLink"));
+		
+		user.setPassword(passwordEncoder.encode(newPassword));
+		user.setForgotPasswordCode(null);
+		
+		userRepository.save(user);
+		
+		log.debug("Password reset.");	
+		
+	}

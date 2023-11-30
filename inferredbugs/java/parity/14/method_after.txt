@@ -1,0 +1,34 @@
+    public void run() throws IOException {
+        LineReader reader = LineReaderBuilder.builder()
+            .completer(new StringsCompleter(Commands.names().castToList()))
+            .build();
+
+        printf("Type 'help' for help.\n");
+
+        while (!closed) {
+            String line = reader.readLine("> ");
+            if (line == null)
+                break;
+
+            Scanner scanner = scan(line);
+
+            if (!scanner.hasNext())
+                continue;
+
+            Command command = Commands.find(scanner.next());
+            if (command == null) {
+                printf("error: Unknown command\n");
+                continue;
+            }
+
+            try {
+                command.execute(this, scanner);
+            } catch (CommandException e) {
+                printf("Usage: %s\n", command.getUsage());
+            } catch (ClosedChannelException e) {
+                printf("error: Connection closed\n");
+            }
+        }
+
+        close();
+    }

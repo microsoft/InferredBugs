@@ -1,0 +1,71 @@
+    @Override
+    public void backchannelLogout(UserSessionModel userSession, ClientSessionModel clientSession) {
+        ClientModel client = clientSession.getClient();
+        if (!(client instanceof ApplicationModel)) return;
+        ApplicationModel app = (ApplicationModel)client;
+        if (app.getManagementUrl() == null) return;
+
+        SAML2LogoutRequestBuilder logoutBuilder = new SAML2LogoutRequestBuilder()
+                                         .userPrincipal(userSession.getUser().getUsername())
+                                         .destination(client.getClientId());
+        if (requiresRealmSignature(client)) {
+            logoutBuilder.signatureAlgorithm(getSignatureAlgorithm(client))
+                         .signWith(realm.getPrivateKey(), realm.getPublicKey())
+                         .signDocument();
+        }
+        /*
+        if (requiresEncryption(client)) {
+            PublicKey publicKey = null;
+            try {
+                publicKey = PemUtils.decodePublicKey(client.getAttribute(ClientModel.PUBLIC_KEY));
+            } catch (Exception e) {
+                logger.error("failed", e);
+                return;
+            }
+            logoutBuilder.encrypt(publicKey);
+        }
+        */
+
+        String logoutRequestString = null;
+        try {
+            logoutRequestString = logoutBuilder.postBinding().encoded();
+        } catch (Exception e) {
+            logger.warn("failed to send saml logout", e);
+            return;
+        }
+
+
+        String adminUrl = ResourceAdminManager.getManagementUrl(uriInfo.getRequestUri(), app);
+
+        ApacheHttpClient4Executor executor = ResourceAdminManager.createExecutor();
+
+
+        try {
+            ClientRequest request = executor.createRequest(adminUrl);
+            request.formParameter(GeneralConstants.SAML_REQUEST_KEY, logoutRequestString);
+            request.formParameter(SAML2LogOutHandler.BACK_CHANNEL_LOGOUT, SAML2LogOutHandler.BACK_CHANNEL_LOGOUT);
+            ClientResponse response = null;
+            try {
+                response = request.post();
+                response.releaseConnection();
+                // Undertow will redirect root urls not ending in "/" to root url + "/".  Test for this weird behavior
+                if (response.getStatus() == 302  && !adminUrl.endsWith("/")) {
+                    String redirect = (String)response.getHeaders().getFirst(HttpHeaders.LOCATION);
+                    String withSlash = adminUrl + "/";
+                    if (withSlash.equals(redirect)) {
+                        request = executor.createRequest(withSlash);
+                        request.formParameter(GeneralConstants.SAML_REQUEST_KEY, logoutRequestString);
+                        request.formParameter(SAML2LogOutHandler.BACK_CHANNEL_LOGOUT, SAML2LogOutHandler.BACK_CHANNEL_LOGOUT);
+                        response = request.post();
+                        response.releaseConnection();
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("failed to send saml logout", e);
+            }
+
+        } finally {
+            executor.getHttpClient().getConnectionManager().shutdown();
+        }
+
+    }

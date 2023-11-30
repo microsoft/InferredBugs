@@ -1,0 +1,121 @@
+    public T borrowObject(K key, long borrowMaxWait) throws Exception {
+
+        assertOpen();
+
+        PooledObject<T> p = null;
+
+        // Get local copy of current config so it is consistent for entire
+        // method execution
+        boolean blockWhenExhausted = getBlockWhenExhausted();
+
+        boolean create;
+        long waitTime = 0;
+        ObjectDeque<T> objectDeque = register(key);
+        
+        try {
+            while (p == null) {
+                create = false;
+                if (blockWhenExhausted) {
+                    if (objectDeque != null) {
+                        p = objectDeque.getIdleObjects().pollFirst();
+                    }
+                    if (p == null) {
+                        create = true;
+                        p = create(key);
+                    }
+                    if (p == null && objectDeque != null) {
+                        if (borrowMaxWait < 0) {
+                            p = objectDeque.getIdleObjects().takeFirst();
+                        } else {
+                            waitTime = System.currentTimeMillis();
+                            p = objectDeque.getIdleObjects().pollFirst(
+                                    borrowMaxWait, TimeUnit.MILLISECONDS);
+                            waitTime = System.currentTimeMillis() - waitTime;
+                        }
+                    }
+                    if (p == null) {
+                        throw new NoSuchElementException(
+                                "Timeout waiting for idle object");
+                    }
+                    if (!p.allocate()) {
+                        p = null;
+                    }
+                } else {
+                    if (objectDeque != null) {
+                        p = objectDeque.getIdleObjects().pollFirst();
+                    }
+                    if (p == null) {
+                        create = true;
+                        p = create(key);
+                    }
+                    if (p == null) {
+                        throw new NoSuchElementException("Pool exhausted");
+                    }
+                    if (!p.allocate()) {
+                        p = null;
+                    }
+                }
+    
+                if (p != null) {
+                    try {
+                        _factory.activateObject(key, p.getObject());
+                    } catch (Exception e) {
+                        try {
+                            destroy(key, p, true);
+                        } catch (Exception e1) {
+                            // Ignore - activation failure is more important
+                        }
+                        p = null;
+                        if (create) {
+                            NoSuchElementException nsee = new NoSuchElementException(
+                                    "Unable to activate object");
+                            nsee.initCause(e);
+                            throw nsee;
+                        }
+                    }
+                    if (p != null && getTestOnBorrow()) {
+                        boolean validate = false;
+                        Throwable validationThrowable = null;
+                        try {
+                            validate = _factory.validateObject(key, p.getObject());
+                        } catch (Throwable t) {
+                            PoolUtils.checkRethrow(t);
+                        }
+                        if (!validate) {
+                            try {
+                                destroy(key, p, true);
+                                destroyedByBorrowValidationCount.incrementAndGet();
+                            } catch (Exception e) {
+                                // Ignore - validation failure is more important
+                            }
+                            p = null;
+                            if (create) {
+                                NoSuchElementException nsee = new NoSuchElementException(
+                                        "Unable to validate object");
+                                nsee.initCause(validationThrowable);
+                                throw nsee;
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            deregister(key);
+        }
+        
+        borrowedCount.incrementAndGet();
+        synchronized (idleTimes) {
+            idleTimes.add(Long.valueOf(p.getIdleTimeMillis()));
+            idleTimes.poll();
+        }
+        synchronized (waitTimes) {
+            waitTimes.add(Long.valueOf(waitTime));
+            waitTimes.poll();
+        }
+        synchronized (maxBorrowWaitTimeMillisLock) {
+            if (waitTime > maxBorrowWaitTimeMillis) {
+                maxBorrowWaitTimeMillis = waitTime;
+            }
+        }
+        return p.getObject();
+    }

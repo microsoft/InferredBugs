@@ -1,0 +1,37 @@
+    @Override
+    public boolean seekToPreviousRow(Cell key) throws IOException {
+        KeyValue kv = PhoenixKeyValueUtil.maybeCopyCell(key);
+        if (reader.isTop()) {
+            Optional<Cell> firstKey = reader.getFirstKey();
+            // This will be null when the file is empty in which we can not seekBefore to
+            // any key
+            if (firstKey.isPresent()) {
+                return false;
+            }
+            if (this.comparator.compare(kv, firstKey.get(), true) <= 0) {
+                return super.seekToPreviousRow(key);
+            }
+            Cell replacedKey = getKeyPresentInHFiles(kv);
+            boolean seekToPreviousRow = super.seekToPreviousRow(replacedKey);
+            while(super.peek()!=null && !isSatisfiedMidKeyCondition(super.peek())) {
+                seekToPreviousRow = super.seekToPreviousRow(super.peek());
+            }
+            return seekToPreviousRow;
+        } else {
+            // The equals sign isn't strictly necessary just here to be consistent with
+            // seekTo
+            KeyValue splitKeyValue = new KeyValue.KeyOnlyKeyValue(reader.getSplitkey());
+            if (this.comparator.compare(kv, splitKeyValue, true) >= 0) {
+                boolean seekToPreviousRow = super.seekToPreviousRow(kv);
+                while(super.peek()!=null && !isSatisfiedMidKeyCondition(super.peek())) {
+                    seekToPreviousRow = super.seekToPreviousRow(super.peek());
+                }
+                return seekToPreviousRow;
+            }
+        }
+        boolean seekToPreviousRow = super.seekToPreviousRow(kv);
+        while(super.peek()!=null && !isSatisfiedMidKeyCondition(super.peek())) {
+            seekToPreviousRow = super.seekToPreviousRow(super.peek());
+        }
+        return seekToPreviousRow;
+    }

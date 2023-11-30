@@ -1,0 +1,29 @@
+    @Override
+    public void parse(Tokens source, ParserData data) {
+        PandaScript script = data.getComponent(PandaComponents.PANDA_SCRIPT);
+        TokenReader reader = new PandaTokenReader(source);
+
+        GappedPatternExtractor extractor = PATTERN.extractor();
+        List<Tokens> gaps = extractor.extract(reader);
+
+        if (gaps == null) {
+            throw new PandaParserException("Cannot parse expression::instance");
+        }
+
+
+        String className = gaps.get(0).asString();
+        ModuleLoader moduleLoader = script.getModuleLoader();
+        Optional<ClassPrototypeReference> reference = moduleLoader.forClass(className);
+
+        if (!reference.isPresent()) {
+            throw new PandaParserFailure("Unknown return type", data, source);
+        }
+
+        this.returnType = reference.get();
+        this.arguments = new ArgumentParser().parse(data, gaps.get(1));
+        this.constructor = ConstructorUtils.matchConstructor(returnType.fetch(), arguments);
+
+        if (constructor == null) {
+            throw new PandaParserFailure("Cannot find constructor of " + returnType.getClassName() + " for the specified arguments " + Arrays.toString(this.arguments), data);
+        }
+    }

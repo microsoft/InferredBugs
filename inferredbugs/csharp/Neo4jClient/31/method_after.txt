@@ -1,0 +1,27 @@
+        [Test]
+        public void ShouldReturnEmptyEnumerableForNullResult()
+        {
+            //Arrange
+            const string gremlinQueryExpected = "foo bar query";
+            var query = new GremlinApiQuery(gremlinQueryExpected, null);
+
+
+            using (var testHarness = new RestTestHarness
+                {
+                    {
+                        MockRequest.PostObjectAsJson("/ext/GremlinPlugin/graphdb/execute_script", query),
+                        MockResponse.Json(HttpStatusCode.OK, @"[]")
+                    }
+                })
+            {
+                var graphClient = (GraphClient)testHarness.CreateAndConnectGraphClient();
+
+                //Act
+                var nodes = graphClient
+                    .ExecuteGetAllRelationshipsGremlin(gremlinQueryExpected, null)
+                    .ToList();
+
+                //Assert
+                Assert.AreEqual(0, nodes.Count());
+            }
+        }

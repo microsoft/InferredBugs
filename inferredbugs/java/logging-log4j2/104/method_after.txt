@@ -1,0 +1,36 @@
+    @Test
+    public void testMemMapBasics() throws Exception {
+        final File f = new File(LOGFILE);
+        if (f.exists()) {
+            assertTrue(f.delete());
+        }
+        assertTrue(!f.exists());
+        
+        final Logger log = LogManager.getLogger();
+        try {
+            log.warn("Test log1");
+            assertTrue(f.exists());
+            assertEquals("initial length", MemoryMappedFileManager.DEFAULT_REGION_LENGTH, f.length());
+            
+            log.warn("Test log2");
+            assertEquals("not grown", MemoryMappedFileManager.DEFAULT_REGION_LENGTH, f.length());
+        } finally {
+            CoreLoggerContexts.stopLoggerContext(false);
+        }
+        final int LINESEP = System.lineSeparator().length();
+        assertEquals("Shrunk to actual used size", 186 + 2 * LINESEP, f.length());
+        
+        String line1, line2, line3;
+        try (final BufferedReader reader = new BufferedReader(new FileReader(LOGFILE))) {
+            line1 = reader.readLine();
+            line2 = reader.readLine();
+            line3 = reader.readLine();
+        }
+        assertNotNull(line1);
+        assertThat(line1, containsString("Test log1"));
+
+        assertNotNull(line2);
+        assertThat(line2, containsString("Test log2"));
+
+        assertNull("only two lines were logged", line3);
+    }

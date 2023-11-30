@@ -1,0 +1,40 @@
+ @SuppressWarnings("unchecked")
+	@Override
+	protected void init() {
+		super.init();
+		
+		if (initializeElements) {
+			// All index is object pool array header point to allocated objects 
+			for (long l = 0; l < length; l++) {
+				directMemoryService.putLong(arrayIndexStartAddress + (l * arrayIndexScale), 
+						JvmUtil.toJvmAddress((objStartAddress + (l * objectSize))));
+			}
+	
+			// Copy sample object to allocated memory region for each object
+			for (long l = 0; l < length; l++) {
+				directMemoryService.copyMemory(
+						sampleObjectAddress, 
+						objStartAddress + (l * objectSize), 
+						objectSize);
+			}
+			
+			/*
+			long sourceAddress = sampleObjectAddress + 4;
+			long copySize = objectSize - 4;
+			// Copy sample object to allocated memory region for each object
+			for (long l = 0; l < length; l++) {
+				long targetAddress = objStartAddress + (l * objectSize);
+				directMemoryService.putInt(targetAddress, 0);
+				directMemoryService.copyMemory(sourceAddress, targetAddress + 4, copySize);
+			}
+			*/
+		}
+		else {
+			// All indexes in object pool array point to empty (null) object
+			for (long l = 0; l < length; l++) {
+				directMemoryService.putLong(arrayIndexStartAddress + (l * arrayIndexScale), 0L);
+			}
+		}
+		
+		// this.objectArray = (A) directMemoryService.getObject(arrayStartAddress);
+	}

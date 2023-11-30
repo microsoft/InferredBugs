@@ -1,0 +1,66 @@
+  @Test
+  public void testCloseByInterrupt() throws Exception {
+    RegularFile file = regularFile(10);
+    final FileChannel channel = channel(file, READ, WRITE);
+
+    file.writeLock().lock(); // ensure all operations on the channel will block
+
+    ExecutorService executor = Executors.newCachedThreadPool();
+
+    final CountDownLatch threadStartLatch = new CountDownLatch(1);
+    final SettableFuture<Throwable> interruptException = SettableFuture.create();
+
+    // This thread, being the first to run, will be blocking on the interruptible lock (the byte
+    // file's write lock) and as such will be interrupted properly... the other threads will be
+    // blocked on the lock that guards the position field and the specification that only one method
+    // on the channel will be in progress at a time. That lock is not interruptible, so we must
+    // interrupt this thread.
+    Thread thread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        threadStartLatch.countDown();
+        try {
+          channel.write(ByteBuffer.allocate(20));
+          interruptException.set(null);
+        } catch (Throwable e) {
+          interruptException.set(e);
+        }
+      }
+    });
+    thread.start();
+
+    // let the thread start running
+    threadStartLatch.await();
+    // then ensure time for thread to start blocking on the write lock
+    Uninterruptibles.sleepUninterruptibly(10, MILLISECONDS);
+
+    CountDownLatch blockingStartLatch = new CountDownLatch(BLOCKING_OP_COUNT);
+    List<Future<?>> futures = queueAllBlockingOperations(channel, executor, blockingStartLatch);
+
+    // wait for all blocking threads to start
+    blockingStartLatch.await();
+    // then ensure time for the operations to start blocking
+    Uninterruptibles.sleepUninterruptibly(20, MILLISECONDS);
+
+    // interrupting this blocking thread closes the channel and makes all the other threads
+    // throw AsynchronousCloseException... the operation on this thread should throw
+    // ClosedByInterruptException
+    thread.interrupt();
+
+    // get the exception that caused the interrupted operation to terminate
+    assertThat(interruptException.get(200, MILLISECONDS))
+        .named("interrupted thread exception")
+        .isA(ClosedByInterruptException.class);
+
+    // check that each other thread got AsynchronousCloseException (since the interrupt, on a
+    // different thread, closed the channel)
+    for (Future<?> future : futures) {
+      try {
+        future.get();
+        fail();
+      } catch (ExecutionException expected) {
+        assertThat(expected.getCause()).named("blocking thread exception")
+            .isA(AsynchronousCloseException.class);
+      }
+    }
+  }

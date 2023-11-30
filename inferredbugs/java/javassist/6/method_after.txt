@@ -1,0 +1,29 @@
+    private void atPlusPlus(int token, ASTree oprand, Expr expr)
+        throws CompileError
+    {
+        boolean isPost = oprand == null;        // ++i or i++?
+        if (isPost)
+            oprand = expr.oprand2();
+
+        if (oprand instanceof Variable) {
+            Declarator d = ((Variable)oprand).getDeclarator();
+            exprType = d.getType();
+            arrayDim = d.getArrayDim();
+        }
+        else {
+            if (oprand instanceof Expr) {
+                Expr e = (Expr)oprand;
+                if (e.getOperator() == ARRAY) {
+                    atArrayRead(e.oprand1(), e.oprand2());
+                    // arrayDim should be 0.
+                    int t = exprType;
+                    if (t == INT || t == BYTE || t == CHAR || t == SHORT)
+                        exprType = INT;
+
+                    return;
+                }
+            }
+
+            atFieldPlusPlus(oprand);
+        }
+    }

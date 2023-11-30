@@ -1,0 +1,26 @@
+    @Test
+    public void testCatalog() throws SQLException
+    {
+        HikariDataSource ds = new HikariDataSource();
+        ds.setCatalog("test");
+        ds.setMinimumIdle(1);
+        ds.setMaximumPoolSize(1);
+        ds.setConnectionTestQuery("VALUES 1");
+        ds.setDataSourceClassName("com.zaxxer.hikari.mocks.StubDataSource");
+
+        try
+        {
+            Connection connection = ds.getConnection();
+            connection.setCatalog("other");
+            connection.close();
+
+            Connection connection2 = ds.getConnection();
+            Assert.assertSame(connection, connection2);
+            Assert.assertEquals("test", connection2.getCatalog());
+            connection2.close();
+        }
+        finally
+        {
+            ds.shutdown();
+        }
+    }

@@ -1,0 +1,160 @@
+package zemberek.corpus;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Splitter;
+import zemberek.core.text.Regexps;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Pattern;
+
+public class WebDocument {
+    String source;
+    String id;
+    String url;
+    String crawlDate;
+    String labelString;
+    String category;
+    String title;
+    long hash;
+
+    List<String> lines = new ArrayList<>();
+
+    public WebDocument(String source, String id, String title, List<String> lines, String url,
+                       String crawlDate, String labels, String category) {
+        this.source = source;
+        this.id = id;
+        this.lines = lines;
+        this.url = url;
+        this.crawlDate = crawlDate;
+        this.labelString = labels;
+        this.category = category;
+        this.title = title;
+        this.hash = contentHash();
+    }
+
+    public int contentLength() {
+        int total = 0;
+        for (String line : lines) {
+            total += line.length();
+        }
+        return total;
+    }
+
+    public String getDocumentHeader() {
+        return "<doc id=\"" + id + "\" source=\"" + source + "\" title=\"" + title + "\" crawl-date=\"" + crawlDate +
+                "\" labels=\"" + labelString + "\" category=\"" + category + "\">";
+    }
+
+    public WebDocument emptyContent() {
+        return new WebDocument(
+                this.source,
+                this.id,
+                "",
+                Collections.emptyList(),
+                this.url,
+                "", "", "");
+    }
+
+    public String getLabelString() {
+        return labelString;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public List<String> getLabels() {
+        return Splitter.on(",").omitEmptyStrings().trimResults().splitToList(labelString);
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    static Pattern sourcePattern = Pattern.compile("(source=\")(.+?)(\")");
+    static Pattern urlPattern = Pattern.compile("(id=\")(.+?)(\")");
+    static Pattern crawlDatePattern = Pattern.compile("(crawl-date=\")(.+?)(\")");
+    static Pattern labelPattern = Pattern.compile("(labels=)(.+?)(\")");
+    static Pattern categoryPattern = Pattern.compile("(category=)(.+?)(\")");
+    static Pattern titlePattern = Pattern.compile("(title=)(.+?)(\")");
+
+    private static String getAttribute(String str) {
+        return str == null ? "" : str.replace('\"', ' ').trim();
+    }
+
+    public static WebDocument fromText(String meta, List<String> pageData) {
+
+        String url = Regexps.firstMatch(urlPattern, meta, 2);
+        String id = url.replaceAll("http://|https://", "");
+        String source = Regexps.firstMatch(sourcePattern, meta, 2);
+        String crawlDate = Regexps.firstMatch(crawlDatePattern, meta, 2);
+        String labels =  getAttribute(Regexps.firstMatch(labelPattern, meta, 2));
+
+        String category = getAttribute(Regexps.firstMatch(categoryPattern, meta, 2));
+        String title = getAttribute(Regexps.firstMatch(titlePattern, meta, 2));
+
+        int i = source.lastIndexOf("/");
+        if (i >= 0 && i < source.length()) {
+            source = source.substring(i + 1);
+        }
+        return new WebDocument(source, id, title, pageData, url, crawlDate, labels, category);
+    }
+
+    private long contentHash() {
+
+        long hash = 0x811C_9DC5;
+        for (String line : lines) {
+            hash = hash ^ com.google.common.hash.Hashing.murmur3_128().hashUnencodedChars(line).asLong();
+        }
+        return hash;
+    }
+
+    public long getHash() {
+        return hash;
+    }
+
+    public String getContentAsString() {
+        return Joiner.on("\n").join(lines);
+    }
+
+    public List<String> getLines() {
+        return lines;
+    }
+
+    public void setContent(List<String> lines) {
+        this.lines = lines;
+        this.hash = contentHash();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        WebDocument page = (WebDocument) o;
+
+        return page.contentHash() == this.contentHash();
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    @Override
+    public int hashCode() {
+        long h = contentHash();
+        return (int) ((h & 0xffffffffL) ^ (h >> 32));
+    }
+
+}

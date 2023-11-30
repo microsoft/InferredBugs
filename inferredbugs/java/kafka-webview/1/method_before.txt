@@ -1,0 +1,18 @@
+    public Class<? extends Deserializer> getDeserializerClass(final String jarName, final String classpath) throws LoaderException {
+        try {
+            final String absolutePath = getPathForJar(jarName).toString();
+            final URL jarUrl = new URL("file://" + absolutePath);
+            final ClassLoader pluginClassLoader = new PluginClassLoader(jarUrl);
+            final Class loadedClass = pluginClassLoader.loadClass(classpath);
+
+            if (!Deserializer.class.isAssignableFrom(loadedClass)) {
+                throw new WrongImplementationException("Class does not implement " + Deserializer.class.getName(), null);
+            }
+
+            return loadedClass;
+        } catch (MalformedURLException exception) {
+            throw new LoaderException("Unable to load jar " + jarName, exception);
+        } catch (ClassNotFoundException exception) {
+            throw new UnableToFindClassException("Unable to find class " + classpath + " in jar " + jarName, exception);
+        }
+    }

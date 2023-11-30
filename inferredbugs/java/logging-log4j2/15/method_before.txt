@@ -1,0 +1,71 @@
+    @Test
+    public void testReconnect() throws Exception {
+        TestSocketServer testServer = null;
+        ExecutorService executor = null;
+        Future<InputStream> futureIn;
+        final InputStream in;
+
+        try {
+            executor = Executors.newSingleThreadExecutor();
+            System.err.println("Initializing server");
+            testServer = new TestSocketServer();
+            futureIn = executor.submit(testServer);
+            Thread.sleep(300);
+
+            //System.err.println("Initializing logger");
+            final Logger logger = LogManager.getLogger(SocketReconnectTest.class);
+
+            String message = "Log #1";
+            logger.error(message);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(futureIn.get()));
+            assertEquals(message, reader.readLine());
+
+            closeQuietly(testServer);
+            executor.shutdown();
+            try {
+                // Wait a while for existing tasks to terminate
+                if (!executor.awaitTermination(100, TimeUnit.MILLISECONDS)) {
+                    executor.shutdownNow();
+                    if (!executor.awaitTermination(100, TimeUnit.MILLISECONDS)) {
+                        System.err.println("Pool did not terminate");
+                    }
+                }
+            } catch (InterruptedException ie) {
+                // (Re-)Cancel if current thread also interrupted
+                executor.shutdownNow();
+                // Preserve interrupt status
+                Thread.currentThread().interrupt();
+            }
+
+            message = "Log #2";
+            logger.error(message);
+
+            message = "Log #3";
+            try {
+                logger.error(message);
+            } catch (final AppenderRuntimeException e) {
+                // System.err.println("Caught expected exception");
+            }
+
+            //System.err.println("Re-initializing server");
+            executor = Executors.newSingleThreadExecutor();
+            testServer = new TestSocketServer();
+            futureIn = executor.submit(testServer);
+            Thread.sleep(500);
+
+            try {
+                logger.error(message);
+                reader = new BufferedReader(new InputStreamReader(futureIn.get()));
+                assertEquals(message, reader.readLine());
+            } catch (final AppenderRuntimeException e) {
+                e.printStackTrace();
+                fail("Unexpected Exception");
+            }
+            //System.err.println("Sleeping to demonstrate repeated re-connections");
+            //Thread.sleep(5000);
+        } finally {
+            closeQuietly(testServer);
+            closeQuietly(executor);
+        }
+    }

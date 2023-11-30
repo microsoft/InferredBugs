@@ -1,0 +1,26 @@
+        protected virtual Expression VisitQueryableContains(MethodCallExpression m)
+        {
+            ITranslateContext context = _builder.TranslateContext;
+            var subquery = m.Arguments[0].Evaluate().Value as DbQueryable;
+            subquery.Parameterized = _builder.Parameterized;
+
+            var clone = context != null ? context.Clone("s") : null;
+            var cmd = subquery.Translate(_builder.Indent + 1, false, clone) as DbSelectCommand;
+
+            if (this.NotOperands != null && this.NotOperands.Contains(m)) _builder.Append("NOT ");
+            _builder.Append("EXISTS(");
+
+            _builder.Append(cmd.CommandText);
+
+            if (cmd.WhereFragment.Length > 0)
+                _builder.Append(" AND ");
+            else
+                _builder.Append("WHERE ");
+
+            _builder.Append(cmd.SelectedColumnText);
+            _builder.Append(" = ");
+            _visitor.Visit(m.Arguments[1]);
+            _builder.Append(")");
+
+            return m;
+        }

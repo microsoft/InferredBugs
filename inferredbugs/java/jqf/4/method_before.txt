@@ -1,0 +1,79 @@
+    @Override
+    public void evaluate() throws Throwable {
+        // Construct generators for each parameter
+        List<Generator<?>> generators = Arrays.stream(method.getMethod().getParameters())
+                .map(this::createParameterTypeContext)
+                .map(this::produceGenerator)
+                .collect(Collectors.toList());
+
+
+        // Keep fuzzing until no more input or I/O error with guidance
+        Guidance guidance = GuidedFuzzing.getGuidance();
+        try {
+
+            // Keep fuzzing as long as guidance wants to
+            while (guidance.hasInput()) {
+                Result result;
+                Throwable error = null;
+
+                // Initialize guided fuzzing using a file-backed random number source
+                try (FileBackedRandom randomFile = new FileBackedRandom(guidance.getInputFile(), Long.BYTES)) {
+
+                    // Generate input values
+                    Object[] args;
+                    try {
+                        SourceOfRandomness random = new FastSourceOfRandomness(randomFile);
+                        GenerationStatus genStatus = new NonTrackingGenerationStatus(random);
+                        args = generators.stream()
+                                .map(g -> g.generate(random, genStatus))
+                                .toArray();
+                    } catch (IllegalStateException e) {
+                        // This happens when we reach EOF before reading all the random values.
+                        // Treat this as an assumption failure, so that the guidance considers the
+                        // generated input as INVALID
+                        throw new AssumptionViolatedException("FileBackedRandom does not have enough data", e);
+                    } catch (AssumptionViolatedException e) {
+                        // Propagate assumption violations out
+                        throw e;
+                    } catch (Throwable e) {
+                        // Throw the guidance exception outside to stop fuzzing
+                        throw new GuidanceException(e);
+                    } finally {
+                        // System.out.println(randomFile.getTotalBytesRead() + " random bytes read");
+                    }
+
+                    // Attempt to run the trial
+                    new TrialRunner(testClass.getJavaClass(), method, args).run();
+
+                    // If we reached here, then the trial must be a success
+                    result = SUCCESS;
+                } catch (GuidanceException e) {
+                    // Throw the guidance exception outside to stop fuzzing
+                    throw e;
+                } catch (AssumptionViolatedException e) {
+                    result = INVALID;
+                    error = e;
+                } catch (Throwable e) {
+
+                    // Check if this exception was expected
+                    if (isExceptionExpected(e.getClass())) {
+                        result = SUCCESS; // Swallow the error
+                    } else {
+                        result = FAILURE;
+                        error = e;
+                    }
+                }
+
+                // Wait for any instrumentation events to finish processing
+                SingleSnoop.waitForQuiescence();
+
+                // Inform guidance about the outcome of this trial
+                guidance.handleResult(result, error);
+
+
+            }
+        } catch (GuidanceException e) {
+            System.err.println("Fuzzing stopped due to guidance exception: " + e.getMessage());
+        }
+
+    }

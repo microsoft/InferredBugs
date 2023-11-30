@@ -1,0 +1,105 @@
+    @Override
+    public Object execute() {
+        // Configure command before execution
+        introspector.getHystrixProperties()
+                    .entrySet()
+                    .forEach(entry -> setProperty(entry.getKey(), entry.getValue()));
+
+        // Ensure our internal state is consistent with Hystrix
+        if (introspector.hasCircuitBreaker()) {
+            breakerHelper.ensureConsistentState();
+            LOGGER.info("Circuit breaker for " + getCommandKey() + " in state " + breakerHelper.getState());
+        }
+
+        // Record state of breaker
+        boolean wasBreakerOpen = isCircuitBreakerOpen();
+
+        // Execute command
+        Object result = null;
+        Throwable throwable = null;
+        long startNanos = System.nanoTime();
+        try {
+            result = super.execute();
+        } catch (Throwable t) {
+            throwable = t;
+        }
+        executionTime = System.nanoTime() - startNanos;
+        boolean hasFailed = (throwable != null);
+
+        if (introspector.hasCircuitBreaker()) {
+            // Keep track of failure ratios
+            breakerHelper.pushResult(throwable == null);
+
+            // Query breaker states
+            boolean breakerWillOpen = false;
+            boolean isClosedNow = !isCircuitBreakerOpen();
+
+            /*
+             * Special logic for MP circuit breakers to support failOn. If not a
+             * throwable to fail on, restore underlying breaker and return.
+             */
+            if (hasFailed) {
+                final Throwable throwableFinal = throwable;
+                Class<? extends Throwable>[] throwableClasses = introspector.getCircuitBreaker().failOn();
+                boolean failOn = Arrays.asList(throwableClasses)
+                                       .stream()
+                                       .anyMatch(c -> c.isAssignableFrom(throwableFinal.getClass()));
+                if (!failOn) {
+                    restoreBreaker();       // clears Hystrix counters
+                    updateMetricsAfter(throwable, wasBreakerOpen, breakerWillOpen);
+                    throw ExceptionUtil.wrapThrowable(throwable);
+                }
+            }
+
+            /*
+             * Special logic for MP circuit breakers to support an arbitrary success
+             * threshold use to return a breaker back to its CLOSED state. Hystrix
+             * only supports a threshold of 1 here, so additional logic is required.
+             */
+            synchronized (breakerHelper.getSyncObject()) {
+                if (hasFailed) {
+                    if (breakerHelper.getState() == CircuitBreakerHelper.State.HALF_OPEN_MP) {
+                        // If failed and in HALF_OPEN_MP, we need to force breaker to open
+                        runTripBreaker();
+                        breakerHelper.setState(CircuitBreakerHelper.State.OPEN_MP);
+                    } else if (breakerHelper.getState() == CircuitBreakerHelper.State.CLOSED_MP) {
+                        // Determine if breaker will open given failure ratio
+                        double failureRatio = breakerHelper.getFailureRatio();
+                        if (failureRatio >= introspector.getCircuitBreaker().failureRatio()) {
+                            breakerWillOpen = true;
+                            breakerHelper.setState(CircuitBreakerHelper.State.OPEN_MP);
+                        }
+                    }
+                    updateMetricsAfter(throwable, wasBreakerOpen, breakerWillOpen);
+                    throw ExceptionUtil.wrapThrowable(throwable);
+                }
+
+                if (wasBreakerOpen && isClosedNow) {
+                    // Last called was successful
+                    breakerHelper.incSuccessCount();
+
+                    // We stay in HALF_OPEN_MP until successThreshold is reached
+                    if (breakerHelper.getSuccessCount() < introspector.getCircuitBreaker().successThreshold()) {
+                        breakerHelper.setState(CircuitBreakerHelper.State.HALF_OPEN_MP);
+                    } else {
+                        breakerHelper.setState(CircuitBreakerHelper.State.CLOSED_MP);
+                        breakerHelper.resetCommandData();
+                    }
+                }
+            }
+
+            updateMetricsAfter(throwable, wasBreakerOpen, breakerWillOpen);
+        }
+
+        // Update bulkhead helper
+        if (introspector.hasBulkhead()) {
+            bulkheadHelper.removeCommand(this);
+        }
+
+        // Outcome of execution
+        if (throwable != null) {
+            throw ExceptionUtil.wrapThrowable(throwable);
+        } else {
+            return result;
+        }
+    }

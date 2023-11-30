@@ -1,0 +1,36 @@
+    public void updateSecureConnection(
+            final OperatedClientConnection conn,
+            final HttpHost target,
+            final HttpContext context,
+            final HttpParams params) throws IOException {
+        if (conn == null) {
+            throw new IllegalArgumentException("Connection may not be null");
+        }
+        if (target == null) {
+            throw new IllegalArgumentException("Target host may not be null");
+        }
+        if (params == null) {
+            throw new IllegalArgumentException("Parameters may not be null");
+        }
+        if (!conn.isOpen()) {
+            throw new IllegalStateException("Connection must be open");
+        }
+
+        final Scheme schm = schemeRegistry.getScheme(target.getSchemeName());
+        if (!(schm.getSchemeSocketFactory() instanceof SchemeLayeredSocketFactory)) {
+            throw new IllegalArgumentException
+                ("Target scheme (" + schm.getName() +
+                 ") must have layered socket factory.");
+        }
+
+        SchemeLayeredSocketFactory lsf = (SchemeLayeredSocketFactory) schm.getSchemeSocketFactory();
+        Socket sock;
+        try {
+            sock = lsf.createLayeredSocket(
+                    conn.getSocket(), target.getHostName(), target.getPort(), params);
+        } catch (ConnectException ex) {
+            throw new HttpHostConnectException(target, ex);
+        }
+        prepareSocket(sock, context, params);
+        conn.update(sock, target, lsf.isSecure(sock), params);
+    }

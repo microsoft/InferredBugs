@@ -1,0 +1,109 @@
+ @Override
+	public long start(String jobName, Properties params) throws JobStartException, JobSecurityException {
+		final JsrXmlApplicationContext batchContext = new JsrXmlApplicationContext(params);
+		batchContext.setValidating(false);
+
+		Resource batchXml = new ClassPathResource("/META-INF/batch.xml");
+		String jobConfigurationLocation = "/META-INF/batch-jobs/" + jobName + ".xml";
+		Resource jobXml = new ClassPathResource(jobConfigurationLocation);
+
+		if (batchXml.exists()) {
+			batchContext.load(batchXml);
+		}
+
+		if (jobXml.exists()) {
+			batchContext.load(jobXml);
+		}
+
+		AbstractBeanDefinition beanDefinition = BeanDefinitionBuilder
+				.genericBeanDefinition("org.springframework.batch.core.jsr.JsrJobContextFactoryBean")
+				.getBeanDefinition();
+		beanDefinition.setScope(BeanDefinition.SCOPE_SINGLETON);
+		batchContext.registerBeanDefinition(JSR_JOB_CONTEXT_BEAN_NAME, beanDefinition);
+
+		batchContext.setParent(parentContext);
+
+		try {
+			batchContext.refresh();
+		} catch (BeanCreationException e) {
+			throw new JobStartException(e);
+		}
+
+		Assert.notNull(jobName, "The job name must not be null.");
+
+		final org.springframework.batch.core.JobExecution jobExecution;
+
+		try {
+			JobParameters jobParameters = jobParametersConverter.getJobParameters(params);
+			String[] jobNames = batchContext.getBeanNamesForType(Job.class);
+
+			if (jobNames == null || jobNames.length <= 0) {
+				throw new BatchRuntimeException("No Job defined in current context");
+			}
+
+			org.springframework.batch.core.JobInstance jobInstance = jobRepository.createJobInstance(jobNames[0],
+					jobParameters);
+			jobExecution = jobRepository.createJobExecution(jobInstance, jobParameters, jobConfigurationLocation);
+		} catch (Exception e) {
+			throw new JobStartException(e);
+		}
+
+		try {
+			final Semaphore semaphore = new Semaphore(1);
+			final List<Exception> exceptionHolder = Collections.synchronizedList(new ArrayList<Exception>());
+			semaphore.acquire();
+
+			taskExecutor.execute(new Runnable() {
+
+				@Override
+				public void run() {
+					JsrJobContextFactoryBean factoryBean = null;
+					try {
+						factoryBean = (JsrJobContextFactoryBean) batchContext.getBean("&" + JSR_JOB_CONTEXT_BEAN_NAME);
+						factoryBean.setJobExecution(jobExecution);
+						final AbstractJob job = batchContext.getBean(AbstractJob.class);
+						addListenerToJobService.addListenerToJob(job);
+						semaphore.release();
+						// Initialization of the JobExecution for job level dependencies
+						jobRegistry.register(job, jobExecution);
+						job.execute(jobExecution);
+						jobRegistry.remove(jobExecution);
+					} catch (Exception e) {
+						exceptionHolder.add(e);
+					} finally {
+						if (factoryBean != null) {
+							factoryBean.close();
+						}
+
+						batchContext.close();
+
+						if (semaphore.availablePermits() == 0) {
+							semaphore.release();
+						}
+					}
+				}
+			});
+
+			semaphore.acquire();
+			if (exceptionHolder.size() > 0) {
+				semaphore.release();
+				throw new JobStartException(exceptionHolder.get(0));
+			}
+		} catch (Exception e) {
+			if (jobRegistry.exists(jobExecution.getId())) {
+				jobRegistry.remove(jobExecution);
+			}
+			jobExecution.upgradeStatus(BatchStatus.FAILED);
+			if (jobExecution.getExitStatus().equals(ExitStatus.UNKNOWN)) {
+				jobExecution.setExitStatus(ExitStatus.FAILED.addExitDescription(e));
+			}
+			jobRepository.update(jobExecution);
+
+			if (batchContext.isActive()) {
+				batchContext.close();
+			}
+
+			throw new JobStartException(e);
+		}
+		return jobExecution.getId();
+	}

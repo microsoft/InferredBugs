@@ -1,0 +1,25 @@
+    @Test
+    public void testReOpenDBAfterMerge() throws IOException, InterruptedException {
+        String directory = "/tmp/HaloDBTestWithMerge/testReOpenDBAfterMerge";
+
+        HaloDBOptions options = new HaloDBOptions();
+        options.maxFileSize = recordsPerFile * recordSize;
+        options.mergeThresholdPerFile = 0.5;
+        options.isMergeDisabled = false;
+        options.mergeJobIntervalInSeconds = 2;
+
+        HaloDB db = getTestDB(directory, options);
+
+        Record[] records = insertAndUpdateRecords(numberOfRecords, db);
+
+        TestUtils.waitForMergeToComplete(db);
+
+        db.close();
+
+        db = getTestDBWithoutDeletingFiles(directory, options);
+
+        for (Record r : records) {
+            byte[] actual = db.get(r.getKey());
+            Assert.assertEquals(actual, r.getValue());
+        }
+    }

@@ -1,0 +1,19 @@
+    @Test
+    public void fcntlDupfdTest() throws Throwable {
+        if (!Platform.IS_WINDOWS) {
+            File tmp = File.createTempFile("fcntlTest", "tmp");
+            int fd = posix.open(tmp.getPath(), OpenFlags.O_RDWR.intValue(), 0444);
+
+            byte[] outContent = "foo".getBytes();
+
+            int newFd = posix.fcntl(fd, Fcntl.F_DUPFD);
+
+            new FileOutputStream(JavaLibCHelper.toFileDescriptor(fd)).write(outContent);
+            posix.lseek(fd, SEEK_SET, 0);
+
+            byte[] inContent = new byte[outContent.length];
+            new FileInputStream(JavaLibCHelper.toFileDescriptor(newFd)).read(inContent, 0, 3);
+
+            assertArrayEquals(inContent, outContent);
+        }
+    }

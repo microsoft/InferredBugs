@@ -1,0 +1,50 @@
+        private void ProcessIncomingMessage(ConnectionResponse obj)
+        {
+            var method = obj.Method;
+            var param = obj.Params?.ToObject<ConnectionResponseParams>();
+
+            if (method == "Target.attachedToTarget")
+            {
+                var sessionId = param.SessionId;
+                var session = new CDPSession(this, param.TargetInfo.Type, sessionId);
+                _asyncSessions.AddItem(sessionId, session);
+
+                SessionAttached?.Invoke(this, new SessionAttachedEventArgs { Session = session });
+
+                if (obj.SessionId != null && _sessions.TryGetValue(obj.SessionId, out var parentSession))
+                {
+                    parentSession.OnSessionAttached(session);
+                }
+            }
+            else if (method == "Target.detachedFromTarget")
+            {
+                var sessionId = param.SessionId;
+                if (_sessions.TryRemove(sessionId, out var session) && !session.IsClosed)
+                {
+                    session.Close("Target.detachedFromTarget");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(obj.SessionId))
+            {
+                var session = GetSession(obj.SessionId);
+                session?.OnMessage(obj);
+            }
+            else if (obj.Id.HasValue)
+            {
+                // If we get the object we are waiting for we return if
+                // if not we add this to the list, sooner or later some one will come for it
+                if (_callbacks.TryRemove(obj.Id.Value, out var callback))
+                {
+                    MessageQueue.Enqueue(callback, obj);
+                }
+            }
+            else
+            {
+                MessageReceived?.Invoke(this, new MessageEventArgs
+                {
+                    MessageID = method,
+                    MessageData = obj.Params
+                });
+            }
+        }

@@ -1,0 +1,73 @@
+  public void run() throws IOException, InterruptedException {
+    final long start = System.nanoTime();
+    LOG.info("Starting indexer...");
+
+    int numThreads = args.threads;
+
+    final Directory dir = FSDirectory.open(indexPath);
+    final EnglishAnalyzer englishAnalyzer= args.keepStopwords ?
+        new EnglishAnalyzer(CharArraySet.EMPTY_SET) : new EnglishAnalyzer();
+    final TweetAnalyzer tweetAnalyzer = new TweetAnalyzer(args.tweetStemming);
+    final IndexWriterConfig config = args.collectionClass.equals("TweetCollection") ?
+        new IndexWriterConfig(tweetAnalyzer) : new IndexWriterConfig(englishAnalyzer);
+    config.setSimilarity(new BM25Similarity());
+    config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+    config.setRAMBufferSizeMB(args.memorybufferSize);
+    config.setUseCompoundFile(false);
+    config.setMergeScheduler(new ConcurrentMergeScheduler());
+
+    final IndexWriter writer = new IndexWriter(dir, config);
+
+    final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numThreads);
+    final List segmentPaths = collection.getFileSegmentPaths();
+
+    final int segmentCnt = segmentPaths.size();
+    LOG.info(segmentCnt + " files found in " + collectionPath.toString());
+    for (int i = 0; i < segmentCnt; i++) {
+      executor.execute(new IndexerThread(writer, collection, (Path) segmentPaths.get(i)));
+    }
+
+    executor.shutdown();
+
+    try {
+      // Wait for existing tasks to terminate
+      while (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
+        LOG.info(String.format("%.2f percent completed",
+            (double) executor.getCompletedTaskCount() / segmentCnt * 100.0d));
+      }
+    } catch (InterruptedException ie) {
+      // (Re-)Cancel if current thread also interrupted
+      executor.shutdownNow();
+      // Preserve interrupt status
+      Thread.currentThread().interrupt();
+    }
+
+    if (segmentCnt != executor.getCompletedTaskCount()) {
+      throw new RuntimeException("totalFiles = " + segmentCnt +
+          " is not equal to completedTaskCount =  " + executor.getCompletedTaskCount());
+    }
+
+    int numIndexed = writer.maxDoc();
+
+    try {
+      writer.commit();
+      if (args.optimize)
+        writer.forceMerge(1);
+    } finally {
+      try {
+        writer.close();
+      } catch (IOException e) {
+        // It is possible that this happens... but nothing much we can do at this point,
+        // so just log the error and move on.
+        LOG.error(e);
+      }
+    }
+
+    LOG.info("Indexed documents: " + counters.indexedDocuments.get());
+    LOG.info("Empty documents: " + counters.emptyDocuments.get());
+    LOG.info("Errors: " + counters.errors.get());
+
+    final long durationMillis = TimeUnit.MILLISECONDS.convert(System.nanoTime() - start, TimeUnit.NANOSECONDS);
+    LOG.info("Total " + numIndexed + " documents indexed in " +
+        DurationFormatUtils.formatDuration(durationMillis, "HH:mm:ss"));
+  }

@@ -1,0 +1,47 @@
+    protected void manage(Architecture arch, String version) {
+        httpClient = new HttpClient(proxyValue, proxyUser, proxyPass);
+        try (HttpClient wdmHttpClient = httpClient) {
+            downloader = new Downloader(driverManagerType);
+            urlFilter = new UrlFilter();
+            updateValuesWithConfig();
+
+            boolean getLatest = version == null || version.isEmpty()
+                    || version.equalsIgnoreCase(LATEST.name())
+                    || version.equalsIgnoreCase(NOT_SPECIFIED.name());
+            boolean cache = this.isForcingCache || getBoolean("wdm.forceCache")
+                    || !isNetAvailable();
+
+            log.trace(">> Managing {} arch={} version={} getLatest={} cache={}",
+                    getDriverName(), arch, version, getLatest, cache);
+
+            Optional<String> driverInCache = handleCache(arch, version,
+                    getLatest, cache);
+
+            if (driverInCache.isPresent()) {
+                versionToDownload = version;
+                downloadedVersion = version;
+                log.debug("Driver for {} {} found in cache {}", getDriverName(),
+                        versionToDownload, driverInCache.get());
+                exportDriver(getExportParameter(), driverInCache.get());
+
+            } else {
+                List<URL> candidateUrls = filterCandidateUrls(arch, version,
+                        getLatest);
+
+                if (candidateUrls.isEmpty()) {
+                    String versionStr = getLatest ? "(latest version)"
+                            : version;
+                    String errorMessage = getDriverName() + " " + versionStr
+                            + " for " + myOsName + arch.toString()
+                            + " not found in " + getDriverUrl();
+                    log.error(errorMessage);
+                    throw new WebDriverManagerException(errorMessage);
+                }
+
+                downloadCandidateUrls(candidateUrls);
+            }
+
+        } catch (Exception e) {
+            handleException(e, arch, version);
+        }
+    }

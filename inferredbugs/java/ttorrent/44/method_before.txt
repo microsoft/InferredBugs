@@ -1,0 +1,21 @@
+  public void removeTorrent(TorrentHash torrentHash) {
+    logger.info("Stopping seeding " + torrentHash.getHexInfoHash());
+    final TorrentsPair torrentsPair = torrentsStorage.removeActiveAndAnnounceableTorrent(torrentHash.getHexInfoHash());
+
+    SharedTorrent torrent = torrentsPair.getSharedTorrent();
+    if (torrent != null) {
+      torrent.setClientState(ClientState.DONE);
+      torrent.close();
+    } else {
+      logger.warn(String.format("Torrent %s already removed from myTorrents", torrentHash.getHexInfoHash()));
+    }
+    final AnnounceableFileTorrent announceableFileTorrent = torrentsPair.getAnnounceableFileTorrent();
+    if (announceableFileTorrent == null) {
+      logger.info("Announceable torrent {} not found in storage on removing torrent", torrentHash.getHexInfoHash());
+    }
+    try {
+      this.announce.forceAnnounce(announceableFileTorrent, this, STOPPED);
+    } catch (IOException e) {
+      LoggerUtils.warnAndDebugDetails(logger, "can not send force stop announce event on delete torrent {}", torrentHash.getHexInfoHash(), e);
+    }
+  }

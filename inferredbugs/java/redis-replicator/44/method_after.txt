@@ -1,0 +1,55 @@
+    public static void main(String[] args) throws IOException, URISyntaxException {
+        final OutputStream out = new BufferedOutputStream(new FileOutputStream(new File("/path/to/appendonly.aof")));
+        final RawByteListener rawByteListener = new RawByteListener() {
+            @Override
+            public void handle(byte... rawBytes) {
+                try {
+                    out.write(rawBytes);
+                } catch (IOException ignore) {
+                }
+            }
+        };
+
+        //save 1000 records commands
+        Replicator replicator = new RedisReplicator("redis://127.0.0.1:6379");
+        replicator.addRdbListener(new RdbListener() {
+            @Override
+            public void preFullSync(Replicator replicator) {
+            }
+
+            @Override
+            public void handle(Replicator replicator, KeyValuePair<?> kv) {
+            }
+
+            @Override
+            public void postFullSync(Replicator replicator, long checksum) {
+                replicator.addRawByteListener(rawByteListener);
+            }
+        });
+
+        final AtomicInteger acc = new AtomicInteger(0);
+        replicator.addCommandListener(new CommandListener() {
+            @Override
+            public void handle(Replicator replicator, Command command) {
+                if (acc.incrementAndGet() == 1000) {
+                    try {
+                        out.close();
+                        replicator.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+        replicator.open();
+
+        //check aof file
+        replicator = new RedisReplicator("redis:///path/to/appendonly.aof");
+        replicator.addCommandListener(new CommandListener() {
+            @Override
+            public void handle(Replicator replicator, Command command) {
+                System.out.println(command);
+            }
+        });
+        replicator.open();
+    }

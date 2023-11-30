@@ -1,0 +1,32 @@
+        [Test]
+        public void ReadingPacketsFromFile()
+        {
+            var dev = new CaptureFileReaderDevice("../../CaptureFiles/80211_per_packet_information.pcap");
+            dev.Open();
+            var rawCapture = dev.GetNextPacket();
+            dev.Close();
+
+            var p = Packet.ParsePacket(rawCapture.LinkLayerType, rawCapture.Data) as PpiPacket;
+
+            Assert.IsNotNull(p);
+            Assert.AreEqual(0, p.Version);
+            Assert.AreEqual(32, p.Length);
+            Assert.AreEqual(1, p.Count);
+
+            var commonField = p.FindFirstByType(PpiFieldType.PpiCommon) as PpiCommon;
+
+            Assert.AreEqual(PpiFieldType.PpiCommon, commonField.FieldType);
+            Assert.AreEqual(0, commonField.TSFTimer);
+            Assert.IsTrue((commonField.Flags & PpiCommon.CommonFlags.FcsIncludedInFrame) == PpiCommon.CommonFlags.FcsIncludedInFrame);
+            Assert.AreEqual(2, commonField.Rate);
+            Assert.AreEqual(2437, commonField.ChannelFrequency);
+            Assert.AreEqual(0x00A0, (int) commonField.ChannelFlags);
+            Assert.AreEqual(0, commonField.FhssHopset);
+            Assert.AreEqual(0, commonField.FhssPattern);
+            Assert.AreEqual(-84, commonField.AntennaSignalPower);
+            Assert.AreEqual(-100, commonField.AntennaSignalNoise);
+
+            var macFrame = p.PayloadPacket as MacFrame;
+            Assert.AreEqual(FrameControlField.FrameSubTypes.ControlCts, macFrame.FrameControl.SubType);
+            Assert.IsTrue(macFrame.AppendFcs);
+        }

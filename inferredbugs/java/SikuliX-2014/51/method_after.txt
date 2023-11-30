@@ -1,0 +1,26 @@
+  public <PSI> Iterator<Match> findAll(PSI target) throws FindFailed {
+    lastMatches = null;
+    RepeatableFindAll rf = new RepeatableFindAll(target, null);
+    Image img = rf._image;
+    String targetStr = img.getName();
+    Boolean response = true;
+    if (!img.isValid() && img.hasIOException()) {
+      response = handleImageMissing(img, false);
+    }
+    if (null != response && response) {
+      log(lvl, "findAll: waiting %.1f secs for (multiple) %s to appear in %s", 
+              autoWaitTimeout, targetStr, this.toStringShort());
+      if (autoWaitTimeout > 0) {
+        rf.repeat(autoWaitTimeout);
+        lastMatches = rf.getMatches();
+      } else {
+        lastMatches = doFindAll(target, null);
+      }
+      if (lastMatches != null) {
+        log(lvl, "findAll: %s has appeared", targetStr);
+      } else {
+        log(lvl, "findAll: %s did not appear", targetStr);
+      }
+    }
+    return lastMatches;
+  }

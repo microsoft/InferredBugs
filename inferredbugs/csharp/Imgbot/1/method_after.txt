@@ -1,0 +1,24 @@
+        private Task<IActionResult> ExecuteHookAsync(
+            string githubEvent,
+            string payload,
+            out ICollector<RouterMessage> routerMessages,
+            out ICollector<OpenPrMessage> openPrMessages,
+            out CloudTable installationsTable,
+            out CloudTable marketplaceTable,
+            Action<ICollector<RouterMessage>, ICollector<OpenPrMessage>, CloudTable, CloudTable> extraSetup = null)
+        {
+            var request = Substitute.For<HttpRequestMessage>();
+            routerMessages = Substitute.For<ICollector<RouterMessage>>();
+            openPrMessages = Substitute.For<ICollector<OpenPrMessage>>();
+            installationsTable = Substitute.For<CloudTable>(new Uri("https://myaccount.table.core.windows.net/Tables/installation"));
+            marketplaceTable = Substitute.For<CloudTable>(new Uri("https://myaccount.table.core.windows.net/Tables/marketplace"));
+            var logger = Substitute.For<ILogger>();
+
+            request.Headers.Add("X-GitHub-Event", new[] { githubEvent });
+            request.Content = new StringContent(File.ReadAllText(payload));
+
+            extraSetup?.Invoke(routerMessages, openPrMessages, installationsTable, marketplaceTable);
+
+            return WebHook.WebHookFunction.Run(
+                request, routerMessages, openPrMessages, installationsTable, marketplaceTable, logger);
+        }

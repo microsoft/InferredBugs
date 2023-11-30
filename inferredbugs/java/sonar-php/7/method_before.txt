@@ -1,0 +1,16 @@
+  private void checkCfg(ControlFlowGraph cfg) {
+    for (CfgBlock cfgBlock : cfg.blocks()) {
+      if (cfgBlock.successors().size() == 1 && cfgBlock.successors().contains(cfgBlock.syntacticSuccessor())) {
+        Tree lastElement = cfgBlock.elements().get(cfgBlock.elements().size() - 1);
+        if (lastElement.is(Kind.RETURN_STATEMENT) &&
+          (((ReturnStatementTree) lastElement).expression() != null ||
+            lastElement.getParent().is(Kind.CASE_CLAUSE, Kind.DEFAULT_CLAUSE))) {
+          continue;
+        }
+
+        if (lastElement.is(Kind.RETURN_STATEMENT, Kind.CONTINUE_STATEMENT, Kind.GOTO_STATEMENT)) {
+          context().newIssue(this, lastElement, MESSAGE);
+        }
+      }
+    }
+  }

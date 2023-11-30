@@ -1,0 +1,22 @@
+ @Override
+	public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
+		long timeoutMillis = unit.toMillis(timeout);
+		long endTime       = System.currentTimeMillis() + timeoutMillis;
+		synchronized (this) {
+			if (ready)              return ready;
+			if (timeoutMillis <= 0) return ready;
+			waiters++;
+			try {
+				while (!ready) {
+					wait(timeoutMillis);
+					if (endTime < System.currentTimeMillis() && !ready) {
+						exception = new TimeoutException();
+						break;
+					}
+				}
+			} finally {
+				waiters--;
+			}
+		}
+		return ready;
+	}

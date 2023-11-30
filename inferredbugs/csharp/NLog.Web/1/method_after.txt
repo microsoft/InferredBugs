@@ -1,0 +1,22 @@
+        [Theory, MemberData(nameof(NestedPropertyData))]
+        public void NestedPropertyRendersValue(string itemKey, string variable, object data, object expectedValue)
+        {
+            // Arrange
+            var (renderer, httpContext) = CreateWithHttpContext();
+#if ASP_NET_CORE
+            httpContext.Items = new Dictionary<object, object> {{itemKey, data}};
+#else
+            httpContext.Items.Count.Returns(1);
+            httpContext.Items.Contains(itemKey).Returns(true);
+            httpContext.Items[itemKey].Returns(data);
+#endif
+
+            renderer.Variable = variable;
+            renderer.EvaluateAsNestedProperties = true;
+
+            // Act
+            string result = renderer.Render(new LogEventInfo());
+
+            // Assert
+            Assert.Equal(Convert.ToString(expectedValue, CultureInfo.CurrentUICulture), result);
+        }

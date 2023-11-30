@@ -1,0 +1,82 @@
+  @Override
+  public Integer call() throws Exception {
+    int count = 0;
+
+    for (Map.Entry<ContextResource, Set<String>> entry : resourceLabels.entrySet()) {
+
+      final Node node = nodeCache
+          .get(entry.getKey(), loadOrCreateNode(loadNode(entry.getKey(), graphdb), entry.getKey()));
+
+      entry.getValue().forEach(l -> node.addLabel(Label.label(l)));
+      resourceProps.get(entry.getKey()).forEach((k, v) -> {
+        if (v instanceof List) {
+          Object currentValue = node.getProperty(k, null);
+          if (currentValue == null) {
+            node.setProperty(k, toPropertyValue(v));
+          } else {
+            if (currentValue.getClass().isArray()) {
+              Object[] properties = (Object[]) currentValue;
+              for (int i = 0; i < properties.length; i++) {
+                ((List) v).add(properties[i]);
+                //here an exception can be raised if types are conflicting
+              }
+            } else {
+              ((List) v).add(node.getProperty(k));
+            }
+            //we make it a set to remove duplicates. Semantics of multivalued props in RDF.
+            node.setProperty(k, toPropertyValue(((List) v).stream().collect(Collectors.toSet())));
+          }
+        } else {
+          node.setProperty(k, v);
+        }
+      });
+    }
+
+    for (Statement st : statements) {
+      ContextResource from = new ContextResource(st.getSubject().stringValue(),
+          st.getContext() != null ? st.getContext().stringValue() : null);
+      final Node fromNode = nodeCache.get(from, loadNode(from, graphdb));
+      ContextResource to = new ContextResource(st.getObject().stringValue(),
+          st.getContext() != null ? st.getContext().stringValue() : null);
+      final Node toNode = nodeCache.get(to, loadNode(from, graphdb));
+
+      // check if the rel is already present. If so, don't recreate.
+      // explore the node with the lowest degree
+      boolean found = false;
+      if (fromNode.getDegree(RelationshipType.withName(handleIRI(st.getPredicate(), RELATIONSHIP)),
+          Direction.OUTGOING) <
+          toNode.getDegree(RelationshipType.withName(handleIRI(st.getPredicate(), RELATIONSHIP)),
+              Direction.INCOMING)) {
+        for (Relationship rel : fromNode
+            .getRelationships(RelationshipType.withName(handleIRI(st.getPredicate(), RELATIONSHIP)),
+                Direction.OUTGOING)) {
+          if (rel.getEndNode().equals(toNode)) {
+            found = true;
+            break;
+          }
+        }
+      } else {
+        for (Relationship rel : toNode
+            .getRelationships(RelationshipType.withName(handleIRI(st.getPredicate(), RELATIONSHIP)),
+                Direction.INCOMING)) {
+          if (rel.getStartNode().equals(fromNode)) {
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (!found) {
+        fromNode.createRelationshipTo(
+            toNode,
+            RelationshipType.withName(handleIRI(st.getPredicate(), RELATIONSHIP)));
+      }
+    }
+
+    statements.clear();
+    resourceLabels.clear();
+    resourceProps.clear();
+
+    //TODO what to return here? number of nodes and rels?
+    return 0;
+  }

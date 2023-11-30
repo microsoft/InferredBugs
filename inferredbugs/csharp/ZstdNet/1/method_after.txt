@@ -1,0 +1,15 @@
+  [Test]
+		public void RoundTrip_StreamingToBatch()
+		{
+			var dataStream = DataGenerator.GetLargeStream(DataFill.Sequential);
+
+			var tempStream = new MemoryStream();
+			using(var compressionStream = new CompressionStream(tempStream))
+				dataStream.CopyTo(compressionStream);
+
+			var resultBuffer = new byte[dataStream.Length];
+			using(var decompressor = new Decompressor())
+				Assert.AreEqual(dataStream.Length, decompressor.Unwrap(tempStream.ToArray(), resultBuffer, 0));
+
+			Assert.AreEqual(dataStream.ToArray(), resultBuffer);
+		}

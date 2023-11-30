@@ -1,0 +1,29 @@
+    public void advanceCommitIndex() {
+        // 获取quorum matchIndex
+        int peerNum = peers.size();
+        long[] matchIndexes = new long[peerNum + 1];
+        for (int i = 0; i < peerNum - 1; i++) {
+            matchIndexes[i] = peers.get(i).getMatchIndex();
+        }
+        matchIndexes[peerNum] = lastSyncedIndex;
+        Arrays.sort(matchIndexes);
+        long newCommitIndex = matchIndexes[(peerNum + 1 + 1) / 2];
+        if (raftLog.getEntry(newCommitIndex).getTerm() != currentTerm) {
+            return;
+        }
+
+        lock.lock();
+        if (commitIndex >= newCommitIndex) {
+            return;
+        }
+        long oldCommitIndex = commitIndex;
+        commitIndex = newCommitIndex;
+        // 同步到状态机
+        for (long index = oldCommitIndex + 1; index <= newCommitIndex; index++) {
+            Raft.LogEntry entry = raftLog.getEntry(index);
+            stateMachine.apply(entry.getData().toByteArray());
+        }
+        lastAppliedIndex = commitIndex;
+        commitIndexCondition.signalAll();
+        lock.unlock();
+    }

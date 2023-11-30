@@ -1,0 +1,40 @@
+ protected void populateJMeterDirectoryTree() throws MojoExecutionException {
+		for (Artifact artifact : pluginArtifacts) {
+			try {
+				if (artifact.getArtifactId().startsWith("ApacheJMeter_")) {
+					if (artifact.getArtifactId().startsWith("ApacheJMeter_config")) {
+						JarFile configSettings = new JarFile(artifact.getFile());
+						Enumeration<JarEntry> entries = configSettings.entries();
+						while (entries.hasMoreElements()) {
+							JarEntry jarFileEntry = entries.nextElement();
+							// Only interested in files in the /bin directory that are not properties files
+							if (jarFileEntry.getName().startsWith("bin") && !jarFileEntry.getName().endsWith(".properties")) {
+								if (!jarFileEntry.isDirectory()) {
+									copyInputStreamToFile(configSettings.getInputStream(jarFileEntry), new File(workDir.getCanonicalPath() + File.separator + jarFileEntry.getName()));
+								}
+							}
+						}
+						configSettings.close();
+					} else {
+						copyFile(artifact.getFile(), new File(libExtDir + File.separator + artifact.getFile().getName()));
+					}
+				} else {
+					/**
+					 * TODO: exclude jars that maven put in #pluginArtifacts for maven run? (e.g. plexus jars, the plugin artifact itself)
+					 * Need more info on above, how do we know which ones to exclude??
+					 * Most of the files pulled down by maven are required in /lib to match standard JMeter install
+					 */
+					if (Artifact.SCOPE_RUNTIME.equals(artifact.getScope())) {
+						copyFile(artifact.getFile(), new File(libExtDir + File.separator + artifact.getFile().getName()));
+					} else {
+						copyFile(artifact.getFile(), new File(libDir + File.separator + artifact.getFile().getName()));
+					}
+				}
+			} catch (IOException e) {
+				throw new MojoExecutionException("Unable to populate the JMeter directory tree: " + e);
+			}
+		}
+		//TODO Check if we really need to do this
+		//empty classpath, JMeter will automatically assemble and add all JARs in #libDir and #libExtDir and add them to the classpath. Otherwise all jars will be in the classpath twice.
+		System.setProperty("java.class.path", "");
+	}

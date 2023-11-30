@@ -1,0 +1,45 @@
+  private Pair<Symbol.ClassSymbol, JCTree.JCCompilationUnit> getClassSymbolForProducedClass( String fqn, BasicJavacTask[] task )
+  {
+    init();
+
+    Pair<JavaFileObject, String> fileObj = JavaParser.instance().findJavaSource( fqn, null );
+    if( fileObj == null )
+    {
+      return null;
+    }
+
+    StringWriter errors = new StringWriter();
+    if( _wfm == null )
+    {
+      _wfm = new ManifoldJavaFileManager( _fm, null, false );
+    }
+    task[0] = (BasicJavacTask)_javacTool.getTask( errors, _wfm, null, Arrays.asList( "-proc:none", "-source", "1.8", "-Xprefer:source" ), null, Collections.singleton( fileObj.getFirst() ) );
+
+    // note, ok to call getTypeElement() directly here and not via IDynamicJdk because always in context of 1.8 (no module)
+    JavacElements elementUtils = JavacElements.instance( task[0].getContext() );
+    Symbol.ClassSymbol e = elementUtils.getTypeElement( fqn );
+
+    if( e != null && e.getSimpleName().contentEquals( ManClassUtil.getShortClassName( fqn ) ) )
+    {
+      JavacTrees trees = JavacTrees.instance( task[0].getContext() );
+      TreePath path = trees.getPath( e );
+      if( path != null )
+      {
+        return new Pair<>( e, (JCTree.JCCompilationUnit)path.getCompilationUnit() );
+      }
+      else
+      {
+        // TreePath is only applicable to a source file;
+        // if fqn is not a source file, there is no compilation unit available
+        return new Pair<>( e, null );
+      }
+    }
+
+    StringBuffer errorText = errors.getBuffer();
+    if( errorText.length() > 0 )
+    {
+      throw new RuntimeException( "Compile errors:\n" + errorText );
+    }
+
+    return null;
+  }

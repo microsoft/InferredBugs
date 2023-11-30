@@ -1,0 +1,15 @@
+    @Override
+    public DLegerEntry get(Long index) {
+        PreConditions.check(index <= legerEndIndex && index >= legerBeginIndex, DLegerException.Code.INDEX_OUT_OF_RANGE, String.format("%d should between %d-%d", index, legerBeginIndex, legerEndIndex), memberState.getLeaderId());
+        SelectMmapBufferResult indexSbr = indexFileQueue.getData(index * INDEX_NUIT_SIZE, INDEX_NUIT_SIZE);
+        PreConditions.check(indexSbr.getByteBuffer() != null, DLegerException.Code.DISK_ERROR, null);
+        indexSbr.getByteBuffer().getInt(); //magic
+        long pos = indexSbr.getByteBuffer().getLong();
+        int size = indexSbr.getByteBuffer().getInt();
+        indexSbr.release();
+        SelectMmapBufferResult dataSbr = dataFileQueue.getData(pos, size);
+        PreConditions.check(dataSbr.getByteBuffer() != null, DLegerException.Code.DISK_ERROR, null);
+        DLegerEntry dLegerEntry = DLegerEntryCoder.decode(dataSbr.getByteBuffer());
+        dataSbr.release();
+        return dLegerEntry;
+    }

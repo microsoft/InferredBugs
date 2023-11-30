@@ -1,0 +1,49 @@
+    @SuppressWarnings("unused")
+    static void onTimeoutNowReturned(final ThreadId id, final Status status, final TimeoutNowRequest request,
+                                     final TimeoutNowResponse response, final boolean stopAfterFinish) {
+        final Replicator r = (Replicator) id.lock();
+        if (r == null) {
+            return;
+        }
+
+        final boolean isLogDebugEnabled = LOG.isDebugEnabled();
+        StringBuilder sb = null;
+        if (isLogDebugEnabled) {
+            sb = new StringBuilder("Node "). //
+                append(r.options.getGroupId()).append(":").append(r.options.getServerId()). //
+                append(" received TimeoutNowResponse from "). //
+                append(r.options.getPeerId());
+        }
+        if (!status.isOk()) {
+            if (isLogDebugEnabled) {
+                sb.append(" fail:").append(status);
+                LOG.debug(sb.toString());
+            }
+            if (stopAfterFinish) {
+                r.notifyOnCaughtUp(RaftError.ESTOP.getNumber(), true);
+                r.destroy();
+            } else {
+                id.unlock();
+            }
+            return;
+        }
+        if (isLogDebugEnabled) {
+            sb.append(response.getSuccess() ? " success" : " fail");
+            LOG.debug(sb.toString());
+        }
+        if (response.getTerm() > r.options.getTerm()) {
+            final NodeImpl node = r.options.getNode();
+            r.notifyOnCaughtUp(RaftError.EPERM.getNumber(), true);
+            r.destroy();
+            node.increaseTermTo(response.getTerm(), new Status(RaftError.EHIGHERTERMRESPONSE,
+                "Leader receives higher term timeout_now_response from peer:%s", r.options.getPeerId()));
+            return;
+        }
+        if (stopAfterFinish) {
+            r.notifyOnCaughtUp(RaftError.ESTOP.getNumber(), true);
+            r.destroy();
+        } else {
+            id.unlock();
+        }
+
+    }

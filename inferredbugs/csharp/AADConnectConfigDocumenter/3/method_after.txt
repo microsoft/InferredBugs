@@ -1,0 +1,88 @@
+        [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope", Justification = "Reviewed. XhtmlTextWriter takes care of disposting StreamWriter.")]
+        protected void WriteReport(string reportHeader, string reportHtml, string tocHtml, string pilotConfigPath, string productionConfigPath, string configReportFilePath)
+        {
+            Logger.Instance.WriteMethodEntry();
+
+            try
+            {
+                this.ReportWriter = new XhtmlTextWriter(new StreamWriter(configReportFilePath));
+
+                this.ReportWriter.WriteFullBeginTag("html");
+
+                this.WriteReportHeader();
+
+                this.ReportWriter.WriteFullBeginTag("body");
+
+                this.ReportWriter.WriteFullBeginTag("h1");
+                this.ReportWriter.Write(reportHeader);
+                this.ReportWriter.WriteEndTag("h1");
+                this.ReportWriter.WriteLine();
+
+                this.WriteDocumenterInfo();
+
+                var syncVersionXPath = "//mv-data//parameter-values/parameter[@name = 'Microsoft.Synchronize.ServerConfigurationVersion']";
+                var syncVersionPilot = (string)this.PilotXml.XPathSelectElement(syncVersionXPath);
+                var syncVersionProduction = (string)this.ProductionXml.XPathSelectElement(syncVersionXPath);
+                var cellClass = (syncVersionPilot == syncVersionProduction ? DataRowState.Unchanged : DataRowState.Modified).ToString();
+
+                this.ReportWriter.WriteFullBeginTag("strong");
+                this.ReportWriter.Write("Target / Pilot Config ");
+                {
+                    this.ReportWriter.WriteBeginTag("span");
+                    this.ReportWriter.WriteAttribute("class", cellClass);
+                    this.ReportWriter.WriteLine(HtmlTextWriter.TagRightChar);
+                    this.ReportWriter.Write("(" + syncVersionPilot + ")");
+                    this.ReportWriter.WriteEndTag("span");
+                }
+
+                this.ReportWriter.WriteEndTag("strong");
+                {
+                    this.ReportWriter.WriteBeginTag("span");
+                    this.ReportWriter.WriteAttribute("class", DataRowState.Unchanged.ToString());
+                    this.ReportWriter.WriteLine(HtmlTextWriter.TagRightChar);
+                    this.ReportWriter.Write(pilotConfigPath);
+                    this.ReportWriter.WriteEndTag("span");
+
+                    this.WriteBreakTag();
+                }
+
+                this.ReportWriter.WriteFullBeginTag("strong");
+                this.ReportWriter.Write("Reference / Production Config ");
+                {
+                    this.ReportWriter.WriteBeginTag("span");
+                    this.ReportWriter.WriteAttribute("class", cellClass);
+                    this.ReportWriter.WriteLine(HtmlTextWriter.TagRightChar);
+                    this.ReportWriter.Write("(" + syncVersionProduction + ")");
+                    this.ReportWriter.WriteEndTag("span");
+                }
+
+                this.ReportWriter.WriteEndTag("strong");
+                {
+                    this.ReportWriter.WriteBeginTag("span");
+                    this.ReportWriter.WriteAttribute("class", DataRowState.Unchanged.ToString());
+                    this.ReportWriter.WriteLine(HtmlTextWriter.TagRightChar);
+                    this.ReportWriter.Write(productionConfigPath);
+                    this.ReportWriter.WriteEndTag("span");
+
+                    this.WriteBreakTag();
+                }
+
+                this.ReportWriter.WriteLine();
+
+                this.ReportWriter.WriteFullBeginTag("h1");
+                this.ReportWriter.Write("Table of Contents");
+                this.ReportWriter.WriteEndTag("h1");
+                this.ReportWriter.WriteLine();
+
+                this.ReportWriter.WriteLine(tocHtml);
+                this.ReportWriter.WriteLine(reportHtml);
+
+                this.ReportWriter.WriteEndTag("body");
+                this.ReportWriter.WriteEndTag("html");
+            }
+            finally
+            {
+                this.ReportWriter.Close();
+                Logger.Instance.WriteMethodExit();
+            }
+        }

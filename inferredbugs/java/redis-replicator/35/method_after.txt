@@ -1,0 +1,45 @@
+    @Override
+    public Event applySetIntSet(RedisInputStream in, DB db, int version) throws IOException {
+        /*
+         * |<encoding>| <length-of-contents>|              <contents>                           |
+         * | 4 bytes  |            4 bytes  | 2 bytes lement| 4 bytes element | 8 bytes element |
+         */
+        BaseRdbParser parser = new BaseRdbParser(in);
+        KeyStringValueSet o11 = new KeyStringValueSet();
+        byte[] key = parser.rdbLoadEncodedStringObject().first();
+        ByteArray aux = parser.rdbLoadPlainStringObject();
+        RedisInputStream stream = new RedisInputStream(new ByteArrayInputStream(aux));
+
+        Set<String> set = new LinkedHashSet<>();
+        Set<byte[]> rawSet = new LinkedHashSet<>();
+        int encoding = BaseRdbParser.LenHelper.encoding(stream);
+        long lenOfContent = BaseRdbParser.LenHelper.lenOfContent(stream);
+        for (long i = 0; i < lenOfContent; i++) {
+            switch (encoding) {
+                case 2:
+                    String element = String.valueOf(stream.readInt(2));
+                    set.add(element);
+                    rawSet.add(element.getBytes());
+                    break;
+                case 4:
+                    element = String.valueOf(stream.readInt(4));
+                    set.add(element);
+                    rawSet.add(element.getBytes());
+                    break;
+                case 8:
+                    element = String.valueOf(stream.readLong(8));
+                    set.add(element);
+                    rawSet.add(element.getBytes());
+                    break;
+                default:
+                    throw new AssertionError("expect encoding [2,4,8] but:" + encoding);
+            }
+        }
+        o11.setValueRdbType(RDB_TYPE_SET_INTSET);
+        o11.setValue(set);
+        o11.setRawValue(rawSet);
+        o11.setDb(db);
+        o11.setKey(new String(key, CHARSET));
+        o11.setRawKey(key);
+        return o11;
+    }

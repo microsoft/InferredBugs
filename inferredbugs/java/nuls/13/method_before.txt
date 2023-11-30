@@ -1,0 +1,18 @@
+    public BlockInfo request(long start, long end, long split) {
+        lock.lock();
+        this.startTime = TimeService.currentTimeMillis();
+        requesting = true;
+        hashesMap.clear();
+        calcMap.clear();
+        this.start = start;
+        this.end = end;
+        this.split = split;
+        GetBlocksHashRequest event = new GetBlocksHashRequest(start, end, split);
+        nodeIdList = this.eventBroadcaster.broadcastAndCache(event, false);
+        if (nodeIdList.isEmpty()) {
+            Log.error("get best height from net faild!");
+            lock.unlock();
+            throw new NulsRuntimeException(ErrorCode.NET_MESSAGE_ERROR, "broadcast faild!");
+        }
+        return this.getBlockInfo();
+    }

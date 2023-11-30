@@ -1,0 +1,22 @@
+ public static UriComponentsBuilder getBuilder() {
+
+		if (RequestContextHolder.getRequestAttributes() == null) {
+			return UriComponentsBuilder.fromPath("/");
+		}
+
+		HttpServletRequest request = getCurrentRequest();
+		UriComponentsBuilder builder = ServletUriComponentsBuilder.fromServletMapping(request);
+
+		// special case handling for X-Forwarded-Ssl:
+		// apply it, but only if X-Forwarded-Proto is unset.
+
+		String forwardedSsl = request.getHeader("X-Forwarded-Ssl");
+		ForwardedHeader forwarded = ForwardedHeader.of(request.getHeader(ForwardedHeader.NAME));
+		String proto = hasText(forwarded.getProto()) ? forwarded.getProto() : request.getHeader("X-Forwarded-Proto");
+
+		if (!hasText(proto) && hasText(forwardedSsl) && forwardedSsl.equalsIgnoreCase("on")) {
+			builder.scheme("https");
+		}
+
+		return builder;
+	}

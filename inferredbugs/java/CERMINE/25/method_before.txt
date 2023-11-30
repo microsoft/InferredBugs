@@ -1,0 +1,37 @@
+    @Test
+    public void testSegmentPages() throws TransformationException, AnalysisException {
+        Reader reader = new InputStreamReader(getResource("DocstrumPageSegmenter01.xml"));
+        BxDocument inDoc = new BxDocument().setPages(new TrueVizToBxDocumentReader().read(reader));
+        new UnsegmentedPagesFlattener().process(inDoc);
+        
+        DocstrumSegmenter pageSegmenter = new ParallelDocstrumSegmenter();
+        
+        BxDocument outDoc = pageSegmenter.segmentDocument(inDoc);
+
+        // Check whether zones are correctly detected
+        assertEquals(1, outDoc.childrenCount());
+
+        // Check whether lines are correctly detected
+        List<BxZone> outZones = Lists.newArrayList(outDoc.getFirstChild());
+        assertEquals(3, outZones.size());
+        assertEquals(3, outZones.get(0).childrenCount());
+        assertEquals(16, outZones.get(1).childrenCount());
+        assertEquals(16, outZones.get(2).childrenCount());
+
+        assertEquals(24, outZones.get(1).getFirstChild().childrenCount());
+        assertEquals("A", outZones.get(1).getFirstChild().getFirstChild().toText());
+
+        for (BxZone zone : outZones) {
+            for (BxLine line : zone) {
+                for (BxWord word : line) {
+                    for (BxChunk chunk : word) {
+                        assertContains(zone.getBounds(), chunk.getBounds());
+                    }
+                    assertContains(zone.getBounds(), word.getBounds());
+                }
+                assertContains(zone.getBounds(), line.getBounds());
+            }
+        }
+
+        assertNotNull(outDoc.getFirstChild().getBounds());
+    }

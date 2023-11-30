@@ -1,0 +1,28 @@
+    @Test
+    public void shouldHandleErrorResponse() throws Exception {
+        //given
+        final HttpResponse errorResponse = new HttpResponse(401, "{\n" +
+                "  \"error\": {\n" +
+                "    \"message\": \"Invalid OAuth access token.\",\n" +
+                "    \"type\": \"OAuthException\",\n" +
+                "    \"code\": 190,\n" +
+                "    \"fbtrace_id\": \"BLBz/WZt8dN\"\n" +
+                "  }\n" +
+                "}");
+        when(mockHttpClient.execute(eq(GET), anyString(), isNull())).thenReturn(errorResponse);
+
+        //when
+        MessengerApiException messengerApiException = null;
+        try {
+            messenger.queryUserProfileById("USER_ID");
+        } catch (MessengerApiException e) {
+            messengerApiException = e;
+        }
+
+        //then
+        assertThat(messengerApiException, is(notNullValue()));
+        assertThat(messengerApiException.getMessage(), is(equalTo("Invalid OAuth access token.")));
+        assertThat(messengerApiException.getType(), is(equalTo("OAuthException")));
+        assertThat(messengerApiException.getCode(), is(equalTo(190)));
+        assertThat(messengerApiException.getFbTraceId(), is(equalTo("BLBz/WZt8dN")));
+    }

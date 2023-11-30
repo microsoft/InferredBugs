@@ -1,0 +1,17 @@
+    @Override
+    public void onEvent(BlockHeaderEvent event, String fromId) {
+        if (DistributedBlockInfoRequestUtils.getInstance().addBlockHeader(fromId, event.getEventBody())) {
+            return;
+        }
+        BlockHeader header = event.getEventBody();
+        ValidateResult result = header.verify();
+        if (result.isFailed()) {
+            networkService.removeNode(fromId);
+            return;
+        }
+        blockCacheManager.cacheBlockHeader(header);
+        GetSmallBlockEvent getSmallBlockEvent = new GetSmallBlockEvent();
+        BasicTypeData<Long> data = new BasicTypeData<>(header.getHeight());
+        getSmallBlockEvent.setEventBody(data);
+        eventBroadcaster.sendToNode(getSmallBlockEvent, fromId);
+    }

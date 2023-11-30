@@ -1,0 +1,126 @@
+    @Override
+    public void onGridNote (final int note, final int velocity)
+    {
+        if (velocity == 0)
+            return;
+
+        final ICursorDevice cursorDevice = this.model.getCursorDevice ();
+        switch (this.surface.getPadGrid ().translateToController (note))
+        {
+            // Flip views
+            case 56:
+                this.switchToView (Views.VIEW_SESSION);
+                break;
+            case 57:
+                this.switchToView (Views.VIEW_PLAY);
+                break;
+            case 58:
+                this.switchToView (Views.VIEW_DRUM);
+                break;
+            case 59:
+                this.switchToView (Views.VIEW_SEQUENCER);
+                break;
+            case 60:
+                this.switchToView (Views.VIEW_RAINDROPS);
+                break;
+
+            // Last row transport
+            case 63:
+                this.playCommand.executeNormal (ButtonEvent.DOWN);
+                this.surface.getDisplay ().notify ("Start/Stop");
+                break;
+            case 55:
+                this.model.getTransport ().record ();
+                this.surface.getDisplay ().notify ("Record");
+                break;
+            case 47:
+                this.model.getTransport ().toggleLoop ();
+                this.surface.getDisplay ().notify ("Toggle Loop");
+                break;
+            case 39:
+                this.model.getTransport ().toggleMetronome ();
+                this.surface.getDisplay ().notify ("Toggle Click");
+                break;
+
+            // Navigation
+            case 62:
+                this.onNew ();
+                this.surface.getDisplay ().notify ("New clip");
+                break;
+            case 54:
+                this.model.getTransport ().toggleLauncherOverdub ();
+                this.surface.getDisplay ().notify ("Toggle Launcher Overdub");
+                break;
+            case 46:
+                this.model.getCursorClip ().quantize (this.surface.getConfiguration ().getQuantizeAmount () / 100.0);
+                this.surface.getDisplay ().notify ("Quantize");
+                break;
+            case 38:
+                this.model.getApplication ().undo ();
+                this.surface.getDisplay ().notify ("Undo");
+                break;
+
+            // Device Parameters up/down
+            case 24:
+                if (cursorDevice.hasPreviousParameterPage ())
+                {
+                    cursorDevice.previousParameterPage ();
+                    this.surface.getDisplay ().notify ("Bank: " + cursorDevice.getSelectedParameterPageName ());
+                }
+                break;
+            case 25:
+                if (cursorDevice.hasNextParameterPage ())
+                {
+                    cursorDevice.nextParameterPage ();
+                    this.surface.getDisplay ().notify ("Bank: " + cursorDevice.getSelectedParameterPageName ());
+                }
+                break;
+
+            // Device up/down
+            case 32:
+                if (cursorDevice.canSelectPreviousFX ())
+                {
+                    cursorDevice.selectPrevious ();
+                    this.surface.getDisplay ().notify ("Device: " + cursorDevice.getName ());
+                }
+                break;
+            case 33:
+                if (cursorDevice.canSelectNextFX ())
+                {
+                    cursorDevice.selectNext ();
+                    this.surface.getDisplay ().notify ("Device: " + cursorDevice.getName ());
+                }
+                break;
+
+            // Change the scale
+            case 35:
+                this.scales.prevScale ();
+                final String name = this.scales.getScale ().getName ();
+                this.surface.getConfiguration ().setScale (name);
+                this.surface.getDisplay ().notify (name);
+                break;
+            case 36:
+                this.scales.nextScale ();
+                final String name2 = this.scales.getScale ().getName ();
+                this.surface.getConfiguration ().setScale (name2);
+                this.surface.getDisplay ().notify (name2);
+                break;
+            case 27:
+                this.scales.toggleChromatic ();
+                this.surface.getDisplay ().notify (this.scales.isChromatic () ? "Chromatc" : "In Key");
+                break;
+
+            // Scale Base note selection
+            default:
+                if (note > 15)
+                    return;
+                final int pos = TRANSLATE[note];
+                if (pos == -1)
+                    return;
+                this.scales.setScaleOffset (pos);
+                this.surface.getConfiguration ().setScaleBase (Scales.BASES[pos]);
+                this.surface.getDisplay ().notify (Scales.BASES[pos]);
+                this.surface.getViewManager ().getActiveView ().updateNoteMapping ();
+                break;
+        }
+    }

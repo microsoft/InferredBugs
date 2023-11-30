@@ -1,0 +1,69 @@
+    private void populateMarkovMatrix(String markovMatrixStorageLocation) {
+
+        File file = new File(markovMatrixStorageLocation);
+        FileInputStream fileInputStream = null;
+        BufferedInputStream bufferedInputStream = null;
+        BufferedReader bufferedReader = null;
+        String[] statesNames = null;
+        String key;
+        String startState;
+        String endState;
+
+        Map<String, Double> transitionCount = new HashMap<String, Double>();
+        Map<String, Double> startStateCount = new HashMap<String, Double>();
+
+        try {
+
+            fileInputStream = new FileInputStream(file);
+            bufferedInputStream = new BufferedInputStream(fileInputStream);
+            bufferedReader = new BufferedReader(new InputStreamReader(bufferedInputStream));
+            int rowNumber = 0;
+            String row = bufferedReader.readLine();
+            if (row != null) {
+                statesNames = row.split(",");
+            }
+
+            while ((row = bufferedReader.readLine()) != null) {
+
+                if (rowNumber >= statesNames.length) {
+                    throw new OperationNotSupportedException(
+                            "Number of rows in the matrix should be equal to number of states. please provide a "
+                                    + statesNames.length + " x " + statesNames.length + " matrix");
+                }
+
+                startState = statesNames[rowNumber];
+                String[] values = row.split(",");
+                double totalCount = 0.0;
+
+                if (values.length != statesNames.length) {
+                    throw new OperationNotSupportedException(
+                            "Number of columns in the matrix should be equal to number of states. please provide a "
+                                    + statesNames.length + " x " + statesNames.length + " matrix");
+                }
+
+                for (String value : values) {
+                    try {
+                        totalCount = totalCount + Double.parseDouble(value);
+                    } catch (NumberFormatException e) {
+                        log.error("Exception occurred while reading the data file " + markovMatrixStorageLocation
+                                + ". All values in the matrix should be in double", e);
+                    }
+                }
+                startStateCount.put(startState, totalCount);
+
+                for (int j = 0; j < statesNames.length; j++) {
+                    endState = statesNames[j];
+                    key = markovMatrix.getKey(startState, endState);
+                    transitionCount.put(key, Double.parseDouble(values[j]));
+                }
+                rowNumber++;
+            }
+
+        } catch (IOException e) {
+            log.error("Exception occurred while reading the data file " + markovMatrixStorageLocation, e);
+        } finally {
+            closeQuietly(bufferedReader, bufferedInputStream, fileInputStream);
+        }
+        markovMatrix.setStartStateCount(startStateCount);
+        markovMatrix.setTransitionCount(transitionCount);
+    }

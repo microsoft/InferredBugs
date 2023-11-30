@@ -1,0 +1,46 @@
+    @Test
+    public void serializeToJsonIteratorWithEmbeddedMap() throws Exception {
+        Graph g = TinkerGraph.open(null);
+        final Vertex v = g.addVertex();
+        final Map<String, Object> map = new HashMap<>();
+        map.put("x", 500);
+        map.put("y", "some");
+
+        final ArrayList friends = new ArrayList();
+        friends.add("x");
+        friends.add(5);
+        friends.add(map);
+
+        v.setProperty("friends", friends);
+
+        final Iterator iterable = g.query().vertices().iterator();
+        final String results = ResultSerializer.JSON_RESULT_SERIALIZER.serialize(iterable, new Context(msg, null, null, null));
+        final JSONObject json = new JSONObject(results);
+
+        assertNotNull(json);
+        assertEquals(msg.requestId.toString(), json.getString(ResultSerializer.JsonResultSerializer.TOKEN_REQUEST));
+        final JSONArray converted = json.getJSONArray(ResultSerializer.JsonResultSerializer.TOKEN_RESULT);
+
+        assertNotNull(converted);
+        assertEquals(1, converted.length());
+
+        final JSONObject vertexAsJson = converted.optJSONObject(0);
+        assertNotNull(vertexAsJson);
+
+        final JSONObject properties = vertexAsJson.optJSONObject(ResultSerializer.JsonResultSerializer.TOKEN_PROPERTIES);
+        assertNotNull(properties);
+
+        final JSONArray friendsProperty = properties.optJSONArray("friends");
+        assertNotNull(friendsProperty);
+        assertEquals(3, friends.size());
+
+        final String object1 = friendsProperty.getString(0);
+        assertEquals("x", object1);
+
+        final int object2 = friendsProperty.getInt(1);
+        assertEquals(5, object2);
+
+        final JSONObject object3 = friendsProperty.getJSONObject(2);
+        assertEquals(500, object3.getInt("x"));
+        assertEquals("some", object3.getString("y"));
+    }

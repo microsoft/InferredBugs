@@ -1,0 +1,26 @@
+    @Test
+    void testKeyCount() {
+        ResourceBundle defaultBundle = Utils.getResourceBundle(null);
+        HashMap<String, ArrayList<String>> dictionary = new HashMap<>();
+        for (String lang : Utils.getSupportedLanguages()) {
+            ResourceBundle.clearCache();
+            if (lang.equals(DEFAULT_LANG))
+                continue;
+            ResourceBundle selectedLang = Utils.getResourceBundle(lang);
+            for (final Enumeration<String> keys = defaultBundle.getKeys(); keys.hasMoreElements();) {
+                String element = keys.nextElement();
+                if (selectedLang.containsKey(element)
+                        && !selectedLang.getString(element).equals(defaultBundle.getString(element))) {
+                    if (dictionary.get(lang) == null)
+                        dictionary.put(lang, new ArrayList<>());
+                    dictionary.get(lang).add(element);
+                }
+            }
+        }
+
+        dictionary.keySet().forEach(d -> {
+            logger.warn(String.format("Keys missing in %s", d));
+            dictionary.get(d).forEach(v -> logger.warn(v));
+            logger.warn("\n");
+        });
+    }

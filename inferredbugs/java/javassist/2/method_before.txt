@@ -1,0 +1,66 @@
+    protected CtField fieldAccess(ASTree expr) throws CompileError {
+        CtField f = null;
+        boolean is_static = false;
+        if (expr instanceof Member) {
+            String name = ((Member)expr).get();
+            try {
+                f = thisClass.getField(name);
+            }
+            catch (NotFoundException e) {
+                // EXPR might be part of a static member access?
+                throw new NoFieldException(name, expr);
+            }
+
+            is_static = Modifier.isStatic(f.getModifiers());
+            if (!is_static)
+                if (inStaticMethod)
+                    throw new CompileError(
+                                "not available in a static method: " + name);
+                else
+                    bytecode.addAload(0);       // this
+        }
+        else if (expr instanceof Expr) {
+            Expr e = (Expr)expr;
+            int op = e.getOperator();
+            if (op == MEMBER) {
+                f = lookupField((ASTList)e.oprand1(), (Symbol)e.oprand2());
+                is_static = true;
+            }
+            else if (op == '.') {
+                try {
+                    e.oprand1().accept(this);
+                    if (exprType == CLASS && arrayDim == 0)
+                        f = lookupField(className, (Symbol)e.oprand2());
+                    else
+                        badLvalue();
+
+                    is_static = Modifier.isStatic(f.getModifiers());
+                    if (is_static)
+                        bytecode.addOpcode(POP);
+                }
+                catch (NoFieldException nfe) {
+                    if (nfe.getExpr() != e.oprand1())
+                        throw nfe;
+
+                    Symbol fname = (Symbol)e.oprand2();
+                    // it should be a static field.
+                    try {
+                        f = lookupField(nfe.getField(), fname);
+                        is_static = true;
+                    }
+                    catch (CompileError ce) {
+                        // EXPR might be part of a qualified class name.
+                        throw new NoFieldException(nfe.getField() + "/"
+                                                   + fname.get(), expr);
+                    }
+                }
+            }
+            else
+                badLvalue();
+        }
+        else
+            badLvalue();
+
+        resultStatic = is_static;
+        return f;
+    }

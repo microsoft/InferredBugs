@@ -1,0 +1,35 @@
+        private static string GenerateField(FieldModel field)
+        {
+            var method = field.Args?.Count > 0;
+            var result = GenerateDocComments(field);
+            var reduced = TypeUtilities.ReduceType(field.Type);
+
+            if (TypeUtilities.IsCSharpPrimitive(reduced))
+            {
+                result += method ?
+                    GenerateScalarMethod(field, reduced) :
+                    GenerateScalarField(field, reduced);
+            }
+            else if (reduced.Kind == TypeKind.List)
+            {
+                result += method ?
+                    GenerateListMethod(field, reduced) :
+                    GenerateListField(field, reduced);
+            }
+            else if (reduced.Kind == TypeKind.Union)
+            {
+                // HACK: Returning IQueryable<object> for unions for now until we decide how to handle them.
+                reduced = TypeModel.List(reduced);
+                result += method ?
+                    GenerateListMethod(field, reduced) :
+                    GenerateListField(field, reduced);
+            }
+            else
+            {
+                result += method ?
+                    GenerateObjectMethod(field, reduced) :
+                    GenerateObjectField(field, reduced);
+            }
+
+            return result;
+        }

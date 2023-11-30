@@ -1,0 +1,26 @@
+    private void sendNotification(byte[] payload, Response firstCoapResponse, int contentFormat) {
+
+        // encode and send it
+        try (DatagramSocket clientSocket = new DatagramSocket()) {
+
+            // create observe response
+            Response response = new Response(org.eclipse.californium.core.coap.CoAP.ResponseCode.CONTENT);
+            response.setType(Type.NON);
+            response.setPayload(payload);
+            response.setMID(firstCoapResponse.getMID() + 1);
+            response.setToken(firstCoapResponse.getToken());
+            OptionSet options = new OptionSet().setContentFormat(contentFormat)
+                    .setObserve(firstCoapResponse.getOptions().getObserve() + 1);
+            response.setOptions(options);
+
+            // serialize response
+            UdpDataSerializer serializer = new UdpDataSerializer();
+            RawData data = serializer.serializeResponse(response);
+
+            // send it
+            clientSocket.send(new DatagramPacket(data.bytes, data.bytes.length,
+                    helper.server.getNonSecureAddress().getAddress(), helper.server.getNonSecureAddress().getPort()));
+        } catch (IOException e) {
+            throw new AssertionError("Error while timestamped notification", e);
+        }
+    }

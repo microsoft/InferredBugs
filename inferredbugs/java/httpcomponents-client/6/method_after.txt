@@ -1,0 +1,83 @@
+    private void doWriteTo(
+        final HttpMultipartMode mode, 
+        final OutputStream out, 
+        boolean writeContent) throws IOException {
+        
+        List<BodyPart> bodyParts = getBodyParts();
+        Charset charset = getCharset();
+
+        ByteArrayBuffer boundary = encode(charset, getBoundary());
+        
+        switch (mode) {
+        case STRICT:
+            String preamble = getPreamble();
+            if (preamble != null && preamble.length() != 0) {
+                ByteArrayBuffer b = encode(charset, preamble);
+                writeBytes(b, out);
+                writeBytes(CR_LF, out);
+            }
+
+            for (int i = 0; i < bodyParts.size(); i++) {
+                writeBytes(TWO_DASHES, out);
+                writeBytes(boundary, out);
+                writeBytes(CR_LF, out);
+
+                BodyPart part = bodyParts.get(i);
+                Header header = part.getHeader();
+                
+                List<Field> fields = header.getFields();
+                for (Field field: fields) {
+                    writeBytes(field.getRaw(), out);
+                    writeBytes(CR_LF, out);
+                }
+                writeBytes(CR_LF, out);
+                if (writeContent) {
+                    MessageWriter.DEFAULT.writeBody(part.getBody(), out);
+                }
+                writeBytes(CR_LF, out);
+            }
+            writeBytes(TWO_DASHES, out);
+            writeBytes(boundary, out);
+            writeBytes(TWO_DASHES, out);
+            writeBytes(CR_LF, out);
+            String epilogue = getEpilogue();
+            if (epilogue != null && epilogue.length() != 0) {
+                ByteArrayBuffer b = encode(charset, epilogue);
+                writeBytes(b, out);
+                writeBytes(CR_LF, out);
+            }
+            break;
+        case BROWSER_COMPATIBLE:
+
+            // (1) Do not write preamble and epilogue
+            // (2) Only write Content-Disposition 
+            // (3) Use content charset
+            
+            for (int i = 0; i < bodyParts.size(); i++) {
+                writeBytes(TWO_DASHES, out);
+                writeBytes(boundary, out);
+                writeBytes(CR_LF, out);
+                BodyPart part = (BodyPart) bodyParts.get(i);
+                
+                Field cd = part.getHeader().getField(MIME.CONTENT_DISPOSITION);
+                
+                StringBuilder s = new StringBuilder();
+                s.append(cd.getName());
+                s.append(": ");
+                s.append(cd.getBody());
+                writeBytes(encode(charset, s.toString()), out);
+                writeBytes(CR_LF, out);
+                writeBytes(CR_LF, out);
+                if (writeContent) {
+                    MessageWriter.DEFAULT.writeBody(part.getBody(), out);
+                }
+                writeBytes(CR_LF, out);
+            }
+
+            writeBytes(TWO_DASHES, out);
+            writeBytes(boundary, out);
+            writeBytes(TWO_DASHES, out);
+            writeBytes(CR_LF, out);
+            break;
+        }
+    }

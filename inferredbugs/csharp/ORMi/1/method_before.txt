@@ -1,0 +1,20 @@
+        public static dynamic ExecuteStaticMethod(dynamic parameters)
+        {
+            var mth = new StackTrace().GetFrame(1).GetMethod();
+            string methodName = mth.Name;
+
+            Type t = mth.ReflectedType;
+
+            ManagementClass cls = new ManagementClass(TypeHelper.GetNamespace(t), TypeHelper.GetClassName(t), null);
+
+            ManagementBaseObject inParams = cls.GetMethodParameters(methodName);
+
+            foreach (PropertyInfo p in parameters.GetType().GetProperties())
+            {
+                inParams[p.Name] = p.GetValue(parameters);
+            }
+
+            ManagementBaseObject result = cls.InvokeMethod(methodName, inParams, null);
+
+            return TypeHelper.LoadDynamicObject(result);
+        }

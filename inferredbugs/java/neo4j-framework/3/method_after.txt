@@ -1,0 +1,35 @@
+    @Test
+    public void moduleThrowingInitExceptionShouldBeMarkedForReinitializationOnlyTheFirstTime() throws InterruptedException {
+        final TxDrivenModule mockModule = createMockModule();
+        when(mockModule.getConfiguration()).thenReturn(NullTxDrivenModuleConfiguration.getInstance());
+        doThrow(new NeedsInitializationException()).when(mockModule).beforeCommit(any(ImprovedTransactionData.class));
+
+        GraphAwareRuntime runtime = GraphAwareRuntimeFactory.createRuntime(database);
+        runtime.registerModule(mockModule);
+
+        runtime.start();
+
+        try (Transaction tx = database.beginTx()) {
+            database.createNode();
+            tx.success();
+        }
+
+        long firstFailureTimestamp;
+        try (Transaction tx = database.beginTx()) {
+            firstFailureTimestamp = repository.getModuleMetadata(mockModule).timestamp();
+        }
+
+        Thread.sleep(1);
+
+        try (Transaction tx = database.beginTx()) {
+            database.createNode();
+            tx.success();
+        }
+
+        long secondFailureTimestamp;
+        try (Transaction tx = database.beginTx()) {
+            secondFailureTimestamp = repository.getModuleMetadata(mockModule).timestamp();
+        }
+
+        assertEquals(firstFailureTimestamp, secondFailureTimestamp);
+    }

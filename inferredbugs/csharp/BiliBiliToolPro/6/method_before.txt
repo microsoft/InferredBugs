@@ -1,0 +1,23 @@
+        public void WatchVideo(string aid)
+        {
+            int playedTime = new Random().Next(1, 90);
+            String postBody = $"?aid={aid}&played_time={playedTime}";
+
+            var request = new HttpRequestMessage(HttpMethod.Post, ApiList.videoHeartbeat + postBody);
+            var client = _httpClientFactory.CreateClient("bilibili");
+            var response = client.SendAsync(request).Result;
+            var contentStr = response.Content.ReadAsStringAsync().Result;
+
+            var apiResponse = JsonSerializer.Deserialize<BiliApiResponse>(contentStr);
+
+            if (apiResponse.Code == 0)
+            {
+                _logger.LogInformation("av{aid}播放成功,已观看到第{playedTime}秒", aid, playedTime);
+                //desp.appendDesp("av" + aid + "播放成功,已观看到第" + playedTime + "秒");
+            }
+            else
+            {
+                _logger.LogDebug("av{aid}播放失败,原因：{msg}", aid, apiResponse.Message);
+                //desp.appendDesp("av" + aid + "播放成功,已观看到第" + playedTime + "秒");
+            }
+        }

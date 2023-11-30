@@ -1,0 +1,27 @@
+  @Test
+  public void testConfirmFlagEffects() {
+    new MockUp<sqlline.Commands>() {
+      @Mock
+      int getUserAnswer(String question, int... allowedAnswers) {
+        return 'n';
+      }
+    };
+
+    assertThat(sqlLine.getOpts().getConfirm(), is(false));
+    assertThat(sqlLine.getOpts().getConfirmPattern(),
+        is(BuiltInProperty.CONFIRM_PATTERN.defaultValue()));
+    String script = "CREATE TABLE dummy_test(pk int);\n"
+        + "INSERT INTO dummy_test(pk) VALUES(1);\n"
+        + "INSERT INTO dummy_test(pk) VALUES(2);\n"
+        + "INSERT INTO dummy_test(pk) VALUES(3);\n"
+        + "DELETE FROM dummy_test;\n"
+        + "DROP TABLE dummy_test;\n";
+    checkScriptFile(script, true,
+        equalTo(SqlLine.Status.OK),
+        containsString(" "));
+
+    script = "!set confirm true\n" + script;
+    checkScriptFile(script, true,
+        equalTo(SqlLine.Status.OTHER),
+        containsString(sqlLine.loc("abort-action")));
+  }

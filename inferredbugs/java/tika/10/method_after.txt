@@ -1,0 +1,61 @@
+    public void parse(
+            InputStream stream, ContentHandler handler, Metadata metadata)
+            throws IOException, SAXException, TikaException {
+        metadata.set(Metadata.CONTENT_TYPE, "text/plain");
+
+        // CharsetDetector expects a stream to support marks
+        if (!stream.markSupported()) {
+            stream = new BufferedInputStream(stream);
+        }
+
+        // Detect the content encoding (the stream is reset to the beginning)
+        // TODO: Better use of the possible encoding hint in input metadata
+        CharsetMatch match = new CharsetDetector().setText(stream).detect();
+        if (match != null) {
+            metadata.set(Metadata.CONTENT_ENCODING, match.getName());
+
+            // Is the encoding language-specific (KOI8-R, SJIS, etc.)?
+            String language = match.getLanguage();
+            if (language != null) {
+                metadata.set(Metadata.CONTENT_LANGUAGE, match.getLanguage());
+                metadata.set(Metadata.LANGUAGE, match.getLanguage());
+            }
+        }
+
+        String encoding = metadata.get(Metadata.CONTENT_ENCODING);
+        if (encoding == null) {
+            throw new TikaException(
+                    "Text encoding could not be detected and no encoding"
+                    + " hint is available in document metadata");
+        }
+
+        try {
+            Reader reader =
+                new BufferedReader(new InputStreamReader(stream, encoding));
+
+            // TIKA-240: Drop the BOM when extracting plain text
+            reader.mark(1);
+            int bom = reader.read();
+            if (bom != '\ufeff') { // zero-width no-break space
+                reader.reset();
+            }
+
+            XHTMLContentHandler xhtml =
+                new XHTMLContentHandler(handler, metadata);
+            xhtml.startDocument();
+
+            xhtml.startElement("p");
+            char[] buffer = new char[4096];
+            int n = reader.read(buffer);
+            while (n != -1) {
+                xhtml.characters(buffer, 0, n);
+                n = reader.read(buffer);
+            }
+            xhtml.endElement("p");
+
+            xhtml.endDocument();
+        } catch (UnsupportedEncodingException e) {
+            throw new TikaException(
+                    "Unsupported text encoding: " + encoding, e);
+        }
+    }

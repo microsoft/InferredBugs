@@ -1,0 +1,28 @@
+ private RestHighLevelClient buildRestHighLevelClient() throws Exception {
+        Collection<HttpHost> hosts = new ArrayList<>(esNodes.length);
+		for (String esNode : esNodes) {
+            hosts.add(HttpHost.create(esNode));
+        }
+
+        RestClientBuilder rcb = RestClient.builder(hosts.toArray(new HttpHost[]{}));
+
+        // We need to check if we have a user security property
+        String securedUser = properties != null ? properties.getProperty(XPACK_USER, null) : null;
+        if (securedUser != null) {
+            // We split the username and the password
+            String[] split = securedUser.split(":");
+            if (split.length < 2) {
+                throw new IllegalArgumentException(XPACK_USER + " must have the form username:password");
+            }
+            String username = split[0];
+            String password = split[1];
+
+            final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(AuthScope.ANY,
+                    new UsernamePasswordCredentials(username, password));
+
+            rcb.setHttpClientConfigCallback(hcb -> hcb.setDefaultCredentialsProvider(credentialsProvider));
+        }
+
+        return new RestHighLevelClient(rcb);
+	}

@@ -1,0 +1,31 @@
+    @Test
+    public void shouldSendRequestToServer() throws Exception {
+        CompletableFuture<Request> future = new CompletableFuture<>();
+        RequestHandler mockedHandler = request -> {
+            future.complete(request);
+            return Response.newBuilder()
+                    .withCorrelationId(request.getCorrelationId())
+                    .withBody("Response".getBytes())
+                    .withLast(true)
+                    .buildSuccess();
+        };
+
+        RpcServer server = buildServer(mockedHandler);
+        server.start();
+
+        RpcClient client = buildClient();
+        client.start();
+
+        Request request = Request.newBuilder()
+                .withCorrelationId(UUID.randomUUID().toString())
+                .withSingleReply(true)
+                .withBody("RequestResponseTest".getBytes())
+                .build();
+
+        TimeUnit.SECONDS.sleep(10);
+
+        client.push(request);
+
+        Request receivedRequest = future.get(20, TimeUnit.SECONDS);
+        assertEquals(request, receivedRequest);
+    }

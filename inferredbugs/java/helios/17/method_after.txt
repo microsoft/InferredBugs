@@ -1,0 +1,29 @@
+  public static int setGoalOnHosts(final HeliosClient client, final PrintStream out,
+                                   final boolean json, final List<String> hosts,
+                                   final Deployment deployment, final String token)
+      throws InterruptedException, ExecutionException {
+    int code = 0;
+
+    for (final String host : hosts) {
+      if (!json) {
+        out.printf("%s: ", host);
+      }
+      final SetGoalResponse result = client.setGoal(deployment, host, token).get();
+      if (result.getStatus() == SetGoalResponse.Status.OK) {
+        if (json) {
+          out.print(result.toJsonString());
+        } else {
+          out.printf("done%n");
+        }
+      } else {
+        if (json) {
+          out.print(result.toJsonString());
+        } else {
+          out.printf("failed: %s%n", result);
+        }
+        code = 1;
+      }
+    }
+
+    return code;
+  }

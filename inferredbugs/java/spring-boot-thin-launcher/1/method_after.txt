@@ -1,0 +1,79 @@
+ static Model process(Model model, Properties properties) {
+		if (properties != null) {
+			Set<String> exclusions = new HashSet<>();
+			for (String name : properties.stringPropertyNames()) {
+				if (name.startsWith("boms.")) {
+					String bom = properties.getProperty(name);
+					DefaultArtifact artifact = artifact(bom);
+					if (model.getDependencyManagement() == null) {
+						model.setDependencyManagement(new DependencyManagement());
+					}
+					boolean replaced = false;
+					for (Dependency dependency : model.getDependencyManagement()
+							.getDependencies()) {
+						if (ObjectUtils.nullSafeEquals(artifact.getArtifactId(),
+								dependency.getArtifactId())
+								&& ObjectUtils.nullSafeEquals(artifact.getGroupId(),
+										dependency.getGroupId())) {
+							dependency.setVersion(artifact.getVersion());
+						}
+					}
+					if (isParentBom(model, artifact)) {
+						model.getParent().setVersion(artifact.getVersion());
+						replaced = true;
+					}
+					if (!replaced) {
+						model.getDependencyManagement().addDependency(bom(artifact));
+					}
+				}
+				else if (name.startsWith("dependencies.")) {
+					String pom = properties.getProperty(name);
+					DefaultArtifact artifact = artifact(pom);
+					boolean replaced = false;
+					for (Dependency dependency : model.getDependencies()) {
+						if (ObjectUtils.nullSafeEquals(artifact.getArtifactId(),
+								dependency.getArtifactId())
+								&& ObjectUtils.nullSafeEquals(artifact.getGroupId(),
+										dependency.getGroupId())
+								&& artifact.getVersion() != null) {
+							dependency.setVersion(
+									StringUtils.hasLength(artifact.getVersion())
+											? artifact.getVersion()
+											: null);
+							dependency.setScope("runtime");
+							replaced = true;
+						}
+					}
+					if (!replaced) {
+						model.getDependencies().add(dependency(artifact));
+					}
+				}
+				else if (name.startsWith("exclusions.")) {
+					String pom = properties.getProperty(name);
+					exclusions.add(pom);
+				}
+			}
+			for (String pom : exclusions) {
+				Exclusion exclusion = exclusion(pom);
+				Dependency target = dependency(artifact(pom));
+				Dependency excluded = null;
+				for (Dependency dependency : model.getDependencies()) {
+					dependency.addExclusion(exclusion);
+					if (dependency.getGroupId().equals(target.getGroupId()) && dependency
+							.getArtifactId().equals(target.getArtifactId())) {
+						excluded = dependency;
+					}
+				}
+				if (excluded != null) {
+					model.getDependencies().remove(excluded);
+				}
+			}
+		}
+		for (Dependency dependency : new ArrayList<>(model.getDependencies())) {
+			if ("test".equals(dependency.getScope())
+					|| "provided".equals(dependency.getScope())) {
+				model.getDependencies().remove(dependency);
+			}
+		}
+		return model;
+	}

@@ -1,0 +1,19 @@
+    public void testTarFileSet() throws Exception {
+        project.executeTarget("tarfileset");
+
+        File deb = new File("target/test-classes/test.deb");
+        assertTrue("package not build", deb.exists());
+
+        ArchiveWalker.walkData(deb, new ArchiveVisitor<TarArchiveEntry>() {
+            public void visit(TarArchiveEntry entry, byte[] content) throws IOException {
+                assertTrue("prefix", entry.getName().startsWith("./foo/"));
+                if (entry.isDirectory()) {
+                    assertEquals("directory mode (" + entry.getName() + ")", 040700, entry.getMode());
+                } else {
+                    assertEquals("file mode (" + entry.getName() + ")", 0100600, entry.getMode());
+                }
+                assertEquals("user", "ebourg", entry.getUserName());
+                assertEquals("group", "ebourg", entry.getGroupName());
+            }
+        }, Compression.GZIP);
+    }

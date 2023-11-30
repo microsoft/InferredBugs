@@ -1,0 +1,25 @@
+    public void close() {
+        if (!closed) {
+            synchronized (lock) {
+                if (!closed) {
+                    try {
+                        log.info("Closing session");
+                        Channel[] channelToClose = channels.values().toArray(new Channel[0]);
+                        for (Channel channel : channelToClose) {
+                            log.debug("Closing channel {}", channel.getId());
+                            IoUtils.closeQuietly(channel);
+                        }
+                        log.debug("Closing IoSession");
+                        CloseFuture future = ioSession.close();
+                        log.debug("Waiting for IoSession to be closed");
+                        future.join();
+                        log.debug("IoSession closed");
+                    } catch (Throwable t) {
+                        log.warn("Error closing session", t);
+                    }
+                    closed = true;
+                    lock.notifyAll();
+                }
+            }
+        }
+    }

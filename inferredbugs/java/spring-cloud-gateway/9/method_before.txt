@@ -1,0 +1,12 @@
+ @Override
+	public Flux<Payload> requestStream(Payload payload) {
+		GatewayExchange exchange = GatewayExchange.fromPayload(REQUEST_STREAM, payload);
+		Tags tags = getTags(exchange);
+		return findRSocketOrCreatePending(exchange)
+				.flatMapMany(rSocket -> rSocket.requestStream(payload))
+				// S N E F
+				//TODO: move tagnames to enum
+				.doOnNext(s -> count("forward.request.stream.payload", tags))
+				.doOnError(t -> count("forward.request.stream.error", tags))
+				.doFinally(s -> count("forward.request.stream", tags));
+	}

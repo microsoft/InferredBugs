@@ -1,0 +1,37 @@
+    private void execute() throws Throwable {
+        RequestContext ctx = RequestContext.getCurrentContext();
+
+
+        RequestResponseParser r = new RequestResponseParser();
+        r.setUri(UrlUtil.getCurrentUrl(ctx.getRequest()));
+
+        Map<String, String> headers = getResponseHeaders(ctx);
+        r.setHeaders(headers);
+
+        String content = headers.get(HttpHeaders.CONTENT_TYPE);
+
+        // if the content type is not defined by api server then permit to read the body. Prevent NPE
+        if (Objeto.isBlank(content)) content = "";
+
+        String[] types = content.split(";");
+
+        if (!ContentTypeUtils.belongsToBlackList(types)) {
+        	@Cleanup
+            InputStream stream = ctx.getResponseDataStream();
+            String body;
+
+            body = StreamUtils.copyToString(stream, StandardCharsets.UTF_8);
+
+            if (body.isEmpty() && helper.call().response().getBody() != null) {
+            	
+            	body = helper.call().response().getBody();            	
+            }
+
+            if (Objects.nonNull(body) && !body.isEmpty()) {
+            	
+            	r.setBody(body);
+            }
+            ctx.setResponseDataStream(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+        }
+        TraceContextHolder.getInstance().getActualTrace().setResponse(r);
+    }

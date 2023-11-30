@@ -1,0 +1,33 @@
+    CloseableHttpResponse handleBackendResponse(
+            final HttpRoute route,
+            final HttpRequestWrapper request,
+            final HttpClientContext context,
+            final HttpExecutionAware execAware,
+            final Date requestDate,
+            final Date responseDate,
+            final CloseableHttpResponse backendResponse) throws IOException {
+
+        log.trace("Handling Backend response");
+        responseCompliance.ensureProtocolCompliance(request, backendResponse);
+
+        final HttpHost target = route.getTargetHost();
+        final boolean cacheable = responseCachingPolicy.isResponseCacheable(request, backendResponse);
+        responseCache.flushInvalidatedCacheEntriesFor(target, request, backendResponse);
+        if (cacheable && !alreadyHaveNewerCacheEntry(target, request, backendResponse)) {
+            try {
+                storeRequestIfModifiedSinceFor304Response(request, backendResponse);
+                return Proxies.enhanceResponse(responseCache.cacheAndReturnResponse(
+                        target, request, backendResponse, requestDate, responseDate));
+            } finally {
+                backendResponse.close();
+            }
+        }
+        if (!cacheable) {
+            try {
+                responseCache.flushCacheEntriesFor(target, request);
+            } catch (final IOException ioe) {
+                log.warn("Unable to flush invalid cache entries", ioe);
+            }
+        }
+        return backendResponse;
+    }

@@ -1,0 +1,30 @@
+ public static void main(String... args) {
+
+		RestTemplate template = new RestTemplate();
+
+		HttpEntity<String> response = template.getForEntity(URI_TEMPLATE, String.class, MILESTONE_ID);
+
+		boolean keepChecking = true;
+		boolean printHeader = true;
+
+		while (keepChecking) {
+
+			readPage(response.getBody(), printHeader);
+			printHeader = false;
+
+			String linkHeader = response.getHeaders().get("Link").get(0);
+
+			Links links = Arrays.stream(linkHeader.split(", ")) //
+					.map(Link::valueOf) //
+					.collect(Collectors.collectingAndThen(Collectors.toList(), Links::of));
+
+			if (links.getLink(IanaLinkRelations.NEXT).isPresent()) {
+
+				response = template.getForEntity(links.getRequiredLink(IanaLinkRelations.NEXT).expand().getHref(),
+						String.class);
+
+			} else {
+				keepChecking = false;
+			}
+		}
+	}

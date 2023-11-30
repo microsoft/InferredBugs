@@ -1,0 +1,93 @@
+ public void process(final String uri, final String hostAddress, RequestHandler requestHandler)
+          throws IOException {
+		// Prepare the response headers.
+
+		/**
+		 * Parse the query parameters into an announce request message.
+		 *
+		 * We need to rely on our own query parsing function because
+		 * SimpleHTTP's Query map will contain UTF-8 decoded parameters, which
+		 * doesn't work well for the byte-encoded strings we expect.
+		 */
+		HTTPAnnounceRequestMessage announceRequest = null;
+		try {
+			announceRequest = this.parseQuery(uri, hostAddress);
+		} catch (MessageValidationException mve) {
+			LoggerUtils.warnAndDebugDetails(logger, "Unable to parse request message. Request url is {}", uri, mve);
+      serveError(Status.BAD_REQUEST, mve.getMessage(), requestHandler);
+			return;
+		}
+
+    // The requested torrent must be announced by the tracker if and only if myAcceptForeignTorrents is false
+    final ConcurrentMap<String, TrackedTorrent> torrentsMap = requestHandler.getTorrentsMap();
+    TrackedTorrent torrent = torrentsMap.get(announceRequest.getHexInfoHash());
+    if (!this.myAcceptForeignTorrents && torrent == null) {
+      logger.warn("Requested torrent hash was: {}", announceRequest.getHexInfoHash());
+      serveError(Status.BAD_REQUEST, ErrorMessage.FailureReason.UNKNOWN_TORRENT, requestHandler);
+      return;
+    }
+
+    if (torrent == null) {
+      torrent = new TrackedTorrent(announceRequest.getInfoHash());
+      TrackedTorrent oldTorrent = requestHandler.getTorrentsMap().putIfAbsent(torrent.getHexInfoHash(), torrent);
+      if (oldTorrent != null) {
+        torrent = oldTorrent;
+      }
+    }
+
+		AnnounceRequestMessage.RequestEvent event = announceRequest.getEvent();
+		PeerUID peerUID = new PeerUID(new InetSocketAddress(announceRequest.getIp(), announceRequest.getPort()), announceRequest.getHexInfoHash());
+
+		// When no event is specified, it's a periodic update while the client
+		// is operating. If we don't have a peer for this announce, it means
+		// the tracker restarted while the client was running. Consider this
+		// announce request as a 'started' event.
+		if ((event == null ||
+				AnnounceRequestMessage.RequestEvent.NONE.equals(event)) &&
+			torrent.getPeer(peerUID) == null) {
+			event = AnnounceRequestMessage.RequestEvent.STARTED;
+		}
+
+		if (myAddressChecker.isBadAddress(announceRequest.getIp())) {
+			writeAnnounceResponse(torrent, null, requestHandler);
+			return;
+		}
+
+    if (event != null && torrent.getPeer(peerUID) == null &&
+  			AnnounceRequestMessage.RequestEvent.STOPPED.equals(event)) {
+      writeAnnounceResponse(torrent, null, requestHandler);
+      return;
+    }
+
+		// If an event other than 'started' is specified and we also haven't
+		// seen the peer on this torrent before, something went wrong. A
+		// previous 'started' announce request should have been made by the
+		// client that would have had us register that peer on the torrent this
+		// request refers to.
+		if (event != null && torrent.getPeer(peerUID) == null &&
+			!(AnnounceRequestMessage.RequestEvent.STARTED.equals(event) ||
+        AnnounceRequestMessage.RequestEvent.COMPLETED.equals(event))) {
+      serveError(Status.BAD_REQUEST, ErrorMessage.FailureReason.INVALID_EVENT, requestHandler);
+			return;
+		}
+
+		// Update the torrent according to the announce event
+		TrackedPeer peer = null;
+		try {
+			peer = torrent.update(event,
+				ByteBuffer.wrap(announceRequest.getPeerId()),
+				announceRequest.getHexPeerId(),
+				announceRequest.getIp(),
+				announceRequest.getPort(),
+				announceRequest.getUploaded(),
+				announceRequest.getDownloaded(),
+				announceRequest.getLeft());
+		} catch (IllegalArgumentException iae) {
+			LoggerUtils.warnAndDebugDetails(logger, "Unable to update peer torrent. Request url is {}", uri, iae);
+      serveError(Status.BAD_REQUEST, ErrorMessage.FailureReason.INVALID_EVENT, requestHandler);
+			return;
+		}
+
+		// Craft and output the answer
+    writeAnnounceResponse(torrent, peer, requestHandler);
+	}

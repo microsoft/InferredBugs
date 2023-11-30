@@ -1,0 +1,73 @@
+    public static QueryRuntime parse(Query query, ExecutionPlanContext executionPlanContext,
+                                     Map<String, AbstractDefinition> streamDefinitionMap,
+                                     Map<String, AbstractDefinition> tableDefinitionMap,
+                                     Map<String, EventTable> eventTableMap) {
+        List<VariableExpressionExecutor> executors = new ArrayList<VariableExpressionExecutor>();
+        QueryRuntime queryRuntime;
+        Element element = null;
+        LatencyTracker latencyTracker = null;
+        try {
+            element = AnnotationHelper.getAnnotationElement("info", "name", query.getAnnotations());
+            if (executionPlanContext.getStatisticsManager()!=null) {
+                if (element != null) {
+                    String metricName = executionPlanContext.getSiddhiContext().getStatisticsConfiguration().getMatricPrefix() + ".executionplan." + executionPlanContext.getName() + "." + element.getValue();
+                    latencyTracker = executionPlanContext.getSiddhiContext()
+                            .getStatisticsConfiguration()
+                            .getFactory()
+                            .createLatencyTracker(metricName, executionPlanContext.getStatisticsManager());
+                }
+            }
+            StreamRuntime streamRuntime = InputStreamParser.parse(query.getInputStream(),
+                    executionPlanContext, streamDefinitionMap, tableDefinitionMap, eventTableMap, executors, latencyTracker);
+
+            QuerySelector selector = SelectorParser.parse(query.getSelector(), query.getOutputStream(),
+                    executionPlanContext, streamRuntime.getMetaComplexEvent(), eventTableMap, executors);
+
+            boolean isWindow = query.getInputStream() instanceof JoinInputStream;
+
+            if (!isWindow && query.getInputStream() instanceof SingleInputStream) {
+                for (StreamHandler streamHandler : ((SingleInputStream) query.getInputStream()).getStreamHandlers()) {
+                    if (streamHandler instanceof Window) {
+                        isWindow = true;
+                        break;
+                    }
+                }
+            }
+
+            OutputRateLimiter outputRateLimiter = OutputParser.constructOutputRateLimiter(query.getOutputStream().getId(),
+                    query.getOutputRate(), query.getSelector().getGroupByList().size() != 0, isWindow, executionPlanContext.getScheduledExecutorService());
+            outputRateLimiter.init(executionPlanContext, latencyTracker);
+            executionPlanContext.addEternalReferencedHolder(outputRateLimiter);
+
+            OutputCallback outputCallback = OutputParser.constructOutputCallback(query.getOutputStream(),
+                    streamRuntime.getMetaComplexEvent().getOutputStreamDefinition(), eventTableMap, executionPlanContext);
+
+            QueryParserHelper.reduceMetaComplexEvent(streamRuntime.getMetaComplexEvent());
+            QueryParserHelper.updateVariablePosition(streamRuntime.getMetaComplexEvent(), executors);
+            QueryParserHelper.initStreamRuntime(streamRuntime, streamRuntime.getMetaComplexEvent());
+
+            selector.setEventPopulator(StateEventPopulatorFactory.constructEventPopulator(streamRuntime.getMetaComplexEvent()));
+
+            queryRuntime = new QueryRuntime(query, executionPlanContext, streamRuntime, selector, outputRateLimiter, outputCallback, streamRuntime.getMetaComplexEvent());
+
+            if (outputRateLimiter instanceof WrappedSnapshotOutputRateLimiter) {
+                ((WrappedSnapshotOutputRateLimiter) outputRateLimiter).init(streamRuntime.getMetaComplexEvent().getOutputStreamDefinition().getAttributeList().size(), selector.getAttributeProcessorList(), streamRuntime.getMetaComplexEvent());
+            }
+
+        } catch (DuplicateDefinitionException e) {
+            if (element != null) {
+                throw new DuplicateDefinitionException(e.getMessage() + ", when creating query " + element.getValue(), e);
+            } else {
+                throw new DuplicateDefinitionException(e.getMessage(), e);
+            }
+        } catch (RuntimeException e) {
+            if (element != null) {
+                throw new ExecutionPlanCreationException(e.getMessage() + ", when creating query " + element.getValue(), e);
+            } else {
+                throw new ExecutionPlanCreationException(e.getMessage(), e);
+            }
+        }
+
+        return queryRuntime;
+
+    }

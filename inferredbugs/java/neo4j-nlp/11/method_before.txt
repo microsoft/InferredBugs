@@ -1,0 +1,24 @@
+    public SingleResult process(TextRankRequest request) {
+        TextRank.Builder textrankBuilder = new TextRank.Builder(getDatabase(), getNLPManager().getConfiguration());
+        if (request.getStopWords() != null 
+                && !request.getStopWords().isEmpty()) {
+            textrankBuilder.setStopwords(request.getStopWords());
+        }
+        textrankBuilder.removeStopWords(request.isDoStopwords())
+                .respectDirections(request.isRespectDirections())
+                .respectSentences(request.isRespectSentences())
+                .useDependencies(request.isUseDependencies())
+                .useDependenciesForCooccurrences(request.isUseDependenciesForCooccurrences())
+                //.setCooccurrenceWindow(request.getCooccurrenceWindow())
+                .setTopXTags(request.getTopXTags())
+                .setCleanKeywords(request.isCleanKeywords())
+                .setKeywordLabel(request.getKeywordLabel());
+        
+        TextRank textRank = textrankBuilder.build();
+        boolean res = textRank.evaluate(request.getNode(), 
+                request.getIterations(), 
+                request.getDamp(), 
+                request.getThreshold());
+        LOG.info("AnnotatedText with ID " + request.getNode().getId() + " processed. Result: " + res);
+        return res ? SingleResult.success() : SingleResult.fail();
+    }

@@ -1,0 +1,43 @@
+        static bool CheckSelectMany(IList<DbExpression> collection, DbExpression expr, int start = 0)
+        {
+            Expression node = expr.Expressions[0];
+            if (node.NodeType == ExpressionType.Lambda)
+            {
+                LambdaExpression lambda = node as LambdaExpression;
+                node = lambda.Body;
+            }
+            if (node.NodeType == ExpressionType.Call)
+            {
+                // 如果是 DefaultIfEmpty，则不是 CROSS JOIN
+                MethodCallExpression call = node as MethodCallExpression;
+                if (call.Method.Name == "DefaultIfEmpty")
+                {
+                    // 右关联
+                    if (call.Arguments != null && call.Arguments.Count == 2 && (bool)(((ConstantExpression)call.Arguments[1]).Value))
+                    {
+                        string name = ((MemberExpression)call.Arguments[0]).Member.Name;
+                        for (int i = start; i < collection.Count; i++)
+                        {
+                            var curExpr = collection[i];
+                            if (curExpr.DbExpressionType == DbExpressionType.GroupJoin)
+                            {
+                                LambdaExpression lambda = curExpr.Expressions[3] as LambdaExpression;
+                                NewExpression new0 = lambda.Body as NewExpression;
+                                string pName = (new0.Arguments[1] as ParameterExpression).Name;
+                                if (name == pName)
+                                {
+                                    curExpr.DbExpressionType = DbExpressionType.GroupRightJoin;
+                                    break;
+                                }
+                            }
+
+                        }
+                    }
+
+                    return false;
+                }
+            }
+
+            // 根据系统生成的变量名判断 
+            return !expr.Expressions[0].IsAnonymous();
+        }

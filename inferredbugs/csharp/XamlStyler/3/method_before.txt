@@ -1,0 +1,46 @@
+        private void HandleNode(XNode node)
+        {
+
+            switch (node.NodeType)
+            {
+                case XmlNodeType.Element:
+                    XElement element = node as XElement;
+
+                    if (element.Nodes().Any())
+                    {
+                        // handle children first
+                        foreach (var childNode in element.Nodes())
+                        {
+                            HandleNode(childNode);
+                        }
+                    }
+
+                    // is this a Grid or Canvas with child elements?
+                    //
+                    // Note: we look at elements, not just nodes - if there's only non-element nodes,
+                    // we don't need to reorder.  We should also take into account a user can decide not to allow
+                    // reordering
+
+                    if (Options.ReorderGridChildren && element.Name.LocalName == "Grid" && element.HasElements)
+                    {
+                        // process the grid
+                        ProcessGrid(element);
+                    }
+                    else if (Options.ReorderCanvasChildren && element.Name.LocalName == "Canvas" && element.HasElements)
+                    {
+                        // process the canvas
+                        ProcessCanvas(element);
+                    }
+                    else if (Options.ReorderSetters != ReorderSettersBy.None && ElementsWithSetters.Contains(element.Name.LocalName) && element.HasElements)
+                    {
+                        // process the setters
+                        ProcessSetters(element);
+                    }
+
+
+                    break;
+                default:
+                    break;
+            }
+
+        }

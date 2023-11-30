@@ -1,0 +1,22 @@
+  private InputStream buildWrappedInputStream(InputStream downloadInputStream)
+      throws TransformerException, IOException {
+
+    // Pass the download input stream through a Transformer that removes the XML
+    // declaration. Create a new TransformerFactory and Transformer on each invocation
+    // since these objects are <em>not</em> thread safe.
+    Transformer omitXmlDeclarationTransformer = TransformerFactory.newInstance().newTransformer();
+    omitXmlDeclarationTransformer.setOutputProperty(OutputKeys.INDENT, "yes");
+    omitXmlDeclarationTransformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+    omitXmlDeclarationTransformer.setOutputProperty(
+        "{http://xml.apache.org/xslt}indent-amount", INDENT_AMOUNT);
+
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    StreamResult streamResult = new StreamResult(outputStream);
+    Source xmlSource = new StreamSource(downloadInputStream);
+    omitXmlDeclarationTransformer.transform(xmlSource, streamResult);
+    
+    return ByteSource.concat(
+        ByteSource.wrap(SOAP_START_BODY.getBytes()),
+        ByteSource.wrap(outputStream.toByteArray()),
+        ByteSource.wrap(SOAP_END_BODY.getBytes())).openStream();
+  }

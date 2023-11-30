@@ -1,0 +1,26 @@
+    @Test
+    public void testShutdown4() throws SQLException
+    {
+        StubConnection.slowCreate = true;
+        
+        HikariConfig config = new HikariConfig();
+        config.setMinimumIdle(10);
+        config.setMaximumPoolSize(10);
+        config.setInitializationFailFast(false);
+        config.setConnectionTestQuery("VALUES 1");
+        config.setDataSourceClassName("com.zaxxer.hikari.mocks.StubDataSource");
+
+        HikariDataSource ds = new HikariDataSource(config);
+
+        PoolUtilities.quietlySleep(300);
+
+        ds.shutdown();
+
+        long start = System.currentTimeMillis();
+        while (PoolUtilities.elapsedTimeMs(start) < TimeUnit.SECONDS.toMillis(5) && threadCount() > 0)
+        {
+            PoolUtilities.quietlySleep(250);
+        }
+
+        Assert.assertSame("Thread was leaked", 0, threadCount());
+    }

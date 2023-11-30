@@ -1,0 +1,23 @@
+  public static <T> T createFor(final Class<T> protocol, final Actor actor, final Mailbox mailbox) {
+    final T maybeCachedProxy = actor.lifeCycle.environment.lookUpProxy(protocol);
+
+    if (maybeCachedProxy != null) {
+      return maybeCachedProxy;
+    }
+
+    final String proxyClassname = fullyQualifiedClassnameFor(protocol, "__Proxy");
+
+    T newProxy;
+    
+    try {
+      newProxy = tryCreate(protocol, actor, mailbox, proxyClassname);
+    } catch (Exception e) {
+      synchronized (protocol) {
+        newProxy = tryGenerateCreate(protocol, actor, mailbox, proxyClassname);
+      }
+    }
+    
+    actor.lifeCycle.environment.cacheProxy(newProxy);
+    
+    return newProxy;
+  }

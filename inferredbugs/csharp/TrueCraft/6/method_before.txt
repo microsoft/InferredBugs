@@ -1,0 +1,60 @@
+        private void DoNetwork()
+        {
+            while (true)
+            {
+                bool idle = true;
+                for (int i = 0; i < Clients.Count && i >= 0; i++)
+                {
+                    var client = Clients[i] as RemoteClient;
+                    var sendTimeout = DateTime.Now.AddMilliseconds(200);
+                    while (client.PacketQueue.Count != 0 && DateTime.Now < sendTimeout)
+                    {
+                        idle = false;
+                        IPacket packet;
+                        while (!client.PacketQueue.TryDequeue(out packet)) ;
+                        LogPacket(packet, false);
+                        PacketReader.WritePacket(client.MinecraftStream, packet);
+                        if (packet is DisconnectPacket)
+                        {
+                            DisconnectClient(client);
+                            i--;
+                            break;
+                        }
+                    }
+                    var receiveTimeout = DateTime.Now.AddMilliseconds(200);
+                    while (client.DataAvailable && DateTime.Now < receiveTimeout)
+                    {
+                        idle = false;
+                        var packet = PacketReader.ReadPacket(client.MinecraftStream);
+                        LogPacket(packet, true);
+                        if (PacketHandlers[packet.ID] != null)
+                        {
+                            try
+                            {
+                                PacketHandlers[packet.ID](packet, client, this);
+                            }
+                            catch (PlayerDisconnectException)
+                            {
+                                DisconnectClient(client);
+                                i--;
+                            }
+                            catch (Exception e)
+                            {
+                                Log(LogCategory.Debug, "Disconnecting client due to exception in network worker");
+                                Log(LogCategory.Debug, e.ToString());
+                                PacketReader.WritePacket(client.MinecraftStream, new DisconnectPacket("An exception has occured on the server."));
+                                client.MinecraftStream.BaseStream.Flush();
+                                DisconnectClient(client);
+                                i--;
+                            }
+                        }
+                        else
+                        {
+                            // TODO: Something productive
+                        }
+                    }
+                    if (idle)
+                        Thread.Sleep(100);
+                }
+            }
+        }

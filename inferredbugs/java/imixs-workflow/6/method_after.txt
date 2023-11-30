@@ -1,0 +1,74 @@
+ @SuppressWarnings({ "rawtypes" })
+	public int run(ItemCollection documentContext,
+			ItemCollection documentActivity) throws PluginException {
+
+		mailMessage = null;
+
+		// check if mail is active?
+		if ("1".equals(documentActivity.getItemValueString("keyMailInactive")))
+			return Plugin.PLUGIN_OK;
+
+		List vectorRecipients = getRecipients(documentContext, documentActivity);
+		if (vectorRecipients.isEmpty()) {
+			logger.fine("[MailPlugin] No Receipients defined for this Activity...");
+			return Plugin.PLUGIN_OK;
+		}
+
+		try {
+
+			// first initialize mail message object
+			initMailMessage();
+
+			if (mailMessage == null) {
+				logger.warning("[MailPlugin] mailMessage = null");
+				return Plugin.PLUGIN_WARNING;
+			}
+
+			// set FROM
+			mailMessage.setFrom(getInternetAddress(getFrom(documentContext,
+					documentActivity)));
+
+			// set Recipient
+			mailMessage.setRecipients(Message.RecipientType.TO,
+					getInternetAddressArray(vectorRecipients));
+
+			// build CC
+			mailMessage.setRecipients(
+					Message.RecipientType.CC,
+					getInternetAddressArray(getRecipientsCC(documentContext,
+							documentActivity)));
+
+			// replay to?
+			String sReplyTo = getReplyTo(documentContext, documentActivity);
+			if ((sReplyTo != null) && (!sReplyTo.isEmpty())) {
+				InternetAddress[] resplysAdrs = new InternetAddress[1];
+				resplysAdrs[0] = getInternetAddress(sReplyTo);
+				mailMessage.setReplyTo(resplysAdrs);
+			}
+
+			// set Subject
+			mailMessage.setSubject(
+					getSubject(documentContext, documentActivity),
+					this.getCharSet());
+
+			// set Body
+			String aBodyText = getBody(documentContext, documentActivity);
+			if (aBodyText == null) {
+				aBodyText = "";
+			}
+			// set mailbody
+			MimeBodyPart messagePart = new MimeBodyPart();
+			logger.fine("[MailPlugin] ContentType: '" + getContentType() + "'");
+			messagePart.setContent(aBodyText, getContentType());
+			// append message part
+			mimeMultipart.addBodyPart(messagePart);
+			// mimeMulitPart object can be extended from subclases
+
+		} catch (Exception e) {
+			logger.warning("[MailPlugin] run - Warning:" + e.toString());
+			e.printStackTrace();
+			return Plugin.PLUGIN_WARNING;
+		}
+
+		return Plugin.PLUGIN_OK;
+	}

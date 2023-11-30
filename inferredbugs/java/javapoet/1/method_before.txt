@@ -1,0 +1,23 @@
+  public static ClassName get(Class<?> clazz) {
+    checkNotNull(clazz, "clazz == null");
+    checkArgument(!clazz.isPrimitive(), "primitive types cannot be represented as a ClassName");
+    checkArgument(!void.class.equals(clazz), "'void' type cannot be represented as a ClassName");
+    checkArgument(!clazz.isArray(), "array types cannot be represented as a ClassName");
+
+    String anonymousSuffix = "";
+    while (clazz.isAnonymousClass()) {
+      int lastDollar = clazz.getName().lastIndexOf('$');
+      anonymousSuffix = clazz.getName().substring(lastDollar) + anonymousSuffix;
+      clazz = clazz.getEnclosingClass();
+    }
+    String name = clazz.getSimpleName() + anonymousSuffix;
+
+    if (clazz.getEnclosingClass() == null) {
+      // Avoid unreliable Class.getPackage(). https://github.com/square/javapoet/issues/295
+      int lastDot = clazz.getName().lastIndexOf('.');
+      String packageName = (lastDot != -1) ? clazz.getName().substring(0, lastDot) : null;
+      return new ClassName(packageName, null, name);
+    }
+
+    return ClassName.get(clazz.getEnclosingClass()).nestedClass(name);
+  }

@@ -1,0 +1,39 @@
+ private boolean tryUpdateController(ClusterManager manager)
+	{
+		try
+		{
+			String instanceName = manager.getInstanceName();
+			String clusterName = manager.getClusterName();
+			final ZNRecord leaderRecord = new ZNRecord(ControllerPropertyType.LEADER.toString());
+			leaderRecord.setSimpleField(ControllerPropertyType.LEADER.toString(), 
+			                            manager.getInstanceName());
+			ClusterDataAccessor dataAccessor = manager.getDataAccessor();
+			ZNRecord currentleader = dataAccessor
+			    .getControllerProperty(ControllerPropertyType.LEADER);
+			if (currentleader == null)
+			{
+				dataAccessor.createControllerProperty(ControllerPropertyType.LEADER,
+				    leaderRecord, CreateMode.EPHEMERAL);
+				// set controller history
+				ZNRecord histRecord = dataAccessor
+				    .getControllerProperty(ControllerPropertyType.HISTORY);
+
+				List<String> list = histRecord.getListField(clusterName);
+
+				list.add(instanceName);
+				dataAccessor.setControllerProperty(ControllerPropertyType.HISTORY,
+				    histRecord, CreateMode.PERSISTENT);
+				return true;
+			} else
+			{
+				logger.info("Leader exists for cluster:" + clusterName
+				    + " currentLeader:" + currentleader.getId());
+			}
+
+		} catch (ZkNodeExistsException e)
+		{
+			logger.warn("Ignorable exception. Found that leader already exists, "
+			    + e.getMessage());
+		}
+		return false;
+	}

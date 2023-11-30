@@ -1,0 +1,29 @@
+    void peerVent(TransactionContext transactionContext) throws TransactionException {
+        logger.trace(toString() + "peerVent  transaction: " + transactionContext);
+
+        final Envelope envelope;
+        try {
+
+            Ab.SeekPosition.Builder start = Ab.SeekPosition.newBuilder();
+            if (null != peerOptions.getNewest()) {
+                start.setNewest(Ab.SeekNewest.getDefaultInstance());
+            } else if (peerOptions.getStartEvents() != null) {
+                start.setSpecified(Ab.SeekSpecified.newBuilder().setNumber(peerOptions.getStartEvents()));
+            } else {
+                start.setNewest(Ab.SeekNewest.getDefaultInstance());
+            }
+
+            envelope = createSeekInfoEnvelope(transactionContext,
+                    start.build(),
+                    Ab.SeekPosition.newBuilder()
+                            .setSpecified(Ab.SeekSpecified.newBuilder().setNumber(peerOptions.getStopEvents()).build())
+                            .build(),
+                    SeekInfo.SeekBehavior.BLOCK_UNTIL_READY,
+
+                    clientTLSCertificateDigest);
+            connectEnvelope(envelope);
+        } catch (Exception e) {
+            throw new TransactionException(toString() + " error message: " + e.getMessage(), e);
+        }
+
+    }

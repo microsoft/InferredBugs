@@ -1,0 +1,18 @@
+    @Test
+    public void clientToServerBackpressure() throws InterruptedException {
+        RxNumbersGrpc.RxNumbersStub stub = RxNumbersGrpc.newRxStub(channel);
+
+        Flowable<NumberProto.Number> rxRequest = Flowable
+                .fromIterable(IntStream.range(0, NUMBER_OF_STREAM_ELEMENTS)::iterator)
+                .doOnNext(i -> System.out.println(i + " --> "))
+                .doOnNext(i -> updateNumberOfWaits(clientLastValueTime, clientNbOfWaits))
+                .map(BackpressureIntegrationTest::protoNum);
+
+        TestObserver<NumberProto.Number> rxResponse = stub.requestPressure(rxRequest).test();
+
+        rxResponse.awaitTerminalEvent(5, TimeUnit.SECONDS);
+        rxResponse.assertComplete()
+                .assertValue(v -> v.getNumber(0) == NUMBER_OF_STREAM_ELEMENTS - 1);
+
+        assertThat(clientNbOfWaits.get()).isEqualTo(1);
+    }

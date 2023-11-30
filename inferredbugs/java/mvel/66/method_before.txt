@@ -1,0 +1,43 @@
+    public Object getReducedValue(Object ctx, Object thisValue, VariableResolverFactory factory) {
+        ItemResolverFactory.ItemResolver itemR = new ItemResolverFactory.ItemResolver(item);
+        ItemResolverFactory itemFactory = new ItemResolverFactory(itemR, new DefaultLocalVariableResolverFactory(factory));
+
+        Object iterCond = MVEL.eval(cond, thisValue, factory);
+
+        if (itemType != null && itemType.isArray())
+            enforceTypeSafety(itemType, ParseTools.getBaseComponentType(iterCond.getClass()));
+
+        this.compiledBlock = (ExecutableStatement) subCompileExpression(block);
+
+        if (iterCond instanceof Iterable) {
+            for (Object o : (Iterable) iterCond) {
+                itemR.setValue(o);
+                compiledBlock.getValue(ctx, thisValue, itemFactory);
+            }
+        }
+        else if (iterCond != null && iterCond.getClass().isArray()) {
+            int len = Array.getLength(iterCond);
+            for (int i = 0; i < len; i++) {
+                itemR.setValue(Array.get(iterCond, i));
+                compiledBlock.getValue(ctx, thisValue, itemFactory);
+            }
+        }
+        else if (iterCond instanceof CharSequence) {
+            for (Object o : iterCond.toString().toCharArray()) {
+                itemR.setValue(o);
+                compiledBlock.getValue(ctx, thisValue, itemFactory);
+            }
+        }
+        else if (iterCond instanceof Integer) {
+            int max = (Integer) iterCond + 1;
+            for (int i = 1; i != max; i++) {
+                itemR.setValue(i);
+                compiledBlock.getValue(ctx, thisValue, itemFactory);
+            }
+        }
+        else {
+            throw new CompileException("non-iterable type: " + iterCond.getClass().getName());
+        }
+
+        return null;
+    }

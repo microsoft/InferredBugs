@@ -1,0 +1,38 @@
+ @Override
+	public Object run() {
+		long startTime = System.currentTimeMillis();
+
+		RequestContext context = RequestContext.getCurrentContext();
+		HttpServletRequest request = context.getRequest();
+		String verb = getVerb(request);
+		String uri = this.helper.buildZuulRequestURI(request);
+		URL host = RequestContext.getCurrentContext().getRouteHost();
+		HttpHost httpHost = getHttpHost(host);
+
+		Long operationId = (Long) context.get(OPERATION_ID);
+
+		try {
+			Callable<Object> callable = () -> super.run();
+			Object obj = circuitBreakerManager.failsafe(callable, operationId);
+			detail.setStatus(Constants.SUCCESS);
+			return obj;
+		} catch (Exception e) {
+			detail.setStatus(Constants.FAILED);
+			log.error("Exception: {} - Message: {} - during routing request to (hostPath + uri): {} - Verb: {} - HostName: {} - Port: {} - SchemeName: {}",
+					e.getClass().getName(), 
+					e.getMessage(), 
+					request.getRequestURI(), 
+					verb, httpHost.getHostName(),
+					httpHost.getPort(), 
+					httpHost.getSchemeName());
+			throw e;
+		} finally {
+			long endTime = System.currentTimeMillis();
+
+			long duration = (endTime - startTime);
+
+			detail.setName(this.getClass().getSimpleName());
+			detail.setTimeInMillisRun(duration);
+			TraceContextHolder.getInstance().getActualTrace().addFilter(detail);
+		}
+	}

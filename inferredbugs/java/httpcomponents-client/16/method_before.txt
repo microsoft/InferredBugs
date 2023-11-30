@@ -1,0 +1,42 @@
+    HttpResponse handleBackendResponse(
+            HttpHost target,
+            HttpRequest request,
+            Date requestDate,
+            Date responseDate,
+            HttpResponse backendResponse) throws IOException {
+
+        log.debug("Handling Backend response");
+        responseCompliance.ensureProtocolCompliance(request, backendResponse);
+
+        boolean cacheable = responseCachingPolicy.isResponseCacheable(request, backendResponse);
+
+        HttpResponse corrected = backendResponse;
+        if (cacheable) {
+
+            SizeLimitedResponseReader responseReader = getResponseReader(backendResponse);
+
+            if (responseReader.isResponseTooLarge()) {
+                return responseReader.getReconstructedResponse();
+            }
+
+            byte[] responseBytes = responseReader.getResponseBytes();
+            corrected = correctIncompleteResponse(backendResponse,
+                                                               responseBytes);
+            int correctedStatus = corrected.getStatusLine().getStatusCode();
+            if (HttpStatus.SC_BAD_GATEWAY != correctedStatus) {
+                HttpCacheEntry entry = cacheEntryFactory.generate(
+                            request.getRequestLine().getUri(),
+                            requestDate,
+                            responseDate,
+                            corrected.getStatusLine(),
+                            corrected.getAllHeaders(),
+                            responseBytes);
+                storeInCache(target, request, entry);
+                return responseGenerator.generateResponse(entry);
+            }
+        }
+
+        String uri = uriExtractor.getURI(target, request);
+        responseCache.removeEntry(uri);
+        return corrected;
+    }

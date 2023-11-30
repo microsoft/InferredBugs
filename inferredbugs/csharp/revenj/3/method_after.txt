@@ -1,0 +1,37 @@
+  private void Connection_Notification(object sender, NpgsqlNotificationEventArgs e)
+		{
+			try
+			{
+				if (e.Condition == "events" || e.Condition == "aggregate_roots")
+				{
+					var firstSeparator = e.AdditionalInformation.IndexOf(':');
+					var name = e.AdditionalInformation.Substring(0, firstSeparator);
+					var secondSeparator = e.AdditionalInformation.Substring(firstSeparator + 1).IndexOf(':');
+					var op = e.AdditionalInformation.Substring(firstSeparator + 1, secondSeparator).Trim();
+					var array = e.AdditionalInformation.Substring(firstSeparator + secondSeparator + 2).Trim();
+					if (array.Length > 0)
+					{
+						var uris = StringConverter.ParseCollection(new StringReader(array), 0, false).ToArray();
+						switch (op)
+						{
+							case "Update":
+								Subject.OnNext(new NotifyInfo(name, NotifyInfo.OperationEnum.Update, uris));
+								break;
+							case "Change":
+								Subject.OnNext(new NotifyInfo(name, NotifyInfo.OperationEnum.Change, uris));
+								break;
+							case "Delete":
+								Subject.OnNext(new NotifyInfo(name, NotifyInfo.OperationEnum.Delete, uris));
+								break;
+							default:
+								Subject.OnNext(new NotifyInfo(name, NotifyInfo.OperationEnum.Insert, uris));
+								break;
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Logger.Error(e.Condition + e.AdditionalInformation + ex.ToString());
+			}
+		}

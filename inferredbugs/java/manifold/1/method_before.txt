@@ -1,0 +1,26 @@
+    static SrcClass genClass(String fqn, ProgramNode programNode) {
+
+        ClassNode classNode = programNode.getFirstChild(ClassNode.class);
+
+        SrcClass clazz = new SrcClass(fqn, SrcClass.Kind.Class);
+
+        String superClass = classNode.getSuperClass();
+        if (superClass != null) {
+            clazz.superClass(superClass);
+        }
+        clazz.imports(JavascriptClass.class)
+          .imports( SourcePosition.class );
+
+        clazz.addField(new SrcField("ENGINE", ScriptEngine.class)
+                .modifiers(Modifier.STATIC)
+                .initializer(new SrcRawExpression(("JavascriptClass.init(\"" + fqn + "\")"))));
+
+
+        clazz.addField(new SrcField("_context", ScriptObjectMirror.class));
+
+        addConstructor(clazz, classNode);
+        addMethods(fqn, clazz, classNode);
+        addProperties(fqn, clazz, classNode);
+
+        return clazz;
+    }

@@ -1,0 +1,220 @@
+    @Override
+    public SuperstepState coordinateSuperstep() throws
+            KeeperException, InterruptedException {
+        // 1. Get chosen workers and set up watches on them.
+        // 2. Assign partitions to the workers
+        //    or possibly reload from a superstep
+        // 3. Wait for all workers to complete
+        // 4. Collect and process aggregators
+        // 5. Create superstep finished node
+        // 6. If the checkpoint frequency is met, finalize the checkpoint
+        Map<String, JSONArray> chosenWorkerHostnamePortMap = checkWorkers();
+        if (chosenWorkerHostnamePortMap == null) {
+            LOG.fatal("coordinateSuperstep: Not enough healthy workers for " +
+                      "superstep " + getSuperstep());
+            setJobState(ApplicationState.FAILED, -1, -1);
+        } else {
+            for (Entry<String, JSONArray> entry :
+                    chosenWorkerHostnamePortMap.entrySet()) {
+                String workerHealthyPath =
+                    getWorkerHealthyPath(getApplicationAttempt(),
+                                         getSuperstep()) + "/" + entry.getKey();
+                if (getZkExt().exists(workerHealthyPath, true) == null) {
+                    LOG.warn("coordinateSuperstep: Chosen worker " +
+                             workerHealthyPath +
+                             " is no longer valid, failing superstep");
+                }
+            }
+        }
+
+        currentWorkersCounter.increment(chosenWorkerHostnamePortMap.size() -
+                                        currentWorkersCounter.getValue());
+        if (getRestartedSuperstep() == getSuperstep()) {
+            try {
+                if (LOG.isInfoEnabled()) {
+                    LOG.info("coordinateSuperstep: Reloading from superstep " +
+                             getSuperstep());
+                }
+                mapFilesToWorkers(
+                    getRestartedSuperstep(),
+                    new ArrayList<String>(
+                        chosenWorkerHostnamePortMap.keySet()));
+                inputSplitsToVertexRanges(chosenWorkerHostnamePortMap);
+            } catch (IOException e) {
+                throw new IllegalStateException(
+                    "coordinateSuperstep: Failed to reload", e);
+            }
+        } else {
+            if (getSuperstep() > INPUT_SUPERSTEP) {
+                VertexRangeBalancer<I, V, E, M> vertexRangeBalancer =
+                    BspUtils.<I, V, E, M>createVertexRangeBalancer(
+                        getConfiguration());
+                synchronized (vertexRangeSynchronization) {
+                    balanceVertexRanges(vertexRangeBalancer,
+                                        chosenWorkerHostnamePortMap);
+                }
+            }
+        }
+
+        String finishedWorkerPath =
+            getWorkerFinishedPath(getApplicationAttempt(), getSuperstep());
+        try {
+            getZkExt().createExt(finishedWorkerPath,
+                                 null,
+                                 Ids.OPEN_ACL_UNSAFE,
+                                 CreateMode.PERSISTENT,
+                                 true);
+        } catch (KeeperException.NodeExistsException e) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("coordinateSuperstep: finishedWorkers " +
+                          finishedWorkerPath +
+                          " already exists, no need to create");
+            }
+        }
+        String workerHealthyPath =
+            getWorkerHealthyPath(getApplicationAttempt(), getSuperstep());
+        List<String> finishedWorkerList = null;
+        long nextInfoMillis = System.currentTimeMillis();
+        while (true) {
+            try {
+                finishedWorkerList =
+                    getZkExt().getChildrenExt(finishedWorkerPath,
+                                              true,
+                                              false,
+                                              false);
+            } catch (KeeperException e) {
+                throw new IllegalStateException(
+                    "coordinateSuperstep: Couldn't get children of " +
+                    finishedWorkerPath, e);
+            }
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("coordinateSuperstep: Got finished worker list = " +
+                          finishedWorkerList + ", size = " +
+                          finishedWorkerList.size() +
+                          ", chosen worker list = " +
+                          chosenWorkerHostnamePortMap.keySet() + ", size = " +
+                          chosenWorkerHostnamePortMap.size() +
+                          " from " + finishedWorkerPath);
+            }
+
+            if (LOG.isInfoEnabled() &&
+                    (System.currentTimeMillis() > nextInfoMillis)) {
+                nextInfoMillis = System.currentTimeMillis() + 30000;
+                LOG.info("coordinateSuperstep: " + finishedWorkerList.size() +
+                         " out of " +
+                         chosenWorkerHostnamePortMap.size() +
+                         " chosen workers finished on superstep " +
+                         getSuperstep());
+            }
+            getContext().setStatus(getGraphMapper().getMapFunctions() + " - " +
+                                   finishedWorkerList.size() +
+                                   " finished out of " +
+                                   chosenWorkerHostnamePortMap.size() +
+                                   " on superstep " + getSuperstep());
+            if (finishedWorkerList.containsAll(
+                chosenWorkerHostnamePortMap.keySet())) {
+                break;
+            }
+            getSuperstepStateChangedEvent().waitForever();
+            getSuperstepStateChangedEvent().reset();
+
+            // Did a worker die?
+            if ((getSuperstep() > 0) &&
+                    !superstepChosenWorkerAlive(
+                        workerHealthyPath,
+                        chosenWorkerHostnamePortMap.keySet())) {
+                return SuperstepState.WORKER_FAILURE;
+            }
+        }
+        collectAndProcessAggregatorValues(getSuperstep());
+        JSONObject globalInfoObject = aggregateWorkerStats(getSuperstep());
+
+        // Convert the input split stats to vertex ranges in INPUT_SUPERSTEP
+        if (getSuperstep() == INPUT_SUPERSTEP) {
+            inputSplitsToVertexRanges(chosenWorkerHostnamePortMap);
+        }
+
+        // Let everyone know the aggregated application state through the
+        // superstep
+        String superstepFinishedNode =
+            getSuperstepFinishedPath(getApplicationAttempt(), getSuperstep());
+        try {
+            getZkExt().createExt(superstepFinishedNode,
+                                 globalInfoObject.toString().getBytes(),
+                                 Ids.OPEN_ACL_UNSAFE,
+                                 CreateMode.PERSISTENT,
+                                 true);
+            vertexCounter.increment(
+                globalInfoObject.getLong(JSONOBJ_NUM_VERTICES_KEY) -
+                vertexCounter.getValue());
+            finishedVertexCounter.increment(
+                globalInfoObject.getLong(JSONOBJ_FINISHED_VERTICES_KEY) -
+                finishedVertexCounter.getValue());
+            edgeCounter.increment(
+                globalInfoObject.getLong(JSONOBJ_NUM_EDGES_KEY) -
+                edgeCounter.getValue());
+            sentMessagesCounter.increment(
+                globalInfoObject.getLong(JSONOBJ_NUM_MESSAGES_KEY) -
+                sentMessagesCounter.getValue());
+        } catch (JSONException e) {
+            throw new IllegalStateException("coordinateSuperstep: " +
+                                            "JSONException", e);
+        }
+
+
+        // Finalize the valid checkpoint file prefixes and possibly
+        // the aggregators.
+        if (checkpointFrequencyMet(getSuperstep())) {
+            try {
+                finalizeCheckpoint(
+                    getSuperstep(),
+                    new ArrayList<String>(chosenWorkerHostnamePortMap.keySet()));
+            } catch (IOException e) {
+                throw new IllegalStateException(
+                    "coordinateSuperstep: IOException on finalizing checkpoint",
+                    e);
+            }
+        }
+
+        // Clean up the old supersteps (always keep this one)
+        long removeableSuperstep = getSuperstep() - 1;
+        if ((getConfiguration().getBoolean(
+                GiraphJob.KEEP_ZOOKEEPER_DATA,
+                GiraphJob.KEEP_ZOOKEEPER_DATA_DEFAULT) == false) &&
+            (removeableSuperstep >= 0)) {
+            String oldSuperstepPath =
+                getSuperstepPath(getApplicationAttempt()) + "/" +
+                (removeableSuperstep);
+            try {
+                if (LOG.isInfoEnabled()) {
+                    LOG.info("coordinateSuperstep: Cleaning up old Superstep " +
+                             oldSuperstepPath);
+                }
+                getZkExt().deleteExt(oldSuperstepPath,
+                                     -1,
+                                     true);
+            } catch (KeeperException.NoNodeException e) {
+                LOG.warn("coordinateBarrier: Already cleaned up " +
+                         oldSuperstepPath);
+            } catch (KeeperException e) {
+                throw new IllegalStateException(
+                    "coordinateSuperstep: KeeperException on " +
+                    "finalizing checkpoint", e);
+            }
+        }
+        incrCachedSuperstep();
+        superstepCounter.increment(1);
+        try {
+            if ((globalInfoObject.getLong(JSONOBJ_FINISHED_VERTICES_KEY) ==
+                    globalInfoObject.getLong(JSONOBJ_NUM_VERTICES_KEY)) &&
+                    (globalInfoObject.getLong(JSONOBJ_NUM_MESSAGES_KEY)) == 0) {
+                return SuperstepState.ALL_SUPERSTEPS_DONE;
+            } else {
+                return SuperstepState.THIS_SUPERSTEP_DONE;
+            }
+        } catch (JSONException e) {
+            throw new IllegalStateException(
+                "coordinateSuperstep: JSONException on checking if " +
+                "the application is done", e);
+        }
+    }

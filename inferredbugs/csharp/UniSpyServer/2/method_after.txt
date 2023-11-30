@@ -1,0 +1,30 @@
+        private void ClientSuccessfulLogin(object sender)
+        {
+            // Wrap this in a try/catch
+            try
+            {
+                GPCMClient oldC;
+                GPCMClient client = sender as GPCMClient;
+
+                // Remove connection from processing
+                Processing.TryRemove(client.ConnectionID, out oldC);
+
+                // Check to see if the client is already logged in, if so disconnect the old user
+                if (Clients.TryRemove(client.PlayerInfo.PlayerId, out oldC))
+                {
+                    oldC.DisconnectByReason(DisconnectReason.NewLoginDetected);
+                    LogWriter.Log.Write(LogLevel.Info, "Login Clash:   {0} - {1} - {2}", client.PlayerInfo.PlayerNick, client.PlayerInfo.PlayerId, client.RemoteEndPoint);
+                }
+
+                // Add current client to the dictionary
+                if (!Clients.TryAdd(client.PlayerInfo.PlayerId, client))
+                    LogWriter.Log.Write("ERROR: [GPCMClient._OnSuccessfulLogin] Unable to add client to HashSet.", LogLevel.Error);
+
+                // Add player to database queue
+                PlayerStatusQueue.Enqueue(client);
+            }
+            catch (Exception E)
+            {
+                LogWriter.Log.WriteException(E);
+            }
+        }

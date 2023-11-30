@@ -1,0 +1,98 @@
+  private void initSikulixOptions() {
+		SikuliRepo = null;
+		Properties prop = new Properties();
+		String svf = "sikulixversion.txt";
+		try {
+			InputStream is;
+			is = clsRef.getClassLoader().getResourceAsStream("Settings/" + svf);
+      if (is == null) {
+        terminate(1, "initSikulixOptions: not found on classpath: %s", "Settings/" + svf);
+      }
+			prop.load(is);
+			is.close();
+			String svt = prop.getProperty("sikulixdev");
+			SikuliVersionMajor = Integer.decode(prop.getProperty("sikulixvmaj"));
+			SikuliVersionMinor = Integer.decode(prop.getProperty("sikulixvmin"));
+			SikuliVersionSub = Integer.decode(prop.getProperty("sikulixvsub"));
+			SikuliVersionBetaN = Integer.decode(prop.getProperty("sikulixbeta"));
+			String ssxbeta = "";
+			if (SikuliVersionBetaN > 0) {
+				ssxbeta = String.format("-Beta%d", SikuliVersionBetaN);
+			}
+			SikuliVersionBuild = prop.getProperty("sikulixbuild");
+			log(lvl + 1, "%s version from %s: %d.%d.%d%s build: %s", svf,
+							SikuliVersionMajor, SikuliVersionMinor, SikuliVersionSub, ssxbeta,
+							SikuliVersionBuild, svt);
+			sversion = String.format("%d.%d.%d",
+							SikuliVersionMajor, SikuliVersionMinor, SikuliVersionSub);
+			bversion = String.format("%d.%d.%d-Beta%d",
+							SikuliVersionMajor, SikuliVersionMinor, SikuliVersionSub, SikuliVersionBetaN);
+			SikuliVersionDefault = "SikuliX " + sversion;
+			SikuliVersionBeta = "Sikuli " + bversion;
+			SikuliVersionDefaultIDE = "SikulixIDE " + sversion;
+			SikuliVersionBetaIDE = "SikulixIDE " + bversion;
+			SikuliVersionDefaultScript = "SikulixScript " + sversion;
+			SikuliVersionBetaScript = "SikulixScript " + bversion;
+
+			if ("release".equals(svt)) {
+				downloadBaseDirBase = dlProdLink;
+				downloadBaseDirWeb = downloadBaseDirBase + getVersionShortBasic() + dlProdLink1;
+				downloadBaseDir = downloadBaseDirWeb + dlProdLink2;
+        SikuliVersionType = "";
+        SikuliVersionTypeText = "";
+			} else {
+				downloadBaseDirBase = dlDevLink;
+				downloadBaseDirWeb = dlDevLink;
+				downloadBaseDir = dlDevLink;
+        SikuliVersionTypeText = "nightly";
+        SikuliVersionBuild += SikuliVersionTypeText;
+        SikuliVersionType = svt;
+			}
+			if (SikuliVersionBetaN > 0) {
+				SikuliVersion = SikuliVersionBeta;
+				SikuliVersionIDE = SikuliVersionBetaIDE;
+				SikuliVersionScript = SikuliVersionBetaScript;
+        SikuliVersionLong = bversion + "(" + SikuliVersionBuild + ")";
+			} else {
+				SikuliVersion = SikuliVersionDefault;
+				SikuliVersionIDE = SikuliVersionDefaultIDE;
+				SikuliVersionScript = SikuliVersionDefaultScript;
+        SikuliVersionLong = sversion + "(" + SikuliVersionBuild + ")";
+			}
+			SikuliProjectVersionUsed = prop.getProperty("sikulixvused");
+			SikuliProjectVersion = prop.getProperty("sikulixvproject");
+      String osn = "UnKnown";
+      String os = System.getProperty("os.name").toLowerCase();
+      if (os.startsWith("mac")) {
+        osn = "Mac";
+      } else if (os.startsWith("windows")) {
+        osn = "Windows";
+      } else if (os.startsWith("linux")) {
+        osn = "Linux";
+      }
+
+			SikuliLocalRepo = FileManager.slashify(prop.getProperty("sikulixlocalrepo"), true);
+			SikuliJythonVersion = prop.getProperty("sikulixvjython");
+			SikuliJythonMaven = "org/python/jython-standalone/" +
+							 SikuliJythonVersion + "/jython-standalone-" + SikuliJythonVersion + ".jar";
+			SikuliJythonMaven25 = "org/python/jython-standalone/" +
+							 SikuliJythonVersion25 + "/jython-standalone-" + SikuliJythonVersion25 + ".jar";
+			SikuliJython = SikuliLocalRepo + SikuliJythonMaven;
+			SikuliJRubyVersion = prop.getProperty("sikulixvjruby");
+			SikuliJRubyMaven = "org/jruby/jruby-complete/" +
+							 SikuliJRubyVersion + "/jruby-complete-" + SikuliJRubyVersion + ".jar";
+			SikuliJRuby = SikuliLocalRepo + SikuliJRubyMaven;
+
+      SikuliSystemVersion = osn + System.getProperty("os.version");
+      SikuliJavaVersion = "Java" + javaVersion + "(" + javaArch + ")" + jreVersion;
+//TODO this should be in RunSetup only
+//TODO debug version: where to do in sikulixapi.jar
+//TODO need a function: reveal all environment and system information
+//      log(lvl, "%s version: downloading from %s", svt, downloadBaseDir);
+		} catch (Exception e) {
+			Debug.error("Settings: load version file %s did not work", svf);
+			Sikulix.terminate(999);
+		}
+		tessData.put("eng", "http://tesseract-ocr.googlecode.com/files/tesseract-ocr-3.02.eng.tar.gz");
+    Env.setSikuliVersion(SikuliVersion);
+  }

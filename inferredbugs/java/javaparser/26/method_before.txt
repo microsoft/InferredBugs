@@ -1,0 +1,87 @@
+    @Override
+    public SymbolReference<ResolvedTypeDeclaration> solveType(String name, TypeSolver typeSolver) {
+        if (wrappedNode.getTypes() != null) {
+            for (TypeDeclaration<?> type : wrappedNode.getTypes()) {
+                if (type.getName().getId().equals(name)) {
+                    if (type instanceof ClassOrInterfaceDeclaration) {
+                        return SymbolReference.solved(JavaParserFacade.get(typeSolver).getTypeDeclaration((ClassOrInterfaceDeclaration) type));
+                    } else if (type instanceof AnnotationDeclaration) {
+                        return SymbolReference.solved(new JavaParserAnnotationDeclaration((AnnotationDeclaration) type, typeSolver));
+                    } else if (type instanceof EnumDeclaration) {
+                        return SymbolReference.solved(new JavaParserEnumDeclaration((EnumDeclaration) type, typeSolver));
+                    } else {
+                        throw new UnsupportedOperationException(type.getClass().getCanonicalName());
+                    }
+                }
+            }
+        }
+
+        // Look in current package
+        if (this.wrappedNode.getPackageDeclaration().isPresent()) {
+            String qName = this.wrappedNode.getPackageDeclaration().get().getName().toString() + "." + name;
+            SymbolReference<ResolvedReferenceTypeDeclaration> ref = typeSolver.tryToSolveType(qName);
+            if (ref != null && ref.isSolved()) {
+                return SymbolReference.adapt(ref, ResolvedTypeDeclaration.class);
+            }
+        } else {
+            // look for classes in the default package
+            String qName = name;
+            SymbolReference<ResolvedReferenceTypeDeclaration> ref = typeSolver.tryToSolveType(qName);
+            if (ref != null && ref.isSolved()) {
+                return SymbolReference.adapt(ref, ResolvedTypeDeclaration.class);
+            }
+        }
+
+        if (wrappedNode.getImports() != null) {
+            int dotPos = name.indexOf('.');
+            String prefix = null;
+            if (dotPos > -1) {
+                prefix = name.substring(0, dotPos);
+            }
+            // look into type imports
+            for (ImportDeclaration importDecl : wrappedNode.getImports()) {
+                if (!importDecl.isAsterisk()) {
+                    String qName = importDecl.getNameAsString();
+                    boolean defaultPackage = !importDecl.getName().getQualifier().isPresent();
+                    boolean found = !defaultPackage && importDecl.getName().getIdentifier().equals(name);
+                    if (!found) {
+                        if (prefix != null) {
+                            found = qName.endsWith("." + prefix);
+                            if (found) {
+                                qName = qName + name.substring(dotPos);
+                            }
+                        }
+                    }
+                    if (found) {
+                        SymbolReference<ResolvedReferenceTypeDeclaration> ref = typeSolver.tryToSolveType(qName);
+                        if (ref.isSolved()) {
+                            return SymbolReference.adapt(ref, ResolvedTypeDeclaration.class);
+                        }
+                    }
+                }
+            }
+            // look into type imports on demand
+            for (ImportDeclaration importDecl : wrappedNode.getImports()) {
+                if (importDecl.isAsterisk()) {
+                    String qName = importDecl.getNameAsString() + "." + name;
+                    SymbolReference<ResolvedReferenceTypeDeclaration> ref = typeSolver.tryToSolveType(qName);
+                    if (ref.isSolved()) {
+                        return SymbolReference.adapt(ref, ResolvedTypeDeclaration.class);
+                    }
+                }
+            }
+        }
+
+        // Look in the java.lang package
+        SymbolReference<ResolvedReferenceTypeDeclaration> ref = typeSolver.tryToSolveType("java.lang." + name);
+        if (ref.isSolved()) {
+            return SymbolReference.adapt(ref, ResolvedTypeDeclaration.class);
+        }
+
+        // DO NOT look for absolute name if this name is not qualified: you cannot import classes from the default package
+        if (isQualifiedName(name)) {
+            return SymbolReference.adapt(typeSolver.tryToSolveType(name), ResolvedTypeDeclaration.class);
+        } else {
+            return SymbolReference.unsolved(ResolvedReferenceTypeDeclaration.class);
+        }
+    }

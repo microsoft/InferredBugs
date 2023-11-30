@@ -1,0 +1,173 @@
+{
+    "hash": "4ebf6e175b3eb3c188eb6149edc043f1f6994230",
+    "message": "Optimize mask operation",
+    "file_num_lines": 456,
+    "diff_parsed": {
+        "added": [
+            [
+                163,
+                "                m_posEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(PositionEmbedding.BuildPositionWeightTensor(Math.Max(m_maxSrcSntSize, m_maxTgtSntSize) + 2, contextDim, DeviceIds[0], \"PosEmbedding\", false), DeviceIds, true);"
+            ],
+            [
+                296,
+                "                    (var c, var tmp) = DecodeTransformer(tgtTokensList, computeGraph, encOutput, decoder as TransformerDecoder, tgtEmbedding, posEmbedding,"
+            ],
+            [
+                297,
+                "                                                         m_shuffleType == ShuffleEnums.NoPaddingInSrc ? null : originalSrcLengths, isTraining);"
+            ],
+            [
+                318,
+                "                                (var cost2, var bssSeqList) = DecodeTransformer(batch2tgtTokens, g, encOutput, decoder as TransformerDecoder, tgtEmbedding, posEmbedding,"
+            ],
+            [
+                319,
+                "                                                                                m_shuffleType == ShuffleEnums.NoPaddingInSrc ? null : originalSrcLengths, isTraining, beamSearchSize: m_beamSearchSize);"
+            ],
+            [
+                410,
+                "            IWeightTensor decOutput = null;"
+            ],
+            [
+                411,
+                "            IWeightTensor decEncAttnProbs = null;"
+            ],
+            [
+                412,
+                "            using (IWeightTensor srcTgtMask = g.BuildSrcTgtMask(srcSeqLen, tgtSeqLen, tgtOriginalLengths, srcOriginalLenghts))"
+            ],
+            [
+                413,
+                "            {"
+            ],
+            [
+                414,
+                "                using (IWeightTensor tgtSelfTriMask = g.BuildPadSelfTriMask(tgtSeqLen, tgtOriginalLengths))"
+            ],
+            [
+                415,
+                "                {"
+            ],
+            [
+                416,
+                "                    IWeightTensor inputEmbs = ExtractTokensEmbeddings(tgtSeqs, g, tgtEmbedding, tgtOriginalLengths);"
+            ],
+            [
+                417,
+                "                    inputEmbs = PositionEmbedding.AddPositionEmbedding(g, posEmbedding, batchSize, inputEmbs, m_dropoutRatio);"
+            ],
+            [
+                418,
+                "                    (decOutput, decEncAttnProbs) = decoder.Decode(inputEmbs, encOutputs, tgtSelfTriMask, srcTgtMask, batchSize, g, outputAttnWeights: false);"
+            ],
+            [
+                419,
+                "                }"
+            ],
+            [
+                420,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                163,
+                "                m_posEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(PositionEmbedding.BuildPositionWeightTensor(Math.Max(m_maxSrcSntSize, m_maxTgtSntSize) + 2, contextDim, raDeviceIds.GetNextItem(), \"PosEmbedding\", false), DeviceIds, true);"
+            ],
+            [
+                296,
+                "                    (var c, var tmp) = DecodeTransformer(tgtTokensList, computeGraph, encOutput, decoder as TransformerDecoder, tgtEmbedding, posEmbedding, originalSrcLengths, isTraining);"
+            ],
+            [
+                317,
+                "                                (var cost2, var bssSeqList) = DecodeTransformer(batch2tgtTokens, g, encOutput, decoder as TransformerDecoder, tgtEmbedding, posEmbedding, originalSrcLengths, isTraining, beamSearchSize: m_beamSearchSize);"
+            ],
+            [
+                408,
+                "            IWeightTensor srcTgtMask = g.BuildSrcTgtMask(srcSeqLen, tgtSeqLen, tgtOriginalLengths, srcOriginalLenghts);"
+            ],
+            [
+                409,
+                "            IWeightTensor tgtSelfTriMask = g.BuildPadSelfTriMask(tgtSeqLen, tgtOriginalLengths);"
+            ],
+            [
+                410,
+                ""
+            ],
+            [
+                411,
+                "            IWeightTensor inputEmbs = ExtractTokensEmbeddings(tgtSeqs, g, tgtEmbedding, tgtOriginalLengths);"
+            ],
+            [
+                412,
+                "            inputEmbs = PositionEmbedding.AddPositionEmbedding(g, posEmbedding, batchSize, inputEmbs, m_dropoutRatio);"
+            ],
+            [
+                414,
+                "            (IWeightTensor decOutput, IWeightTensor decEncAttnProbs) = decoder.Decode(inputEmbs, encOutputs, tgtSelfTriMask, srcTgtMask, batchSize, g, outputAttnWeights: false);"
+            ],
+            [
+                477,
+                "            //List<IWeightTensor> inputs = new List<IWeightTensor>();"
+            ],
+            [
+                478,
+                "            //for (int i = 0; i < batchSize; i++)"
+            ],
+            [
+                479,
+                "            //{"
+            ],
+            [
+                480,
+                "            //    for (int j = 0; j < seqLen; j++)"
+            ],
+            [
+                481,
+                "            //    {"
+            ],
+            [
+                482,
+                "            //        var emb = g.Peek(embeddingsTensor, 0, seqs[i][j], runGradients: j < seqOriginalLengths[i] ? true : false);"
+            ],
+            [
+                483,
+                "            //        inputs.Add(emb);"
+            ],
+            [
+                484,
+                "            //    }"
+            ],
+            [
+                485,
+                "            //}"
+            ],
+            [
+                486,
+                ""
+            ],
+            [
+                487,
+                "            //return g.ConcatRows(inputs);"
+            ],
+            [
+                488,
+                ""
+            ],
+            [
+                494,
+                "                    //var emb = g.Peek(embeddingsTensor, 0, seqs[i][j], runGradients: j < seqOriginalLengths[i] ? true : false);"
+            ],
+            [
+                495,
+                "                    //inputs.Add(emb);"
+            ],
+            [
+                496,
+                ""
+            ]
+        ]
+    },
+    "num_lines_added": 16,
+    "num_lines_removed": 24
+}

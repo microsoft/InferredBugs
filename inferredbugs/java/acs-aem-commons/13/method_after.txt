@@ -1,0 +1,63 @@
+    @Override
+    public final void doPost(SlingHttpServletRequest request, SlingHttpServletResponse response)
+            throws ServletException, IOException {
+
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+
+        List<String> statuses = new ArrayList<String>();
+        List<String> models = new ArrayList<String>();
+        List<Pattern> payloads = new ArrayList<Pattern>();
+        Calendar olderThan = null;
+
+        try {
+            JSONObject params = new JSONObject(request.getParameter("params"));
+
+            JSONArray jsonArray = params.optJSONArray(PARAM_WORKFLOW_STATUSES);
+            for (int i = 0; i < jsonArray.length(); i++) {
+                statuses.add(jsonArray.getString(i));
+            }
+
+            jsonArray = params.optJSONArray(PARAM_WORKFLOW_MODELS);
+            for (int i = 0; i < jsonArray.length(); i++) {
+                models.add(jsonArray.getString(i));
+            }
+
+            jsonArray = params.optJSONArray(PARAM_WORKFLOW_PAYLOADS);
+            for (int i = 0; i < jsonArray.length(); i++) {
+                final JSONObject tmp = jsonArray.getJSONObject(i);
+                final String pattern = tmp.optString("pattern");
+
+                if (StringUtils.isNotBlank(pattern)) {
+                    payloads.add(Pattern.compile(pattern));
+                }
+            }
+
+            final Long ts = params.optLong(PARAM_OLDER_THAN);
+            if (ts != null && ts > 0) {
+                olderThan = Calendar.getInstance();
+                olderThan.setTimeInMillis(ts * MS_IN_SECOND);
+            }
+
+            int batchSize = params.optInt(PARAM_BATCH_SIZE);
+            if (batchSize < 1) {
+                batchSize = DEFAULT_BATCH_SIZE;
+            }            
+
+            workflowInstanceRemover.removeWorkflowInstances(request.getResourceResolver(),
+                    models,
+                    statuses,
+                    payloads,
+                    olderThan,
+                    batchSize);
+
+        } catch (Exception e) {
+            log.error("An error occurred while attempting to remove workflow instances.", e);
+
+            response.setStatus(SlingHttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+
+            if (response.getWriter() != null) {
+                response.getWriter().write(e.getMessage());
+            }
+        }
+    }

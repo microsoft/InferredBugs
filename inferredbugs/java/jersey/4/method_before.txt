@@ -1,0 +1,64 @@
+    @Override
+    public void channelRead(final ChannelHandlerContext ctx, Object msg) {
+
+        if (msg instanceof HttpRequest) {
+            final HttpRequest req = (HttpRequest) msg;
+
+            if (HttpUtil.is100ContinueExpected(req)) {
+                ctx.write(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.CONTINUE));
+            }
+
+            isList.clear(); // clearing the content - possible leftover from previous request processing.
+            final ContainerRequest requestContext = createContainerRequest(ctx, req);
+
+            requestContext.setWriter(new NettyResponseWriter(ctx, req, container));
+
+            long contentLength = req.headers().contains(HttpHeaderNames.CONTENT_LENGTH) ? HttpUtil.getContentLength(req)
+                    : -1L;
+            if (contentLength >= MAX_REQUEST_ENTITY_BYTES) {
+                requestContext.abortWith(javax.ws.rs.core.Response.status(Status.REQUEST_ENTITY_TOO_LARGE).build());
+            } else {
+                /**
+                 * Jackson JSON decoder tries to read a minimum of 2 bytes (4
+                 * for BOM). So, during an empty or 1-byte input, we'd want to
+                 * avoid reading the entity to safely handle this edge case by
+                 * eventually throwing a malformed JSON exception.
+                 */
+                String contentType = req.headers().get(HttpHeaderNames.CONTENT_TYPE);
+                boolean isJson = contentType != null ? contentType.toLowerCase().contains(MediaType.APPLICATION_JSON)
+                        : false;
+                //process entity streams only if there is an entity issued in the request (i.e., content-length >=0).
+                //Otherwise, it's safe to discard during next processing
+                if ((!isJson && contentLength != -1) || HttpUtil.isTransferEncodingChunked(req)
+                        || (isJson && contentLength >= 2)) {
+                    requestContext.setEntityStream(new NettyInputStream(isList));
+                }
+            }
+
+            // copying headers from netty request to jersey container request context.
+            for (String name : req.headers().names()) {
+                requestContext.headers(name, req.headers().getAll(name));
+            }
+
+            // must be like this, since there is a blocking read from Jersey
+            container.getExecutorService().execute(new Runnable() {
+                @Override
+                public void run() {
+                    container.getApplicationHandler().handle(requestContext);
+                }
+            });
+        }
+
+        if (msg instanceof HttpContent) {
+          HttpContent httpContent = (HttpContent) msg;
+
+          ByteBuf content = httpContent.content();
+          if (content.isReadable()) {
+              isList.add(content);
+          }
+
+          if (msg instanceof LastHttpContent) {
+              isList.add(Unpooled.EMPTY_BUFFER);
+          }
+      }
+    }

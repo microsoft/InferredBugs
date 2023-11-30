@@ -1,0 +1,121 @@
+  @Test
+  public void handleBatchedStatementPerRecordInsertingSameRecord100Times() throws SQLException {
+    String tableName = "batched_statement_test_100";
+    String createTable = "CREATE TABLE " + tableName + " (" +
+            "    firstName  TEXT," +
+            "    lastName  TEXT," +
+            "    age INTEGER," +
+            "    bool  NUMERIC," +
+            "    byte  INTEGER," +
+            "    short INTEGER," +
+            "    long INTEGER," +
+            "    float NUMERIC," +
+            "    double NUMERIC," +
+            "    bytes BLOB " +
+            ");";
+
+    SqlLiteHelper.deleteTable(SQL_LITE_URI, tableName);
+    SqlLiteHelper.createTable(SQL_LITE_URI, createTable);
+
+    Schema schema = SchemaBuilder.struct().name("com.example.Person")
+            .field("firstName", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("lastName", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("age", Schema.OPTIONAL_INT32_SCHEMA)
+            .field("bool", Schema.OPTIONAL_BOOLEAN_SCHEMA)
+            .field("short", Schema.OPTIONAL_INT16_SCHEMA)
+            .field("byte", Schema.OPTIONAL_INT8_SCHEMA)
+            .field("long", Schema.OPTIONAL_INT64_SCHEMA)
+            .field("float", Schema.OPTIONAL_FLOAT32_SCHEMA)
+            .field("double", Schema.OPTIONAL_FLOAT64_SCHEMA)
+            .field("bytes", Schema.OPTIONAL_BYTES_SCHEMA);
+
+    final String fName1 = "Alex";
+    final String lName1 = "Smith";
+    final int age1 = 21;
+    final boolean bool1 = true;
+    final short s1 = 1234;
+    final byte b1 = -32;
+    final long l1 = 12425436;
+    final float f1 = (float) 2356.3;
+    final double d1 = -2436546.56457;
+    final byte[] bs1 = new byte[]{-32, 124};
+
+
+    Struct struct1 = new Struct(schema)
+            .put("firstName", fName1)
+            .put("lastName", lName1)
+            .put("bool", bool1)
+            .put("short", s1)
+            .put("byte", b1)
+            .put("long", l1)
+            .put("float", f1)
+            .put("double", d1)
+            .put("bytes", bs1)
+            .put("age", age1);
+
+    String topic = "topic";
+    int partition = 2;
+    Collection<SinkRecord> records = Collections.nCopies(
+            100,
+            new SinkRecord(topic, partition, null, null, schema, struct1, 1));
+
+    Map<String, StructFieldsDataExtractor> map = new HashMap<>();
+    map.put(topic.toLowerCase(),
+            new StructFieldsDataExtractor(new FieldsMappings(tableName, topic, true, new HashMap<String, FieldAlias>())));
+
+    List<DbTable> dbTables = Lists.newArrayList(
+            new DbTable(tableName, Lists.<DbTableColumn>newArrayList(
+                    new DbTableColumn("firstName", true, false, 1),
+                    new DbTableColumn("lastName", true, false, 1),
+                    new DbTableColumn("age", false, false, 1),
+                    new DbTableColumn("bool", true, false, 1),
+                    new DbTableColumn("byte", true, false, 1),
+                    new DbTableColumn("short", true, false, 1),
+                    new DbTableColumn("long", true, false, 1),
+                    new DbTableColumn("float", true, false, 1),
+                    new DbTableColumn("double", true, false, 1),
+                    new DbTableColumn("BLOB", true, false, 1)
+            )));
+    DatabaseMetadata dbMetadata = new DatabaseMetadata(null, dbTables);
+    HikariDataSource ds = HikariHelper.from(SQL_LITE_URI, null, null);
+    DatabaseChangesExecutor executor = new DatabaseChangesExecutor(
+            ds,
+            Sets.<String>newHashSet(),
+            Sets.<String>newHashSet(),
+            dbMetadata,
+            new SQLiteDialect(),
+            1);
+    JdbcDbWriter writer = new JdbcDbWriter(ds,
+            new BatchedPreparedStatementBuilder(map, new InsertQueryBuilder()),
+            new ThrowErrorHandlingPolicy(),
+            executor,
+            10);
+
+    writer.write(records);
+
+    String query = "SELECT * FROM " + tableName + " ORDER BY firstName";
+    SqlLiteHelper.ResultSetReadCallback callback = new SqlLiteHelper.ResultSetReadCallback() {
+      int index = 0;
+
+      @Override
+      public void read(ResultSet rs) throws SQLException {
+        if (index < 100) {
+          assertEquals(rs.getString("firstName"), fName1);
+          assertEquals(rs.getString("lastName"), lName1);
+          assertEquals(rs.getBoolean("bool"), bool1);
+          assertEquals(rs.getShort("short"), s1);
+          assertEquals(rs.getByte("byte"), b1);
+          assertEquals(rs.getLong("long"), l1);
+          assertEquals(Float.compare(rs.getFloat("float"), f1), 0);
+          assertEquals(Double.compare(rs.getDouble("double"), d1), 0);
+          assertTrue(Arrays.equals(rs.getBytes("bytes"), bs1));
+          assertEquals(rs.getInt("age"), age1);
+        } else throw new RuntimeException(String.format("%d is too high", index));
+        index++;
+      }
+
+    };
+
+    SqlLiteHelper.select(SQL_LITE_URI, query, callback);
+
+  }

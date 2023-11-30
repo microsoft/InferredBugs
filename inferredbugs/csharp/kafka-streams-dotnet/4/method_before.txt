@@ -1,0 +1,28 @@
+        [Test]
+        public void RestoreFromScratch()
+        {
+            storeChangelogReader.Restore();
+            stateMgr.Checkpoint();
+            stateMgr.Close();
+
+            var producer = supplier.GetProducer(config.ToProducerConfig());
+            producer.Produce(changelogTopic, CreateMessage(changelogTopic, "key3", "value3"));
+            producer.Produce(changelogTopic, CreateMessage(changelogTopic, "key4", "value4"));
+
+            // delete state dir rocksdb
+            Directory.Delete(Path.Combine(config.StateDir), true);
+
+            restoreConsumer.Resume(restoreConsumer.Assignment);
+            store.Init(context, store);
+            stateMgr.InitializeOffsetsFromCheckpoint();
+
+            storeChangelogReader.Restore();
+
+            Assert.AreEqual(4, store.All().ToList().Count);
+
+            var metadata = storeChangelogReader.GetMetadata(new TopicPartition(changelogTopic, 0));
+            Assert.IsNotNull(metadata);
+            Assert.AreEqual(ChangelogState.COMPLETED, metadata.ChangelogState);
+            Assert.AreEqual(4, metadata.RestoreEndOffset);
+            Assert.AreEqual(4, metadata.TotalRestored);
+        }

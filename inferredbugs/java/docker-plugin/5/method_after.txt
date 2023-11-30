@@ -1,0 +1,19 @@
+    @Test
+    public void testAddingVmargsInBeforeContainerCreated() throws IOException, InterruptedException {
+        // Given
+        final String vmargs = "-Dhttp.proxyPort=8080";
+        final DockerComputerJNLPConnector connector = new DockerComputerJNLPConnector(new JNLPLauncher(null, vmargs));
+
+        final CreateContainerCmd createCmd = mock(CreateContainerCmd.class);
+        final Map<String, String> containerLabels = new TreeMap<>();
+        when(createCmd.getLabels()).thenReturn(containerLabels);
+        DockerTemplate.setNodeNameInContainerConfig(createCmd, "nodeName");
+
+        // When
+        connector.beforeContainerCreated(null, null, createCmd);
+
+        // Then
+        verify(createCmd, times(1)).withEnv(new String[]{
+                "JAVA_OPT=" + vmargs
+        });
+    }

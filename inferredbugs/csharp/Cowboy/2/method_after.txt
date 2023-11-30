@@ -1,0 +1,33 @@
+        private Request ConvertRequest(HttpListenerRequest httpRequest)
+        {
+            var baseUri = GetBaseUri(httpRequest);
+            if (baseUri == null)
+            {
+                throw new InvalidOperationException(string.Format("Unable to locate base URI for request: {0}", httpRequest.Url));
+            }
+
+            var expectedRequestLength = GetExpectedRequestLength(httpRequest.Headers.ToDictionary());
+
+            var relativeUrl = baseUri.MakeAppLocalPath(httpRequest.Url);
+
+            var url = new Url
+            {
+                Scheme = httpRequest.Url.Scheme,
+                HostName = httpRequest.Url.Host,
+                Port = httpRequest.Url.IsDefaultPort ? null : (int?)httpRequest.Url.Port,
+                BasePath = baseUri.AbsolutePath.TrimEnd('/'),
+                Path = HttpUtility.UrlDecode(relativeUrl),
+                Query = httpRequest.Url.Query,
+            };
+
+            var fieldCount = httpRequest.ProtocolVersion.Major == 2 ? 1 : 2;
+            var protocolVersion = string.Format("HTTP/{0}", httpRequest.ProtocolVersion.ToString(fieldCount));
+
+            return new Request(
+                httpRequest.HttpMethod,
+                url,
+                RequestStream.FromStream(httpRequest.InputStream, expectedRequestLength, false),
+                httpRequest.Headers.ToDictionary(),
+                (httpRequest.RemoteEndPoint != null) ? httpRequest.RemoteEndPoint.Address.ToString() : null,
+                protocolVersion);
+        }

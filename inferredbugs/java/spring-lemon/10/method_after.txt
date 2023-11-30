@@ -1,0 +1,18 @@
+ @Transactional(propagation=Propagation.REQUIRED, readOnly=false)
+	public SpringUser<ID> loginWithNonce(@Valid NonceForm<ID> nonce, HttpServletResponse response) {
+		
+		U user = userRepository.findById(nonce.getUserId())
+			.orElseThrow(MultiErrorException.supplier(
+				"com.naturalprogrammer.spring.userNotFound"));
+
+		if (user.getNonce().equals(nonce.getNonce())) {
+			
+			user.setNonce(null);
+			userRepository.save(user);
+			
+			jwtService.addJwtAuthHeader(response, user.toSpringUser().getUsername(), properties.getJwt().getExpirationMilli());
+			return user.toSpringUser();
+		}
+		
+		throw MultiErrorException.supplier("com.naturalprogrammer.spring.invalidNonce").get();
+	}

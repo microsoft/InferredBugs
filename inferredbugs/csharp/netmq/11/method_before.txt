@@ -1,0 +1,18 @@
+        [Test]
+        public void AccountActorJSONSendReceiveTests()
+        {
+            AccountShimHandler accountShimHandler = new AccountShimHandler();
+
+            AccountAction accountAction = new AccountAction(TransactionType.Credit, 10);
+            Account account = new Account(1, "Test Account", "11223", 0);
+
+            Actor accountActor = new Actor(NetMQContext.Create(), null,accountShimHandler,
+                new object[] { JsonConvert.SerializeObject(accountAction) });
+            accountActor.SendMore("AMEND ACCOUNT");
+            accountActor.Send(JsonConvert.SerializeObject(account));
+            Account updatedAccount =
+                         JsonConvert.DeserializeObject<Account>(accountActor.ReceiveString());
+            decimal expectedAccountBalance = 10.0m;
+            Assert.AreEqual(expectedAccountBalance, updatedAccount.Balance);
+            accountActor.Dispose();
+        }

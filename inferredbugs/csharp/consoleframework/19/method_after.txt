@@ -1,0 +1,79 @@
+        public object CreateFromXaml( string xaml, object dataContext ) {
+            if (null == xaml) throw new ArgumentNullException("xaml");
+            this.dataContext = dataContext;
+            
+            using ( XmlReader xmlReader = XmlReader.Create( new StringReader( xaml ) ) ) {
+                while ( xmlReader.Read( ) ) {
+                    if ( xmlReader.NodeType == XmlNodeType.Element ) {
+                        String name = xmlReader.Name;
+                        
+                        // explicit property syntax
+                        if ( Top != null && name.StartsWith( Top.type.Name + "." ) ) {
+                            if ( Top.currentProperty != null )
+                                throw new ApplicationException( "Illegal syntax in property value definition." );
+                            string propertyName = name.Substring(Top.type.Name.Length + 1);
+                            Top.currentProperty = propertyName;
+                        } else {
+                            bool processingRootObject = (objects.Count == 0);
+
+                            // Process namespace attributes if processing root object
+                            if ( processingRootObject && xmlReader.HasAttributes ) {
+                                if ( xmlReader.HasAttributes ) {
+                                    while ( xmlReader.MoveToNextAttribute( ) ) {
+                                        //
+                                        string attributePrefix = xmlReader.Prefix;
+                                        string attributeName = xmlReader.LocalName;
+                                        string attributeValue = xmlReader.Value;
+
+                                        // If we have found xmlns-attributes on root object, register them
+                                        // in namespaces dictionary
+                                        if (attributePrefix == "xmlns") {
+                                            namespaces.Add(attributeName, attributeValue);
+                                        }
+                                        //
+                                    }
+                                    xmlReader.MoveToElement( );
+                                }
+                            }
+
+                            objects.Push( createObject( name ) );
+
+                            // Process attributes
+                            if ( xmlReader.HasAttributes ) {
+                                while ( xmlReader.MoveToNextAttribute( ) ) {
+                                    //
+                                    string attributePrefix = xmlReader.Prefix;
+                                    string attributeName = xmlReader.LocalName;
+                                    string attributeValue = xmlReader.Value;
+
+                                    // Skip xmls attributes of root object
+                                    if (attributePrefix == "xmlns" && processingRootObject)
+                                        continue;
+
+                                    processAttribute( attributePrefix, attributeName, attributeValue );
+                                    //
+                                }
+                                xmlReader.MoveToElement( );
+                            }
+
+                            if (xmlReader.IsEmptyElement) processEndElement(  );
+                        }
+                    }
+
+                    if ( xmlReader.NodeType == XmlNodeType.Text ) {
+                        // this call moves xmlReader current element forward
+                        Top.currentPropertyText = xmlReader.ReadContentAsString();
+                    }
+
+                    if ( xmlReader.NodeType == XmlNodeType.EndElement ) {
+                        processEndElement( );
+                    }
+                }
+            }
+
+            // После обработки всех элементов последний раз обращаемся к
+            // расширениям разметки, ожидающим свои forward-references
+            processFixupTokens();
+
+            return result;
+        }

@@ -1,0 +1,30 @@
+ @Override
+	public PageBean<User> findAll(PageParams pageParams, User user) {
+		QUser qUser = QUser.user;
+		// 用户名查询条件
+		Predicate qUserNamePredicate = null;
+		if (null != user && StringHelper.isNotBlank(user.getUsername())) {
+			qUserNamePredicate = qUser.username.like("%" + user.getUsername().trim() + "%");
+		}
+
+		Predicate predicate = qUser.statu.eq(0).and(qUserNamePredicate);
+
+		Sort sort = new Sort(new Sort.Order(Sort.Direction.DESC, "createTime"));
+		PageRequest pageRequest = new PageRequest(pageParams.getCurrentPage(), pageParams
+				.getPageSize(), sort);
+		Page<User> pageList = userRepository.findAll(predicate, pageRequest);
+
+		if (null != pageList && null != pageList.getContent()) {
+			for (User dbUser : pageList.getContent()) {
+				dbUser.setRoleList(findRoleListByUserId(dbUser.getUserId()));
+			}
+		}
+
+		PageBean<User> pageData = new PageBean<User>();
+		pageData.setCurrentPage(pageParams.getCurrentPage());
+		pageData.setPageSize(pageParams.getPageSize());
+		pageData.setTotal(pageList.getTotalElements());
+		pageData.setList(pageList.getContent());
+
+		return pageData;
+	}

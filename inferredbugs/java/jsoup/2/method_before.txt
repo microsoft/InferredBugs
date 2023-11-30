@@ -1,0 +1,58 @@
+    private void parseStartTag() {
+        tq.consume("<");
+        Attributes attributes = new Attributes();
+
+        String tagName = tq.consumeWord();
+        while (!tq.matches("<") && !tq.matches("/>") && !tq.matches(">") && !tq.isEmpty()) {
+            Attribute attribute = parseAttribute();
+            if (attribute != null)
+                attributes.put(attribute);
+        }
+
+        Tag tag = Tag.valueOf(tagName);
+        StartTag startTag = new StartTag(tag, attributes);
+        Element child = new Element(startTag);
+
+        boolean emptyTag;
+        if (tq.matchChomp("/>")) { // empty tag, don't add to stack
+            emptyTag = true;
+        } else {
+            tq.matchChomp(">"); // safe because checked above (or ran out of data)
+            emptyTag = false;
+        }
+
+        // pc data only tags (textarea, script): chomp to end tag, add content as text node
+        if (tag.isData()) {
+            String data = tq.chompTo("</" + tagName);
+            tq.chompTo(">");
+            TextNode textNode = TextNode.createFromEncoded(data);
+            child.addChild(textNode);
+
+            if (tag.equals(titleTag))
+                doc.setTitle(child.text());
+        }
+
+        // switch between html, head, body, to preserve doc structure
+        if (tag.equals(htmlTag)) {
+            doc.getAttributes().mergeAttributes(attributes);
+        } else if (tag.equals(headTag)) {
+            doc.getHead().getAttributes().mergeAttributes(attributes);
+            // head is on stack from start, no action required
+        } else if (last().getTag().equals(headTag) && !headTag.canContain(tag)) {
+            // switch to body
+            stack.removeLast();
+            stack.addLast(doc.getBody());
+            last().addChild(child);
+            if (!emptyTag)
+                stack.addLast(child);
+        } else if (tag.equals(bodyTag) && last().getTag().equals(htmlTag)) {
+            doc.getBody().getAttributes().mergeAttributes(attributes);
+            stack.removeLast();
+            stack.addLast(doc.getBody());
+        } else {
+            Element parent = popStackToSuitableContainer(tag);
+            parent.addChild(child);
+            if (!emptyTag && !tag.isData()) // TODO: only check for data here because last() == head is wrong; should be ancestor is head
+                stack.addLast(child);
+        }
+    }

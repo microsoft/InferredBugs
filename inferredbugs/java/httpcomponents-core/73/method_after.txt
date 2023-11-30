@@ -1,0 +1,133 @@
+    public void run() {
+
+        HttpResponse response = null;
+        BenchmarkConnection conn = new BenchmarkConnection(this.stats);
+
+        String scheme = targetHost.getSchemeName();
+        String hostname = targetHost.getHostName();
+        int port = targetHost.getPort();
+        if (port == -1) {
+            if (scheme.equalsIgnoreCase("https")) {
+                port = 443;
+            } else {
+                port = 80;
+            }
+        }
+
+        // Populate the execution context
+        this.context.setAttribute(ExecutionContext.HTTP_CONNECTION, conn);
+        this.context.setAttribute(ExecutionContext.HTTP_TARGET_HOST, this.targetHost);
+        this.context.setAttribute(ExecutionContext.HTTP_REQUEST, this.request);
+
+        stats.start();
+        for (int i = 0; i < count; i++) {
+
+            try {
+                resetHeader(request);
+                if (!conn.isOpen()) {
+                    
+                    Socket socket;
+                    if (socketFactory != null) {
+                        socket = socketFactory.createSocket();
+                    } else {
+                        socket = new Socket();
+                    }
+                    
+                    HttpParams params = request.getParams();
+                    int connTimeout = params.getIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 0);
+                    int soTimeout = params.getIntParameter(CoreConnectionPNames.SO_TIMEOUT, 0);
+
+                    socket.setSoTimeout(soTimeout);
+                    socket.connect(new InetSocketAddress(hostname, port), connTimeout);
+                    
+                    conn.bind(socket, params);
+                }
+
+                try {
+                    // Prepare request
+                    this.httpexecutor.preProcess(this.request, this.httpProcessor, this.context);
+                    // Execute request and get a response
+                    response = this.httpexecutor.execute(this.request, conn, this.context);
+                    // Finalize response
+                    this.httpexecutor.postProcess(response, this.httpProcessor, this.context);
+
+                } catch (HttpException e) {
+                    stats.incWriteErrors();
+                    if (this.verbosity >= 2) {
+                        System.err.println("Failed HTTP request : " + e.getMessage());
+                    }
+                    continue;
+                }
+
+                verboseOutput(response);
+
+                if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                    stats.incSuccessCount();
+                } else {
+                    stats.incFailureCount();
+                    continue;
+                }
+
+                HttpEntity entity = response.getEntity();
+                if (entity != null) {
+                    ContentType ct = ContentType.get(entity);
+                    Charset charset = ct.getCharset();
+                    if (charset == null) {
+                        charset = HTTP.DEF_CONTENT_CHARSET;
+                    }
+                    long contentlen = 0;
+                    InputStream instream = entity.getContent();
+                    int l = 0;
+                    while ((l = instream.read(this.buffer)) != -1) {
+                        contentlen += l;
+                        if (this.verbosity >= 4) {
+                            String s = new String(this.buffer, 0, l, charset.name());
+                            System.out.print(s);
+                        }
+                    }
+                    instream.close();
+                    stats.setContentLength(contentlen);
+                }
+
+                if (this.verbosity >= 4) {
+                    System.out.println();
+                    System.out.println();
+                }
+
+                if (!keepalive || !this.connstrategy.keepAlive(response, this.context)) {
+                    conn.close();
+                } else {
+                    stats.incKeepAliveCount();
+                }
+
+            } catch (IOException ex) {
+                stats.incFailureCount();
+                if (this.verbosity >= 2) {
+                    System.err.println("I/O error: " + ex.getMessage());
+                }
+            } catch (Exception ex) {
+                stats.incFailureCount();
+                if (this.verbosity >= 2) {
+                    System.err.println("Generic error: " + ex.getMessage());
+                }
+            }
+
+        }
+        stats.finish();
+
+        if (response != null) {
+            Header header = response.getFirstHeader("Server");
+            if (header != null) {
+                stats.setServerName(header.getValue());
+            }
+        }
+
+        try {
+            conn.close();
+        } catch (IOException ex) {
+            stats.incFailureCount();
+            if (this.verbosity >= 2) {
+                System.err.println("I/O error: " + ex.getMessage());
+            }
+        }
+    }

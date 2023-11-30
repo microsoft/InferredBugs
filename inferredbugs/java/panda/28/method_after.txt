@@ -1,0 +1,27 @@
+    public static Type getArrayOf(Module module, Referencable baseReferencable, int dimensions) {
+        Reference baseReference = baseReferencable.toReference();
+        Class<?> componentType = ArrayUtils.getDimensionalArrayType(baseReference.getAssociatedClass().fetchImplementation(), dimensions);
+        Class<?> arrayType = ArrayUtils.getArrayClass(componentType);
+        Reference componentReference;
+
+        if (componentType.isArray()) {
+            componentReference = fetch(module, componentType).getOrElseThrow((Supplier<PandaFrameworkException>) () -> {
+                throw new PandaFrameworkException("Cannot fetch array class for array type " + componentType);
+            });
+        }
+        else {
+            componentReference = module.forClass(componentType).getOrElseThrow((Supplier<PandaFrameworkException>) () -> {
+                throw new PandaFrameworkException("Cannot fetch array class for " + componentType);
+            });
+        }
+
+        ArrayType arraType = new ArrayType(module, arrayType, componentReference.fetch());
+        ARRAY_PROTOTYPES.put(baseReference.getName() + dimensions, arraType);
+        ModuleLoader loader = module.getModuleLoader();
+
+        arraType.getMethods().declare("size", () -> ArrayClassTypeConstants.SIZE.apply(loader));
+        arraType.getMethods().declare("toString", () -> ArrayClassTypeConstants.TO_STRING.apply(loader));
+
+        module.add(arraType);
+        return arraType;
+    }

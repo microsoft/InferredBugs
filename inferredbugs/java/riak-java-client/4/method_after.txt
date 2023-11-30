@@ -1,0 +1,16 @@
+    private boolean findNext() throws IOException {
+        if (currentPartStream != null) {
+            InputStream is = currentPartStream.branch();
+            try {
+                while (is.read() != -1) { /* nop */}    // advance stream to end of next boundary 
+                finishReadingLine(stream);              // and consume the rest of the boundary line including the newline
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        if (stream.peek() != -1) {
+            currentPartStream = new BranchableInputStream(new OneTokenInputStream(stream.branch(), boundary));
+            return true;
+        }
+        return false;
+    }

@@ -1,0 +1,34 @@
+    public RrdDb requestRrdDb(String path, String sourcePath)
+            throws IOException {
+        RrdEntry ref = null;
+        try {
+            do {
+                ref = getEntry(path, true);
+                if(ref.count != 0) {
+                    //Not empty, give it back, but wait for signal
+                    passNext(ACTION.SWAP, ref);                
+                    ref.waitempty.await();
+                    // ref is not a real reference (not replaced by a placeholder
+                    // So must try a get entry before carry on
+                    ref = null; //might be checked by the catch
+                    continue;
+                }
+            } while(ref.count != 0);
+        } catch (InterruptedException e) {
+            if(ref != null) {
+                passNext(ACTION.SWAP, ref);                
+            }
+            throw new RuntimeException("request interrupted for new rrd " + path, e);
+        }
+
+        try {
+            ref.rrdDb = new RrdDb(path, sourcePath);
+            ref.count = 1;
+            capacity.acquire();
+            return ref.rrdDb;
+        } catch (InterruptedException e) {
+            throw new RuntimeException("request interrupted for new rrd " + path, e);
+        } finally {
+            passNext(ACTION.SWAP, ref);
+        }
+    }

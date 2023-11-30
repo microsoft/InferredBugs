@@ -1,0 +1,21 @@
+    private void _testEscapeCustom(boolean useStream) throws Exception
+    {
+        JsonFactory f = new JsonFactory().setCharacterEscapes(new MyEscapes());
+        final String STR_IN = "[abcd/"+((char) TWO_BYTE_ESCAPED)+"/"+((char) THREE_BYTE_ESCAPED)+"]";
+        final String STR_OUT = "[\\A\\u0062c[D]/"+TWO_BYTE_ESCAPED_STRING+"/"+THREE_BYTE_ESCAPED_STRING+"]";
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        JsonGenerator jgen;
+        
+        // First: output normally; should not add escaping
+        if (useStream) {
+            jgen = f.createGenerator(bytes, JsonEncoding.UTF8);
+        } else {
+            jgen = f.createGenerator(new OutputStreamWriter(bytes, "UTF-8"));
+        }
+        jgen.writeStartObject();
+        jgen.writeStringField(STR_IN, STR_IN);
+        jgen.writeEndObject();
+        jgen.close();
+        String json = bytes.toString("UTF-8");
+        assertEquals("{"+quote(STR_OUT)+":"+quote(STR_OUT)+"}", json);
+    }

@@ -1,0 +1,19 @@
+    void link(final Linkage linkage) throws ModuleLoadException {
+        final HashMap<String, List<LocalLoader>> importsMap = new HashMap<String, List<LocalLoader>>();
+        final HashMap<String, List<LocalLoader>> exportsMap = new HashMap<String, List<LocalLoader>>();
+        final Dependency[] dependencies = linkage.getSourceList();
+        final long start = Metrics.getCurrentCPUTime();
+        try {
+            addPaths(dependencies, importsMap);
+            addExportedPaths(dependencies, exportsMap);
+            synchronized (this) {
+                if (this.linkage == linkage) {
+                    this.linkage = new Linkage(linkage.getSourceList(), Linkage.State.LINKED, importsMap, exportsMap);
+                    notifyAll();
+                }
+                // else all our efforts were just wasted since someone changed the deps in the meantime
+            }
+        } finally {
+            moduleLoader.addLinkTime(Metrics.getCurrentCPUTime() - start);
+        }
+    }

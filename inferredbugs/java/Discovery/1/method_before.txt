@@ -1,0 +1,55 @@
+    private void applyVersionFilter(String consumerServiceId, String consumerServiceVersion, String providerServiceId, List<ServiceInstance> instances) {
+        // 如果消费端未配置版本号，那么它可以调用提供端所有服务，需要符合规范，极力避免该情况发生
+        if (StringUtils.isEmpty(consumerServiceVersion)) {
+            return;
+        }
+
+        DiscoveryEntity discoveryEntity = pluginEntity.getDiscoveryEntity();
+        if (discoveryEntity == null) {
+            return;
+        }
+
+        Map<String, List<DiscoveryServiceEntity>> serviceEntityMap = discoveryEntity.getServiceEntityMap();
+        if (MapUtils.isEmpty(serviceEntityMap)) {
+            return;
+        }
+
+        List<DiscoveryServiceEntity> serviceEntityList = serviceEntityMap.get(consumerServiceId);
+        if (CollectionUtils.isEmpty(serviceEntityList)) {
+            return;
+        }
+
+        // 当前版本的消费端所能调用提供端的版本号列表
+        List<String> allFilterVersions = new ArrayList<String>();
+        for (DiscoveryServiceEntity serviceEntity : serviceEntityList) {
+            String providerServiceName = serviceEntity.getProviderServiceName();
+            if (StringUtils.equals(providerServiceName, providerServiceId)) {
+                String consumerVersionValue = serviceEntity.getConsumerVersionValue();
+                String providerVersionValue = serviceEntity.getProviderVersionValue();
+
+                List<String> consumerVersionList = getVersionList(consumerVersionValue);
+                List<String> providerVersionList = getVersionList(providerVersionValue);
+
+                // 判断consumer-version-value值是否包含当前消费端的版本号
+                if (CollectionUtils.isNotEmpty(consumerVersionList) && consumerVersionList.contains(consumerServiceVersion)) {
+                    if (CollectionUtils.isNotEmpty(providerVersionList)) {
+                        allFilterVersions.addAll(providerVersionList);
+                    }
+                }
+            }
+        }
+
+        // 未找到相应的版本定义或者未定义
+        if (CollectionUtils.isEmpty(allFilterVersions)) {
+            return;
+        }
+
+        Iterator<ServiceInstance> iterator = instances.iterator();
+        while (iterator.hasNext()) {
+            ServiceInstance serviceInstance = iterator.next();
+            String metaDataVersion = serviceInstance.getMetadata().get(PluginConstant.VRESION);
+            if (!allFilterVersions.contains(metaDataVersion)) {
+                iterator.remove();
+            }
+        }
+    }

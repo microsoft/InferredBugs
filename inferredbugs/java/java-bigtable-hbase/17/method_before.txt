@@ -1,0 +1,57 @@
+  @Override
+  public void onClose(Status status, Metadata trailers) {
+    synchronized (callLock) {
+      call = null;
+    }
+    rpcTimerContext.close();
+
+    Status.Code code = status.getCode();
+
+    // OK
+    if (code == Status.Code.OK) {
+      if (onOK()) {
+        operationTimerContext.close();
+      }
+      return;
+    }
+
+    // CANCELLED
+    if (code == Status.Code.CANCELLED) {
+      // An explicit user cancellation is not considered a failure.
+      operationTimerContext.close();
+      return;
+    }
+
+    // Non retry scenario
+    if (!retryOptions.enableRetries()
+        || !retryOptions.isRetryable(code)
+        // Unauthenticated is special because the request never made it to
+        // to the server, so all requests are retryable
+        || !(isRequestRetryable() || code == Code.UNAUTHENTICATED)) {
+      rpc.getRpcMetrics().markFailure();
+      operationTimerContext.close();
+      setException(status.asRuntimeException());
+      return;
+    }
+
+    // Attempt retry with backoff
+    long nextBackOff = getNextBackoff();
+    failedCount += 1;
+
+    // Backoffs timed out.
+    if (nextBackOff == BackOff.STOP) {
+      rpc.getRpcMetrics().markRetriesExhasted();
+      operationTimerContext.close();
+
+      String message = String.format("Exhausted retries after %d failures.", failedCount);
+      StatusRuntimeException cause = status.asRuntimeException();
+      setException(new BigtableRetriesExhaustedException(message, cause));
+      return;
+    } else {
+      String channelId = ChannelPool.extractIdentifier(trailers);
+      LOG.info("Retrying failed call. Failure #%d, got: %s on channel %s",
+          status.getCause(), failedCount, status, channelId);
+    }
+
+    performRetry(nextBackOff);
+  }

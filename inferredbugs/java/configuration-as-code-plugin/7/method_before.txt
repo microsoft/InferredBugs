@@ -1,0 +1,21 @@
+    @Override
+    public ProjectMatrixAuthorizationStrategy configure(Object config) throws Exception {
+        Map map = (Map) config;
+        Collection o = (Collection<?>)map.get("grantedPermissions");
+        Configurator<GroupPermissionDefinition> permissionConfigurator = Configurator.lookup(GroupPermissionDefinition.class);
+        Map<Permission,Set<String>> grantedPermissions = new HashMap<>();
+        for(Object entry : o) {
+            GroupPermissionDefinition gpd = permissionConfigurator.configure(entry);
+            //We transform the linear list to a matrix (Where permission is the key instead)
+            gpd.grantPermission(grantedPermissions);
+        }
+
+        ProjectMatrixAuthorizationStrategy gms = new ProjectMatrixAuthorizationStrategy();
+        for(Map.Entry<Permission,Set<String>> permission : grantedPermissions.entrySet()) {
+            for(String sid : permission.getValue()) {
+                gms.add(permission.getKey(), sid);
+            }
+        }
+
+        return gms;
+    }

@@ -1,0 +1,36 @@
+    @Override
+    public List<Word> seg(String text) {
+        List<Word> result = new ArrayList<>();
+        List<String> sentences = Punctuation.seg(text, KEEP_PUNCTUATION);
+        if(sentences.size() == 1){
+            result = segSentence(sentences.get(0));
+        }else {
+            //如果是多个句子，可以利用多线程提升分词速度
+            List<Future<List<Word>>> futures = new ArrayList<>(sentences.size());
+            for (String sentence : sentences) {
+                futures.add(submit(sentence));
+            }
+            sentences.clear();
+            for (Future<List<Word>> future : futures) {
+                List<Word> words;
+                try {
+                    words = future.get();
+                    if (words != null) {
+                        result.addAll(words);
+                    }
+                } catch (InterruptedException | ExecutionException ex) {
+                    LOGGER.error("获取分词结果失败", ex);
+                }
+            }
+            futures.clear();
+        }
+        if(refine) {
+            LOGGER.debug("对分词结果进行refine之前：{}", result);
+            List<Word> finalResult = refine(result);
+            LOGGER.debug("对分词结果进行refine之后：{}", finalResult);
+            result.clear();
+            return finalResult;
+        }else{
+            return result;
+        }
+    }

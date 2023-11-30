@@ -1,0 +1,31 @@
+  @Override
+  public Status delete(String table, String key) {
+    if (debug) {
+      System.out.println("Doing delete for key: " + key);
+    }
+    
+    setTable(table);
+    
+    final MutateRowRequest.Builder rowMutation = MutateRowRequest.newBuilder()
+        .setRowKey(ByteString.copyFromUtf8(key))
+        .setTableNameBytes(ByteStringer.wrap(lastTableBytes));
+    rowMutation.addMutationsBuilder().setDeleteFromRow(
+        DeleteFromRow.getDefaultInstance());
+    
+    try {
+      if (clientSideBuffering) {
+        asyncExecutor.mutateRowAsync(rowMutation.build());
+      } else {
+        client.mutateRow(rowMutation.build());
+      }
+      return Status.OK;
+    } catch (ServiceException e) {
+      System.err.println("Failed to delete key: " + key + " " + e.getMessage());
+      return Status.ERROR;
+    } catch (InterruptedException e) {
+      System.err.println("Interrupted while delete key: " + key + " " 
+          + e.getMessage());
+      Thread.currentThread().interrupt();
+      return Status.ERROR; // never get here, but lets make the compiler happy
+    }
+  }

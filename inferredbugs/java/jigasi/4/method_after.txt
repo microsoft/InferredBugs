@@ -1,0 +1,37 @@
+    private void updatePresenceStatusForXmppProvider(
+        ProtocolProviderService pps)
+    {
+        SipGateway sipGateway= ServiceUtils.getService(
+            osgiContext, SipGateway.class);
+        TranscriptionGateway transcriptionGateway = ServiceUtils.getService(
+            osgiContext, TranscriptionGateway.class);
+
+        List<AbstractGatewaySession> sessions = new ArrayList<>();
+        if(sipGateway != null)
+        {
+           sessions.addAll(sipGateway.getActiveSessions());
+        }
+        if(transcriptionGateway != null)
+        {
+            sessions.addAll(transcriptionGateway.getActiveSessions());
+        }
+
+        int sesCount = 0;
+        int participantCount = 0;
+
+        for(AbstractGatewaySession ses : sessions)
+        {
+            ChatRoom room = ses.getJvbChatRoom();
+            if(room != null)
+            {
+                participantCount += ses.getJvbChatRoom().getMembersCount();
+                sesCount++;
+            }
+            else
+            {
+                logger.warn("non-active session in active session list");
+            }
+        }
+
+        updatePresenceStatusForXmppProvider(pps, participantCount, sesCount);
+    }

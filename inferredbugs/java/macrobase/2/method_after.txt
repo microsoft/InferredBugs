@@ -1,0 +1,34 @@
+    @Override
+    public AnalysisResult run() throws Exception {
+        long startMs = System.currentTimeMillis();
+        DataIngester ingester = conf.constructIngester();
+        List<Datum> data = ingester.getStream().drain();
+        long loadEndMs = System.currentTimeMillis();
+
+        MBStream<OutlierClassificationResult> ocrs =
+                MBOperatorChain.begin(data)
+                             .then(new EWFeatureTransform(conf))
+                             .then(new EWAppxPercentileOutlierClassifier(conf)).executeMiniBatchUntilFixpoint(1000);
+
+        Summarizer summarizer = new EWStreamingSummarizer(conf);
+        summarizer.consume(ocrs.drain());
+
+        Summary result = summarizer.getStream().drain().get(0);
+
+        final long endMs = System.currentTimeMillis();
+        final long loadMs = loadEndMs - startMs;
+        final long totalMs = endMs - loadEndMs;
+        final long summarizeMs = result.getCreationTimeMs();
+        final long executeMs = totalMs - result.getCreationTimeMs();
+
+        log.info("took {}ms ({} tuples/sec)",
+                 totalMs,
+                 (result.getNumInliers()+result.getNumOutliers())/(double)totalMs*1000);
+
+        return new AnalysisResult(result.getNumOutliers(),
+                                  result.getNumInliers(),
+                                  loadMs,
+                                  executeMs,
+                                  summarizeMs,
+                                  result.getItemsets());
+    }

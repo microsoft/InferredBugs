@@ -1,0 +1,49 @@
+        public static IContentProvider GetContentProvider(
+            this IExecutionContext executionContext,
+            Stream stream,
+            string mediaType)
+        {
+            // Return null if the stream is null
+            if (stream is null)
+            {
+                return new NullContent();
+            }
+
+            // Special case if this is a content stream
+            if (stream is ContentStream contentStream)
+            {
+                return contentStream.GetContentProvider(mediaType);
+            }
+
+            // Special case if this is a string stream
+            if (stream is StringStream stringStream)
+            {
+                return new StringContent(stringStream.String, mediaType);
+            }
+
+            // Special case if this is a memory stream
+            if (stream is MemoryStream memoryStream && memoryStream.TryGetBuffer(out ArraySegment<byte> segment))
+            {
+                return new MemoryContent(segment.Array, segment.Offset, segment.Count, mediaType);
+            }
+
+            // Copy the stream to a buffer and use that for the content
+            if (stream.CanSeek)
+            {
+                stream.Position = 0;
+            }
+            using (MemoryStream bufferStream = stream.CanSeek ? new MemoryStream((int)stream.Length) : executionContext.MemoryStreamFactory.GetStream())
+            {
+                stream.CopyTo(bufferStream);
+
+                // First try getting a buffer segment
+                if (bufferStream.TryGetBuffer(out ArraySegment<byte> bufferSegment))
+                {
+                    return new MemoryContent(bufferSegment.Array, bufferSegment.Offset, bufferSegment.Count, mediaType);
+                }
+
+                // If that fails, copy it to an array
+                byte[] buffer = bufferStream.ToArray();
+                return new MemoryContent(buffer, mediaType);
+            }
+        }

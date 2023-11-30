@@ -1,0 +1,71 @@
+  public FtpHash GetChecksum(string path, FtpHashAlgorithm algorithm = FtpHashAlgorithm.NONE) {
+
+			if (path == null) {
+				throw new ArgumentException("Required argument is null", "path");
+			}
+
+			ValidateHashAlgorithm(algorithm);
+
+			path = path.GetFtpPath();
+
+			LogFunc(nameof(GetChecksum), new object[] { path });
+
+			var useFirst = (algorithm == FtpHashAlgorithm.NONE);
+
+			// if HASH is supported and the caller prefers an algorithm and that algorithm is supported
+			if (HasFeature(FtpCapability.HASH) && !useFirst && HashAlgorithms.HasFlag(algorithm)) {
+
+				// switch to that algorithm
+				SetHashAlgorithmInternal(algorithm);
+
+				// get the hash of the file using HASH Command
+				return HashCommandInternal(path);
+
+			}
+
+			// if HASH is supported and the caller does not prefer any specific algorithm
+			else if (HasFeature(FtpCapability.HASH) && useFirst) {
+
+				// switch to the first preferred algorithm
+				SetHashAlgorithmInternal(HashAlgos.FirstSupported(HashAlgorithms));
+
+				// get the hash of the file using HASH Command
+				return HashCommandInternal(path);
+			}
+			else {
+				var result = new FtpHash();
+
+				// execute the first available algorithm, or the preferred algorithm if specified
+
+				if (HasFeature(FtpCapability.MD5) && (useFirst || algorithm == FtpHashAlgorithm.MD5)) {
+					result.Value = GetHashInternal(path, "MD5");
+					result.Algorithm = FtpHashAlgorithm.MD5;
+				}
+				else if (HasFeature(FtpCapability.XMD5) && (useFirst || algorithm == FtpHashAlgorithm.MD5)) {
+					result.Value = GetHashInternal(path, "XMD5");
+					result.Algorithm = FtpHashAlgorithm.MD5;
+				}
+				else if (HasFeature(FtpCapability.MMD5) && (useFirst || algorithm == FtpHashAlgorithm.MD5)) {
+					result.Value = GetHashInternal(path, "MMD5");
+					result.Algorithm = FtpHashAlgorithm.MD5;
+				}
+				else if (HasFeature(FtpCapability.XSHA1) && (useFirst || algorithm == FtpHashAlgorithm.SHA1)) {
+					result.Value = GetHashInternal(path, "XSHA1");
+					result.Algorithm = FtpHashAlgorithm.SHA1;
+				}
+				else if (HasFeature(FtpCapability.XSHA256) && (useFirst || algorithm == FtpHashAlgorithm.SHA256)) {
+					result.Value = GetHashInternal(path, "XSHA256");
+					result.Algorithm = FtpHashAlgorithm.SHA256;
+				}
+				else if (HasFeature(FtpCapability.XSHA512) && (useFirst || algorithm == FtpHashAlgorithm.SHA512)) {
+					result.Value = GetHashInternal(path, "XSHA512");
+					result.Algorithm = FtpHashAlgorithm.SHA512;
+				}
+				else if (HasFeature(FtpCapability.XCRC) && (useFirst || algorithm == FtpHashAlgorithm.CRC)) {
+					result.Value = GetHashInternal(path, "XCRC");
+					result.Algorithm = FtpHashAlgorithm.CRC;
+				}
+
+				return result;
+			}
+		}

@@ -1,0 +1,50 @@
+    protected <P extends Pointer> P deallocator(Deallocator deallocator) {
+        if (this.deallocator != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Predeallocating " + this);
+            }
+            this.deallocator.deallocate();
+            this.deallocator = null;
+        }
+        if (deallocator != null && !deallocator.equals(null)) {
+            this.deallocator = deallocator;
+            DeallocatorReference r = deallocator instanceof DeallocatorReference ?
+                    (DeallocatorReference)deallocator :
+                    new DeallocatorReference(this, deallocator);
+            boolean lowMemory = false;
+            try {
+                if (maxBytes > 0 && DeallocatorReference.totalBytes + r.bytes > maxBytes) {
+                    lowMemory = true;
+                    lowMemoryCount.incrementAndGet();
+                }
+                if (lowMemoryCount.get() > 0) {
+                    // synchronize allocation across threads when low on memory
+                    synchronized (lowMemoryCount) {
+                        int count = 0;
+                        while (count++ < maxRetries && DeallocatorReference.totalBytes + r.bytes > maxBytes) {
+                            // try to get some more memory back
+                            System.gc();
+                            Thread.sleep(100);
+                        }
+                        if (count >= maxRetries && DeallocatorReference.totalBytes + r.bytes > maxBytes) {
+                            deallocate();
+                            throw new OutOfMemoryError("Cannot allocate " + DeallocatorReference.totalBytes
+                                                                          + " + " + r.bytes + " bytes (> Pointer.maxBytes)");
+                        }
+                    }
+                }
+            } catch (InterruptedException ex) {
+                // reset interrupt to be nice
+                Thread.currentThread().interrupt();
+            } finally {
+                if (lowMemory) {
+                    lowMemoryCount.decrementAndGet();
+                }
+            }
+            if (logger.isDebugEnabled()) {
+                logger.debug("Registering " + this);
+            }
+            r.add();
+        }
+        return (P)this;
+    }

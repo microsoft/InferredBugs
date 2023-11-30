@@ -1,0 +1,50 @@
+        public static string CheckForUpdate(string lSoftware)
+        {
+            string sResult = "";
+            if (_cache.TryGetValue("CHK" + lSoftware.GetHashCode(StringComparison.InvariantCultureIgnoreCase), out sResult))
+            {
+                return sResult;
+            }
+            try
+            {
+                using (var oClient = new HttpClient())
+                {
+                    oClient.DefaultRequestHeaders.Add("AuthenticatedToken", Token);
+                    oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
+                    HttpContent oCont = new StringContent(lSoftware, Encoding.UTF8, contentType);
+                    if (contentType == "application/xml")
+                    {
+                        var response = oClient.PostAsync(sURL + "/rest/CheckForUpdateXml", oCont);
+                        response.Wait(5000);
+                        if (response.IsCompleted)
+                        {
+                            string responseBody = response.Result.Content.ReadAsStringAsync().Result;
+                            sResult = responseBody;
+                            // Set cache options.
+                            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                .SetSlidingExpiration(TimeSpan.FromSeconds(60));
+
+                            _cache.Set("CHK" + lSoftware.GetHashCode(StringComparison.InvariantCultureIgnoreCase), sResult, cacheEntryOptions);
+
+                            return sResult;
+                        }
+                    }
+
+                    if (contentType == "application/json")
+                    {
+                        var response = oClient.PostAsync(sURL + "/rest/CheckForUpdateJSON", oCont);
+                        response.Wait(5000);
+                        if (response.IsCompleted)
+                        {
+                            string responseBody = response.Result.Content.ReadAsStringAsync().Result;
+                            return responseBody;
+                        }
+                    }
+                }
+
+
+            }
+            catch { }
+
+            return "";
+        }

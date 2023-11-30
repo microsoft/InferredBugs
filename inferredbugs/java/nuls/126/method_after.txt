@@ -1,0 +1,45 @@
+    protected Block createBlock() {
+        // new a block header
+        BlockHeader blockHeader = new BlockHeader();
+        blockHeader.setHeight(0);
+        blockHeader.setPreHash(NulsDigestData.calcDigestData("00000000000".getBytes()));
+        blockHeader.setTime(1L);
+        blockHeader.setTxCount(1);
+        blockHeader.setMerkleHash(NulsDigestData.calcDigestData(new byte[20]));
+
+        // add a round data
+        BlockRoundData roundData = new BlockRoundData();
+        roundData.setConsensusMemberCount(1);
+        roundData.setPackingIndexOfRound(1);
+        roundData.setRoundIndex(1);
+        roundData.setRoundStartTime(1L);
+        try {
+            blockHeader.setExtend(roundData.serialize());
+        } catch (IOException e) {
+            throw new NulsRuntimeException(e);
+        }
+
+        // new a block of height 0
+        Block block = new Block();
+        block.setHeader(blockHeader);
+
+        List<Transaction> txs = new ArrayList<>();
+        block.setTxs(txs);
+
+        Transaction tx = new TestTransaction();
+        txs.add(tx);
+
+        List<NulsDigestData> txHashList = block.getTxHashList();
+
+        blockHeader.setMerkleHash(NulsDigestData.calcMerkleDigestData(txHashList));
+
+        NulsSignData signData = signDigest(blockHeader.getHash().getDigestBytes(), ecKey);
+
+        P2PKHScriptSig sig = new P2PKHScriptSig();
+        sig.setSignData(signData);
+        sig.setPublicKey(ecKey.getPubKey());
+
+        blockHeader.setScriptSig(sig);
+
+        return block;
+    }

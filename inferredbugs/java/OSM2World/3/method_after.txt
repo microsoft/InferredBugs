@@ -1,0 +1,100 @@
+ public static void main(String[] unparsedArgs) {
+		
+		/* assume --gui if no parameters are given */
+		
+		if (unparsedArgs.length == 0) {
+		 
+			System.out.println("No parameters, running graphical interface.\n"
+					+ "If you want to use the command line, use the --help"
+					+ " parameter for a list of available parameters.");
+			
+			unparsedArgs = new String[]{"--gui"};
+			
+		}
+		
+		/* parse command line arguments */
+		
+		CLIArguments args = null;
+		
+		try {
+			args = parseArguments(unparsedArgs);
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
+			System.exit(1);
+		}
+		
+		/* parse lines from parameter file (if one exists) */
+		
+		List<CLIArguments> argumentsList = Collections.singletonList(args);
+		
+		if (args.isParameterFile()) {
+			
+			argumentsList = new ArrayList<CLIArguments>();
+			
+			try {
+				
+				List<String[]> unparsedArgsLines = CLIArgumentsUtil
+					.getUnparsedParameterGroups(args.getParameterFile());
+				
+				for (String[] unparsedArgsLine : unparsedArgsLines) {
+					
+					try {
+						argumentsList.add(parseArguments(unparsedArgsLine));
+					} catch (Exception e) {
+						System.err.println("Could not parse parameters from file:");
+						System.err.println(unparsedArgsLine);
+						System.err.println("Ignoring it. Reason:");
+						System.err.println(e.getMessage());
+					}
+					
+				}
+				
+			} catch (IOException e) {
+				System.err.println(e.getMessage());
+				System.exit(1);
+			}
+			
+		}
+		
+		/* collect parameter groups into compatible groups
+		 * (groups of parameter groups that use the same input and config files) */
+		
+		List<CLIArgumentsGroup> argumentsGroups = new ArrayList<CLIArgumentsGroup>();
+		
+		for (CLIArguments arguments : argumentsList) {
+			
+			boolean added = false;
+			
+			for (CLIArgumentsGroup compatibleGroup : argumentsGroups) {
+				if (compatibleGroup.isCompatible(arguments)) {
+					// add to existing compatible group
+					compatibleGroup.addCLIArguments(arguments);
+					added = true;
+					break;
+				}
+			}
+			
+			if (!added) {
+				// start a new compatible group
+				argumentsGroups.add(new CLIArgumentsGroup(arguments));
+			}
+			
+		}
+		
+		/* execute conversions */
+		
+		for (CLIArgumentsGroup argumentsGroup : argumentsGroups) {
+						
+			if (argumentsList.size() > 1) {
+				System.out.print("executing conversion for these parameter lines: ");
+				for (CLIArguments p : argumentsGroup.getCLIArgumentsList()) {
+					System.out.print(argumentsList.indexOf(p) + " ");
+				}
+				System.out.print("\n");
+			}
+			
+			executeArgumentsGroup(argumentsGroup);
+			
+		}
+		
+	}

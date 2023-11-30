@@ -1,0 +1,21 @@
+        public string AppendMember(AliasGenerator ag, Expression node)
+        {
+            Expression expression = node;
+            LambdaExpression lambdaExpression = expression as LambdaExpression;
+            if (lambdaExpression != null) expression = lambdaExpression.Body;
+
+            if (expression.CanEvaluate())
+            {
+                ConstantExpression c = expression.Evaluate();
+                string value = _constParser.GetSqlValue(c.Value, _context);
+                _innerBuilder.Append(value);
+                return value;
+            }
+            else
+            {
+                MemberExpression m = expression.ReduceUnary() as MemberExpression;
+                string alias = ag == null ? null : ag.GetTableAlias(m);
+                this.AppendMember(alias, m.Member, m.Expression != null ? m.Expression.Type : null);
+                return alias;
+            }
+        }

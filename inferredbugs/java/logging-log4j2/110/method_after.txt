@@ -1,0 +1,55 @@
+    public static void main(String[] args) throws Exception {
+        System.setProperty("Log4jContextSelector", AsyncLoggerContextSelector.class.getName());
+
+        Logger logger = LogManager.getLogger();
+        if (!(logger instanceof AsyncLogger)) {
+            throw new IllegalStateException();
+        }
+        // work around a bug in Log4j-2.5
+        workAroundLog4j2_5Bug();
+
+        logger.error("Starting...");
+        System.out.println("Starting...");
+        Thread.sleep(100);
+
+        final RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
+        final long testStartNanos = System.nanoTime();
+        final long[] UPTIMES = new long[1024];
+        final long[] DURATIONS = new long[1024];
+
+        // warmup
+        long startMs = System.currentTimeMillis();
+        long end = startMs + TimeUnit.SECONDS.toMillis(10);
+        int warmupCount = 0;
+        do {
+            runTest(logger, runtimeMXBean, UPTIMES, DURATIONS, warmupCount);
+            warmupCount++;
+            // Thread.sleep(1000);// drain buffer
+        } while (System.currentTimeMillis() < end);
+
+        final int COUNT = 10;
+        for (int i = 0; i < COUNT; i++) {
+            int count = warmupCount + i;
+            runTest(logger, runtimeMXBean, UPTIMES, DURATIONS, count);
+            // Thread.sleep(1000);// drain buffer
+        }
+        double testDurationNanos = System.nanoTime() - testStartNanos;
+        System.out.println("Done. Calculating stats...");
+
+        printReport("Warmup", UPTIMES, DURATIONS, 0, warmupCount);
+        printReport("Test", UPTIMES, DURATIONS, warmupCount, COUNT);
+
+        StringBuilder sb = new StringBuilder(512);
+        sb.append("Test took: ").append(testDurationNanos/(1000.0*1000.0*1000.0)).append(" sec");
+        System.out.println(sb);
+
+        final List<GarbageCollectorMXBean> gcBeans = ManagementFactory.getGarbageCollectorMXBeans();
+        for (int i = 0; i < gcBeans.size(); i++) {
+            GarbageCollectorMXBean gcBean = gcBeans.get(i);
+            sb.setLength(0);
+            sb.append("GC[").append(gcBean.getName()).append("] ");
+            sb.append(gcBean.getCollectionCount()).append(" collections, collection time=");
+            sb.append(gcBean.getCollectionTime()).append(" millis.");
+            System.out.println(sb);
+        }
+    }

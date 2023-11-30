@@ -1,0 +1,28 @@
+    @NotNull
+    @Override
+    public Type transform(@NotNull State s) {
+        ClassType classType = new ClassType(getName().id, s);
+        List<Type> baseTypes = new ArrayList<>();
+        for (Node base : bases) {
+            Type baseType = transformExpr(base, s);
+            if (baseType.isClassType()) {
+                classType.addSuper(baseType);
+            } else if (baseType.isUnionType()) {
+                for (Type b : baseType.asUnionType().getTypes()) {
+                    classType.addSuper(b);
+                    break;
+                }
+            } else {
+                Analyzer.self.putProblem(base, base + " is not a class");
+            }
+            baseTypes.add(baseType);
+        }
+
+        // Bind ClassType to name here before resolving the body because the
+        // methods need this type as self.
+        Binder.bind(s, name, classType, Binding.Kind.CLASS);
+        if (body != null) {
+            transformExpr(body, classType.getTable());
+        }
+        return Type.CONT;
+    }

@@ -1,0 +1,28 @@
+    public static void CheckUpdate() {
+        var info = UpdateInfo.Parser.ParseFrom(GetBucketFileAsByteArray("schicksal/version"))!;
+        if (GlobalVars.AppVersionCode != info.VersionCode) {
+            Console.WriteLine($"有可用更新: {GlobalVars.AppVersionName} => {info.VersionName}");
+            Console.WriteLine($"更新内容: \n{info.Description}");
+            if (info.EnableAutoDownload) {
+                Console.WriteLine("正在下载更新包...");
+                var fullPath = Path.GetFullPath("update.7z");
+                File.WriteAllBytes(fullPath, GetBucketFileAsByteArray(info.PackageLink));
+                Console.WriteLine("下载完毕! 关闭程序后, 将压缩包解压至当前目录即可完成更新.");
+                new Process {
+                    StartInfo = {
+                        FileName = fullPath,
+                        UseShellExecute = true
+                    }
+                }.Start();
+                Environment.Exit(0);
+            }
+            Console.WriteLine($"下载地址: {info.PackageLink}");
+            if (info.ForceUpdate) {
+                Console.WriteLine("在完成此次更新前, 程序可能无法正常使用.");
+                Environment.Exit(0);
+            }
+        }
+        if (info.EnableLibDownload) {
+            File.WriteAllBytes("YaeLib.dll", GetBucketFileAsByteArray("schicksal/lib.dll"));
+        }
+    }

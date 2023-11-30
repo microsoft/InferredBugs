@@ -1,0 +1,58 @@
+  @Test
+  public void testSystemCatalogWALEntryFilter() throws Exception {
+
+    //now create WAL.Entry objects that refer to cells in those view rows in System.Catalog
+
+    Get tenantViewGet = getTenantViewGet(catalogTable, TENANT_BYTES, TENANT_VIEW_NAME);
+    Get nonTenantViewGet = getTenantViewGet(catalogTable,
+        DEFAULT_TENANT_BYTES, NONTENANT_VIEW_NAME);
+
+    Get tenantLinkGet = getParentChildLinkGet(catalogTable, TENANT_BYTES, TENANT_VIEW_NAME);
+    Get nonTenantLinkGet = getParentChildLinkGet(catalogTable,
+        DEFAULT_TENANT_BYTES, NONTENANT_VIEW_NAME);
+
+    WAL.Entry nonTenantViewEntry = getEntry(systemCatalogTableName, nonTenantViewGet);
+    WAL.Entry tenantViewEntry = getEntry(systemCatalogTableName, tenantViewGet);
+
+    WAL.Entry nonTenantLinkEntry = getEntry(systemCatalogTableName, nonTenantLinkGet);
+    WAL.Entry tenantLinkEntry = getEntry(systemCatalogTableName, tenantLinkGet);
+
+    //verify that the tenant view WAL.Entry passes the filter and the non-tenant view does not
+    SystemCatalogWALEntryFilter filter = new SystemCatalogWALEntryFilter();
+    Assert.assertNull(filter.filter(nonTenantViewEntry));
+    WAL.Entry filteredTenantEntry = filter.filter(tenantViewEntry);
+    Assert.assertNotNull("Tenant view was filtered when it shouldn't be!", filteredTenantEntry);
+    Assert.assertEquals(tenantViewEntry.getEdit().size(),
+        filter.filter(tenantViewEntry).getEdit().size());
+
+    //now check that a WAL.Entry with cells from both a tenant and a non-tenant
+    //catalog row only allow the tenant cells through
+    WALEdit comboEdit = new WALEdit();
+    comboEdit.getCells().addAll(nonTenantViewEntry.getEdit().getCells());
+    comboEdit.getCells().addAll(tenantViewEntry.getEdit().getCells());
+    WAL.Entry comboEntry = new WAL.Entry(walKey, comboEdit);
+
+    Assert.assertEquals(tenantViewEntry.getEdit().size() + nonTenantViewEntry.getEdit().size()
+        , comboEntry.getEdit().size());
+    Assert.assertEquals(tenantViewEntry.getEdit().size(),
+        filter.filter(comboEntry).getEdit().size());
+
+    //now check that the parent-child links (which have the tenant_id of the view's parent,
+    // but are a part of the view's metadata) are migrated in the tenant case
+    // but not the non-tenant. The view's tenant_id is in th System.Catalog.COLUMN_NAME field
+
+    Assert.assertNull("Non-tenant parent-child link was not filtered " +
+        "when it should be!", filter.filter(nonTenantLinkEntry));
+    Assert.assertNotNull("Tenant parent-child link was filtered when it should not be!",
+        filter.filter(tenantLinkEntry));
+    Assert.assertEquals(tenantLinkEntry.getEdit().size(),
+        filter.filter(tenantLinkEntry).getEdit().size());
+    //add the parent-child link to the tenant view WAL entry,
+    //since they'll usually be together and they both need to
+    //be replicated
+
+    tenantViewEntry.getEdit().getCells().addAll(tenantLinkEntry.getEdit().getCells());
+    Assert.assertEquals(tenantViewEntry.getEdit().size(), tenantViewEntry.getEdit().size());
+
+
+  }

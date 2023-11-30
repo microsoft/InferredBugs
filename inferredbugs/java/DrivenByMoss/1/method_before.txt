@@ -1,0 +1,49 @@
+    @Override
+    public void onFirstRow (final int index, final ButtonEvent event)
+    {
+        if (event == ButtonEvent.DOWN)
+            return;
+
+        final CursorDeviceProxy cd = this.model.getCursorDevice ();
+
+        final ModeManager modeManager = this.surface.getModeManager ();
+
+        if (event == ButtonEvent.UP)
+        {
+            if (!cd.hasSelectedDevice ())
+                return;
+
+            final int offset = getDrumPadIndex (cd);
+            final ChannelData layer = cd.getLayerOrDrumPad (offset + index);
+            if (!layer.doesExist ())
+                return;
+
+            final int layerIndex = layer.getIndex ();
+            if (!layer.isSelected ())
+            {
+                cd.selectLayerOrDrumPad (layerIndex);
+                return;
+            }
+
+            cd.enterLayerOrDrumPad (layer.getIndex ());
+            cd.selectFirstDeviceInLayerOrDrumPad (layer.getIndex ());
+            modeManager.setActiveMode (Modes.MODE_DEVICE_PARAMS);
+            ((DeviceParamsMode) modeManager.getMode (Modes.MODE_DEVICE_PARAMS)).setShowDevices (true);
+            return;
+        }
+
+        // LONG press
+
+        this.surface.setButtonConsumed (PushControlSurface.PUSH_BUTTON_ROW1_1 + index);
+
+        // There is no device on the track move upwards to the track view
+        if (!cd.hasSelectedDevice ())
+        {
+            this.surface.getViewManager ().getActiveView ().executeTriggerCommand (Commands.COMMAND_TRACK, ButtonEvent.DOWN);
+            return;
+        }
+
+        modeManager.setActiveMode (Modes.MODE_DEVICE_PARAMS);
+        cd.selectChannel ();
+        ((DeviceParamsMode) modeManager.getMode (Modes.MODE_DEVICE_PARAMS)).setShowDevices (true);
+    }

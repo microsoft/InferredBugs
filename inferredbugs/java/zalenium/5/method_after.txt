@@ -1,0 +1,21 @@
+    public void executeCommand(String containerId, String[] command, boolean waitForExecution) {
+        String swarmNodeIp = null;
+        try {
+            List<Task> tasks = dockerClient.listTasks();
+            for (Task task : tasks) {
+                ContainerStatus containerStatus = task.status().containerStatus();
+                if (containerStatus != null && containerStatus.containerId().equals(containerId)) {
+                    List<Node> nodes = dockerClient.listNodes();
+                    for (Node node :nodes) {
+                        if (node.id().equals(task.nodeId())) {
+                            swarmNodeIp = node.status().addr();
+                            execCommandOnRemote(swarmNodeIp, containerId, command);
+                        }
+                    }
+                }
+            }
+        } catch (DockerException | InterruptedException | NullPointerException e) {
+            logger.debug(nodeId + " Error while executing the command", e);
+            ga.trackException(e);
+        }
+    }

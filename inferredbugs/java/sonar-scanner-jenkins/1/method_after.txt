@@ -1,0 +1,48 @@
+  private boolean performInternal(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener) throws IOException, InterruptedException {
+    if (!SonarInstallation.isValid(getInstallationName(), listener)) {
+      return false;
+    }
+
+    ArgumentListBuilder args = new ArgumentListBuilder();
+
+    EnvVars env = BuilderUtils.getEnvAndBuildVars(run, listener);
+
+    SonarRunnerInstallation sri = getSonarRunnerInstallation();
+    if (sri == null) {
+      args.add(launcher.isUnix() ? "sonar-runner" : "sonar-runner.bat");
+    } else {
+      sri = BuilderUtils.getBuildTool(sri, env, listener);
+      String exe = sri.getExecutable(launcher);
+      if (exe == null) {
+        Logger.printFailureMessage(listener);
+        listener.fatalError(Messages.SonarRunner_ExecutableNotFound(sri.getName()));
+        return false;
+      }
+      args.add(exe);
+      env.put("SONAR_RUNNER_HOME", sri.getHome());
+    }
+
+    SonarInstallation sonarInst = getSonarInstallation();
+    addTaskArgument(args);
+    addAdditionalArguments(args, sonarInst);
+    ExtendedArgumentListBuilder argsBuilder = new ExtendedArgumentListBuilder(args, launcher.isUnix());
+    if (!populateConfiguration(argsBuilder, run, workspace, listener, env, sonarInst)) {
+      return false;
+    }
+
+    // Java
+    computeJdkToUse(run, workspace, listener, env);
+
+    // Java options
+    env.put("SONAR_RUNNER_OPTS", getJavaOpts());
+
+    long startTime = System.currentTimeMillis();
+    int r;
+    try {
+      r = executeSonarRunner(run, workspace, launcher, listener, args, env);
+    } catch (IOException e) {
+      handleErrors(run, listener, sri, startTime, e);
+      r = -1;
+    }
+    return r == 0;
+  }

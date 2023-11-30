@@ -1,0 +1,34 @@
+        [Test]
+        public void Can_connect_to_Buffered_SslStream()
+        {
+            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+            {
+                SendTimeout = -1,
+                ReceiveTimeout = -1,
+            };
+
+            socket.Connect(Host, Port);
+
+            if (!socket.Connected)
+            {
+                socket.Close();
+                throw new Exception("Could not connect");
+            }
+
+            Stream networkStream = new NetworkStream(socket);
+
+            var sslStream = new SslStream(networkStream,
+                leaveInnerStreamOpen: false,
+                userCertificateValidationCallback: null,
+                userCertificateSelectionCallback: null,
+                encryptionPolicy: EncryptionPolicy.RequireEncryption);
+
+            sslStream.AuthenticateAsClient(Host);
+
+            if (!sslStream.IsEncrypted)
+                throw new Exception("Could not establish an encrypted connection to " + Host);
+
+            var bstream = new BufferedStream(sslStream, 16 * 1024);
+
+            SendAuth(bstream);
+        }

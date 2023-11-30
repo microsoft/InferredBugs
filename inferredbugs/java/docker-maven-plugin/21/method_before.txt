@@ -1,0 +1,45 @@
+ @Override
+	protected void executeInternal(ServiceHub serviceHub) throws DockerAccessException, MojoExecutionException {
+		if (file == null) {
+            throw new MojoExecutionException("'file' is required.");
+        }
+        if (name == null && alias == null) {
+            throw new MojoExecutionException("'name' or 'alias' is required.");
+        }
+		// specify image by name or alias
+		if (name != null && alias != null) {
+			throw new MojoExecutionException("Cannot specify both name and alias.");
+		}
+		List<ImageConfiguration> images = getResolvedImages();
+		
+		ImageConfiguration image = null;
+		for (ImageConfiguration ic : images) {
+			if (name != null && name.equals(ic.getName())) {
+				image = ic;
+				break;
+			}
+			if (alias != null && alias.equals(ic.getAlias())) {
+				image = ic;
+				break;
+			}
+		}
+		
+		if (serviceHub.getQueryService().getImageId(image.getName()) == null) {
+			throw new MojoExecutionException("No image found for " + image.getName());
+		}
+		
+		serviceHub.getDockerAccess().saveImage(image.getName(), file, detectCompression(file));
+		
+		if (attach) {
+			File fileObj = new File(file);
+			if (fileObj.exists()) {
+				String type = FilenameUtils.getExtension(file);
+				if (classifier != null) {
+					projectHelper.attachArtifact(project, type, classifier, fileObj);
+				} else {
+					projectHelper.attachArtifact(project, type, fileObj);
+				}
+			}
+		}
+		
+	}

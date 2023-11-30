@@ -1,0 +1,593 @@
+{
+    "hash": "d7c6480bedf26eff8c3e5ca8a77df91416cb00ce",
+    "message": "Summary section and error catching",
+    "file_num_lines": 141,
+    "diff_parsed": {
+        "added": [
+            [
+                4,
+                "using System.Linq.Expressions;"
+            ],
+            [
+                13,
+                "            try"
+            ],
+            [
+                15,
+                "                Console.WriteLine(\"[!] Checking processes...\");"
+            ],
+            [
+                16,
+                "                var processList = new ManagementObjectSearcher(\"Select * From Win32_Process\").Get();"
+            ],
+            [
+                17,
+                "                string summary = \"\";"
+            ],
+            [
+                18,
+                "                foreach (var process in processList)"
+            ],
+            [
+                19,
+                "                {"
+            ],
+            [
+                20,
+                "                    summary += CheckProcess(process);"
+            ],
+            [
+                21,
+                "                }"
+            ],
+            [
+                22,
+                "                if (string.IsNullOrEmpty(summary))"
+            ],
+            [
+                23,
+                "                {"
+            ],
+            [
+                24,
+                "                    Console.WriteLine(\"[+] No suspicious processes found\\n\");"
+            ],
+            [
+                25,
+                "                    return \"\\n[+] No suspicious processes found\\n\";"
+            ],
+            [
+                26,
+                "                }"
+            ],
+            [
+                27,
+                "                return $\"\\nProcess Summary: \\n{summary}\\n\";"
+            ],
+            [
+                29,
+                "            catch (Exception e)"
+            ],
+            [
+                31,
+                "                Console.WriteLine($\"[-] Errored on getting processes: {e.Message}\\n{e.StackTrace}\");"
+            ],
+            [
+                32,
+                "                return \"\\n[-] Errored on getting processes\\n\";"
+            ],
+            [
+                38,
+                "            try"
+            ],
+            [
+                39,
+                "            {"
+            ],
+            [
+                40,
+                "                var processName = process[\"Name\"];"
+            ],
+            [
+                41,
+                "                var processPath = process[\"ExecutablePath\"];"
+            ],
+            [
+                42,
+                "                var processDescription = process[\"Description\"];"
+            ],
+            [
+                43,
+                "                var processCaption = process[\"Caption\"];"
+            ],
+            [
+                44,
+                "                var processCmdLine = process[\"CommandLine\"];"
+            ],
+            [
+                45,
+                "                var processPID = process[\"ProcessId\"];"
+            ],
+            [
+                46,
+                "                var processParent = process[\"ParentProcessId\"];"
+            ],
+            [
+                47,
+                "                var metadata = \"\";"
+            ],
+            [
+                48,
+                ""
+            ],
+            [
+                49,
+                "                var allattribs = $\"{processName} - \" +"
+            ],
+            [
+                50,
+                "                    $\"{processPath} - \" +"
+            ],
+            [
+                51,
+                "                    $\"{processDescription} - \" +"
+            ],
+            [
+                52,
+                "                    $\"{processCaption} - \" +"
+            ],
+            [
+                53,
+                "                    $\"{processCmdLine}\";"
+            ],
+            [
+                55,
+                "                if (processPath != null)"
+            ],
+            [
+                56,
+                "                {"
+            ],
+            [
+                57,
+                "                    metadata = $\"{FileChecker.GetFileInfo(processPath.ToString())}\";"
+            ],
+            [
+                58,
+                "                    allattribs = $\"{allattribs} - {metadata}\";"
+            ],
+            [
+                59,
+                "                }"
+            ],
+            [
+                61,
+                "                var matches = new List<string>();"
+            ],
+            [
+                62,
+                "                foreach (var edrstring in EDRData.edrlist)"
+            ],
+            [
+                63,
+                "                {"
+            ],
+            [
+                64,
+                "                    if (allattribs.ToLower().Contains(edrstring.ToLower()))"
+            ],
+            [
+                65,
+                "                    {"
+            ],
+            [
+                66,
+                "                        matches.Add(edrstring);"
+            ],
+            [
+                67,
+                "                    }"
+            ],
+            [
+                68,
+                "                }"
+            ],
+            [
+                69,
+                "                if (matches.Count > 0)"
+            ],
+            [
+                70,
+                "                {"
+            ],
+            [
+                71,
+                "                    Console.WriteLine($\"[-] Suspicious process found:\" +"
+            ],
+            [
+                72,
+                "                                $\"\\n\\tName: {processName}\" +"
+            ],
+            [
+                73,
+                "                                $\"\\n\\tDescription: {processDescription}\" +"
+            ],
+            [
+                74,
+                "                                $\"\\n\\tCaption: {processCaption}\" +"
+            ],
+            [
+                75,
+                "                                $\"\\n\\tBinary: {processPath}\" +"
+            ],
+            [
+                76,
+                "                                $\"\\n\\tProcess ID: {processPID}\" +"
+            ],
+            [
+                77,
+                "                                $\"\\n\\tParent Process: {processParent}\" +"
+            ],
+            [
+                78,
+                "                                $\"\\n\\tProcess CmdLine: {processCmdLine}\" +"
+            ],
+            [
+                79,
+                "                                $\"\\n\\tFile Metadata: {metadata}\" +"
+            ],
+            [
+                80,
+                "                                $\"\\n[!] Matched on: {string.Join(\", \", matches)}\\n\");"
+            ],
+            [
+                81,
+                "                    return $\"\\t{processName} : {string.Join(\", \", matches)}\\n\";"
+            ],
+            [
+                82,
+                "                }"
+            ],
+            [
+                83,
+                "                return \"\";"
+            ],
+            [
+                84,
+                "            }"
+            ],
+            [
+                85,
+                "            catch (Exception e)"
+            ],
+            [
+                87,
+                "                Console.WriteLine($\"[-] Errored on getting individual process: {process[\"Name\"]} : {process[\"ProcessId\"]}\\n{e.Message}\\n{e.StackTrace}\");"
+            ],
+            [
+                88,
+                "                return $\"\\t{process[\"Name\"]} : Failed to perform checks\\n\";"
+            ],
+            [
+                90,
+                "        }"
+            ],
+            [
+                92,
+                "        internal static string CheckCurrentProcessModules()"
+            ],
+            [
+                93,
+                "        {"
+            ],
+            [
+                94,
+                "            try"
+            ],
+            [
+                96,
+                "                Console.WriteLine(\"[!] Checking modules loaded in your current process...\");"
+            ],
+            [
+                97,
+                "                Process myproc = Process.GetCurrentProcess();"
+            ],
+            [
+                98,
+                "                var summary = \"\";"
+            ],
+            [
+                99,
+                "                foreach (ProcessModule module in myproc.Modules)"
+            ],
+            [
+                101,
+                "                    summary += CheckModule(module);"
+            ],
+            [
+                103,
+                "                if (string.IsNullOrEmpty(summary))"
+            ],
+            [
+                104,
+                "                {"
+            ],
+            [
+                105,
+                "                    Console.WriteLine(\"[+] No suspicious modules found in your process\\n\");"
+            ],
+            [
+                106,
+                "                    return \"\\n[+] No suspicious modules found in your process\\n\";"
+            ],
+            [
+                107,
+                "                }"
+            ],
+            [
+                108,
+                "                return $\"\\nModload Summary: \\n{summary}\\n\";"
+            ],
+            [
+                110,
+                "            catch (Exception e)"
+            ],
+            [
+                112,
+                "                Console.WriteLine($\"[-] Errored on getting modloads: {e.Message}\\n{e.StackTrace}\");"
+            ],
+            [
+                113,
+                "                return \"\\n[-] Errored on getting processes\\n\";"
+            ],
+            [
+                117,
+                "        private static string CheckModule(ProcessModule module)"
+            ],
+            [
+                119,
+                "            try"
+            ],
+            [
+                122,
+                "                var allattribs = $\"{module.FileName} - {metadata}\";"
+            ],
+            [
+                138,
+                "                    return $\"\\t{module.FileName} : {string.Join(\", \", matches)}\\n\";"
+            ],
+            [
+                140,
+                "                return \"\";"
+            ],
+            [
+                142,
+                "            catch (Exception e)"
+            ],
+            [
+                144,
+                "                Console.WriteLine($\"[-] Errored on getting individual module: {module.FileName}\\n{e.Message}\\n{e.StackTrace}\");"
+            ],
+            [
+                145,
+                "                return $\"\\t{module.FileName} : Failed to perform checks\\n\";"
+            ]
+        ],
+        "deleted": [
+            [
+                12,
+                "            Console.WriteLine(\"[!] Checking processes...\");"
+            ],
+            [
+                13,
+                "            var processList = new ManagementObjectSearcher(\"Select * From Win32_Process\").Get();"
+            ],
+            [
+                14,
+                "            string summary = \"\";"
+            ],
+            [
+                15,
+                "            foreach (var process in processList)"
+            ],
+            [
+                17,
+                "                summary += CheckProcess(process);"
+            ],
+            [
+                19,
+                "            if (string.IsNullOrEmpty(summary))"
+            ],
+            [
+                21,
+                "                Console.WriteLine(\"[+] No suspicious processes found\\n\");"
+            ],
+            [
+                22,
+                "                return \"\\n[+] No suspicious processes found\\n\";"
+            ],
+            [
+                24,
+                "            return $\"\\nProcess Summary: \\n{summary}\\n\";"
+            ],
+            [
+                29,
+                "            var processName = process[\"Name\"];"
+            ],
+            [
+                30,
+                "            var processPath = process[\"ExecutablePath\"];"
+            ],
+            [
+                31,
+                "            var processDescription = process[\"Description\"];"
+            ],
+            [
+                32,
+                "            var processCaption = process[\"Caption\"];"
+            ],
+            [
+                33,
+                "            var processCmdLine = process[\"CommandLine\"];"
+            ],
+            [
+                34,
+                "            var processPID = process[\"ProcessId\"];"
+            ],
+            [
+                35,
+                "            var processParent = process[\"ParentProcessId\"];"
+            ],
+            [
+                36,
+                "            var metadata = \"\";"
+            ],
+            [
+                38,
+                "            var allattribs = $\"{processName} - \" +"
+            ],
+            [
+                39,
+                "                $\"{processPath} - \" +"
+            ],
+            [
+                40,
+                "                $\"{processDescription} - \" +"
+            ],
+            [
+                41,
+                "                $\"{processCaption} - \" +"
+            ],
+            [
+                42,
+                "                $\"{processCmdLine}\";"
+            ],
+            [
+                44,
+                "            if (processPath != null)"
+            ],
+            [
+                46,
+                "                metadata = $\"{FileChecker.GetFileInfo(processPath.ToString())}\";"
+            ],
+            [
+                47,
+                "                allattribs = $\"{allattribs} - {metadata}\";"
+            ],
+            [
+                50,
+                "            var matches = new List<string>();"
+            ],
+            [
+                51,
+                "            foreach (var edrstring in EDRData.edrlist)"
+            ],
+            [
+                53,
+                "                if (allattribs.ToLower().Contains(edrstring.ToLower()))"
+            ],
+            [
+                55,
+                "                    matches.Add(edrstring);"
+            ],
+            [
+                58,
+                "            if (matches.Count > 0)"
+            ],
+            [
+                60,
+                "                Console.WriteLine($\"[-] Suspicious process found:\" +"
+            ],
+            [
+                61,
+                "                            $\"\\n\\tName: {processName}\" +"
+            ],
+            [
+                62,
+                "                            $\"\\n\\tDescription: {processDescription}\" +"
+            ],
+            [
+                63,
+                "                            $\"\\n\\tCaption: {processCaption}\" +"
+            ],
+            [
+                64,
+                "                            $\"\\n\\tBinary: {processPath}\" +"
+            ],
+            [
+                65,
+                "                            $\"\\n\\tProcess ID: {processPID}\" +"
+            ],
+            [
+                66,
+                "                            $\"\\n\\tParent Process: {processParent}\" +"
+            ],
+            [
+                67,
+                "                            $\"\\n\\tProcess CmdLine: {processCmdLine}\" +"
+            ],
+            [
+                68,
+                "                            $\"\\n\\tFile Metadata: {metadata}\" +"
+            ],
+            [
+                69,
+                "                            $\"\\n[!] Matched on: {string.Join(\", \", matches)}\\n\");"
+            ],
+            [
+                70,
+                "                return $\"\\t{processName} : {string.Join(\", \", matches)}\\n\";"
+            ],
+            [
+                72,
+                "            return \"\";"
+            ],
+            [
+                75,
+                "        internal static string CheckCurrentProcessModules()"
+            ],
+            [
+                77,
+                "            Console.WriteLine(\"[!] Checking modules loaded in your current process...\");"
+            ],
+            [
+                78,
+                "            Process myproc = Process.GetCurrentProcess();"
+            ],
+            [
+                79,
+                "            var summary = \"\";"
+            ],
+            [
+                80,
+                "            foreach (ProcessModule module in myproc.Modules)"
+            ],
+            [
+                82,
+                "                var allattribs = $\"{module.FileName} - {FileChecker.GetFileInfo(module.FileName)}\";"
+            ],
+            [
+                99,
+                "                    summary += $\"\\t{module.FileName} : {string.Join(\", \", matches)}\\n\";"
+            ],
+            [
+                102,
+                "            if (string.IsNullOrEmpty(summary))"
+            ],
+            [
+                104,
+                "                Console.WriteLine(\"[+] No suspicious modules found in your process\\n\");"
+            ],
+            [
+                105,
+                "                return \"\\n[+] No suspicious modules found in your process\\n\";"
+            ],
+            [
+                107,
+                "            return $\"\\nModload Summary: \\n{summary}\\n\";"
+            ]
+        ]
+    },
+    "num_lines_added": 92,
+    "num_lines_removed": 53
+}

@@ -1,0 +1,46 @@
+  public static void main(String[] args) {
+
+    Socket socket = null;
+    InputStream inputStream = null;
+    OutputStream outputStream = null;
+    StringBuffer response = null;
+    byte[] buffer = new byte[2048];
+    int length = 0;
+
+    SocksProxy proxy1 = new Socks5(new InetSocketAddress("localhost", 1080));
+    proxy1.setCredentials(new UsernamePasswordCredentials("socks", "1234"));
+    SocksProxy proxy2 = new Socks5(new InetSocketAddress("localhost", 1081));
+    proxy2.setCredentials(new UsernamePasswordCredentials("socks", "1234"));
+
+    SocksProxy proxy3 = new Socks5(new InetSocketAddress("localhost", 1082));
+    proxy3.setCredentials(new UsernamePasswordCredentials("socks", "1234"));
+
+    proxy1.setChainProxy(proxy2.setChainProxy(proxy3));
+    
+    System.out.println("USE proxy:"+proxy1);
+
+    try {
+
+      socket = new SocksSocket(proxy1);
+      socket.connect(new InetSocketAddress("whois.internic.net", 43));
+
+      inputStream = socket.getInputStream();
+      outputStream = socket.getOutputStream();
+      PrintWriter printWriter = new PrintWriter(outputStream);
+      printWriter.print("domain google.com\r\n");
+      printWriter.flush();
+
+      length = 0;
+      response = new StringBuffer();
+      while ((length = inputStream.read(buffer)) > 0) {
+        response.append(new String(buffer, 0, length));
+      }
+      System.out.println(response.toString());
+
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      ResourceUtil.close(inputStream, outputStream, socket);
+    }
+
+  }

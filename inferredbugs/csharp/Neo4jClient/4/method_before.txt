@@ -1,0 +1,66 @@
+        [Test]
+        public void ShouldCreateIncomingRelationship()
+        {
+            var testNode = new TestNode2 { Foo = "foo", Bar = "bar" };
+            var testRelationshipPayload = new TestPayload { Foo = "123", Bar = "456", Baz = "789" };
+            var batch = new List<BatchStep>();
+            batch.Add(Method.POST, "/node", testNode);
+            batch.Add(Method.POST, "/node/789/relationships",
+                new RelationshipTemplate { To = "{0}", Data = testRelationshipPayload, Type = "TEST_RELATIONSHIP" });
+
+            var testHarness = new RestTestHarness
+            {
+                {
+                    MockRequest.Get(""),
+                    MockResponse.NeoRoot()
+                },
+                {
+                    MockRequest.PostObjectAsJson("/batch", batch),
+                    MockResponse.Json(HttpStatusCode.OK,
+                        @"[{'id':0,'location':'http://foo/db/data/node/760','body':{
+                          'outgoing_relationships' : 'http://foo/db/data/node/760/relationships/out',
+                          'data' : {
+                            'Foo' : 'foo',
+                            'Bar' : 'bar',
+                            'Baz' : 'baz'
+                          },
+                          'traverse' : 'http://foo/db/data/node/760/traverse/{returnType}',
+                          'all_typed_relationships' : 'http://foo/db/data/node/760/relationships/all/{-list|&|types}',
+                          'self' : 'http://foo/db/data/node/760',
+                          'property' : 'http://foo/db/data/node/760/properties/{key}',
+                          'outgoing_typed_relationships' : 'http://foo/db/data/node/760/relationships/out/{-list|&|types}',
+                          'properties' : 'http://foo/db/data/node/760/properties',
+                          'incoming_relationships' : 'http://foo/db/data/node/760/relationships/in',
+                          'extensions' : {
+                          },
+                          'create_relationship' : 'http://foo/db/data/node/760/relationships',
+                          'paged_traverse' : 'http://foo/db/data/node/760/paged/traverse/{returnType}{?pageSize,leaseTime}',
+                          'all_relationships' : 'http://foo/db/data/node/760/relationships/all',
+                          'incoming_typed_relationships' : 'http://foo/db/data/node/760/relationships/in/{-list|&|types}'
+                        },'from':'/node'},{'id':1,'location':'http://foo/db/data/relationship/756','body':{
+                          'start' : 'http://foo/db/data/node/760',
+                          'data' : {
+                            'Foo' : 123,
+                            'Bar' : 456,
+                            'Baz' : 789
+                          },
+                          'property' : 'http://foo/db/data/relationship/756/properties/{key}',
+                          'self' : 'http://foo/db/data/relationship/756',
+                          'properties' : 'http://foo/db/data/relationship/756/properties',
+                          'type' : 'TEST_RELATIONSHIP',
+                          'extensions' : {
+                          },
+                          'end' : 'http://foo/db/data/node/789'
+                        },'from':'http://foo/db/data/node/761/relationships'}]"
+                    )
+                }
+            };
+
+            var graphClient = testHarness.CreateAndConnectGraphClient();
+
+            graphClient.Create(
+                testNode,
+                new TestRelationship(789, testRelationshipPayload));
+
+            testHarness.AssertAllRequestsWereReceived();
+        }

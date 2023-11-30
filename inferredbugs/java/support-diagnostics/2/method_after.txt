@@ -1,0 +1,44 @@
+   public void submitRequest(String url, String queryName, String destination){
+
+      HttpResponse response = null;
+      InputStream responseStream = null;
+
+      try{
+         HttpClient client = getClient();
+         FileOutputStream fos = new FileOutputStream(destination);
+         HttpGet httpget = new HttpGet(url);
+         response = client.execute(httpget);
+         try {
+            org.apache.http.HttpEntity entity = response.getEntity();
+            if (entity != null ){
+               checkResponseCode(queryName, response);
+               responseStream = entity.getContent();
+               IOUtils.copy(responseStream, fos);
+            }
+            else{
+               Files.write(Paths.get(destination), ("No results for:" + queryName).getBytes());
+            }
+         }
+         catch (Exception e){
+            logger.error("Error writing response for " + queryName + " to disk.", e);
+         } finally {
+            HttpClientUtils.closeQuietly(response);
+            HttpClientUtils.closeQuietly(client);
+         }
+      }
+      catch (Exception e){
+         if (url.contains("_license")) {
+            logger.info("There were no licenses installed");
+         }
+         else if (e.getMessage().contains("401 Unauthorized")) {
+            logger.error("Auth failure", e);
+            throw new RuntimeException("Authentication failure: invalid login credentials.", e);
+         }
+         else {
+            logger.error("Diagnostic query: " + queryName + "failed.", e);
+         }
+      }
+
+      logger.info("Diagnostic query: " + queryName + " was retrieved and saved to disk.");
+
+   }

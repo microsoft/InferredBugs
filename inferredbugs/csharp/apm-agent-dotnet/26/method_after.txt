@@ -1,0 +1,21 @@
+  [Fact]
+		public void OnErrorLog()
+		{
+			var logger = new TestLogger();
+			var agent = new ApmAgent(new TestAgentComponents(logger));
+			var listener = new HttpDiagnosticListener(agent);
+
+			var exceptionMessage = "Ooops, this went wrong";
+			var fakeException = new Exception(exceptionMessage);
+			listener.OnError(fakeException);
+
+			logger.Lines.Should().NotBeEmpty();
+			logger.Lines[0]
+				.Should()
+				.ContainAll(
+					$"{{{nameof(HttpDiagnosticListener)}}}",
+					"in OnError",
+					".cs:",
+					exceptionMessage
+				);
+		}

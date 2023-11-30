@@ -1,0 +1,124 @@
+    public byte[] buildRowKey(ValueGetter valueGetter, ImmutableBytesWritable rowKeyPtr, byte[] regionStartKey, byte[] regionEndKey, long ts)  {
+        ImmutableBytesWritable ptr = new ImmutableBytesWritable();
+        boolean prependRegionStartKey = isLocalIndex && regionStartKey != null;
+        boolean isIndexSalted = !isLocalIndex && nIndexSaltBuckets > 0;
+        int prefixKeyLength =
+                prependRegionStartKey ? (regionStartKey.length != 0 ? regionStartKey.length
+                        : regionEndKey.length) : 0; 
+        TrustedByteArrayOutputStream stream = new TrustedByteArrayOutputStream(estimatedIndexRowKeyBytes + (prependRegionStartKey ? prefixKeyLength : 0));
+        DataOutput output = new DataOutputStream(stream);
+        try {
+            // For local indexes, we must prepend the row key with the start region key
+            if (prependRegionStartKey) {
+                if (regionStartKey.length == 0) {
+                    output.write(new byte[prefixKeyLength]);
+                } else {
+                    output.write(regionStartKey);
+                }
+            }
+            if (isIndexSalted) {
+                output.write(0); // will be set at end to index salt byte
+            }
+            // The dataRowKeySchema includes the salt byte field,
+            // so we must adjust for that here.
+            int dataPosOffset = isDataTableSalted ? 1 : 0 ;
+            BitSet viewConstantColumnBitSet = this.rowKeyMetaData.getViewConstantColumnBitSet();
+            int nIndexedColumns = getIndexPkColumnCount() - getNumViewConstants();
+            int[][] dataRowKeyLocator = new int[2][nIndexedColumns];
+            // Skip data table salt byte
+            int maxRowKeyOffset = rowKeyPtr.getOffset() + rowKeyPtr.getLength();
+            dataRowKeySchema.iterator(rowKeyPtr, ptr, dataPosOffset);
+            
+            if (viewIndexId != null) {
+                output.write(viewIndexId);
+            }
+            
+            if (isMultiTenant) {
+                dataRowKeySchema.next(ptr, dataPosOffset, maxRowKeyOffset);
+                output.write(ptr.get(), ptr.getOffset(), ptr.getLength());
+                if (!dataRowKeySchema.getField(dataPosOffset).getDataType().isFixedWidth()) {
+                    output.writeByte(SchemaUtil.getSeparatorByte(rowKeyOrderOptimizable, ptr.getLength()==0, dataRowKeySchema.getField(dataPosOffset)));
+                }
+                dataPosOffset++;
+            }
+            
+            // Write index row key
+            for (int i = dataPosOffset; i < indexDataColumnCount; i++) {
+                Boolean hasValue=dataRowKeySchema.next(ptr, i, maxRowKeyOffset);
+                // Ignore view constants from the data table, as these
+                // don't need to appear in the index (as they're the
+                // same for all rows in this index)
+                if (!viewConstantColumnBitSet.get(i)) {
+                    int pos = rowKeyMetaData.getIndexPkPosition(i-dataPosOffset);
+                    if (Boolean.TRUE.equals(hasValue)) {
+                        dataRowKeyLocator[0][pos] = ptr.getOffset();
+                        dataRowKeyLocator[1][pos] = ptr.getLength();
+                    } else {
+                        dataRowKeyLocator[0][pos] = 0;
+                        dataRowKeyLocator[1][pos] = 0;
+                    }
+                } 
+            }
+            BitSet descIndexColumnBitSet = rowKeyMetaData.getDescIndexColumnBitSet();
+            Iterator<Expression> expressionIterator = indexedExpressions.iterator();
+            for (int i = 0; i < nIndexedColumns; i++) {
+                PDataType dataColumnType;
+                boolean isNullable;
+                SortOrder dataSortOrder;
+                if (dataPkPosition[i] == EXPRESSION_NOT_PRESENT) {
+                	Expression expression = expressionIterator.next();
+                	dataColumnType = expression.getDataType();
+                	dataSortOrder = expression.getSortOrder();
+                    isNullable = expression.isNullable();
+                	expression.evaluate(new ValueGetterTuple(valueGetter, ts), ptr);
+                }
+                else {
+                    Field field = dataRowKeySchema.getField(dataPkPosition[i]);
+                    dataColumnType = field.getDataType();
+                    ptr.set(rowKeyPtr.get(), dataRowKeyLocator[0][i], dataRowKeyLocator[1][i]);
+                    dataSortOrder = field.getSortOrder();
+                    isNullable = field.isNullable();
+                }
+                boolean isDataColumnInverted = dataSortOrder != SortOrder.ASC;
+                PDataType indexColumnType = IndexUtil.getIndexColumnDataType(isNullable, dataColumnType);
+                boolean isBytesComparable = dataColumnType.isBytesComparableWith(indexColumnType);
+                boolean isIndexColumnDesc = descIndexColumnBitSet.get(i);
+                if (isBytesComparable && isDataColumnInverted == isIndexColumnDesc) {
+                    output.write(ptr.get(), ptr.getOffset(), ptr.getLength());
+                } else {
+                    if (!isBytesComparable)  {
+                        indexColumnType.coerceBytes(ptr, dataColumnType, dataSortOrder, SortOrder.getDefault());
+                    }
+                    if (isDataColumnInverted != isIndexColumnDesc) {
+                        writeInverted(ptr.get(), ptr.getOffset(), ptr.getLength(), output);
+                    } else {
+                        output.write(ptr.get(), ptr.getOffset(), ptr.getLength());
+                    }
+                }
+                if (!indexColumnType.isFixedWidth()) {
+                    output.writeByte(SchemaUtil.getSeparatorByte(rowKeyOrderOptimizable, ptr.getLength() == 0, isIndexColumnDesc ? SortOrder.DESC : SortOrder.ASC));
+                }
+            }
+            int length = stream.size();
+            int minLength = length - maxTrailingNulls;
+            byte[] indexRowKey = stream.getBuffer();
+            // Remove trailing nulls
+            while (length > minLength && indexRowKey[length-1] == QueryConstants.SEPARATOR_BYTE) {
+                length--;
+            }
+            if (isIndexSalted) {
+                // Set salt byte
+                byte saltByte = SaltingUtil.getSaltingByte(indexRowKey, SaltingUtil.NUM_SALTING_BYTES, length-SaltingUtil.NUM_SALTING_BYTES, nIndexSaltBuckets);
+                indexRowKey[0] = saltByte;
+            }
+            return indexRowKey.length == length ? indexRowKey : Arrays.copyOf(indexRowKey, length);
+        } catch (IOException e) {
+            throw new RuntimeException(e); // Impossible
+        } finally {
+            try {
+                stream.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e); // Impossible
+            }
+        }
+    }

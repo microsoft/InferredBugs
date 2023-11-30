@@ -1,0 +1,24 @@
+    @Test
+    public void onErrorStopsProcessingTest() throws Exception {
+        Throwable expected = new Throwable("Wheee");
+        addItemsToReturn(10);
+        recordsPublisher.add(new ResponseItem(expected));
+        addItemsToReturn(10);
+
+        setupNotifierAnswer(10);
+
+        synchronized (processedNotifier) {
+            subscriber.startSubscriptions();
+            processedNotifier.wait(5000);
+        }
+
+        for (int attempts = 0; attempts < 10; attempts++) {
+            if (subscriber.retrievalFailure() != null) {
+                break;
+            }
+            Thread.sleep(10);
+        }
+
+        verify(shardConsumer, times(10)).handleInput(any(ProcessRecordsInput.class), any(Subscription.class));
+        assertThat(subscriber.retrievalFailure(), equalTo(expected));
+    }

@@ -1,0 +1,27 @@
+  public VersionOperation operate(ConnectionProvider connectionProvider, MigrationLoader migrationsLoader,
+      DatabaseOperationOption option, PrintStream printStream, MigrationHook upHook, MigrationHook downHook) {
+    if (option == null) {
+      option = new DatabaseOperationOption();
+    }
+    ensureVersionExists(migrationsLoader);
+    Change change = getLastAppliedChange(connectionProvider, option);
+    if (change == null || version.compareTo(change.getId()) > 0) {
+      println(printStream, "Upgrading to: " + version);
+      UpOperation up = new UpOperation(1);
+      while (!version.equals(change.getId())) {
+        up.operate(connectionProvider, migrationsLoader, option, printStream, upHook);
+        change = getLastAppliedChange(connectionProvider, option);
+      }
+    } else if (version.compareTo(change.getId()) < 0) {
+      println(printStream, "Downgrading to: " + version);
+      DownOperation down = new DownOperation(1);
+      while (!version.equals(change.getId())) {
+        down.operate(connectionProvider, migrationsLoader, option, printStream, downHook);
+        change = getLastAppliedChange(connectionProvider, option);
+      }
+    } else {
+      println(printStream, "Already at version: " + version);
+    }
+    println(printStream);
+    return this;
+  }

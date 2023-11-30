@@ -1,0 +1,18 @@
+    @Test
+    public void testJdbcPrinter() throws IOException, ClassNotFoundException, SQLException {
+        final StringWriter sw = new StringWriter();
+        Class.forName("org.h2.Driver");
+        final Connection connection = DriverManager.getConnection("jdbc:h2:mem:my_test;", "sa", "");
+        try {
+            final Statement stmt = connection.createStatement();
+            stmt.execute("CREATE TABLE TEST(ID INT PRIMARY KEY, NAME VARCHAR(255))");
+            stmt.execute("insert into TEST values(1, 'r1')");
+            stmt.execute("insert into TEST values(2, 'r2')");
+            final CSVPrinter printer = new CSVPrinter(sw, CSVFormat.DEFAULT);
+            printer.printRecords(stmt.executeQuery("select ID, NAME from TEST"));
+            assertEquals("1,r1" + recordSeparator + "2,r2" + recordSeparator, sw.toString());
+            printer.close();
+        } finally {
+            connection.close();
+        }
+    }

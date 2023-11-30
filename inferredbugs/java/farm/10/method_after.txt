@@ -1,0 +1,41 @@
+    @SuppressWarnings("unchecked")
+    public void exec() throws IOException {
+        final Props props = new Props();
+        if (props.has("//testing")) {
+            throw new IllegalStateException(
+                "Hey, we are in the testing mode!"
+            );
+        }
+        Sentry.init(props.get("//sentry/dsn", ""));
+        final Path temp = Paths.get("./s3farm").normalize();
+        if (!temp.toFile().mkdir()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Failed to mkdir \"%s\"", temp
+                )
+            );
+        }
+        try (
+            final Farm farm = new SmartFarm(
+                new S3Farm(new ExtBucket().value(), temp)
+            ).value();
+            final SlackRadar radar = new SlackRadar(farm)
+        ) {
+            new ExtMongobee(farm).apply();
+            new ExtTelegram(farm).value();
+            radar.refresh();
+            new GithubRoutine(farm).start();
+            new FtCli(
+                new TkApp(
+                    farm,
+                    new FkRegex("/slack", new TkSlack(farm, radar)),
+                    new FkRegex("/alias", new TkAlias(farm)),
+                    new FkRegex(
+                        "/ghook",
+                        new TkMethods(new TkGithub(farm), "POST")
+                    )
+                ),
+                this.arguments
+            ).start(Exit.NEVER);
+        }
+    }

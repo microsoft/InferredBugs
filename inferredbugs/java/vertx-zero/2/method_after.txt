@@ -1,0 +1,29 @@
+    private void mountSession(final Router router) {
+        if (ZeroHeart.isSession()) {
+            /*
+             * Session Global for Authorization, replace old mode with
+             * SessionClient, this client will get SessionStore
+             * by configuration information instead of create it directly.
+             */
+            final SessionClient client = SessionInfix.getOrCreate(this.vertx);
+            router.route().order(Orders.SESSION).handler(client.getHandler());
+        } else {
+            /*
+             * Default Session Handler here for public domain
+             * If enabled session extension, you should provide other session store
+             */
+            final SessionStore store;
+            if (this.vertx.isClustered()) {
+                /*
+                 * Cluster environment
+                 */
+                store = ClusteredSessionStore.create(this.vertx);
+            } else {
+                /*
+                 * Single Node environment
+                 */
+                store = LocalSessionStore.create(this.vertx);
+            }
+            router.route().order(Orders.SESSION).handler(SessionHandler.create(store));
+        }
+    }

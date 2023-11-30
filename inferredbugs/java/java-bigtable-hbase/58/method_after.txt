@@ -1,0 +1,28 @@
+  @Test
+  public void testCBC_UserAgentUsingPlainTextNegotiation() throws Exception{
+    ServerSocket serverSocket = new ServerSocket(0);
+    final int availablePort = serverSocket.getLocalPort();
+    serverSocket.close();
+
+    //Creates non-ssl server.
+    createServer(availablePort);
+
+    BigtableOptions bigtableOptions =
+        BigtableOptions.builder()
+            .setDataHost("localhost")
+            .setAdminHost("localhost")
+            .setProjectId(TEST_PROJECT_ID)
+            .setInstanceId(TEST_INSTANCE_ID)
+            .setUserAgent(TEST_USER_AGENT)
+            .setUsePlaintextNegotiation(true)
+            .setCredentialOptions(CredentialOptions.nullCredential())
+            .setPort(availablePort)
+            .build();
+
+    xGoogApiPattern = Pattern.compile(".* cbt/.*");
+    try (BigtableSession session = new BigtableSession(bigtableOptions)) {
+      session.getDataClient()
+          .readFlatRows(ReadRowsRequest.getDefaultInstance()).next();
+      Assert.assertTrue(serverPasses.get());
+    }
+  }

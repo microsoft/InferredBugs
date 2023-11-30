@@ -1,0 +1,929 @@
+{
+    "hash": "d00bb33ebcff8291d5a964df7ad905a027d20aed",
+    "message": "Improve safety of InMemoryDataService.",
+    "file_num_lines": 170,
+    "diff_parsed": {
+        "added": [
+            [
+                23,
+                "using System;"
+            ],
+            [
+                25,
+                "using System.Linq;"
+            ],
+            [
+                36,
+                "/// <remarks>"
+            ],
+            [
+                37,
+                "/// While <typeparamref name=\"TKey\"/> should be a simple dictionary key, <seealso cref=\"TData\"/> may be any complex type"
+            ],
+            [
+                38,
+                "/// such as classes, structures, or records. If the data type implements <see cref=\"IDisposable\"/> or"
+            ],
+            [
+                39,
+                "/// <see cref=\"IAsyncDisposable\"/>, the instance will also be disposed upon removal."
+            ],
+            [
+                40,
+                "/// </remarks>"
+            ],
+            [
+                44,
+                "public class InMemoryDataService<TKey, TData> : IAsyncDisposable where TKey : notnull"
+            ],
+            [
+                51,
+                "    private readonly ConcurrentDictionary<TKey, (SemaphoreSlim Semaphore, TData Data)> _data = new();"
+            ],
+            [
+                52,
+                "    private bool _isDisposed;"
+            ],
+            [
+                61,
+                "    /// <remarks>"
+            ],
+            [
+                62,
+                "    /// After inserting the value, any further access to the data is invalid. If you come from a C++ or Rust background,"
+            ],
+            [
+                63,
+                "    /// consider the value as having been moved into this method."
+            ],
+            [
+                64,
+                "    /// </remarks>"
+            ],
+            [
+                70,
+                "        if (_isDisposed)"
+            ],
+            [
+                71,
+                "        {"
+            ],
+            [
+                72,
+                "            throw new ObjectDisposedException(\"The data service has been disposed of and cannot be used.\");"
+            ],
+            [
+                73,
+                "        }"
+            ],
+            [
+                74,
+                ""
+            ],
+            [
+                75,
+                "        return _data.TryAdd(key, (new SemaphoreSlim(1, 1), data));"
+            ],
+            [
+                79,
+                "    /// Leases the data associated with the given key, blocking until a lock can be taken on the data object."
+            ],
+            [
+                87,
+                "    /// <returns>The data and semaphore associated with the data or a <see cref=\"NotFoundError\"/>.</returns>"
+            ],
+            [
+                88,
+                "    public async Task<Result<DataLease<TKey, TData>>> LeaseDataAsync(TKey key, CancellationToken ct = default)"
+            ],
+            [
+                90,
+                "        if (_isDisposed)"
+            ],
+            [
+                91,
+                "        {"
+            ],
+            [
+                92,
+                "            throw new ObjectDisposedException(\"The data service has been disposed of and cannot be used.\");"
+            ],
+            [
+                93,
+                "        }"
+            ],
+            [
+                94,
+                ""
+            ],
+            [
+                95,
+                "        if (!_data.TryGetValue(key, out var tuple))"
+            ],
+            [
+                96,
+                "        {"
+            ],
+            [
+                97,
+                "            return new NotFoundError();"
+            ],
+            [
+                98,
+                "        }"
+            ],
+            [
+                99,
+                ""
+            ],
+            [
+                100,
+                "        var (semaphore, data) = tuple;"
+            ],
+            [
+                101,
+                "        await semaphore.WaitAsync(ct);"
+            ],
+            [
+                102,
+                ""
+            ],
+            [
+                103,
+                "        return new DataLease<TKey, TData>(this, key, semaphore, data);"
+            ],
+            [
+                104,
+                "    }"
+            ],
+            [
+                105,
+                ""
+            ],
+            [
+                106,
+                "    /// <summary>"
+            ],
+            [
+                107,
+                "    /// Rents the data associated with the given key, blocking until a lock can be taken on the data object."
+            ],
+            [
+                108,
+                "    /// </summary>"
+            ],
+            [
+                109,
+                "    /// <remarks>"
+            ],
+            [
+                110,
+                "    /// The semaphore returned by this method has the lock held on it and must be released once the caller is done with"
+            ],
+            [
+                111,
+                "    /// the object."
+            ],
+            [
+                112,
+                "    /// </remarks>"
+            ],
+            [
+                113,
+                "    /// <param name=\"key\">The key the data object is associated with.</param>"
+            ],
+            [
+                114,
+                "    /// <param name=\"ct\">The cancellation token for this operation.</param>"
+            ],
+            [
+                115,
+                "    /// <returns>The data and semaphore associated with the data or a <see cref=\"NotFoundError\"/>.</returns>"
+            ],
+            [
+                116,
+                "    [Obsolete(\"Use LeaseDataAsync instead.\", true)]"
+            ],
+            [
+                117,
+                "    public async Task<Result<(SemaphoreSlim Semaphore, TData Data)>> RentDataAsync"
+            ],
+            [
+                118,
+                "    ("
+            ],
+            [
+                119,
+                "        TKey key,"
+            ],
+            [
+                120,
+                "        CancellationToken ct = default"
+            ],
+            [
+                121,
+                "    )"
+            ],
+            [
+                122,
+                "    {"
+            ],
+            [
+                123,
+                "        if (_isDisposed)"
+            ],
+            [
+                124,
+                "        {"
+            ],
+            [
+                125,
+                "            throw new ObjectDisposedException(\"The data service has been disposed of and cannot be used.\");"
+            ],
+            [
+                126,
+                "        }"
+            ],
+            [
+                127,
+                ""
+            ],
+            [
+                128,
+                "        if (!_data.TryGetValue(key, out var tuple))"
+            ],
+            [
+                140,
+                "    /// Removes the data associated with the given key. This method does nothing if no data is associated with"
+            ],
+            [
+                141,
+                "    /// the given key."
+            ],
+            [
+                147,
+                "        if (_isDisposed)"
+            ],
+            [
+                148,
+                "        {"
+            ],
+            [
+                149,
+                "            throw new ObjectDisposedException(\"The data service has been disposed of and cannot be used.\");"
+            ],
+            [
+                150,
+                "        }"
+            ],
+            [
+                151,
+                ""
+            ],
+            [
+                152,
+                "        if (!_data.TryRemove(key, out var tuple))"
+            ],
+            [
+                153,
+                "        {"
+            ],
+            [
+                154,
+                "            return false;"
+            ],
+            [
+                155,
+                "        }"
+            ],
+            [
+                156,
+                ""
+            ],
+            [
+                157,
+                "        var (semaphore, data) = tuple;"
+            ],
+            [
+                158,
+                ""
+            ],
+            [
+                159,
+                "        if (data is IAsyncDisposable and not IDisposable)"
+            ],
+            [
+                160,
+                "        {"
+            ],
+            [
+                161,
+                "            throw new InvalidOperationException"
+            ],
+            [
+                162,
+                "            ("
+            ],
+            [
+                163,
+                "                $\"Unable to synchronously dispose of the held data belonging to key {key}.\""
+            ],
+            [
+                164,
+                "            );"
+            ],
+            [
+                165,
+                "        }"
+            ],
+            [
+                166,
+                ""
+            ],
+            [
+                167,
+                "        if (data is IDisposable disposableData)"
+            ],
+            [
+                168,
+                "        {"
+            ],
+            [
+                169,
+                "            disposableData.Dispose();"
+            ],
+            [
+                170,
+                "        }"
+            ],
+            [
+                171,
+                ""
+            ],
+            [
+                172,
+                "        if (data is IAsyncDisposable and not IDisposable)"
+            ],
+            [
+                173,
+                "        {"
+            ],
+            [
+                174,
+                "            throw new InvalidOperationException"
+            ],
+            [
+                175,
+                "            ("
+            ],
+            [
+                176,
+                "                $\"Unable to synchronously dispose of the held data belonging to key {key}.\""
+            ],
+            [
+                177,
+                "            );"
+            ],
+            [
+                178,
+                "        }"
+            ],
+            [
+                179,
+                ""
+            ],
+            [
+                180,
+                "        semaphore.Dispose();"
+            ],
+            [
+                181,
+                "        return true;"
+            ],
+            [
+                182,
+                "    }"
+            ],
+            [
+                183,
+                ""
+            ],
+            [
+                184,
+                "    /// <summary>"
+            ],
+            [
+                185,
+                "    /// Removes the data associated with the given key. This method does nothing if no data is associated with"
+            ],
+            [
+                186,
+                "    /// the given key."
+            ],
+            [
+                187,
+                "    /// </summary>"
+            ],
+            [
+                188,
+                "    /// <param name=\"key\">The key the data object is associated with.</param>"
+            ],
+            [
+                189,
+                "    /// <returns>true if the data was successfully removed; otherwise, false.</returns>"
+            ],
+            [
+                190,
+                "    public async ValueTask<bool> TryRemoveDataAsync(TKey key)"
+            ],
+            [
+                191,
+                "    {"
+            ],
+            [
+                192,
+                "        if (_isDisposed)"
+            ],
+            [
+                193,
+                "        {"
+            ],
+            [
+                194,
+                "            throw new ObjectDisposedException(\"The data service has been disposed of and cannot be used.\");"
+            ],
+            [
+                195,
+                "        }"
+            ],
+            [
+                196,
+                ""
+            ],
+            [
+                197,
+                "        if (!_data.TryRemove(key, out var tuple))"
+            ],
+            [
+                198,
+                "        {"
+            ],
+            [
+                199,
+                "            return false;"
+            ],
+            [
+                200,
+                "        }"
+            ],
+            [
+                201,
+                ""
+            ],
+            [
+                202,
+                "        var (semaphore, data) = tuple;"
+            ],
+            [
+                203,
+                ""
+            ],
+            [
+                204,
+                "        if (data is IAsyncDisposable asyncDisposableData)"
+            ],
+            [
+                205,
+                "        {"
+            ],
+            [
+                206,
+                "            await asyncDisposableData.DisposeAsync();"
+            ],
+            [
+                207,
+                "        }"
+            ],
+            [
+                208,
+                ""
+            ],
+            [
+                209,
+                "        if (data is IDisposable disposableData)"
+            ],
+            [
+                210,
+                "        {"
+            ],
+            [
+                211,
+                "            disposableData.Dispose();"
+            ],
+            [
+                212,
+                "        }"
+            ],
+            [
+                213,
+                ""
+            ],
+            [
+                214,
+                "        semaphore.Dispose();"
+            ],
+            [
+                215,
+                "        return true;"
+            ],
+            [
+                216,
+                "    }"
+            ],
+            [
+                217,
+                ""
+            ],
+            [
+                218,
+                "    /// <summary>"
+            ],
+            [
+                219,
+                "    /// Deletes the data, disposing of the semaphore and, if necessary, the data."
+            ],
+            [
+                220,
+                "    /// </summary>"
+            ],
+            [
+                221,
+                "    /// <param name=\"key\">The key the data object is associated with.</param>"
+            ],
+            [
+                222,
+                "    /// <returns>true if the data was successfully removed; otherwise, false..</returns>"
+            ],
+            [
+                223,
+                "    internal async ValueTask<bool> DeleteDataAsync(TKey key)"
+            ],
+            [
+                224,
+                "    {"
+            ],
+            [
+                225,
+                "        if (_isDisposed)"
+            ],
+            [
+                226,
+                "        {"
+            ],
+            [
+                227,
+                "            throw new ObjectDisposedException(\"The data service has been disposed of and cannot be used.\");"
+            ],
+            [
+                228,
+                "        }"
+            ],
+            [
+                229,
+                ""
+            ],
+            [
+                230,
+                "        if (!_data.TryRemove(key, out var tuple))"
+            ],
+            [
+                231,
+                "        {"
+            ],
+            [
+                232,
+                "            // already gone"
+            ],
+            [
+                233,
+                "            return false;"
+            ],
+            [
+                234,
+                "        }"
+            ],
+            [
+                235,
+                ""
+            ],
+            [
+                236,
+                "        var (semaphore, data) = tuple;"
+            ],
+            [
+                237,
+                "        if (data is IAsyncDisposable asyncDisposableData)"
+            ],
+            [
+                238,
+                "        {"
+            ],
+            [
+                239,
+                "            await asyncDisposableData.DisposeAsync();"
+            ],
+            [
+                240,
+                "        }"
+            ],
+            [
+                241,
+                ""
+            ],
+            [
+                242,
+                "        if (data is IDisposable disposableData)"
+            ],
+            [
+                243,
+                "        {"
+            ],
+            [
+                244,
+                "            disposableData.Dispose();"
+            ],
+            [
+                245,
+                "        }"
+            ],
+            [
+                246,
+                ""
+            ],
+            [
+                247,
+                "        semaphore.Dispose();"
+            ],
+            [
+                248,
+                "        return true;"
+            ],
+            [
+                249,
+                "    }"
+            ],
+            [
+                250,
+                ""
+            ],
+            [
+                251,
+                "    /// <summary>"
+            ],
+            [
+                252,
+                "    /// Updates the data identified by the given key."
+            ],
+            [
+                253,
+                "    /// </summary>"
+            ],
+            [
+                254,
+                "    /// <remarks>"
+            ],
+            [
+                255,
+                "    /// The semaphore is not released by this method.</remarks>"
+            ],
+            [
+                256,
+                "    /// <param name=\"key\">The key.</param>"
+            ],
+            [
+                257,
+                "    /// <param name=\"newData\">The new data.</param>"
+            ],
+            [
+                258,
+                "    /// <exception cref=\"InvalidOperationException\">"
+            ],
+            [
+                259,
+                "    /// Thrown if the key is not found or the semaphore is not held."
+            ],
+            [
+                260,
+                "    /// </exception>"
+            ],
+            [
+                261,
+                "    internal void UpdateData(TKey key, TData newData)"
+            ],
+            [
+                262,
+                "    {"
+            ],
+            [
+                263,
+                "        if (_isDisposed)"
+            ],
+            [
+                264,
+                "        {"
+            ],
+            [
+                265,
+                "            throw new ObjectDisposedException(\"The data service has been disposed of and cannot be used.\");"
+            ],
+            [
+                266,
+                "        }"
+            ],
+            [
+                267,
+                ""
+            ],
+            [
+                268,
+                "        if (!_data.TryGetValue(key, out var existingData))"
+            ],
+            [
+                269,
+                "        {"
+            ],
+            [
+                270,
+                "            throw new InvalidOperationException(\"No data with that key could be found.\");"
+            ],
+            [
+                271,
+                "        }"
+            ],
+            [
+                272,
+                ""
+            ],
+            [
+                273,
+                "        var (existingSemaphore, _) = existingData;"
+            ],
+            [
+                274,
+                "        if (existingSemaphore.CurrentCount != 0)"
+            ],
+            [
+                275,
+                "        {"
+            ],
+            [
+                276,
+                "            throw new InvalidOperationException(\"The semaphore is not currently held, and you do not own the data.\");"
+            ],
+            [
+                277,
+                "        }"
+            ],
+            [
+                278,
+                ""
+            ],
+            [
+                279,
+                "        if (!_data.TryUpdate(key, (existingSemaphore, newData), existingData))"
+            ],
+            [
+                280,
+                "        {"
+            ],
+            [
+                281,
+                "            throw new InvalidOperationException"
+            ],
+            [
+                282,
+                "            ("
+            ],
+            [
+                283,
+                "                \"Something updated the data while we were working on it. Concurrency bug?\""
+            ],
+            [
+                284,
+                "            );"
+            ],
+            [
+                285,
+                "        }"
+            ],
+            [
+                286,
+                "    }"
+            ],
+            [
+                287,
+                ""
+            ],
+            [
+                288,
+                "    /// <inheritdoc />"
+            ],
+            [
+                289,
+                "    public async ValueTask DisposeAsync()"
+            ],
+            [
+                290,
+                "    {"
+            ],
+            [
+                291,
+                "        if (_isDisposed)"
+            ],
+            [
+                292,
+                "        {"
+            ],
+            [
+                293,
+                "            return;"
+            ],
+            [
+                294,
+                "        }"
+            ],
+            [
+                295,
+                ""
+            ],
+            [
+                296,
+                "        var keys = _data.Keys.ToList();"
+            ],
+            [
+                297,
+                "        foreach (var key in keys)"
+            ],
+            [
+                298,
+                "        {"
+            ],
+            [
+                299,
+                "            await DeleteDataAsync(key);"
+            ],
+            [
+                300,
+                "        }"
+            ]
+        ],
+        "deleted": [
+            [
+                37,
+                "public class InMemoryDataService<TKey, TData> where TKey : notnull"
+            ],
+            [
+                44,
+                "    private readonly ConcurrentDictionary<TKey, (SemaphoreSlim Semaphore, TData Data)> _paginationData = new();"
+            ],
+            [
+                53,
+                "    ///"
+            ],
+            [
+                59,
+                "        return _paginationData.TryAdd(key, (new SemaphoreSlim(1, 1), data));"
+            ],
+            [
+                63,
+                "    /// Rents the data associated with the given message ID, blocking until a lock can be taken on the data object."
+            ],
+            [
+                71,
+                "    /// <returns>The data and semaphore associated with the message or a <see cref=\"NotFoundError\"/>.</returns>"
+            ],
+            [
+                72,
+                "    public async Task<Result<(SemaphoreSlim Semaphore, TData Data)>> RentData(TKey key, CancellationToken ct = default)"
+            ],
+            [
+                74,
+                "        if (!_paginationData.TryGetValue(key, out var tuple))"
+            ],
+            [
+                86,
+                "    /// Removes the data associated with the given message ID. This method does nothing if no data is associated with"
+            ],
+            [
+                87,
+                "    /// the given message ID."
+            ],
+            [
+                93,
+                "        return _paginationData.TryRemove(key, out _);"
+            ]
+        ]
+    },
+    "num_lines_added": 218,
+    "num_lines_removed": 11
+}

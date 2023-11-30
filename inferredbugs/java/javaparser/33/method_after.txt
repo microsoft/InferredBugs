@@ -1,0 +1,16 @@
+    private FileVisitResult callback(Path absolutePath, ParserConfiguration configuration, Callback callback) throws IOException {
+        Path localPath = root.relativize(absolutePath);
+        Log.trace("Parsing %s", () -> localPath);
+        ParseResult<CompilationUnit> result = new JavaParser(configuration).parse(COMPILATION_UNIT, provider(absolutePath, configuration.getCharacterEncoding()));
+        result.getResult().ifPresent(cu -> cu.setStorage(absolutePath, configuration.getCharacterEncoding()));
+        switch (callback.process(localPath, absolutePath, result)) {
+            case SAVE:
+                result.getResult().ifPresent(cu -> save(cu, absolutePath));
+            case DONT_SAVE:
+                return CONTINUE;
+            case TERMINATE:
+                return TERMINATE;
+            default:
+                throw new AssertionError("Return an enum defined in SourceRoot.Callback.Result");
+        }
+    }

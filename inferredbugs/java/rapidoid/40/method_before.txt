@@ -1,0 +1,35 @@
+ public static void main(String[] args) {
+
+		final HttpParser parser = new HttpParser();
+		final Buf[] reqs = {r(REQ1), r(REQ2), r(REQ3), r(REQ4)};
+		final RapidoidHelper helper = new RapidoidHelper(null);
+
+		BufRange[] ranges = helper.ranges1.ranges;
+		final BufRanges headers = helper.ranges2;
+
+		final BoolWrap isGet = helper.booleans[0];
+		final BoolWrap isKeepAlive = helper.booleans[1];
+
+		final BufRange verb = ranges[ranges.length - 1];
+		final BufRange uri = ranges[ranges.length - 2];
+		final BufRange path = ranges[ranges.length - 3];
+		final BufRange query = ranges[ranges.length - 4];
+		final BufRange protocol = ranges[ranges.length - 5];
+		final BufRange body = ranges[ranges.length - 6];
+
+		for (int i = 0; i < 10; i++) {
+			Msc.benchmark("parse", 3000000, new Runnable() {
+				int n;
+
+				@Override
+				public void run() {
+					Buf buf = reqs[n % 4];
+					buf.position(0);
+					parser.parse(buf, isGet, isKeepAlive, body, verb, uri, path, query, protocol, headers, helper);
+					n++;
+				}
+			});
+		}
+
+		System.out.println(BUFS.instances() + " buffer instances.");
+	}

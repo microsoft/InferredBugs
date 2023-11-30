@@ -1,0 +1,57 @@
+ static
+	private InputStream init(PushbackInputStream is) throws IOException {
+		byte[] headerBytes = new byte[2 + 19];
+
+		ByteStreams.readFully(is, headerBytes);
+
+		String header = new String(headerBytes);
+
+		if(!header.startsWith("ZF0x")){
+			throw new IOException();
+		}
+
+		// Remove trailing whitespace
+		header = header.trim();
+
+		final
+		long expectedSize = Long.parseLong(header.substring(4), 16);
+
+		// Consume the first byte
+		int firstByte = is.read();
+		if(firstByte < 0){
+			return is;
+		} // End if
+
+		// If the first byte is not a space character, then make it available for reading again
+		if(firstByte != '\u0020'){
+			is.unread(firstByte);
+		}
+
+		InflaterInputStream zlibIs = new InflaterInputStream(is);
+
+		InputStream result = new FilterInputStream(new CountingInputStream(zlibIs)){
+
+			private boolean closed = false;
+
+
+			@Override
+			public void close() throws IOException {
+
+				if(this.closed){
+					return;
+				}
+
+				this.closed = true;
+
+				long size = ((CountingInputStream)super.in).getCount();
+
+				super.close();
+
+				if(size != expectedSize){
+					throw new IOException("Expected " + expectedSize + " bytes of uncompressed data, got " + size + " bytes");
+				}
+			}
+		};
+
+		return result;
+	}

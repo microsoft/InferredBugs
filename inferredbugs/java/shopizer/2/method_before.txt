@@ -1,0 +1,42 @@
+    @SuppressWarnings("unchecked")
+	public JSONObject actionSaveFile(HttpServletRequest request) throws Exception {
+        String path = getPath(request, "path");
+        String content = request.getParameter("content");
+        File file = getFile(path);
+
+        if (!file.exists()) {
+            return getErrorResponse(dictionnary.getProperty("INVALID_DIRECTORY_OR_FILE"));
+        }
+
+        if (file.isDirectory()) {
+            return getErrorResponse(dictionnary.getProperty("NOT_ALLOWED"));
+        }
+
+        if (!hasPermission("edit") || !isEditable(file.getName())) {
+            return getErrorResponse(dictionnary.getProperty("FORBIDDEN_ACTION_DIR"));
+        }
+
+        if (!file.canWrite()) {
+            return getErrorResponse(dictionnary.getProperty("NOT_ALLOWED_SYSTEM"));
+        }
+
+        if (!isAllowedName(file.getName(), false)) {
+            return getErrorResponse(dictionnary.getProperty("INVALID_DIRECTORY_OR_FILE"));
+        }
+
+        try {
+            FileOutputStream oldFile = new FileOutputStream(file, false);
+            oldFile.write(content.getBytes());
+            oldFile.close();
+        } catch (IOException e) {
+            throw new Exception("Error writing modified file", e);
+        }
+        
+        JSONObject result = new JSONObject();
+        JSONObject o = new JSONObject(getFileInfo(path));
+        result.put("data", o);
+        
+        return result;
+
+        //return new JSONObject().put("data", new JSONObject(getFileInfo(path)));
+    }

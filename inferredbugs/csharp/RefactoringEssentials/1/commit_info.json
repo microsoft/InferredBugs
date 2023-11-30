@@ -1,0 +1,269 @@
+{
+    "hash": "86b51099b8f24c61090e8a1ae910b91756e3f0d7",
+    "message": "[Perf] Optimize EnsuresNotNull\n\nformatting and creating an adhoc workspace are costly operations. Do basic AST checks.",
+    "file_num_lines": 130,
+    "diff_parsed": {
+        "added": [
+            [
+                102,
+                "        static bool ValidateContractAccess(MemberAccessExpressionSyntax access, string method, string genericTypeName)"
+            ],
+            [
+                104,
+                "            if (access == null)"
+            ],
+            [
+                105,
+                "                return false;"
+            ],
+            [
+                106,
+                ""
+            ],
+            [
+                107,
+                "            var className = access.Expression.GetRightmostName() as SimpleNameSyntax;"
+            ],
+            [
+                108,
+                "            if (className == null || className.Identifier.ValueText != \"Contract\")"
+            ],
+            [
+                109,
+                "                return false;"
+            ],
+            [
+                110,
+                ""
+            ],
+            [
+                111,
+                "            var ensures = access.GetRightmostName() as SimpleNameSyntax;"
+            ],
+            [
+                112,
+                "            if (ensures == null || ensures.Identifier.ValueText != method)"
+            ],
+            [
+                113,
+                "                return false;"
+            ],
+            [
+                114,
+                ""
+            ],
+            [
+                115,
+                "            if (genericTypeName!= null)"
+            ],
+            [
+                116,
+                "            {"
+            ],
+            [
+                117,
+                "                var generic = ensures as GenericNameSyntax;"
+            ],
+            [
+                118,
+                "                if (generic == null || generic.Arity != 1)"
+            ],
+            [
+                119,
+                "                    return false;"
+            ],
+            [
+                120,
+                ""
+            ],
+            [
+                121,
+                "                var typeName = generic.TypeArgumentList.Arguments[0].GetRightmostName() as SimpleNameSyntax;"
+            ],
+            [
+                122,
+                "                if (typeName == null || typeName.Identifier.ValueText != genericTypeName)"
+            ],
+            [
+                123,
+                "                    return false;"
+            ],
+            [
+                124,
+                "            }"
+            ],
+            [
+                125,
+                "            return true;"
+            ],
+            [
+                126,
+                "        }"
+            ],
+            [
+                128,
+                "        static bool HasReturnContract(BlockSyntax bodyStatement, string returnType)"
+            ],
+            [
+                129,
+                "        {"
+            ],
+            [
+                130,
+                "            var rhsEnsures = SyntaxFactory.ParseStatement($\"Contract.Ensures(Contract.Result<{returnType}>() != null);\");"
+            ],
+            [
+                131,
+                "            var lhsEnsures = SyntaxFactory.ParseStatement($\"Contract.Ensures(null != Contract.Result<{returnType}>());\");"
+            ],
+            [
+                134,
+                "                var ies = expression.Expression as InvocationExpressionSyntax;"
+            ],
+            [
+                135,
+                "                if (ies == null)"
+            ],
+            [
+                136,
+                "                    continue;"
+            ],
+            [
+                137,
+                ""
+            ],
+            [
+                138,
+                "                var access = ies.Expression as MemberAccessExpressionSyntax;"
+            ],
+            [
+                139,
+                "                if (access == null)"
+            ],
+            [
+                140,
+                "                    continue;"
+            ],
+            [
+                141,
+                ""
+            ],
+            [
+                142,
+                "                if (!ValidateContractAccess(access, \"Ensures\", null))"
+            ],
+            [
+                143,
+                "                    continue;"
+            ],
+            [
+                145,
+                "                if (ies.ArgumentList.Arguments.Count != 1)"
+            ],
+            [
+                146,
+                "                    continue;"
+            ],
+            [
+                147,
+                ""
+            ],
+            [
+                148,
+                "                var arg = ies.ArgumentList.Arguments[0].Expression as BinaryExpressionSyntax;"
+            ],
+            [
+                149,
+                "                if (arg == null || !arg.OperatorToken.IsKind(SyntaxKind.ExclamationEqualsToken))"
+            ],
+            [
+                150,
+                "                    continue;"
+            ],
+            [
+                151,
+                ""
+            ],
+            [
+                152,
+                "                if (arg.Left.IsKind(SyntaxKind.NullLiteralExpression))"
+            ],
+            [
+                153,
+                "                {"
+            ],
+            [
+                154,
+                "                    ies = arg.Right as InvocationExpressionSyntax;"
+            ],
+            [
+                155,
+                "                }"
+            ],
+            [
+                156,
+                "                else if (arg.Right.IsKind(SyntaxKind.NullLiteralExpression))"
+            ],
+            [
+                157,
+                "                {"
+            ],
+            [
+                158,
+                "                    ies = arg.Left as InvocationExpressionSyntax;"
+            ],
+            [
+                159,
+                "                }"
+            ],
+            [
+                160,
+                "                access = ies?.Expression as MemberAccessExpressionSyntax;"
+            ],
+            [
+                161,
+                "                if (!ValidateContractAccess(access, \"Result\", returnType))"
+            ],
+            [
+                162,
+                "                    continue;"
+            ],
+            [
+                163,
+                "                return true;"
+            ]
+        ],
+        "deleted": [
+            [
+                102,
+                "        static bool HasReturnContract(BlockSyntax bodyStatement, string returnType)"
+            ],
+            [
+                104,
+                "            var workspace = new AdhocWorkspace();"
+            ],
+            [
+                106,
+                "            var rhsEnsures = $\"Contract.Ensures(Contract.Result<{returnType}>() != null);\";"
+            ],
+            [
+                107,
+                "            var lhsEnsures = $\"Contract.Ensures(null != Contract.Result<{returnType}>());\";"
+            ],
+            [
+                110,
+                "                var formatted = Formatter.Format(expression, workspace).ToString();"
+            ],
+            [
+                112,
+                "                if (formatted == rhsEnsures || formatted == lhsEnsures)"
+            ],
+            [
+                113,
+                "                    return true;"
+            ]
+        ]
+    },
+    "num_lines_added": 57,
+    "num_lines_removed": 7
+}

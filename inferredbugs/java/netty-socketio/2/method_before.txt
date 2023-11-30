@@ -1,0 +1,40 @@
+ @Override
+	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+
+		if (msg instanceof FullHttpRequest) {
+			FullHttpRequest req = (FullHttpRequest) msg;
+			QueryStringDecoder queryDecoder = new QueryStringDecoder(req.getUri());
+			File resource = resources.get(queryDecoder.path());
+			if (resource != null) {
+				HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK);
+
+				if (isNotModified(req, resource)) {
+					sendNotModified(ctx);
+					req.release();
+					return;
+				}
+
+				RandomAccessFile raf;
+				try {
+					raf = new RandomAccessFile(resource, "r");
+				} catch (FileNotFoundException fnfe) {
+					sendError(ctx, NOT_FOUND);
+					return;
+				}
+				long fileLength = raf.length();
+
+				setContentLength(res, fileLength);
+				setContentTypeHeader(res, resource);
+				setDateAndCacheHeaders(res, resource);
+				// write the response header
+				ctx.write(res);
+				// write the content to the channel
+				ChannelFuture writeFuture = writeContent(raf, fileLength, ctx.channel());
+				// close the request channel
+				writeFuture.addListener(ChannelFutureListener.CLOSE);
+
+				return;
+			}
+		}
+		super.channelRead(ctx, msg);
+	}

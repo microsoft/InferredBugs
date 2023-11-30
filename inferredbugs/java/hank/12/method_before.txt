@@ -1,0 +1,50 @@
+  public void run() throws IOException {
+    LOG.info("Data Deployer Daemon for ring group " + ringGroupName + " starting.");
+    boolean claimedDataDeployer = false;
+    try {
+      ringGroupConfig = coord.getRingGroup(ringGroupName);
+
+      // attempt to claim the data deployer title
+      if (ringGroupConfig.claimDataDeployer()) {
+        claimedDataDeployer = true;
+
+        // we are now *the* data deployer for this ring group.
+        domainGroup = ringGroupConfig.getDomainGroup();
+
+        // set a watch on the ring group
+        ringGroupConfig.setListener(this);
+
+        // set a watch on the domain group version
+        domainGroup.setListener(this);
+
+        // loop until we're taken down
+        goingDown = false;
+        try {
+          while (!goingDown) {
+            // take a snapshot of the current ring/domain group configs, since
+            // they might get changed while we're processing the current update.
+            RingGroup snapshotRingGroupConfig;
+            DomainGroup snapshotDomainGroup;
+            synchronized (lock) {
+              snapshotRingGroupConfig = ringGroupConfig;
+              snapshotDomainGroup = domainGroup;
+            }
+
+            processUpdates(snapshotRingGroupConfig, snapshotDomainGroup);
+            Thread.sleep(config.getSleepInterval());
+          }
+        } catch (InterruptedException e) {
+          // daemon is going down.
+        }
+      } else {
+        LOG.info("Attempted to claim data deployer status, but there was already a lock in place!");
+      }
+    } catch (Throwable t) {
+      LOG.fatal("unexpected exception!", t);
+    } finally {
+      if (claimedDataDeployer) {
+        ringGroupConfig.releaseDataDeployer();
+      }
+    }
+    LOG.info("Data Deployer Daemon for ring group " + ringGroupName + " shutting down.");
+  }

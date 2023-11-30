@@ -1,0 +1,40 @@
+        public static string GetAuthToken(string Username, string Password)
+        {
+            try
+            {
+
+                if (!_cache.TryGetValue("PW" + (Username + Password).GetHashCode(StringComparison.InvariantCultureIgnoreCase), out Token))
+                {
+                    using (var oClient = new HttpClient())
+                    {
+                        oClient.DefaultRequestHeaders.Add("Username", Username);
+                        oClient.DefaultRequestHeaders.Add("Password", Password);
+                        oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        var response = oClient.GetStringAsync(sURL + "/rest/AuthenticateUser");
+                        response.Wait(5000);
+                        if (response.IsCompleted)
+                        {
+                            Token = response.Result.Replace("\"", "");
+
+                            // Set cache options.
+                            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                // Keep in cache for this time, reset time if accessed.
+                                .SetSlidingExpiration(TimeSpan.FromSeconds(300));
+
+                            _cache.Set("PW" + (Username + Password).GetHashCode(StringComparison.InvariantCultureIgnoreCase), Token, cacheEntryOptions);
+
+                            return Token;
+                        }
+                    }
+                }
+                else
+                    return Token;
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine("Auth. Error: " + ex.Message);
+            }
+
+            return "";
+
+        }

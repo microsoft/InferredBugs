@@ -1,0 +1,23 @@
+        public VariableDefinition[] ReadVariableSignature(uint signature, MethodDefinition parentMethod)
+        {
+            VariableDefinition[] variables = null;
+            using (BlobSignatureReader reader = GetBlobReader(signature))
+            {
+
+                byte local_sig = reader.ReadByte();
+
+                if (local_sig != 0x7)
+                    throw new ArgumentException("Signature doesn't refer to a valid local variable signature");
+
+                uint count = NETGlobals.ReadCompressedUInt32(reader);
+
+                if (count == 0)
+                    return null;
+
+                variables = new VariableDefinition[count];
+
+                for (int i = 0; i < count; i++)
+                    variables[i] = new VariableDefinition(i, ReadTypeReference(reader, (ElementType)reader.ReadByte(), parentMethod, parentMethod.DeclaringType));
+            }
+            return variables;
+        }

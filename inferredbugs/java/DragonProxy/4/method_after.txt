@@ -1,0 +1,77 @@
+    @Override
+    public boolean handle(LoginPacket packet) {
+        // Check for supported protocol
+        int index = Arrays.binarySearch(DragonProxy.BEDROCK_SUPPORTED_PROTOCOLS, packet.getProtocolVersion());
+        if (index < 0) {
+            session.getBedrockSession().disconnect();
+            return true;
+        }
+        session.getBedrockSession().setPacketCodec(DragonProxy.BEDROCK_SUPPORTED_CODECS[index]);
+
+        JsonNode certData;
+        try {
+            certData = DragonProxy.JSON_MAPPER.readTree(packet.getChainData().toByteArray());
+        } catch (IOException ex) {
+            throw new RuntimeException("Certificate JSON could not be read");
+        }
+
+        JsonNode certChainData = certData.get("chain");
+        if (certChainData.getNodeType() != JsonNodeType.ARRAY) {
+            throw new RuntimeException("Certificate data is not valid");
+        }
+
+        boolean validChain;
+        try {
+            validChain = BedrockLoginUtils.validateChainData(certChainData);
+
+            JWSObject jwt = JWSObject.parse(certChainData.get(certChainData.size() - 1).asText());
+            JsonNode payload = DragonProxy.JSON_MAPPER.readTree(jwt.getPayload().toBytes());
+
+            if (payload.get("extraData").getNodeType() != JsonNodeType.OBJECT) {
+                throw new RuntimeException("AuthData was not found!");
+            }
+
+            JSONObject extraData = (JSONObject) jwt.getPayload().toJSONObject().get("extraData");
+
+            session.setAuthData(DragonProxy.JSON_MAPPER.convertValue(extraData, AuthData.class));
+
+            if (payload.get("identityPublicKey").getNodeType() != JsonNodeType.STRING) {
+                throw new RuntimeException("Identity Public Key was not found!");
+            }
+
+            if(!validChain) {
+                if(proxy.getConfiguration().isXboxAuth()) {
+                    session.disconnect("You must be authenticated with xbox live");
+                    return true;
+                }
+
+                session.getAuthData().setXuid(null); // TODO: ideally the class should be immutable
+            }
+
+            ECPublicKey identityPublicKey = EncryptionUtils.generateKey(payload.get("identityPublicKey").textValue());
+            JWSObject clientJwt = JWSObject.parse(packet.getSkinData().toString());
+            EncryptionUtils.verifyJwt(clientJwt, identityPublicKey);
+
+            JsonNode clientPayload = DragonProxy.JSON_MAPPER.readTree(clientJwt.getPayload().toBytes());
+            session.setClientData(DragonProxy.JSON_MAPPER.convertValue(clientPayload, ClientData.class));
+
+            session.setUsername(session.getAuthData().getDisplayName());
+
+            if (EncryptionUtils.canUseEncryption()) {
+                //BedrockLoginUtils.startEncryptionHandshake(session, identityPublicKey);
+            }
+        } catch (Exception ex) {
+            session.disconnect("disconnectionScreen.internalError.cantConnect");
+            throw new RuntimeException("Unable to complete login", ex);
+        }
+
+        // Tell the Bedrock client login was successful
+        PlayStatusPacket playStatus = new PlayStatusPacket();
+        playStatus.setStatus(PlayStatusPacket.Status.LOGIN_SUCCESS);
+        session.getBedrockSession().sendPacketImmediately(playStatus);
+
+        // Start Resource pack handshake
+        ResourcePacksInfoPacket resourcePacksInfo = new ResourcePacksInfoPacket();
+        session.getBedrockSession().sendPacketImmediately(resourcePacksInfo);
+        return true;
+    }

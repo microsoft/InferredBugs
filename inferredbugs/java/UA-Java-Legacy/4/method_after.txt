@@ -1,0 +1,36 @@
+    void sendResponse(int statusCode, IEncodeable responseObject)
+    {
+    	try {
+    		HttpResponse responseHandle = httpExchange.getResponse();
+    		responseHandle.setHeader("Content-Type", "application/octet-stream");
+    		responseHandle.setStatusCode( statusCode );
+	    	
+	    	if ( responseObject != null ) {
+	    		try {
+	    	    	logger.trace("sendResponse: requestId={} statusCode={} responseObject={}", requestId, statusCode, responseObject);
+    	    		logger.debug("sendResponse: requestId={} statusCode={} responseObject={}", requestId, statusCode, responseObject.getClass().getSimpleName());
+	    	    	
+    	    		//Check isDebugEnabled() here for possible performance reasons.
+	    	    	if (logger.isDebugEnabled() && channel.getConnection() != null) {
+						NHttpServerConnection nHttpServerConnection = ((HttpsServerConnection) channel.getConnection()).getNHttpServerConnection();
+						logger.debug("sendResponse: timeout={} {} context={}", httpExchange.getTimeout(), nHttpServerConnection.getSocketTimeout(), nHttpServerConnection.getContext());
+					}
+					ByteArrayOutputStream data = new ByteArrayOutputStream();
+					BinaryEncoder enc = new BinaryEncoder( data );
+					enc.setEncoderContext( endpoint.getEncoderContext() );
+					enc.putMessage( responseObject );
+					responseHandle.setEntity( new NByteArrayEntity(data.toByteArray()) );
+				} catch (EncodingException e) {
+					logger.info("sendResponse: Encoding failed", e);
+					// Internal Error
+					if ( responseObject instanceof ErrorMessage == false ) {
+						responseHandle.setStatusCode( 500 );
+					}
+				}
+	    	}
+	    	logger.debug("sendResponse: {} length={}", responseHandle, responseHandle.getEntity().getContentLength());
+    		httpExchange.submitResponse(new BasicAsyncResponseProducer(responseHandle));
+    	} finally {
+    		endpoint.pendingRequests.remove(requestId);
+    	}
+    }

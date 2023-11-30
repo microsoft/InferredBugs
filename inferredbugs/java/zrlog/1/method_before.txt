@@ -1,0 +1,71 @@
+    @Override
+    public void handle(String target, HttpServletRequest request, HttpServletResponse response, boolean[] isHandled) {
+        long start = System.currentTimeMillis();
+        REQUEST_START_TIME.set(start);
+        String url = WebTools.getHomeUrl(request);
+        request.setAttribute("basePath", url);
+        request.setAttribute("baseWithHostPath", WebTools.getHomeUrlWithHostNotProtocol(request));
+        request.setAttribute("pageEndTag", PAGE_END_TAG);
+        String ext = null;
+        if (target.contains("/")) {
+            String name = target.substring(target.lastIndexOf('/'));
+            if (name.contains(".")) {
+                ext = name.substring(name.lastIndexOf('.'));
+            }
+        }
+        try {
+            AdminTokenVO adminTokenVO = new AdminTokenService().getAdminTokenVO(request);
+            final ResponseRenderPrintWriter responseRenderPrintWriter = new ResponseRenderPrintWriter(response.getOutputStream(), url, PAGE_END_TAG, request, response, adminTokenVO);
+            response = new HttpServletResponseWrapper(response) {
+                @Override
+                public PrintWriter getWriter() {
+                    return responseRenderPrintWriter;
+                }
+            };
+            if (ext != null) {
+                if (!FORBIDDEN_URI_EXT_SET.contains(ext)) {
+                    // 处理静态化文件,仅仅缓存文章页(变化较小)
+                    if (target.endsWith(".html") && target.startsWith("/" + Constants.getArticleUri())) {
+                        target = target.substring(0, target.lastIndexOf("."));
+                        if (Constants.isStaticHtmlStatus() && adminTokenVO == null) {
+                            String path = new String(request.getServletPath().getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
+                            responseHtmlFile(target, request, response, isHandled, responseRenderPrintWriter, new File(CACHE_HTML_PATH + I18nUtil.getAcceptLanguage(request) + path));
+                        } else {
+                            this.next.handle(target, request, response, isHandled);
+                        }
+                    } else {
+                        this.next.handle(target, request, response, isHandled);
+                    }
+                } else {
+                    //非法请求, 返回403
+                    response.sendError(403);
+                }
+            } else {
+                //首页静态化
+                if ("/".equals(target) && Constants.isStaticHtmlStatus() && adminTokenVO == null) {
+                    responseHtmlFile(target, request, response, isHandled, responseRenderPrintWriter, new File(CACHE_HTML_PATH + I18nUtil.getAcceptLanguage(request) + "/index.html"));
+                } else {
+                    this.next.handle(target, request, response, isHandled);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("", e);
+        } finally {
+            I18nUtil.removeI18n();
+            //开发环境下面打印整个请求的耗时，便于优化代码
+            if (BlogBuildInfoUtil.isDev()) {
+                LOGGER.info("{} used time {}", request.getServletPath(), System.currentTimeMillis() - start);
+            }
+            //仅保留非静态资源请求或者是以 .html结尾的
+            if (ZrLogConfig.isInstalled() && !target.contains(".") || target.endsWith(".html")) {
+                RequestInfo requestInfo = new RequestInfo();
+                requestInfo.setIp(WebTools.getRealIp(request));
+                requestInfo.setUrl(url);
+                requestInfo.setUserAgent(request.getHeader("User-Agent"));
+                requestInfo.setRequestTime(System.currentTimeMillis());
+                requestInfo.setRequestUri(target);
+                RequestStatisticsPlugin.record(requestInfo);
+            }
+        }
+        REQUEST_START_TIME.remove();
+    }

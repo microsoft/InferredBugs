@@ -1,0 +1,22 @@
+    public static void main(String ... args) throws InterruptedException, ExecutionException, TimeoutException {
+        RpcServer server = createServer();
+        server.start();
+
+        RpcClient client = createClient();
+
+        Request request = Request.newBuilder()
+                .withContentType("text/plain")
+                .withBody("Johnny".getBytes(Charset.forName("UTF-8")))
+                .withCorrelationId(UUID.randomUUID().toString())
+                .build();
+
+        CompletableFuture<Response> future = client.call(request);
+
+        Response response = future.get(20, TimeUnit.SECONDS);
+        System.out.println("Responded -> " + new String(response.getBody()));
+
+        client.shutdown();
+        server.shutdown();
+
+        System.exit(0);
+    }

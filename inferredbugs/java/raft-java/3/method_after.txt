@@ -1,0 +1,30 @@
+    @Override
+    public Raft.VoteResponse requestVote(Raft.VoteRequest request) {
+        raftNode.getLock().lock();
+        Raft.VoteResponse.Builder responseBuilder = Raft.VoteResponse.newBuilder();
+        responseBuilder.setGranted(false);
+        responseBuilder.setTerm(raftNode.getCurrentTerm());
+        if (request.getTerm() < raftNode.getCurrentTerm()) {
+            raftNode.getLock().unlock();
+            return responseBuilder.build();
+        }
+        if (request.getTerm() > raftNode.getCurrentTerm()) {
+            LOG.info("Received RequestVote request from server {} " +
+                    "in term {} (this server's term was {})",
+                    request.getServerId(), request.getTerm(),
+                    raftNode.getCurrentTerm());
+            raftNode.stepDown(request.getTerm());
+        }
+        boolean logIsOk = request.getLastLogTerm() > raftNode.getRaftLog().getLastLogTerm()
+                || (request.getLastLogTerm() == raftNode.getRaftLog().getLastLogTerm()
+                && request.getLastLogIndex() >= raftNode.getRaftLog().getLastLogIndex());
+        if (raftNode.getVotedFor() == 0 || logIsOk) {
+            raftNode.stepDown(request.getTerm());
+            raftNode.setVotedFor(request.getServerId());
+            raftNode.updateMetaData();
+            responseBuilder.setGranted(true);
+            responseBuilder.setTerm(raftNode.getCurrentTerm());
+        }
+        raftNode.getLock().unlock();
+        return responseBuilder.build();
+    }

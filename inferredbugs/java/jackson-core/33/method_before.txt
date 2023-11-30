@@ -1,0 +1,28 @@
+    private void doTestBasicEscaping(boolean charArray)
+        throws Exception
+    {
+        for (int i = 0; i < SAMPLES.length; ++i) {
+            String VALUE = SAMPLES[i];
+            StringWriter sw = new StringWriter();
+            JsonGenerator gen = new JsonFactory().createJsonGenerator(sw);
+            gen.writeStartArray();
+            if (charArray) {
+                char[] buf = new char[VALUE.length() + i];
+                VALUE.getChars(0, VALUE.length(), buf, i);
+                gen.writeString(buf, i, VALUE.length());
+            } else {
+                gen.writeString(VALUE);
+            }
+            gen.writeEndArray();
+            gen.close();
+            String docStr = sw.toString();
+            JsonParser jp = createParserUsingReader(docStr);
+            assertEquals(JsonToken.START_ARRAY, jp.nextToken());
+            JsonToken t = jp.nextToken();
+            assertEquals(JsonToken.VALUE_STRING, t);
+            assertEquals(VALUE, jp.getText());
+            assertEquals(JsonToken.END_ARRAY, jp.nextToken());
+            assertEquals(null, jp.nextToken());
+            jp.close();
+        }
+    }

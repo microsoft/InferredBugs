@@ -1,0 +1,29 @@
+        public static string SWGet(string PackageName, string PackageVersion)
+        {
+            string sResult = "";
+            if (!_cache.TryGetValue("SWGET2-" + (PackageName + PackageVersion).GetHashCode(StringComparison.InvariantCultureIgnoreCase), out sResult))
+            {
+                try
+                {
+                    var oClient = new HttpClient();
+                    oClient.DefaultRequestHeaders.Add("AuthenticatedToken", Token);
+                    oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
+                    var response = oClient.GetStringAsync(sURL + "/rest/SWGet?name=" + WebUtility.UrlEncode(PackageName) + "&ver=" + PackageVersion);
+                    response.Wait(5000);
+                    if (response.IsCompleted)
+                    {
+                        sResult = response.Result;
+
+                        // Set cache options.
+                        var cacheEntryOptions = new MemoryCacheEntryOptions()
+                            .SetSlidingExpiration(TimeSpan.FromSeconds(330));
+                        sResult = response.Result;
+                        _cache.Set("SWGET2-" + (PackageName + PackageVersion).GetHashCode(StringComparison.InvariantCultureIgnoreCase), sResult, cacheEntryOptions);
+                        return sResult;
+                    }
+                }
+                catch { }
+            }
+
+            return "";
+        }

@@ -1,0 +1,26 @@
+        public static Automaton Union(ICollection<Automaton> l)
+        {
+            var ids = new HashSet<int?>();
+            foreach (Automaton automaton in l)
+            {
+                ids.Add(RuntimeHelpers.GetHashCode(automaton));
+            }
+            bool hasAliases = ids.Count != l.Count;
+            var s = new State();
+            foreach (Automaton b in l)
+            {
+                if (b.IsEmpty)
+                {
+                    continue;
+                }
+                Automaton bb = b;
+                bb = hasAliases ? bb.CloneExpanded() : bb.CloneExpandedIfRequired();
+                s.AddEpsilon(bb.Initial);
+            }
+            var a = new Automaton();
+            a.Initial = s;
+            a.IsDeterministic = false;
+            a.ClearHashCode();
+            a.CheckMinimizeAlways();
+            return a;
+        }

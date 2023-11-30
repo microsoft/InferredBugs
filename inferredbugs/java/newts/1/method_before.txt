@@ -1,0 +1,59 @@
+    @Override
+    public Row<Measurement> next() {
+
+        if (!hasNext()) throw new NoSuchElementException();
+
+        Row<Measurement> output = new Row<>(m_timestamps.next(), m_resource);
+
+        while (m_current != null) {
+            accumulate(m_current, output.getTimestamp());
+
+            if (m_current.getTimestamp().gte(output.getTimestamp())) {
+                break;
+            }
+
+            if (m_input.hasNext()) {
+                m_current = m_input.next();
+            }
+            else m_current = null;
+
+        }
+
+        // Go time; We've accumulated enough to produce the output row
+        for (String name : m_metrics) {
+
+            Accumulation accumulation = m_accumulation.get(name);
+
+            // Add sample with accumulated value to output row
+            output.addElement(new Measurement(
+                    output.getTimestamp(),
+                    output.getResource(),
+                    name,
+                    accumulation.average().doubleValue()));
+
+            // If input is greater than row, accumulate remainder for next row
+            if (m_current != null) {
+                accumulation.reset();
+
+                Sample sample = m_current.getElement(name);
+
+                if (sample == null) {
+                    continue;
+                }
+
+                if (m_current.getTimestamp().gt(output.getTimestamp())) {
+                    Duration elapsed = m_current.getTimestamp().minus(output.getTimestamp());
+                    if (elapsed.lt(getHeartbeat(name))) {
+                        accumulation.known = elapsed.asMillis();
+                        accumulation.value = sample.getValue().times(elapsed.asMillis());
+                    }
+                    else {
+                        accumulation.unknown = elapsed.asMillis();
+                    }
+                }
+
+            }
+        }
+
+        return output;
+    }

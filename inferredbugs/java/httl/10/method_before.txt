@@ -1,0 +1,51 @@
+    public static Object decodeToObject( 
+    String encodedObject, int options, final ClassLoader loader )
+    throws java.io.IOException, java.lang.ClassNotFoundException {
+        
+        // Decode and gunzip if necessary
+        byte[] objBytes = decode( encodedObject, options );
+        
+        java.io.ByteArrayInputStream  bais = null;
+        java.io.ObjectInputStream     ois  = null;
+        Object obj = null;
+        
+        try {
+            bais = new java.io.ByteArrayInputStream( objBytes );
+
+            // If no custom class loader is provided, use Java's builtin OIS.
+            if( loader == null ){
+                ois  = new java.io.ObjectInputStream( bais );
+            }   // end if: no loader provided
+
+            // Else make a customized object input stream that uses
+            // the provided class loader.
+            else {
+                ois = new java.io.ObjectInputStream(bais){
+                    @Override
+                    public Class<?> resolveClass(java.io.ObjectStreamClass streamClass)
+                    throws java.io.IOException, ClassNotFoundException {
+                        Class<?> c = Class.forName(streamClass.getName(), false, loader);
+                        if( c == null ){
+                            return super.resolveClass(streamClass);
+                        } else {
+                            return c;   // Class loader knows of this class.
+                        }   // end else: not null
+                    }   // end resolveClass
+                };  // end ois
+            }   // end else: no custom class loader
+        
+            obj = ois.readObject();
+        }   // end try
+        catch( java.io.IOException e ) {
+            throw e;    // Catch and throw in order to execute finally{}
+        }   // end catch
+        catch( java.lang.ClassNotFoundException e ) {
+            throw e;    // Catch and throw in order to execute finally{}
+        }   // end catch
+        finally {
+            try{ bais.close(); } catch( Exception e ){}
+            try{ ois.close();  } catch( Exception e ){}
+        }   // end finally
+        
+        return obj;
+    }

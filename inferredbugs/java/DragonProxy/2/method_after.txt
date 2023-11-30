@@ -1,0 +1,51 @@
+    private void initialize() throws Exception {
+        if(!RELEASE) {
+            logger.warn("This is a development build. It may contain bugs. Do not use in production.");
+        }
+
+        // Create injector, provide elements from the environment and register providers
+        // TODO: Remove
+        injector = new InjectorBuilder()
+            .addDefaultHandlers("org.dragonet.proxy")
+            .create();
+        injector.register(DragonProxy.class, this);
+        injector.register(Logger.class, logger);
+        injector.provide(ProxyFolder.class, getFolder());
+
+        // Initiate console
+        console = injector.getSingleton(DragonConsole.class);
+
+        // Load configuration
+        try {
+            if(!Files.exists(Paths.get("config.yml"))) {
+                Files.copy(getClass().getResourceAsStream("/config.yml"), Paths.get("config.yml"), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException ex) {
+            logger.error("Failed to copy config file: " + ex.getMessage());
+        }
+
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        configuration = mapper.readValue(new FileInputStream("config.yml"), DragonConfiguration.class);
+
+        generalThreadPool = Executors.newScheduledThreadPool(configuration.getThreadPoolSize());
+
+        paletteManager = new PaletteManager();
+
+        pingPassthroughThread = new PingPassthroughThread(this);
+
+        if(configuration.isPingPassthrough()) {
+            generalThreadPool.scheduleAtFixedRate(pingPassthroughThread, 1, 1, TimeUnit.SECONDS);
+            logger.info("Ping passthrough enabled");
+        }
+
+        BedrockServer server = new BedrockServer(new InetSocketAddress(configuration.getBindAddress(), configuration.getBindPort()));
+        server.setHandler(new ProxyServerEventListener(this));
+
+        server.bind().whenComplete((aVoid, throwable) -> {
+            if (throwable == null) {
+                logger.info("RakNet server started on {}", configuration.getBindAddress());
+            } else {
+                logger.error("RakNet server failed to bind to {}, {}", configuration.getBindAddress(), throwable.getMessage());
+            }
+        }).join();
+    }

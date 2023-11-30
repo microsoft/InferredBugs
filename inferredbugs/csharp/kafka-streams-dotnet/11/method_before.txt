@@ -1,0 +1,26 @@
+        private void ForwardRepartitionTopic(IConsumer<byte[], byte[]> consumer, string topic)
+        {
+            var records = new List<ConsumeResult<byte[], byte[]>>();
+            consumer.Subscribe(topic);
+            ConsumeResult<byte[], byte[]> record = null;
+            do
+            {
+                record = consumer.Consume();
+                if (record != null)
+                    records.Add(record);
+            } while (record != null);
+
+
+            if (records.Any())
+            {
+                long now = DateTime.Now.GetMilliseconds();
+                var task = GetTask(topic);
+                task.AddRecords(records);
+                while (task.CanProcess(now))
+                    task.Process();
+
+                consumer.Commit(records.Last());
+            }
+
+            consumer.Unsubscribe();
+        }

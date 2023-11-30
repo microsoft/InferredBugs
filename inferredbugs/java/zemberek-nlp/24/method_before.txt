@@ -1,0 +1,23 @@
+    void update(int[] input, int target, float lr) {
+        assert (target >= 0);
+        assert (target < osz_);
+        if (input.length == 0) return;
+        computeHidden(input, hidden_);
+        if (args_.loss == Args.loss_name.ns) {
+            loss_ += negativeSampling(target, lr);
+        } else if (args_.loss == Args.loss_name.hs) {
+            loss_ += hierarchicalSoftmax(target, lr);
+        } else {
+            loss_ += softmax(target, lr);
+        }
+        nexamples_ += 1;
+
+        if (args_.model == Args.model_name.sup) {
+            grad_.mul(1.0f / input.length);
+        }
+        synchronized (this) {
+            for (int i : input) {
+                wi_.addRow(grad_, i, 1.0f);
+            }
+        }
+    }

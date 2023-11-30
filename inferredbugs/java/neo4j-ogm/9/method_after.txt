@@ -1,0 +1,13 @@
+    @Override
+    public QueryStatistics execute(String statement) {
+        if (StringUtils.isEmpty(statement)) {
+            throw new RuntimeException("Supplied cypher statement must not be null or empty.");
+        }
+        assertNothingReturned(statement);
+        RowModelQueryWithStatistics parameterisedStatement = new RowModelQueryWithStatistics(statement, Utils.map());
+        Transaction tx = session.ensureTransaction();
+        try (Neo4jResponse<RowQueryStatisticsResult> response = session.requestHandler().execute(parameterisedStatement, tx)) {
+            RowQueryStatisticsResult result = response.next();
+            return result == null ? null : result.getStats();
+        }
+    }

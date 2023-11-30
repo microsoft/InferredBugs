@@ -1,0 +1,39 @@
+        [Fact]
+        public void Item_falls_two_floors_if_a_hole_is_below_another_hole()
+        {
+            //arrange
+            var map = MapTestDataBuilder.Build(100, 105, 100, 105, 7, 9, addGround: true);
+            var player = PlayerTestDataBuilder.Build();
+
+            var mapService = new MapService(map);
+
+            var item = ItemTestData.CreateWeaponItem(1);
+
+            var hole = new Ground(new ItemType(), new Location(100,100,7));
+            hole.Metadata.Attributes.SetAttribute(ItemAttribute.FloorChange, "down");
+            
+            var secondHole = new Ground(new ItemType(), new Location(100,100,8));
+            secondHole.Metadata.Attributes.SetAttribute(ItemAttribute.FloorChange, "down");
+
+            var sourceTile = (IDynamicTile)map[101, 100, 7];
+            var destinationTile =  (IDynamicTile)map[100, 100, 7];
+            var undergroundTile = (IDynamicTile)map[100, 100, 8];
+            var secondFloor = (IDynamicTile)map[100, 100, 9];
+
+            sourceTile.AddItem(item);
+            
+            mapService.ReplaceGround(destinationTile.Location, hole);
+
+            mapService.ReplaceGround(undergroundTile.Location, secondHole);
+            
+            var toMapMovementService = new ToMapMovementService(map, mapService);
+            
+            //act
+            toMapMovementService.Move(player,new MovementParams(sourceTile.Location, destinationTile.Location, 1));
+            
+            //assert
+            sourceTile.TopItemOnStack.Should().NotBe(item);
+            destinationTile.TopItemOnStack.Should().NotBe(item);
+            undergroundTile.TopItemOnStack.Should().NotBe(item);
+            secondFloor.TopItemOnStack.Should().Be(item);
+        }

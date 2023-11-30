@@ -1,0 +1,36 @@
+    public void processMessage(NulsMessage message) throws IOException {
+        if (message.getHeader().getHeadType() == NulsMessageHeader.EVENT_MESSAGE) {
+            try {
+                System.out.println("------receive message:" + Hex.encode(message.serialize()));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            if (this.status != Peer.HANDSHAKE) {
+                return;
+            }
+            if (checkBroadcastExist(message.getData())) {
+                return;
+            }
+            eventProcessorService.dispatch(message.getData(), this.getHash());
+        } else {
+
+            byte[] networkHeader = new byte[NetworkDataHeader.NETWORK_HEADER_SIZE];
+            System.arraycopy(message.getData(), 0, networkHeader, 0, NetworkDataHeader.NETWORK_HEADER_SIZE);
+            NetworkDataHeader header;
+            BaseNetworkData networkMessage;
+            try {
+                header = new NetworkDataHeader(new NulsByteBuffer(networkHeader));
+                networkMessage = BaseNetworkData.transfer(header.getType(), message.getData());
+            } catch (NulsException e) {
+                Log.error("networkMessage transfer error:", e);
+                this.destroy();
+                return;
+            }
+
+            if (this.status != Peer.HANDSHAKE && !isHandShakeMessage(networkMessage)) {
+                return;
+            }
+            asynExecute(networkMessage);
+        }
+    }

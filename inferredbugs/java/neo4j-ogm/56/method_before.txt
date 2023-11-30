@@ -1,0 +1,18 @@
+    private void setProperties(List<Property<String, Object>> propertyList, Object instance) {
+        ClassInfo classInfo = metadata.classInfo(instance);
+
+        Collection<FieldInfo> compositeFields = classInfo.fieldsInfo().compositeFields();
+        if (compositeFields.size() > 0) {
+            Map<String, ?> propertyMap = toMap(propertyList);
+            for (FieldInfo field : compositeFields) {
+                CompositeAttributeConverter<?> converter = field.getCompositeConverter();
+                Object value = converter.toEntityAttribute(propertyMap);
+                FieldInfo writer = classInfo.getFieldInfo(field.getName());
+                writer.write(instance, value);
+            }
+        }
+
+        for (Property<?, ?> property : propertyList) {
+            writeProperty(classInfo, instance, property);
+        }
+    }

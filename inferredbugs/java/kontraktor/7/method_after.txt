@@ -1,0 +1,42 @@
+    public void run() {
+        int emptyCount = 0;
+        int scheduleNewActorCount = 0;
+        boolean isShutDown = false;
+        while( ! isShutDown ) {
+            if ( pollQs() ) {
+                emptyCount = 0;
+                scheduleNewActorCount++;
+                if ( scheduleNewActorCount > 500 ) {
+                    scheduleNewActorCount = 0;
+                    schedulePendingAdds();
+                }
+            }
+            else {
+                emptyCount++;
+                scheduler.yield(emptyCount);
+                if (shutDown) // access volatile only when idle
+                    isShutDown = true;
+                if ( scheduler.getBackoffStrategy().isSleeping(emptyCount) ) {
+                    scheduleNewActorCount = 0;
+                    schedulePendingAdds();
+                    if ( System.currentTimeMillis()-created > 3000 ) {
+                        if ( actors.length == 0 && toAdd.peek() == null ) {
+                            shutDown();
+                        } else {
+                            scheduler.tryStopThread(this);
+                        }
+                    }
+                }
+            }
+        }
+        scheduler.threadStopped(this);
+        for ( int i = 0; i < 100; i++ ) {
+            LockSupport.parkNanos(1000*1000*5);
+            if ( actors.length > 0 ) {
+                System.out.println("Severe: zombie dispatcher thread detected");
+                scheduler.tryStopThread(this);
+                i = 0;
+            }
+        }
+        System.out.println("thread died");
+    }

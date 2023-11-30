@@ -1,0 +1,48 @@
+        private static IntPtr GetAddressFromExportTable(byte[] exportTable, uint exportTableRva, string functionName)
+        {
+            using (var reader = new BinaryReader(new MemoryStream(exportTable)))
+            {
+                reader.BaseStream.Position = 0x10;
+
+                var ordinalBase = reader.ReadInt32();
+                var addressTableEntryCount = reader.ReadUInt32();
+                var namePointerTableEntryCount = reader.ReadUInt32();
+                var exportAddressTableRva = reader.ReadUInt32() - exportTableRva;
+                var exportNamePointerTableRva = reader.ReadUInt32() - exportTableRva;
+                var ordinalTableRva = reader.ReadUInt32() - exportTableRva;
+
+                reader.BaseStream.Position = exportNamePointerTableRva;
+
+                var functionAddress = IntPtr.Zero;
+
+                for(int x = 0; x < namePointerTableEntryCount; ++x)
+                {
+                    reader.BaseStream.Position = exportNamePointerTableRva + (x * 4);
+
+                    var nameRva = reader.ReadUInt32();
+
+                    if(nameRva == 0)
+                    {
+                        continue;
+                    }
+
+                    reader.BaseStream.Position = nameRva - exportTableRva;
+
+                    if(functionName == ReadAsciiString(reader))
+                    {
+                        reader.BaseStream.Position = ordinalTableRva + (x * 2);
+                        var ordinal = reader.ReadUInt16();
+
+                        if(ordinal >= addressTableEntryCount)
+                        {
+                            throw new Win32Exception("Invalid function export table");
+                        }
+
+                        reader.BaseStream.Position = exportAddressTableRva + (ordinal * 4);
+
+                        functionAddress = new IntPtr(reader.ReadUInt32());
+                    }
+                }
+                return functionAddress;
+            }
+        }

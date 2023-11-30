@@ -1,0 +1,22 @@
+    @Override
+    public void onLinkRemoteOpen(Event event)
+    {
+        logger.LogDebug("Entered in method %s", logger.getMethodName());
+        // Codes_SRS_AMQPSIOTHUBCONNECTION_15_041: [The connection state shall be considered OPEN when the sender link is open remotely.]
+        Link link = event.getLink();
+        if (link.getName().equals(SENDER_TAG))
+        {
+            this.state = State.OPEN;
+            // Codes_SRS_AMQPSIOTHUBCONNECTION_99_001: [All server listeners shall be notified when that the connection has been established.]
+            for(ServerListener listener : listeners)
+            {
+                listener.connectionEstablished();
+            }
+            // Codes_SRS_AMQPSIOTHUBCONNECTION_21_051 [The open lock shall be notified when that the connection has been established.]
+            synchronized (openLock)
+            {
+                openLock.notifyLock();
+            }
+        }
+        logger.LogDebug("Exited from method %s", logger.getMethodName());
+    }

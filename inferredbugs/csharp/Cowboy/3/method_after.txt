@@ -1,0 +1,27 @@
+        private void ProcessAccept(SocketAsyncEventArgs saea)
+        {
+            StartAccept();
+
+            if (saea.SocketError != SocketError.Success)
+            {
+                _log.ErrorFormat("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+
+                saea.AcceptSocket.Close();
+                saea.AcceptSocket = null;
+                _sessionAcceptSaeaPool.Push(saea);
+                return;
+            }
+
+            SocketAsyncEventArgs sessionHandleSaea = null;
+            if (!_sessionHandleSaeaPool.TryPop(out sessionHandleSaea))
+            {
+                _log.ErrorFormat("xxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                throw new Exception();
+            }
+
+            sessionHandleSaea.AcceptSocket = saea.AcceptSocket;
+            saea.AcceptSocket = null;
+            _sessionAcceptSaeaPool.Push(saea);
+
+            StartReceive(sessionHandleSaea);
+        }

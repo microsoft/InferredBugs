@@ -1,0 +1,67 @@
+        public IWeightTensor SampleIndice(IWeightTensor w)
+        {
+            WeightTensor m = w as WeightTensor;
+            float[] weights = m.ToWeightArray();
+            WeightTensor res = m_weightTensorFactory.CreateWeightTensor(new long[] { m.Rows, 1}, m_deviceId, name: $"{GetHashString(m.Name)}.Sample", graphToBind: this);
+
+            Random rnd = new Random(DateTime.Now.Millisecond);
+            float[] indices = new float[m.Rows];
+
+            for (int i = 0; i < m.Rows; i++)
+            {
+                int offset = i * m.Columns;
+
+                SortedDictionary<float, List<int>> q = new SortedDictionary<float, List<int>>();
+                for (int j = 0; j < m.Columns; j++)
+                {
+                    var key = weights[offset + j];
+                    if (q.ContainsKey(key) == false)
+                    {
+                        q.Add(key, new List<int>());
+                    }
+                    q[key].Add(j);
+                }
+
+                float acc = 0.0f;
+                List<KeyValuePair<float, int>> topKItems = new List<KeyValuePair<float, int>>();
+                foreach (var pair in q.Reverse())
+                {
+                    foreach (var item in pair.Value)
+                    {
+                        KeyValuePair<float, int> kv = new KeyValuePair<float, int>(pair.Key, item);
+                        topKItems.Add(kv);
+
+                        acc += kv.Key;
+
+                        if (acc >= 0.9f)
+                        {
+                            break;
+                        }
+                    }
+
+                    if (acc >= 0.9f)
+                    {
+                        break;
+                    }
+                }
+
+
+                float seed = (float)rnd.NextDouble() * acc;
+                float sum = 0.0f;
+                for (int j = 0; j < topKItems.Count; j++)
+                {
+                    if (seed >= sum && seed <= sum + topKItems[j].Key)
+                    {
+                        indices[i] = topKItems[j].Value;
+                        break;
+                    }
+
+                    sum += topKItems[j].Key;
+                }
+            }
+
+            res.SetWeightArray(indices);
+
+            return res;
+
+        }

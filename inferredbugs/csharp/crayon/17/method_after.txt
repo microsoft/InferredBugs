@@ -1,0 +1,33 @@
+        private static Error[] ExportVmBundle(Command command, WaxHub waxHub)
+        {
+            BuildData buildData = WrappedCompile(command, waxHub);
+
+            if (buildData.HasErrors)
+            {
+                return buildData.Errors;
+            }
+
+            if (command.ShowDependencyTree)
+            {
+                ConsoleWriter.Print(ConsoleMessageType.LIBRARY_TREE, buildData.CbxBundle.DependencyTreeJson);
+            }
+
+            Dictionary<string, object> exportResponseRaw = waxHub.AwaitSendRequest(
+                "export-" + buildData.ExportProperties.ExportPlatform.ToLowerInvariant(),
+                buildData.GetRawData());
+
+            ExportResponse exportResponse = new ExportResponse(exportResponseRaw);
+
+            if (!exportResponse.HasErrors && command.ApkExportPath != null)
+            {
+                Dictionary<string, object> result = waxHub.AwaitSendRequest("AndroidApkExtension", new Dictionary<string, object>() {
+                    { "isAndroid", buildData.ExportProperties.IsAndroid },
+                    { "apkExportPath", command.ApkExportPath },
+                    { "projOutputDir", buildData.ExportProperties.OutputDirectory },
+                });
+
+                return result.ContainsKey("errors") ? Error.GetErrorList(result["errors"]) : new Error[0];
+            }
+
+            return exportResponse.Errors;
+        }

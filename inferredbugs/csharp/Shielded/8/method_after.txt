@@ -1,0 +1,15 @@
+        private void CheckLockAndEnlist(TKey key, bool write)
+        {
+            var locals = _localDict.HasValue ? _localDict.Value : null;
+            if (locals != null && locals.Locked)
+            {
+                CheckLockedAccess(key, write);
+                return; // because the check above is much stricter than anything
+            }
+            if (!Shield.Enlist(this, locals != null, write) && locals.Items.ContainsKey(key))
+                return;
+
+            WriteStamp w;
+            if (_writeStamps.TryGetValue(key, out w) && w.Locked && w.Version <= Shield.ReadStamp)
+                w.Wait();
+        }

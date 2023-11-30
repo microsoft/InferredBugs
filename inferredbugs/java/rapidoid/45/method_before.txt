@@ -1,0 +1,30 @@
+ @Test(timeout = 30000)
+	public void testJDBCWithTextConfig() {
+
+		Conf.JDBC.set("driver", "org.h2.Driver");
+		Conf.JDBC.set("url", "jdbc:h2:mem:mydb");
+		Conf.JDBC.set("username", "sa");
+		Conf.C3P0.set("maxPoolSize", "123");
+
+		JDBC.defaultApi().pooled();
+
+		JdbcClient jdbc = JDBC.defaultApi();
+		eq(jdbc.driver(), "org.h2.Driver");
+
+		C3P0ConnectionPool pool = (C3P0ConnectionPool) JDBC.defaultApi().pool();
+		ComboPooledDataSource c3p0 = pool.pool();
+
+		eq(c3p0.getMinPoolSize(), 5);
+		eq(c3p0.getMaxPoolSize(), 123);
+
+		JDBC.execute("create table abc (id int, name varchar)");
+		JDBC.execute("insert into abc values (?, ?)", 123, "xyz");
+
+		final Map<String, ?> expected = U.map("id", 123, "name", "xyz");
+
+		Msc.benchmarkMT(100, "select", 100000, () -> {
+			Map<String, Object> record = U.single(JDBC.query("select id, name from abc"));
+			record = Msc.lowercase(record);
+			eq(record, expected);
+		});
+	}

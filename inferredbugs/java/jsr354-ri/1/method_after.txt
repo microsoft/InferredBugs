@@ -1,0 +1,26 @@
+    @Override
+    public ExchangeRate getExchangeRate(ConversionQuery conversionQuery) {
+        if (!isAvailable(conversionQuery)) {
+            return null;
+        }
+        CurrencyUnit base = conversionQuery.getBaseCurrency();
+        CurrencyUnit term = conversionQuery.getCurrency();
+        LocalDate timestamp = getTimeStamp(conversionQuery);
+        ExchangeRate rate1 = lookupRate(currencyToSdr.get(base), timestamp);
+        ExchangeRate rate2 = lookupRate(sdrToCurrency.get(term), timestamp);
+        if (base.equals(SDR)) {
+            return rate2;
+        } else if (term.equals(SDR)) {
+            return rate1;
+        }
+        if (Objects.isNull(rate1) || Objects.isNull(rate2)) {
+            return null;
+        }
+        ExchangeRateBuilder builder =
+                new ExchangeRateBuilder(ConversionContext.of(CONTEXT.getProviderName(), RateType.HISTORIC));
+        builder.setBase(base);
+        builder.setTerm(term);
+        builder.setFactor(multiply(rate1.getFactor(), rate2.getFactor()));
+        builder.setRateChain(rate1, rate2);
+        return builder.build();
+    }

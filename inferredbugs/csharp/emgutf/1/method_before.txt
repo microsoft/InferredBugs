@@ -1,0 +1,92 @@
+        public static void ReadImageFileToTensor<T>(
+            String fileName,
+            IntPtr dest,
+            int inputHeight = -1,
+            int inputWidth = -1,
+            float inputMean = 0.0f,
+            float scale = 1.0f,
+            bool flipUpSideDown = false,
+            bool swapBR = false)
+            where T : struct
+        {
+            if (!File.Exists(fileName))
+                throw new FileNotFoundException(String.Format("File {0} do not exist.", fileName));
+
+            //if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+            {
+                //Read the file using Bitmap class
+                System.Drawing.Bitmap bmp = new Bitmap(fileName);
+
+                if (inputHeight > 0 || inputWidth > 0)
+                {
+                    //resize bmp
+                    System.Drawing.Bitmap newBmp = new Bitmap(bmp, inputWidth, inputHeight);
+                    bmp.Dispose();
+                    bmp = newBmp;
+                }
+
+                /*
+                if (flipUpSideDown)
+                {
+                    bmp.RotateFlip(RotateFlipType.RotateNoneFlipY);
+                }*/
+
+                int bmpWidth = bmp.Width;
+                int bmpHeight = bmp.Height;
+                System.Drawing.Imaging.BitmapData bd = new System.Drawing.Imaging.BitmapData();
+                bmp.LockBits(
+                    new Rectangle(0, 0, bmpWidth, bmpHeight),
+                    System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                    System.Drawing.Imaging.PixelFormat.Format24bppRgb, bd);
+
+
+                try
+                {
+                    if (typeof(T) == typeof(float))
+                    {
+                        Emgu.TF.Util.Toolbox.Pixel24ToPixelFloat(
+                            bd.Scan0,
+                            bmpWidth,
+                            bmpHeight,
+                            inputMean,
+                            scale,
+                            flipUpSideDown,
+                            swapBR,
+                            dest
+                        );
+                    }
+                    else if (typeof(T) == typeof(byte))
+                    {
+                        Emgu.TF.Util.Toolbox.Pixel24ToPixelByte(
+                            bd.Scan0,
+                            bmpWidth,
+                            bmpHeight,
+                            inputMean,
+                            scale,
+                            flipUpSideDown,
+                            swapBR,
+                            dest
+                        );
+ 
+                    }
+                    else
+                    {
+                        throw new NotImplementedException(String.Format("Destination data type {0} is not supported.",
+                            typeof(T).ToString()));
+                    }
+                }
+                finally
+                {
+                    bmp.UnlockBits(bd);
+                }
+                
+            }
+            /*
+            else //Unix
+            {
+                //if (flipUpSideDown)
+                //    throw new NotImplementedException("Flip Up Side Down is Not implemented");
+
+                throw new NotImplementedException("Not implemented");
+            }*/
+        }

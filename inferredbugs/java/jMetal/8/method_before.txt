@@ -1,0 +1,90 @@
+  public static void main(String[] args) throws
+    JMException,
+    SecurityException,
+    IOException,
+    ClassNotFoundException {
+    
+    Problem problem;
+    Algorithm algorithm;
+    Operator crossover;
+    Operator mutation;
+    Operator selection;
+
+    QualityIndicator indicators;
+
+    // Logger object and file to store log messages
+    logger_ = Configuration.logger_;
+    fileHandler_ = new FileHandler("NSGAII_main.log");
+    logger_.addHandler(fileHandler_);
+
+    indicators = null;
+    if (args.length == 1) {
+      Object[] params = {"Real"};
+      problem = (new ProblemFactory()).getProblem(args[0], params);
+    } else if (args.length == 2) {
+      Object[] params = {"Real"};
+      problem = (new ProblemFactory()).getProblem(args[0], params);
+      indicators = new QualityIndicator(problem, args[1]);
+    } else {
+      problem = new Kursawe("Real", 3);
+      /*
+        Examples:
+        problem = new Kursawe("BinaryReal", 3);
+        problem = new Water("Real");
+        problem = new ZDT3("ArrayReal", 30);
+        problem = new ConstrEx("Real");
+        problem = new DTLZ1("Real");
+        problem = new OKA2("Real")
+      */
+    }
+
+    SolutionSetEvaluator evaluator = new MultithreadedSolutionSetEvaluator(4, problem) ;
+    crossover = new SBXCrossover.Builder()
+      .distributionIndex(20.0)
+      .probability(0.9)
+      .build() ;
+
+    mutation = new PolynomialMutation.Builder()
+      .distributionIndex(20.0)
+      .probability(1.0/problem.getNumberOfVariables())
+      .build();
+
+    selection = new BinaryTournament2.Builder()
+      .build();
+
+    algorithm = new NSGAII.Builder(problem, evaluator)
+      .crossover(crossover)
+      .mutation(mutation)
+      .selection(selection)
+      .maxEvaluations(25000)
+      .populationSize(100)
+      .build() ;
+
+    // Execute the Algorithm
+    long initTime = System.currentTimeMillis();
+    SolutionSet population = algorithm.execute();
+    long estimatedTime = System.currentTimeMillis() - initTime;
+    logger_.info("Total execution time: " + estimatedTime + "ms");
+
+    // Result messages
+    FileOutputContext fileContext = new DefaultFileOutputContext("VAR.tsv") ;
+    fileContext.setSeparator("\t");
+
+    logger_.info("Variables values have been writen to file VAR.tsv");
+    SolutionSetOutput.printVariablesToFile(fileContext, population) ;
+
+    fileContext = new DefaultFileOutputContext("FUN.tsv");
+    fileContext.setSeparator("\t");
+
+    SolutionSetOutput.printObjectivesToFile(fileContext, population);
+    logger_.info("Objectives values have been written to file FUN");
+    
+    if (indicators != null) {
+      logger_.info("Quality indicators");
+      logger_.info("Hypervolume: " + indicators.getHypervolume(population));
+      logger_.info("GD         : " + indicators.getGD(population));
+      logger_.info("IGD        : " + indicators.getIGD(population));
+      logger_.info("Spread     : " + indicators.getSpread(population));
+      logger_.info("Epsilon    : " + indicators.getEpsilon(population));
+    }
+  }

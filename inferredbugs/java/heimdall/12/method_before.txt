@@ -1,0 +1,22 @@
+     @Transactional
+     public Operation save(Long apiId, Long resourceId, Operation operation) {
+
+          Resource resource = resourceRepository.findByApiIdAndId(apiId, resourceId);
+          HeimdallException.checkThrow(resource  == null, GLOBAL_RESOURCE_NOT_FOUND);
+
+          Operation resData = operationRepository.findByResourceApiIdAndMethodAndPath(apiId, operation.getMethod(), operation.getPath());
+          HeimdallException.checkThrow(resData != null &&
+                  Objects.equals(resData.getResource().getId(), resource.getId()), ONLY_ONE_OPERATION_PER_RESOURCE);
+
+          operation.setResource(resource);
+          operation.setPath(StringUtils.removeMultipleSlashes(operation.getPath()));
+
+          HeimdallException.checkThrow(validateSingleWildCardOperationPath(operation), OPERATION_CANT_HAVE_SINGLE_WILDCARD);
+          HeimdallException.checkThrow(validateDoubleWildCardOperationPath(operation), OPERATION_CANT_HAVE_DOUBLE_WILDCARD_NOT_AT_THE_END);
+
+          operation = operationRepository.save(operation);
+
+          amqpRoute.dispatchRoutes();
+
+          return operation;
+     }

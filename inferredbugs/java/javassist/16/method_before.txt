@@ -1,0 +1,54 @@
+    public ClassFile getClassFile2() {
+        ClassFile cfile = classfile;
+        if (cfile != null)
+            return cfile;
+
+        if (readCounter++ > READ_THRESHOLD) {
+            getCounter += 2;
+            releaseClassFiles();
+            readCounter = 0;
+        }
+
+        if (rawClassfile != null) {
+            try {
+                classfile = new ClassFile(new DataInputStream(
+                                            new ByteArrayInputStream(rawClassfile)));
+                rawClassfile = null;
+                getCounter = GET_THRESHOLD;
+                return classfile;
+            }
+            catch (IOException e) {
+                throw new RuntimeException(e.toString(), e);
+            }
+        }
+
+        InputStream fin = null;
+        try {
+            fin = classPool.openClassfile(getName());
+            if (fin == null)
+                throw new NotFoundException(getName());
+
+            fin = new BufferedInputStream(fin);
+            ClassFile cf = new ClassFile(new DataInputStream(fin));
+            if (!cf.getName().equals(qualifiedName))
+                throw new RuntimeException("cannot find " + qualifiedName + ": " 
+                        + cf.getName() + " found in "
+                        + qualifiedName.replace('.', '/') + ".class");
+
+            classfile = cf;
+            return cf;
+        }
+        catch (NotFoundException e) {
+            throw new RuntimeException(e.toString(), e);
+        }
+        catch (IOException e) {
+            throw new RuntimeException(e.toString(), e);
+        }
+        finally {
+            if (fin != null)
+                try {
+                    fin.close();
+                }
+                catch (IOException e) {}
+        }
+    }

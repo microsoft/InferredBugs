@@ -1,0 +1,20 @@
+        public static bool IsAnonymous(this Expression node)
+        {
+            // <>h__TransparentIdentifier => h__TransparentIdentifier.a.CompanyName
+            Expression exp = node;
+            ParameterExpression parameterExpression = exp.NodeType == ExpressionType.Lambda
+                ? (node as LambdaExpression).Parameters[0]
+                : exp as ParameterExpression;
+            if (parameterExpression != null) return _isAnonymous(parameterExpression.Name);
+
+            // <>h__TransparentIdentifier.a.CompanyName
+            if (exp.NodeType == ExpressionType.MemberAccess)
+            {
+                MemberExpression memberExpression = exp as MemberExpression;
+                if (_isAnonymous(memberExpression.Member.Name)) return true;
+
+                return IsAnonymous(memberExpression.Expression);
+            }
+
+            return false;
+        }

@@ -1,0 +1,32 @@
+        [Fact]
+        public void should_only_add_entity_when_components_match_group()
+        {
+            var mockEventSystem = Substitute.For<IEventSystem>();
+            var accessorToken = new ObservableGroupToken(new[] { typeof(TestComponentOne), typeof(TestComponentTwo) }, new Type[0], "default");
+
+            var existingEntityOne = new Entity(Guid.NewGuid(), mockEventSystem);
+            var componentToAdd = new TestComponentOne();
+            existingEntityOne.AddComponent<TestComponentTwo>();
+
+            var existingEntityTwo = new Entity(Guid.NewGuid(), mockEventSystem);
+            var unapplicableComponent = new TestComponentThree();
+            existingEntityTwo.AddComponent<TestComponentOne>();
+
+            var dummyEventToSeedMock = new ComponentsAddedEvent(new Entity(Guid.NewGuid(), mockEventSystem), new[]{new TestComponentOne()});
+            var underlyingEvent = new ReactiveProperty<ComponentsAddedEvent>(dummyEventToSeedMock);
+            mockEventSystem.Receive<ComponentsAddedEvent>().Returns(underlyingEvent);
+            mockEventSystem.Receive<ComponentsRemovedEvent>().Returns(Observable.Empty<ComponentsRemovedEvent>());
+            mockEventSystem.Receive<EntityAddedEvent>().Returns(Observable.Empty<EntityAddedEvent>());
+            mockEventSystem.Receive<ComponentsBeforeRemovedEvent>().Returns(Observable.Empty<ComponentsBeforeRemovedEvent>());
+            mockEventSystem.Receive<EntityRemovedEvent>().Returns(Observable.Empty<EntityRemovedEvent>());
+
+            var cacheableobservableGroup = new ObservableGroup(mockEventSystem, accessorToken, new IEntity[] {});
+            existingEntityOne.AddComponent(componentToAdd);
+            underlyingEvent.SetValueAndForceNotify(new ComponentsAddedEvent(existingEntityOne, new[]{componentToAdd}));
+
+            existingEntityTwo.AddComponent(unapplicableComponent);
+            underlyingEvent.SetValueAndForceNotify(new ComponentsAddedEvent(existingEntityTwo, new[]{unapplicableComponent}));
+
+            Assert.Equal(1, cacheableobservableGroup.CachedEntities.Count);
+            Assert.Equal(existingEntityOne, cacheableobservableGroup.CachedEntities[existingEntityOne.Id]);
+        }

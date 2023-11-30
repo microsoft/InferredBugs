@@ -1,0 +1,31 @@
+    @Override
+    public boolean handle(LoginPacket packet) {
+        // TODO: move out of here? idk
+        UpstreamSession session = new UpstreamSession(this.session);
+        this.session.setPlayer(session);
+
+
+        try {
+            // Get chain data that contains identity info
+            JSONObject chainData = (JSONObject) JSONValue.parse(packet.getChainData().array());
+            JSONArray chainArray = (JSONArray) chainData.get("chain");
+
+            Object identityObject = chainArray.get(chainArray.size() - 1);
+
+            JWSObject identity = JWSObject.parse((String) identityObject);
+            JSONObject extraData = (JSONObject) identity.getPayload().toJSONObject().get("extraData");
+
+            this.session.setAuthData(new AuthDataImpl(
+                extraData.getAsString("displayName"),
+                extraData.getAsString("identity"),
+                extraData.getAsString("XUID")
+            ));
+        } catch (ParseException | ClassCastException | NullPointerException e) {
+            // Invalid chain data
+            this.session.disconnect();
+            return true;
+        }
+
+        session.setRemoteServer(new RemoteServer("local", proxy.getConfiguration().getRemoteAddress(), proxy.getConfiguration().getRemotePort()));
+        return true;
+    }

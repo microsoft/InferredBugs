@@ -1,0 +1,33 @@
+    protected AsteriskVersion determineVersion() throws IOException, TimeoutException
+    {
+        int attempts = 0;
+
+        logger.info("Got asterisk protocol identifier version " + protocolIdentifier.getValue());
+
+        while (attempts++ < MAX_VERSION_ATTEMPTS)
+        {
+            try {
+                AsteriskVersion version = determineVersionByCoreSettings();
+                if (version != null) return version;
+            } catch (Exception e) {
+            }
+
+            try {
+                AsteriskVersion version = determineVersionByCoreShowVersion();
+                if (version != null) return version;
+            } catch (Exception e) {
+            }
+
+            try
+            {
+                Thread.sleep(RECONNECTION_VERSION_INTERVAL);
+            }
+            catch (Exception ex)
+            {
+                // ignore
+            } // NOPMD
+        }
+
+        logger.error("Unable to determine asterisk version, assuming " + DEFAULT_ASTERISK_VERSION + "... you should expect problems to follow.");
+        return DEFAULT_ASTERISK_VERSION;
+    }

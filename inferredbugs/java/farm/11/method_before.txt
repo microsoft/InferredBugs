@@ -1,0 +1,30 @@
+    public void wallet(final String uid, final String bank,
+        final String wallet) throws IOException {
+        if (!bank.matches("paypal")) {
+            throw new SoftException(
+                new Par(
+                    "Bank name `%s` is invalid,",
+                    "we accept only `paypal`, see §20"
+                ).say(bank)
+            );
+        }
+        final Pattern email = Pattern.compile(
+            "\\b[\\w.%-]+@[-.\\w]+\\.[A-Za-z]{2,4}\\b"
+        );
+        if (!email.matcher(wallet).matches()) {
+            throw new SoftException(
+                String.format(
+                    "Email `%s` is not valid",
+                    wallet
+                )
+            );
+        }
+        try (final Item item = this.item()) {
+            new Xocument(item.path()).modify(
+                People.start(uid)
+                    .addIf("wallet")
+                    .set(wallet)
+                    .attr("bank", bank)
+            );
+        }
+    }

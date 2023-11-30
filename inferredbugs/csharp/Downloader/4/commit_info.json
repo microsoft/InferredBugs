@@ -1,0 +1,665 @@
+{
+    "hash": "712edfa695a34ad798a4551b37825f66b1dd8c62",
+    "message": "Refactored DownloadService",
+    "file_num_lines": 361,
+    "diff_parsed": {
+        "added": [
+            [
+                30,
+                "        protected long TotalBytesReceived { get; set; }"
+            ],
+            [
+                31,
+                "        protected long LastTickCountCheckpoint { get; set; }"
+            ],
+            [
+                32,
+                "        protected const int OneSecond = 1000; // millisecond"
+            ],
+            [
+                36,
+                "        public long DownloadSpeed { get; protected set; }"
+            ],
+            [
+                42,
+                ""
+            ],
+            [
+                45,
+                "            InitialBegin();"
+            ],
+            [
+                51,
+                "            InitialBegin();"
+            ],
+            [
+                52,
+                "            Package.RequestInstance = new Request(address, Package.Options.RequestConfiguration);"
+            ],
+            [
+                53,
+                "            Package.FileName = fileName;"
+            ],
+            [
+                54,
+                "            await SetFileSize();"
+            ],
+            [
+                55,
+                "            ChunkFile();"
+            ],
+            [
+                56,
+                "            await StartDownload();"
+            ],
+            [
+                58,
+                ""
+            ],
+            [
+                59,
+                ""
+            ],
+            [
+                73,
+                "            Package.RequestInstance = null;"
+            ],
+            [
+                75,
+                "            IsBusy = false;"
+            ],
+            [
+                76,
+                "        }"
+            ],
+            [
+                77,
+                "        protected void InitialBegin()"
+            ],
+            [
+                78,
+                "        {"
+            ],
+            [
+                79,
+                "            IsBusy = true;"
+            ],
+            [
+                80,
+                "            GlobalCancellationTokenSource = new CancellationTokenSource();"
+            ],
+            [
+                81,
+                "        }"
+            ],
+            [
+                82,
+                "        protected string GetTempFile(string baseDirectory, string fileExtension = \"\")"
+            ],
+            [
+                83,
+                "        {"
+            ],
+            [
+                84,
+                "            if (string.IsNullOrWhiteSpace(baseDirectory))"
+            ],
+            [
+                85,
+                "                return Path.GetTempFileName();"
+            ],
+            [
+                86,
+                ""
+            ],
+            [
+                87,
+                "            if (!Directory.Exists(baseDirectory))"
+            ],
+            [
+                88,
+                "                Directory.CreateDirectory(baseDirectory);"
+            ],
+            [
+                89,
+                ""
+            ],
+            [
+                90,
+                "            var filename = Path.Combine(baseDirectory, Guid.NewGuid().ToString(\"N\") + fileExtension);"
+            ],
+            [
+                91,
+                "            File.Create(filename).Close();"
+            ],
+            [
+                92,
+                ""
+            ],
+            [
+                93,
+                "            return filename;"
+            ],
+            [
+                108,
+                "                    TotalBytesReceived = 0;"
+            ],
+            [
+                137,
+                "        protected void ChunkFile()"
+            ],
+            [
+                138,
+                "        {"
+            ],
+            [
+                139,
+                "            var minNeededParts = (int)Math.Ceiling((double)Package.TotalFileSize / int.MaxValue); // for files as larger than 2GB"
+            ],
+            [
+                140,
+                "            var parallelChunkCount = Package.Options.ChunkCount < minNeededParts ? minNeededParts : Package.Options.ChunkCount;"
+            ],
+            [
+                141,
+                "            Package.Chunks = ChunkFile(Package.TotalFileSize, parallelChunkCount);"
+            ],
+            [
+                142,
+                "        }"
+            ],
+            [
+                147,
+                "                Package.Options.Validate();"
+            ],
+            [
+                148,
+                "                CheckSizes();"
+            ],
+            [
+                149,
+                ""
+            ],
+            [
+                150,
+                "                if (File.Exists(Package.FileName))"
+            ],
+            [
+                151,
+                "                    File.Delete(Package.FileName);"
+            ],
+            [
+                152,
+                ""
+            ],
+            [
+                158,
+                "                    {"
+            ],
+            [
+                159,
+                "                        // download as parallel"
+            ],
+            [
+                160,
+                "                        var task = DownloadChunk(chunk, cancellationToken);"
+            ],
+            [
+                164,
+                "                    {"
+            ],
+            [
+                165,
+                "                        // download as async and serial"
+            ],
+            [
+                166,
+                "                        await DownloadChunk(chunk, cancellationToken);"
+            ],
+            [
+                170,
+                "                if (Package.Options.ParallelDownload && cancellationToken.IsCancellationRequested == false"
+            ],
+            [
+                171,
+                "                ) // is parallel"
+            ],
+            [
+                185,
+                "            catch (OperationCanceledException exp)"
+            ],
+            [
+                187,
+                "                OnDownloadFileCompleted(new AsyncCompletedEventArgs(exp, true, Package));"
+            ],
+            [
+                188,
+                "            }"
+            ],
+            [
+                189,
+                "            catch (Exception exp)"
+            ],
+            [
+                190,
+                "            {"
+            ],
+            [
+                191,
+                "                OnDownloadFileCompleted(new AsyncCompletedEventArgs(exp, false, Package));"
+            ],
+            [
+                192,
+                "                throw;"
+            ],
+            [
+                203,
+                "        protected async Task<Chunk> DownloadChunk(Chunk chunk, CancellationToken token)"
+            ],
+            [
+                210,
+                "                var request = Package.RequestInstance.GetRequest();"
+            ],
+            [
+                245,
+                "                    await DownloadChunk(chunk, token);"
+            ],
+            [
+                254,
+                "                await DownloadChunk(chunk, token);"
+            ],
+            [
+                268,
+                "                await DownloadChunk(chunk, token);"
+            ],
+            [
+                351,
+                "        protected async Task SetFileSize()"
+            ],
+            [
+                352,
+                "        {"
+            ],
+            [
+                353,
+                "            Package.TotalFileSize = Package.Options.AllowedHeadRequest"
+            ],
+            [
+                354,
+                "                ? await Package.RequestInstance.GetFileSize()"
+            ],
+            [
+                355,
+                "                : await Package.RequestInstance.GetFileSizeWithGetRequest();"
+            ],
+            [
+                356,
+                "        }"
+            ],
+            [
+                377,
+                "        protected bool HasSource(Exception exp, string source)"
+            ],
+            [
+                407,
+                "            var duration = Environment.TickCount - LastTickCountCheckpoint + 1;"
+            ],
+            [
+                408,
+                "            if (duration < OneSecond) return;"
+            ],
+            [
+                409,
+                "            var newReceivedBytes = Package.BytesReceived - TotalBytesReceived;"
+            ],
+            [
+                410,
+                "            DownloadSpeed = newReceivedBytes * OneSecond / duration; // bytes per second"
+            ],
+            [
+                411,
+                "            LastTickCountCheckpoint = Environment.TickCount;"
+            ],
+            [
+                412,
+                "            TotalBytesReceived = Package.BytesReceived;"
+            ]
+        ],
+        "deleted": [
+            [
+                30,
+                ""
+            ],
+            [
+                31,
+                "        protected long BytesReceivedCheckPoint { get; set; }"
+            ],
+            [
+                32,
+                "        protected long LastDownloadCheckpoint { get; set; }"
+            ],
+            [
+                34,
+                "        protected Request RequestInstance { get; set; }"
+            ],
+            [
+                37,
+                "        public long DownloadSpeed { get; set; }"
+            ],
+            [
+                45,
+                "            IsBusy = true;"
+            ],
+            [
+                46,
+                "            GlobalCancellationTokenSource = new CancellationTokenSource();"
+            ],
+            [
+                48,
+                "            Package.Options.Validate();"
+            ],
+            [
+                49,
+                ""
+            ],
+            [
+                50,
+                "            CheckSizes();"
+            ],
+            [
+                51,
+                ""
+            ],
+            [
+                52,
+                "            if (File.Exists(Package.FileName))"
+            ],
+            [
+                53,
+                "                File.Delete(Package.FileName);"
+            ],
+            [
+                54,
+                ""
+            ],
+            [
+                59,
+                "            try"
+            ],
+            [
+                60,
+                "            {"
+            ],
+            [
+                61,
+                "                IsBusy = true;"
+            ],
+            [
+                62,
+                "                GlobalCancellationTokenSource = new CancellationTokenSource();"
+            ],
+            [
+                63,
+                "                RequestInstance = new Request(address, Package.Options.RequestConfiguration);"
+            ],
+            [
+                64,
+                "                Package.FileName = fileName;"
+            ],
+            [
+                65,
+                "                Package.Address = RequestInstance.Address;"
+            ],
+            [
+                66,
+                "                Package.TotalFileSize = Package.Options.AllowedHeadRequest"
+            ],
+            [
+                67,
+                "                    ? await RequestInstance.GetFileSize()"
+            ],
+            [
+                68,
+                "                    : await RequestInstance.GetFileSizeWithGetRequest();"
+            ],
+            [
+                69,
+                "                Package.Options.Validate();"
+            ],
+            [
+                70,
+                ""
+            ],
+            [
+                71,
+                "                CheckSizes();"
+            ],
+            [
+                72,
+                ""
+            ],
+            [
+                73,
+                "                var neededParts = (int)Math.Ceiling((double)Package.TotalFileSize / int.MaxValue); // for files as larger than 2GB"
+            ],
+            [
+                74,
+                ""
+            ],
+            [
+                75,
+                "                // Handle number of parallel downloads"
+            ],
+            [
+                76,
+                "                var parts = Package.Options.ChunkCount < neededParts"
+            ],
+            [
+                77,
+                "                    ? neededParts"
+            ],
+            [
+                78,
+                "                    : Package.Options.ChunkCount;"
+            ],
+            [
+                79,
+                ""
+            ],
+            [
+                80,
+                "                Package.Chunks = ChunkFile(Package.TotalFileSize, parts);"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                82,
+                "                if (File.Exists(Package.FileName))"
+            ],
+            [
+                83,
+                "                    File.Delete(Package.FileName);"
+            ],
+            [
+                84,
+                ""
+            ],
+            [
+                85,
+                "                await StartDownload();"
+            ],
+            [
+                86,
+                "            }"
+            ],
+            [
+                87,
+                "            catch (Exception e)"
+            ],
+            [
+                88,
+                "            {"
+            ],
+            [
+                89,
+                "                OnDownloadFileCompleted(new AsyncCompletedEventArgs(e, false, Package));"
+            ],
+            [
+                90,
+                "                throw;"
+            ],
+            [
+                91,
+                "            }"
+            ],
+            [
+                121,
+                "                    BytesReceivedCheckPoint = 0;"
+            ],
+            [
+                159,
+                "                    {   // download as parallel"
+            ],
+            [
+                160,
+                "                        var task = DownloadChunk(Package.Address, chunk, cancellationToken);"
+            ],
+            [
+                164,
+                "                    {   // download as async and serial"
+            ],
+            [
+                165,
+                "                        await DownloadChunk(Package.Address, chunk, cancellationToken);"
+            ],
+            [
+                169,
+                "                if (Package.Options.ParallelDownload && cancellationToken.IsCancellationRequested == false) // is parallel"
+            ],
+            [
+                183,
+                "            catch (OperationCanceledException e)"
+            ],
+            [
+                185,
+                "                OnDownloadFileCompleted(new AsyncCompletedEventArgs(e, true, Package));"
+            ],
+            [
+                196,
+                "        protected async Task<Chunk> DownloadChunk(Uri address, Chunk chunk, CancellationToken token)"
+            ],
+            [
+                203,
+                "                var request = RequestInstance.GetRequest();"
+            ],
+            [
+                238,
+                "                    await DownloadChunk(address, chunk, token);"
+            ],
+            [
+                247,
+                "                await DownloadChunk(address, chunk, token);"
+            ],
+            [
+                261,
+                "                await DownloadChunk(address, chunk, token);"
+            ],
+            [
+                271,
+                ""
+            ],
+            [
+                345,
+                ""
+            ],
+            [
+                366,
+                "        public bool HasSource(Exception exp, string source)"
+            ],
+            [
+                396,
+                "            // calc download speed"
+            ],
+            [
+                397,
+                "            var timeDiff = Environment.TickCount - LastDownloadCheckpoint + 1;"
+            ],
+            [
+                398,
+                "            if (timeDiff < 1000) return;"
+            ],
+            [
+                399,
+                "            var bytesDiff = Package.BytesReceived - BytesReceivedCheckPoint;"
+            ],
+            [
+                400,
+                "            DownloadSpeed = bytesDiff * 1000 / timeDiff;"
+            ],
+            [
+                401,
+                "            LastDownloadCheckpoint = Environment.TickCount;"
+            ],
+            [
+                402,
+                "            BytesReceivedCheckPoint = Package.BytesReceived;"
+            ],
+            [
+                403,
+                "        }"
+            ],
+            [
+                404,
+                "        public static string GetTempFile(string baseDirectory, string fileExtension = \"\")"
+            ],
+            [
+                405,
+                "        {"
+            ],
+            [
+                406,
+                "            if (string.IsNullOrWhiteSpace(baseDirectory))"
+            ],
+            [
+                407,
+                "                return Path.GetTempFileName();"
+            ],
+            [
+                408,
+                ""
+            ],
+            [
+                409,
+                "            if (!Directory.Exists(baseDirectory))"
+            ],
+            [
+                410,
+                "                Directory.CreateDirectory(baseDirectory);"
+            ],
+            [
+                411,
+                ""
+            ],
+            [
+                412,
+                "            var filename = Path.Combine(baseDirectory, Guid.NewGuid().ToString(\"N\") + fileExtension);"
+            ],
+            [
+                413,
+                "            File.Create(filename).Close();"
+            ],
+            [
+                414,
+                ""
+            ],
+            [
+                415,
+                "            return filename;"
+            ]
+        ]
+    },
+    "num_lines_added": 80,
+    "num_lines_removed": 83
+}

@@ -1,0 +1,48 @@
+    public void check(GitlabMergeRequest gitlabMergeRequest) {
+
+        if (mergeRequestStatus == null) {
+            mergeRequestStatus = new GitlabMergeRequestStatus();
+        }
+
+        if (iid == null) {
+            iid = gitlabMergeRequest.getIid();
+        }
+
+        if (targetBranch == null || targetBranch.trim().isEmpty()) {
+            targetBranch = gitlabMergeRequest.getTargetBranch();
+        }
+
+        if (sourceBranch == null || sourceBranch.trim().isEmpty()) {
+            sourceBranch = gitlabMergeRequest.getSourceBranch();
+        }
+
+        if (description == null || description.trim().isEmpty()) {
+            description = gitlabMergeRequest.getDescription();
+            
+            if (description == null) { description = ""; }
+        }
+
+        if (sourceProject == null || sourceProject.getId() == null || sourceProject.getName() == null) {
+            try {
+                GitlabAPI api = builder.getGitlab().get();
+                sourceProject = getSourceProject(gitlabMergeRequest, api);
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, "Failed to get source project for Merge request " + gitlabMergeRequest.getId() + " :\n" + e.getMessage());
+                return;
+            }
+        }
+        
+        try {
+            GitlabAPI api = builder.getGitlab().get();
+            GitlabCommit latestCommit = getLatestCommit(gitlabMergeRequest, api);
+
+            if (latestCommit == null) { // the source branch has been removed
+                return;
+            }
+            
+            Map<String, String> customParameters = getSpecifiedCustomParameters(gitlabMergeRequest, api);
+            build(customParameters, latestCommit.getId(), gitlabMergeRequest);
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Failed to fetch commits for Merge Request " + gitlabMergeRequest.getId());
+        }
+    }

@@ -1,0 +1,60 @@
+    public synchronized boolean saveData(String key, String value) {
+        String existing = this.getDataByName(key);
+
+        boolean isNew = false;
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        if (existing != null) {
+            try {
+                conn = this.dbConfig.getConnection();
+                stmt = conn.prepareStatement("UPDATE \"data\" SET \"key\" = ?, \"value\" = ? WHERE  \"key\" = ?");
+
+                stmt.setString(1, key);
+                stmt.setString(2, value);
+                stmt.setString(3, key);
+
+                stmt.execute();
+            }
+            catch(SQLException ex) {
+                LOGGER.severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+            }
+            finally {
+                Helpers.closeQuietly(rs);
+                Helpers.closeQuietly(stmt);
+                Helpers.closeQuietly(conn);
+            }
+        }
+        else {
+            isNew = true;
+            try {
+                conn = this.dbConfig.getConnection();
+                stmt = conn.prepareStatement("INSERT INTO data(\"key\",\"value\") VALUES (?,?)");
+
+                stmt.setString(1, key);
+                stmt.setString(2, value);
+
+                stmt.execute();
+            }
+            catch(SQLException ex) {
+                LOGGER.severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+            }
+            finally {
+                Helpers.closeQuietly(rs);
+                Helpers.closeQuietly(stmt);
+                Helpers.closeQuietly(conn);
+            }
+        }
+
+        // Update cache with new value
+        if (value != null) {
+            this.cache.put(key, value);
+        }
+        else {
+            this.cache.remove(key);
+        }
+
+        return isNew;
+    }

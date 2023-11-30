@@ -1,0 +1,92 @@
+    @Override
+    public void execute(Tuple tuple) {
+
+        String url = tuple.getStringByField("url");
+
+        // Distinguish the value used for indexing
+        // from the one used for the status
+        String normalisedurl = valueForURL(tuple);
+
+        LOG.info("Indexing {} as {}", url, normalisedurl);
+
+        Metadata metadata = (Metadata) tuple.getValueByField("metadata");
+        String text = tuple.getStringByField("text");
+
+        boolean keep = filterDocument(metadata);
+        if (!keep) {
+            LOG.info("Filtered {}", url);
+            eventCounter.scope("Filtered").incrBy(1);
+            // treat it as successfully processed even if
+            // we do not index it
+            _collector.emit(StatusStreamName, tuple, new Values(url, metadata,
+                    Status.FETCHED));
+            _collector.ack(tuple);
+            return;
+        }
+
+        String docID = org.apache.commons.codec.digest.DigestUtils
+                .sha256Hex(normalisedurl);
+
+        try {
+            XContentBuilder builder = jsonBuilder().startObject();
+
+            // display text of the document?
+            if (fieldNameForText() != null) {
+                builder.field(fieldNameForText(), trimText(text));
+            }
+
+            // send URL as field?
+            if (fieldNameForURL() != null) {
+                builder.field(fieldNameForURL(), normalisedurl);
+            }
+
+            // which metadata to display?
+            Map<String, String[]> keyVals = filterMetadata(metadata);
+
+            Iterator<String> iterator = keyVals.keySet().iterator();
+            while (iterator.hasNext()) {
+                String fieldName = iterator.next();
+                String[] values = keyVals.get(fieldName);
+                if (values.length == 1) {
+                    builder.field(fieldName, values[0]);
+                } else if (values.length > 1) {
+                    builder.array(fieldName, values);
+                }
+            }
+
+            builder.endObject();
+
+            IndexRequest indexRequest = new IndexRequest(
+                    getIndexName(metadata), docType, docID).source(builder);
+
+            DocWriteRequest.OpType optype = DocWriteRequest.OpType.INDEX;
+
+            if (create) {
+                optype = DocWriteRequest.OpType.CREATE;
+            }
+
+            indexRequest.opType(optype);
+
+            if (pipeline != null) {
+                indexRequest.setPipeline(pipeline);
+            }
+
+            connection.getProcessor().add(indexRequest);
+
+            eventCounter.scope("Indexed").incrBy(1);
+            perSecMetrics.scope("Indexed").update(1);
+
+            synchronized (waitAck) {
+                waitAck.put(docID, tuple);
+            }
+        } catch (IOException e) {
+            LOG.error("Error building document for ES", e);
+            // do not send to status stream so that it gets replayed
+            _collector.fail(tuple);
+            if (docID != null) {
+                synchronized (waitAck) {
+                    waitAck.invalidate(docID);
+                }
+            }
+        }
+    }

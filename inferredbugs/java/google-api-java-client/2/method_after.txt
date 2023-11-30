@@ -1,0 +1,60 @@
+  public static void parse(String content, Object data) {
+    if (content == null) {
+      return;
+    }
+    Class<?> clazz = data.getClass();
+    ClassInfo classInfo = ClassInfo.of(clazz);
+    GenericData genericData = GenericData.class.isAssignableFrom(clazz) ? (GenericData) data : null;
+    @SuppressWarnings("unchecked")
+    Map<Object, Object> map = Map.class.isAssignableFrom(clazz) ? (Map<Object, Object>) data : null;
+    int cur = 0;
+    int length = content.length();
+    int nextEquals = content.indexOf('=');
+    while (cur < length) {
+      int amp = content.indexOf('&', cur);
+      if (amp == -1) {
+        amp = length;
+      }
+      String name;
+      String stringValue;
+      if (nextEquals != -1 && nextEquals < amp) {
+        name = content.substring(cur, nextEquals);
+        stringValue = CharEscapers.decodeUri(content.substring(nextEquals + 1, amp));
+        nextEquals = content.indexOf('=', amp + 1);
+      } else {
+        name = content.substring(cur, amp);
+        stringValue = "";
+      }
+      name = CharEscapers.decodeUri(name);
+      // get the field from the type information
+      FieldInfo fieldInfo = classInfo.getFieldInfo(name);
+      if (fieldInfo != null) {
+        Class<?> type = fieldInfo.type;
+        if (Collection.class.isAssignableFrom(type)) {
+          @SuppressWarnings("unchecked")
+          Collection<Object> collection = (Collection<Object>) fieldInfo.getValue(data);
+          if (collection == null) {
+            collection = ClassInfo.newCollectionInstance(type);
+            fieldInfo.setValue(data, collection);
+          }
+          Class<?> subFieldClass = ClassInfo.getCollectionParameter(fieldInfo.field);
+          collection.add(FieldInfo.parsePrimitiveValue(subFieldClass, stringValue));
+        } else {
+          fieldInfo.setValue(data, FieldInfo.parsePrimitiveValue(type, stringValue));
+        }
+      } else if (map != null) {
+        @SuppressWarnings("unchecked")
+        ArrayList<String> listValue = (ArrayList<String>) map.get(name);
+        if (listValue == null) {
+          listValue = new ArrayList<String>();
+          if (genericData != null) {
+            genericData.set(name, listValue);
+          } else {
+            map.put(name, listValue);
+          }
+        }
+        listValue.add(stringValue);
+      }
+      cur = amp + 1;
+    }
+  }

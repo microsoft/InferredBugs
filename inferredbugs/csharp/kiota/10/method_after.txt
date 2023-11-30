@@ -1,0 +1,21 @@
+        [Fact]
+        public void ReplacesImportsParentNamespace() {
+            var declaration = parentClass.StartBlock as CodeClass.Declaration;
+            graphNS.RemoveChildElement(parentClass);
+            var parentNS = root.AddNamespace($"{graphNS.Name}.otherNS");
+            parentNS.AddClass(parentClass);
+            var subNS = root.AddNamespace($"{graphNS.Name}.messages");
+            var messageClassDef = new CodeClass(subNS) {
+                Name = "Message",
+            };
+            subNS.AddClass(messageClassDef);
+            declaration.Usings.Add(new (parentClass) {
+                Name = "messages",
+                Declaration = new(parentClass) {
+                    Name = "Message",
+                    TypeDefinition = messageClassDef,
+                }
+            });
+            ILanguageRefiner.Refine(new GenerationConfiguration { Language = GenerationLanguage.Ruby, ClientNamespaceName = graphNS.Name }, root);
+            Assert.Equal("../messages/message", declaration.Usings.First().Declaration.Name);
+        }

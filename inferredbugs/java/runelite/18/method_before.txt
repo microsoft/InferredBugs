@@ -1,0 +1,128 @@
+ public NameMappings run(ClassGroup one, ClassGroup two)
+	{
+		Execution eone = new Execution(one);
+		eone.setBuildGraph(true);
+		eone.populateInitialMethods();
+		eone.run();
+		
+		Execution etwo = new Execution(two);
+		etwo.setBuildGraph(true);
+		etwo.populateInitialMethods();
+		etwo.run();
+		
+		g1 = eone.getGraph();
+		g2 = etwo.getGraph();
+		
+		System.out.println(eone.getGraph());
+		System.out.println(etwo.getGraph());
+		
+		for (int i = 0; i < 250; ++i)
+		//for (int i = 0; i < Math.min(one.getClasses().size(), two.getClasses().size()); ++i)
+		{
+			ClassFile c1 = one.findClass("class" + i);
+			ClassFile c2 = two.findClass("class" + i);
+			
+			if (c1 == null || c2 == null)
+				continue;
+			
+			//Map m1 = this.find(c1);
+			//Map m2 = this.find(c2);
+			
+		//	mapClassMethods(m1, m2);
+			
+			mapDeobfuscatedMethods(c1, c2);
+		}
+		
+		ClassFile cf1 = one.findClass("client"), cf2 = two.findClass("client");
+		mapDeobfuscatedMethods(cf1, cf2);
+		
+		//List<Field> fl1 = getClientFields(one, eone);
+		//List<Field> fl2 = getClientFields(two, etwo);
+		
+//		for (int i = 0; i < Math.min(fl1.size(), fl2.size()); ++i)
+//		{
+//			Field f1 = fl1.get(i), f2 = fl2.get(i);
+//			
+//			Vertex v1 = g1.getVertexFor(f1);
+//			Vertex v2 = g2.getVertexFor(f2);
+//			
+//			v1.is(v2);
+//			v2.is(v1);
+//			
+//			System.out.println(fname(f1) + " is " + fname(f2));
+//		}
+		
+		System.out.println("g1 verticies " + g1.getVerticies().size() + " reachable " + g1.reachableVerticiesFromSolvedVerticies().size());
+		Set<Vertex> reachable = g1.reachableVerticiesFromSolvedVerticies();
+		for (Vertex v : g1.getVerticies())
+			if (!reachable.contains(v))
+			{
+				System.out.println("unreachable " + v);
+			}
+		
+		for (;;)
+		{
+			int before = g1.solved(null);
+			System.out.println("Before " + before);
+			
+			solve();
+			
+			g1.getVerticies().forEach(v -> v.finish());
+			//g2
+			
+			int after = g1.solved(null);
+			System.out.println("After " + after);
+			
+			if (before == after)
+				break;
+		}
+		
+		g1.check();
+		g2.check();
+		
+		System.out.println("methods " +g1.solved(VertexType.METHOD));
+		System.out.println("f " +g1.solved(VertexType.FIELD));
+		
+		Vertex stored = null;
+		for (Vertex v : g1.getVerticies())
+		{
+			if (v.getOther() == null)
+				continue;
+			
+			if (!v.toString().equals("Vertex{object=class0.<init>()V}"))
+				continue;
+			
+			assert stored == null;
+			stored = v;
+			
+			for (Edge e : v.getEdges())
+			{
+				if (e.getTo().getOther() == null)
+				{
+					System.out.println("Edge " + e + " on vertex " + v + " is unsolved");
+				}
+			}
+		}
+		
+//		NameMappings col = buildCollisionMap(one, two);
+//		rename(col, two);
+//		
+//		NameMappings mappings = buildMappings(one, two); // two -> one
+//		
+//		show(mappings);
+		
+		System.out.println("Solved methods "+ g1.solved(VertexType.METHOD) + ", total " + g1.getVerticies().size());
+		
+		//rename(mappings, two);
+		
+		try
+		{
+			JarUtil.saveJar(two, new File("/Users/adam/w/rs/07/adamout.jar"));
+		}
+		catch (IOException ex)
+		{
+			Logger.getLogger(Rename2.class.getName()).log(Level.SEVERE, null, ex);
+		}
+		
+		return null;
+	}

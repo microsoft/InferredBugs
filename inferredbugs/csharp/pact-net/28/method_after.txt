@@ -1,0 +1,36 @@
+        [Fact]
+        public void Dispatch_WithNancyContext_ConvertIsCalledOnThePactProviderServiceRequestMapper()
+        {
+            var expectedRequest = new PactProviderServiceRequest
+            {
+                Method = HttpVerb.Get,
+                Path = "/"
+            };
+            var expectedResponse = new PactProviderServiceResponse();
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/", "HTTP")
+            };
+
+            var mockRequestComparer = Substitute.For<IPactProviderServiceRequestComparer>();
+            var mockRequestMapper = Substitute.For<IPactProviderServiceRequestMapper>();
+            var mockResponseMapper = Substitute.For<INancyResponseMapper>();
+
+            mockRequestMapper.Convert(nancyContext.Request).Returns(expectedRequest);
+
+            var requestResponsePairs = new List<KeyValuePair<PactProviderServiceRequest, PactProviderServiceResponse>>
+            {
+                new KeyValuePair<PactProviderServiceRequest, PactProviderServiceResponse>(expectedRequest, expectedResponse)
+            };
+
+            nancyContext.SetMockRequestResponsePairs(requestResponsePairs);
+
+            IRequestDispatcher requestDispatcher = new MockProviderNancyRequestDispatcher(
+                mockRequestComparer,
+                mockRequestMapper,
+                mockResponseMapper);
+
+            requestDispatcher.Dispatch(nancyContext, CancellationToken.None);
+
+            mockRequestMapper.Received(1).Convert(nancyContext.Request);
+        }

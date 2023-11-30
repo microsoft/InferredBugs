@@ -1,0 +1,67 @@
+    protected void checkListStatesUpdated()
+    {
+        boolean allListsEnded = true;
+        boolean atLeastOneListSucceeded = false;
+
+        if(getState() == IceProcessingState.COMPLETED)
+            return;
+
+        List<IceMediaStream> streams = getStreams();
+
+        for(IceMediaStream stream : streams)
+        {
+            CheckListState checkListState = stream.getCheckList().getState();
+
+            if(checkListState == CheckListState.RUNNING)
+            {
+                allListsEnded = false;
+                break;
+            }
+            else if(checkListState == CheckListState.COMPLETED)
+            {
+                logger.info("CheckList of stream " + stream.getName() +
+                        " is COMPLETED");
+                atLeastOneListSucceeded = true;
+            }
+        }
+
+
+        if(!allListsEnded)
+            return;
+
+        if(!atLeastOneListSucceeded)
+        {
+            //all lists ended but none succeeded. No love today ;(
+            logger.info("ICE state is FAILED");
+            terminate(IceProcessingState.FAILED);
+            return;
+        }
+
+        //Once the state of each check list is Completed:
+        //The agent sets the state of ICE processing overall to Completed.
+        if(getState() != IceProcessingState.RUNNING)
+        {
+            //Oh, seems like we already did this.
+            return;
+        }
+
+        logger.info("ICE state is COMPLETED");
+
+        setState(IceProcessingState.COMPLETED);
+
+        // keep ICE running (answer STUN Binding requests, send STUN Binding
+        // indications or requests)
+        if(stunKeepAliveThread == null
+                && !StackProperties.getBoolean(
+                        StackProperties.NO_KEEP_ALIVES,
+                        false))
+        {
+            // schedule STUN checks for selected candidates
+            scheduleStunKeepAlive();
+        }
+
+        scheduleTermination();
+
+        //print logs for the types of addresses we chose.
+        logCandTypes();
+    }

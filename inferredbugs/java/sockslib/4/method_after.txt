@@ -1,0 +1,37 @@
+  @Override
+  public void run() {
+    logger.info("Start proxy server at port:{}", bindPort);
+    while (!stop) {
+      try {
+        Socket socket = serverSocket.accept();
+        socket = processSocketBeforeUse(socket);
+        socket.setSoTimeout(timeout);
+        Session session = sessionManager.newSession(socket);
+        logger.info("Create SESSION[{}] for {}", session.getId(), session.getClientAddress());
+
+        try {
+          sessionFilterChain.doFilterChain(session);
+        } catch (InterruptedException e) {
+          session.close();
+          logger.info(e.getMessage());
+          continue;
+        }
+
+        SocksHandler socksHandler = createSocksHandler();
+
+        /* initialize socks handler */
+        socksHandler.setSession(session);
+        initializeSocksHandler(socksHandler);
+
+        executorService.execute(socksHandler);
+
+      } catch (IOException e) {
+        // Catches the exception that cause by shutdown method.
+        if (e.getMessage().equals("Socket closed") && stop) {
+          logger.debug("Server shutdown");
+          return;
+        }
+        logger.debug(e.getMessage(), e);
+      }
+    }
+  }

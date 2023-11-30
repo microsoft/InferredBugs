@@ -1,0 +1,45 @@
+ public void onUpload() throws InterruptedException,
+			XPathExpressionException, NoSuchAlgorithmException,
+			ParserConfigurationException, SAXException, IOException,
+			URISyntaxException, SearchLibException, InstantiationException,
+			IllegalAccessException, ClassNotFoundException {
+		Media media = Fileupload.get();
+		if (media == null)
+			return;
+		synchronized (this) {
+			setCurrentDocument(null);
+			ParserSelector parserSelector = getClient().getParserSelector();
+			Parser parser = null;
+			String contentType = media.getContentType();
+			if (contentType != null)
+				parser = parserSelector.getParserFromMimeType(contentType);
+			if (parser == null) {
+				String extension = FileUtils.getFileNameExtension(media
+						.getName());
+				parser = parserSelector.getParserFromExtension(extension);
+			}
+			if (parser == null) {
+				Messagebox.show("No parser found for that document type ("
+						+ contentType + " - " + media.getName() + ')');
+				return;
+			}
+
+			BasketDocument basketDocument = parser.getBasketDocument();
+			basketDocument.addIfNoEmpty("filename", media.getName());
+			basketDocument.addIfNoEmpty("content_type", contentType);
+
+			if (media.inMemory()) {
+				if (media.isBinary())
+					parser.parseContent(media.getByteData());
+				else
+					parser.parseContent(media.getStringData());
+			} else {
+				if (media.isBinary())
+					parser.parseContent(media.getStreamData());
+				else
+					parser.parseContent(media.getReaderData());
+			}
+			setCurrentDocument(basketDocument);
+			reloadPage();
+		}
+	}

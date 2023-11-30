@@ -1,0 +1,11 @@
+    private void listenForEventPackets() throws IOException {
+        latch.countDown();
+        ByteArrayInputStream inputStream = channel.getInputStream();
+        while (channel.isOpen()) {
+            int packetLength = inputStream.readInteger(3);
+            inputStream.skip(2); // 1 byte for sequence and 1 for marker
+            ByteArrayInputStream eventByteArray = new ByteArrayInputStream(inputStream.read(packetLength - 1));
+            Event event = eventDeserializer.nextEvent(eventByteArray);
+            notifyEventListeners(event);
+        }
+    }

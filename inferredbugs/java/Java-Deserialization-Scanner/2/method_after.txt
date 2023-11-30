@@ -1,0 +1,302 @@
+    public List<IScanIssue> doActiveScan(IHttpRequestResponse baseRequestResponse, IScannerInsertionPoint insertionPoint) {
+    	    	    	
+    	List<IScanIssue> issues = new ArrayList<IScanIssue>();
+    	    	
+    	// Current insertion point
+    	byte[] insertionPointBaseValue = insertionPoint.getBaseValue().getBytes();
+		int magicPos = helpers.indexOf(insertionPointBaseValue, serializeMagic, false, 0, insertionPointBaseValue.length);
+		int magicPosBase64 = helpers.indexOf(insertionPointBaseValue, base64Magic, false, 0, insertionPointBaseValue.length);
+		int magicPosAsciiHex = helpers.indexOf(insertionPointBaseValue, asciiHexMagic, false, 0, insertionPointBaseValue.length);
+		int magicPosBase64Gzip = helpers.indexOf(insertionPointBaseValue, base64GzipMagic, false, 0, insertionPointBaseValue.length);
+        int magicPosGzip = helpers.indexOf(insertionPointBaseValue, gzipMagic, false, 0, insertionPointBaseValue.length);
+
+        byte[] request = baseRequestResponse.getRequest();
+        IRequestInfo requestInfo = helpers.analyzeRequest(baseRequestResponse);
+        
+		if(magicPos > -1 || magicPosBase64 > -1 || magicPosAsciiHex > -1 || magicPosBase64Gzip > -1 || magicPosGzip > -1) {
+			
+			// Collaborator context for DNS payloads
+			IBurpCollaboratorClientContext collaboratorContext = callbacks.createBurpCollaboratorClientContext();
+            
+			HashMap<String,byte[]> currentPayloads = new HashMap<String,byte[]>();
+			HashMap<String,String> dnsCollaboratorUrls = new HashMap<String,String>();
+			
+			// URLDNS
+			if(enableActiveScanURLDNSChecks.isSelected()) {
+				
+				String urlDnsCollaboratorUrl = collaboratorContext.generatePayload(true);				
+				byte[] urldnsFinalPayload = createUrlDnsVector(payloadURLDNS,urlDnsCollaboratorUrl);
+				currentPayloads.put("URLDNS", urldnsFinalPayload);
+				dnsCollaboratorUrls.put("URLDNS", urlDnsCollaboratorUrl);
+				
+			}
+						
+			// Sleep payloads
+			if(enableActiveScanSleepChecks.isSelected()) {
+
+				currentPayloads.putAll(payloadsSleep);
+			
+			} 
+			
+			if(enableActiveScanDNSChecks.isSelected()) {
+								
+				Set<String> payloadDnsKeys = payloadsDNS.keySet();
+				Iterator<String> iter = payloadDnsKeys.iterator();
+	    		String currentKey;
+	    		byte[] currentValue;
+	    		String currentCollaboratorPayload;
+	    		byte[] dnsPayloadWithCollaboratorPayload;
+	    		
+	    		while (iter.hasNext()) {
+	    			
+	    			currentKey = iter.next();
+	    			currentValue = payloadsDNS.get(currentKey);
+	    			currentCollaboratorPayload = collaboratorContext.generatePayload(true);
+	    			
+	    			dnsPayloadWithCollaboratorPayload = createDnsVector(currentValue,currentCollaboratorPayload, currentKey);
+	    			
+	    			currentPayloads.put(currentKey, dnsPayloadWithCollaboratorPayload);
+	    			dnsCollaboratorUrls.put(currentKey, currentCollaboratorPayload);
+
+	    		}				
+				
+			}
+			
+    		Set<String> payloadKeys = currentPayloads.keySet();
+    		Iterator<String> iter = payloadKeys.iterator();
+    		String currentKey;
+    		while (iter.hasNext()) {
+    			
+    			currentKey = iter.next();
+        		byte[] newPayload = null;
+        		
+        		if(magicPos > -1) {
+        			newPayload = ArrayUtils.addAll(Arrays.copyOfRange(insertionPointBaseValue, 0, magicPos),currentPayloads.get(currentKey));
+        		} else if(magicPosBase64 > -1) {
+        			newPayload = ArrayUtils.addAll(Arrays.copyOfRange(insertionPointBaseValue, 0, magicPosBase64),Base64.encodeBase64URLSafe(currentPayloads.get(currentKey)));
+        		} else if(magicPosAsciiHex > -1) {
+        			newPayload = ArrayUtils.addAll(Arrays.copyOfRange(insertionPointBaseValue, 0, magicPosAsciiHex),Hex.encodeHexString(currentPayloads.get(currentKey)).getBytes());
+        		} else if(magicPosBase64Gzip > -1) {
+                   newPayload = ArrayUtils.addAll(Arrays.copyOfRange(insertionPointBaseValue, 0, magicPosBase64Gzip),Base64.encodeBase64(gzipData(currentPayloads.get(currentKey))));
+                } else {
+                    newPayload = ArrayUtils.addAll(Arrays.copyOfRange(insertionPointBaseValue, 0, magicPosGzip),gzipData(currentPayloads.get(currentKey))); 
+                }
+        		
+        		byte[] newRequest = insertionPoint.buildRequest(newPayload);
+        		long startTime = System.nanoTime();
+        		IHttpRequestResponse checkRequestResponse = callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), newRequest);
+        		long endTime = System.nanoTime();
+        		
+        		long duration = TimeUnit.SECONDS.convert((endTime - startTime), TimeUnit.NANOSECONDS);
+        		
+        		List<IBurpCollaboratorInteraction> collaboratorInteractions = null;
+        		if(currentKey.contains("DNS")) {
+        			collaboratorInteractions = collaboratorContext.fetchCollaboratorInteractionsFor(dnsCollaboratorUrls.get(currentKey));
+        		}
+        		        		
+        		if( (currentKey.contains("Sleep") && ((int)duration) >= 10 ) || (currentKey.contains("DNS") && collaboratorInteractions.size() > 0 ) ) {
+
+        			// Vulnerability founded
+        			
+        			// Adding of marker for the vulnerability report
+        			List<int[]> requestMarkers = new ArrayList<int[]>();
+        			int markerStart = 0;
+        			int markerEnd = 0;
+        			String issueName = activeScanIssue + activeScanIssueVulnerableLibrary + currentKey;
+        			
+        			if(magicPos > -1) {
+        				markerStart =  helpers.indexOf(newRequest, helpers.urlEncode(currentPayloads.get(currentKey)), false, 0, newRequest.length);
+        				markerEnd = markerStart + helpers.urlEncode(currentPayloads.get(currentKey)).length;
+        			}else if(magicPosBase64 > -1) {
+        				markerStart = helpers.indexOf(newRequest, Base64.encodeBase64URLSafe(currentPayloads.get(currentKey)), false, 0, newRequest.length);
+        				markerEnd = markerStart + helpers.urlEncode(Base64.encodeBase64URLSafe(currentPayloads.get(currentKey))).length;
+        				issueName = issueName + " (encoded in Base64)";
+        			} else if(magicPosAsciiHex > -1) {
+        				markerStart = helpers.indexOf(newRequest, Hex.encodeHexString(currentPayloads.get(currentKey)).getBytes(), false, 0, newRequest.length);
+        				markerEnd = markerStart + helpers.urlEncode(Hex.encodeHexString(currentPayloads.get(currentKey)).getBytes()).length;
+        				issueName = issueName + " (encoded in Ascii HEX)";
+        			} else if(magicPosBase64Gzip > -1) {
+                        //Need to use more comprehensive URL encoding as / doesn't get encoded
+                        try {
+                            markerStart = helpers.indexOf(newRequest, URLEncoder.encode(new String(Base64.encodeBase64(gzipData(currentPayloads.get(currentKey)))), "UTF-8").getBytes(), false, 0, newRequest.length);
+                            markerEnd = markerStart + URLEncoder.encode(new String(Base64.encodeBase64(gzipData(currentPayloads.get(currentKey)))), "UTF-8").getBytes().length;
+                            issueName = issueName + " (encoded in Base64 and Gzipped)";
+                        }
+                        catch (Exception ex) {
+                            stderr.println(ex.getMessage());
+                        }
+                    } else {
+                        markerStart = helpers.indexOf(newRequest, gzipData(currentPayloads.get(currentKey)), false, 0, newRequest.length);
+                        markerEnd = markerStart + helpers.urlEncode(gzipData(currentPayloads.get(currentKey))).length;
+                        issueName = issueName + " (encoded/compressed with Gzip)";
+                    }    			
+
+        			requestMarkers.add(new int[]{markerStart,markerEnd});
+        			
+                    issues.add(new CustomScanIssue(
+                            baseRequestResponse.getHttpService(),
+                            helpers.analyzeRequest(baseRequestResponse).getUrl(), 
+                            new IHttpRequestResponse[] { callbacks.applyMarkers(checkRequestResponse, requestMarkers, new ArrayList<int[]>()) }, 
+                            issueName,
+                            activeScanSeverity,
+                            activeScanConfidence,
+                            activeScanIssueDetail + activeScanIssueDetailVulnerableLibrary + currentKey + ".",
+                            activeScanRemediationDetail));        		        			
+        		}        		
+    		}
+    	}
+        else if(!urlBodyAlreadyScanned.contains(requestInfo.getUrl().toExternalForm())){ //Check for full body insertion point if not already tested
+        	       	
+        	// Full body insertion point
+            
+            int bodyOffset = requestInfo.getBodyOffset();
+            magicPos = helpers.indexOf(request, serializeMagic, false, 0, request.length);
+            magicPosBase64 = helpers.indexOf(request, base64Magic, false, 0, request.length);
+            magicPosAsciiHex = helpers.indexOf(request, asciiHexMagic, false, 0, request.length);
+            magicPosBase64Gzip = helpers.indexOf(request, base64GzipMagic, false, 0, request.length);
+            magicPosGzip = helpers.indexOf(request, gzipMagic, false, 0, request.length);
+            
+            // Add the url to the urlBodyAlreadyScanned arraylist in order to avoid duplicate scanning of the body
+        	urlBodyAlreadyScanned.add(requestInfo.getUrl().toExternalForm());
+
+            if((magicPos > -1 && magicPos == bodyOffset) || (magicPosBase64 > -1 && magicPosBase64 == bodyOffset) || (magicPosAsciiHex > -1 && magicPosAsciiHex == bodyOffset) || (magicPosBase64Gzip > -1 && magicPosBase64Gzip == bodyOffset) || (magicPosGzip > -1 && magicPosGzip == bodyOffset)) {
+                
+    			// Collaborator context for DNS payloads
+    			IBurpCollaboratorClientContext collaboratorContext = callbacks.createBurpCollaboratorClientContext();
+                
+    			HashMap<String,byte[]> currentPayloads = new HashMap<String,byte[]>();
+    			HashMap<String,String> dnsCollaboratorUrls = new HashMap<String,String>();
+    						
+    			// Sleep payloads
+    			if(enableActiveScanSleepChecks.isSelected()) {
+    				
+    				currentPayloads.putAll(payloadsSleep);
+    			
+    			} 
+    			
+    			// URLDNS
+    			if(enableActiveScanURLDNSChecks.isSelected()) {
+    				
+    				String urlDnsCollaboratorUrl = collaboratorContext.generatePayload(true);				
+    				byte[] urldnsFinalPayload = createUrlDnsVector(payloadURLDNS,urlDnsCollaboratorUrl);
+    				currentPayloads.put("URLDNS", urldnsFinalPayload);
+    				dnsCollaboratorUrls.put("URLDNS", urlDnsCollaboratorUrl);
+    				
+    			}
+    			
+    			// DNS
+    			if(enableActiveScanDNSChecks.isSelected()) {
+    				
+    				//currentPayloads = new HashMap<String,byte[]>();
+    								
+    				Set<String> payloadDnsKeys = payloadsDNS.keySet();
+    				Iterator<String> iter = payloadDnsKeys.iterator();
+    	    		String currentKey;
+    	    		byte[] currentValue;
+    	    		String currentCollaboratorPayload;
+    	    		byte[] dnsPayloadWithCollaboratorPayload;
+    	    		while (iter.hasNext()) {
+    					
+    	    			currentKey = iter.next();
+    	    			currentValue = payloadsDNS.get(currentKey);
+    	    			currentCollaboratorPayload = collaboratorContext.generatePayload(true);
+    	    			
+    	    			dnsPayloadWithCollaboratorPayload = createDnsVector(currentValue,currentCollaboratorPayload,currentKey);
+    	    			    	    			
+    	    			currentPayloads.put(currentKey, dnsPayloadWithCollaboratorPayload);
+    	    			dnsCollaboratorUrls.put(currentKey, currentCollaboratorPayload);
+    	    			
+    	    		}				
+    				
+    			}            	
+            	
+            	List<String> headers = requestInfo.getHeaders();
+    
+            	Set<String> payloadKeys = currentPayloads.keySet();
+            	Iterator<String> iter = payloadKeys.iterator();
+            	String currentKey;
+            	
+            	while (iter.hasNext()) {
+                    
+                   currentKey = iter.next();
+                    
+                   byte[] newBody = null; 
+                   if(magicPos > -1)    {  
+                       // Put directly the payload
+                       newBody = ArrayUtils.addAll(Arrays.copyOfRange(request, bodyOffset, magicPos),currentPayloads.get(currentKey));                
+                   } else if(magicPosBase64 > -1) {
+                       // Encode the payload in Base64
+                       newBody = ArrayUtils.addAll(Arrays.copyOfRange(request, bodyOffset, magicPosBase64),Base64.encodeBase64URLSafe(currentPayloads.get(currentKey)));
+                   } else if(magicPosAsciiHex > -1) {
+                       // Encode the payload in Ascii HEX
+                       newBody = ArrayUtils.addAll(Arrays.copyOfRange(request, bodyOffset, magicPosAsciiHex),Hex.encodeHexString(currentPayloads.get(currentKey)).getBytes());
+                   } else if(magicPosBase64Gzip > -1) {
+                        // Encode/compress the payload in Gzip and Base64
+                        newBody = ArrayUtils.addAll(Arrays.copyOfRange(request, bodyOffset, magicPosBase64Gzip),Base64.encodeBase64(gzipData(currentPayloads.get(currentKey))));
+					} else {
+						// Encode/compress the payload with Gzip
+					    newBody = ArrayUtils.addAll(Arrays.copyOfRange(request, bodyOffset, magicPosGzip),gzipData(currentPayloads.get(currentKey)));
+					}
+
+                   byte[] newRequest = helpers.buildHttpMessage(headers, newBody);
+                   long startTime = System.nanoTime();
+                   IHttpRequestResponse checkRequestResponse = callbacks.makeHttpRequest(baseRequestResponse.getHttpService(), newRequest);
+                   long endTime = System.nanoTime();
+                   long duration = (long)((((float)(endTime - startTime))) / 1000000000L);  //divide by 1000000 to get milliseconds.
+                    
+                   List<IBurpCollaboratorInteraction> collaboratorInteractions = null;
+                   if(currentKey.contains("DNS")) {
+                	   collaboratorInteractions = collaboratorContext.fetchCollaboratorInteractionsFor(dnsCollaboratorUrls.get(currentKey));
+                   }
+        		
+                   if( (currentKey.contains("Sleep") && ((int)duration) >= 10 ) || (currentKey.contains("DNS") && collaboratorInteractions.size() > 0 ) ) {
+                                           
+                       // Vulnerability founded
+                        
+                       List<int[]> requestMarkers = new ArrayList<int[]>();
+                        
+                       int markerStartPos = 0;
+                       String issueName = activeScanIssue + activeScanIssueVulnerableLibrary + currentKey;
+                       if(magicPos > -1) {
+                           markerStartPos = helpers.indexOf(newRequest, serializeMagic, false, 0, newRequest.length);
+                       } else if(magicPosBase64 > -1) {
+                           markerStartPos = helpers.indexOf(newRequest, base64Magic, false, 0, newRequest.length);
+                           issueName = issueName + " (encoded in Base64)";
+                       } else if (magicPosAsciiHex > -1) {
+                           markerStartPos = helpers.indexOf(newRequest, asciiHexMagic, false, 0, newRequest.length);
+                           issueName = issueName + " (encoded in Ascii HEX)";
+                       } else if (magicPosBase64Gzip > -1) {
+                           markerStartPos = helpers.indexOf(newRequest, base64GzipMagic, false, 0, newRequest.length);
+                           issueName = issueName + " (encoded in Base64 and Gzipped)";
+                       } else {
+                           markerStartPos = helpers.indexOf(newRequest, gzipMagic, false, 0, newRequest.length);
+                           issueName = issueName + " (encoded/compressed with Gzip)";
+                       }
+                       requestMarkers.add(new int[]{markerStartPos,newRequest.length});
+                        
+                          issues.add(new CustomScanIssue(
+                                  baseRequestResponse.getHttpService(),
+                                  helpers.analyzeRequest(baseRequestResponse).getUrl(), 
+                                  new IHttpRequestResponse[] { callbacks.applyMarkers(checkRequestResponse, requestMarkers, new ArrayList<int[]>()) }, 
+                                  issueName,
+                                  activeScanSeverity,
+                                  activeScanConfidence,
+                                  activeScanIssueDetail + activeScanIssueDetailVulnerableLibrary + currentKey + ".",
+                                  activeScanRemediationDetail));
+
+                   }
+                    
+               }           
+                
+            }
+
+        }	
+    	       
+        if(issues.size() > 0) {
+        	//stdout.println("Reporting " + issues.size() + " active results");
+        	return issues;
+        } else {
+        	return null;
+        }
+
+    }

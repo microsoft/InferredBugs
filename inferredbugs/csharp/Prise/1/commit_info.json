@@ -1,0 +1,409 @@
+{
+    "hash": "f64922780b27d70d4e8fa7ff45b83e34900deb7c",
+    "message": "improve find method",
+    "file_num_lines": 199,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "using System.Diagnostics.CodeAnalysis;"
+            ],
+            [
+                18,
+                "            => Invoke(remoteObject, targetMethod, args, new PassthroughParameterConverter(),"
+            ],
+            [
+                19,
+                "                new PassthroughResultConverter());"
+            ],
+            [
+                21,
+                "        public static object Invoke(object remoteObject, MethodInfo targetMethod, object[] args,"
+            ],
+            [
+                22,
+                "            IParameterConverter parameterConverter, IResultConverter resultConverter)"
+            ],
+            [
+                29,
+                "                    throw new PriseProxyException("
+            ],
+            [
+                30,
+                "                        $\"Target method {targetMethod.Name} is not found on Proxy Type {remoteObject.GetType().Name}.\");"
+            ],
+            [
+                39,
+                "                    result = remoteMethod.Invoke(remoteObject,"
+            ],
+            [
+                40,
+                "                        SerializeParameters(parameterConverter, remoteMethod, args));"
+            ],
+            [
+                44,
+                "                    return resultConverter.ConvertToLocalTypeAsync(localType, remoteType,"
+            ],
+            [
+                45,
+                "                        result as System.Threading.Tasks.Task);"
+            ],
+            [
+                48,
+                "                    return resultConverter.ConvertToLocalTypeAsync(localType, remoteType,"
+            ],
+            [
+                49,
+                "                        result as System.Threading.Tasks.Task);"
+            ],
+            [
+                64,
+                "            => FindMethodOnObject("
+            ],
+            [
+                65,
+                "                targetObject,"
+            ],
+            [
+                66,
+                "                new Method(callingMethod.Name, callingMethod.ReturnType),"
+            ],
+            [
+                67,
+                "                callingMethod.GetParameters().Select(p => new Parameter(p.Name, p.ParameterType)).ToArray(),"
+            ],
+            [
+                68,
+                "                throwOnError: true)!; // Throws error when null"
+            ],
+            [
+                69,
+                ""
+            ],
+            [
+                70,
+                "        public static MethodInfo? TryFindMethodOnObject(MethodInfo callingMethod, object targetObject)"
+            ],
+            [
+                71,
+                "            => FindMethodOnObject("
+            ],
+            [
+                72,
+                "                targetObject,"
+            ],
+            [
+                73,
+                "                new Method(callingMethod.Name, callingMethod.ReturnType),"
+            ],
+            [
+                74,
+                "                callingMethod.GetParameters().Select(p => new Parameter(p.Name, p.ParameterType)).ToArray());"
+            ],
+            [
+                75,
+                ""
+            ],
+            [
+                76,
+                "        public static MethodInfo? FindMethodOnObject("
+            ],
+            [
+                77,
+                "            object targetObject,"
+            ],
+            [
+                78,
+                "            Method method,"
+            ],
+            [
+                79,
+                "            Parameter[] parameters,"
+            ],
+            [
+                80,
+                "            MethodFindingStrategy strategy = MethodFindingStrategy.MethodNameMustMatch |"
+            ],
+            [
+                81,
+                "                                             MethodFindingStrategy.MethodReturnTypeMustMatch |"
+            ],
+            [
+                82,
+                "                                             MethodFindingStrategy.ParameterCountMustMatch |"
+            ],
+            [
+                83,
+                "                                             MethodFindingStrategy.ParameterTypeMustMatch,"
+            ],
+            [
+                84,
+                "            bool throwOnError = false)"
+            ],
+            [
+                86,
+                "            bool isNameCorrect(MethodInfo targetMethod) => targetMethod.Name == method.Name;"
+            ],
+            [
+                89,
+                "            var targetMethods = targetObject.GetType().GetMethods().AsEnumerable();"
+            ],
+            [
+                90,
+                "            if (strategy.HasFlag(MethodFindingStrategy.MethodNameMustMatch))"
+            ],
+            [
+                91,
+                "                targetMethods = targetMethods.Where(isNameCorrect);"
+            ],
+            [
+                92,
+                ""
+            ],
+            [
+                94,
+                "                if (throwOnError)"
+            ],
+            [
+                95,
+                "                    throw new PriseProxyException("
+            ],
+            [
+                96,
+                "                        $\"Target method {method.Name} is not found on Proxy Type {targetObject.GetType().Name}.\");"
+            ],
+            [
+                97,
+                "                else"
+            ],
+            [
+                98,
+                "                    return null;"
+            ],
+            [
+                103,
+                "            bool isReturnTypeCorrect(MethodInfo targetMethod) => targetMethod.ReturnType == method.ReturnType;"
+            ],
+            [
+                104,
+                ""
+            ],
+            [
+                105,
+                "            if (strategy.HasFlag(MethodFindingStrategy.MethodReturnTypeMustMatch))"
+            ],
+            [
+                106,
+                "                // Second, find by method name AND return type"
+            ],
+            [
+                107,
+                "                targetMethods = targetMethods.Where(isReturnTypeCorrect);"
+            ],
+            [
+                112,
+                "            bool isParameterCountCorrect(MethodInfo targetMethod) =>"
+            ],
+            [
+                113,
+                "                targetMethod.GetParameters().Count() == parameters.Length;"
+            ],
+            [
+                117,
+                "                var callingMethodParameters = parameters;"
+            ],
+            [
+                122,
+                "                    if (callingParam.Type is null)"
+            ],
+            [
+                123,
+                "                        throw new PriseProxyException("
+            ],
+            [
+                124,
+                "                            $\"When using {nameof(MethodFindingStrategy.ParameterTypeMustMatch)}, Parameter.Type must be provided\");"
+            ],
+            [
+                127,
+                "                          targetParam.ParameterType.Name == callingParam.Type.Name))"
+            ],
+            [
+                130,
+                ""
+            ],
+            [
+                135,
+                "                (!strategy.HasFlag(MethodFindingStrategy.ParameterCountMustMatch) ||"
+            ],
+            [
+                136,
+                "                 isParameterCountCorrect(targetMethod)) &&"
+            ],
+            [
+                137,
+                "                (!strategy.HasFlag(MethodFindingStrategy.ParameterTypeMustMatch) || doAllParametersMatch(targetMethod))"
+            ],
+            [
+                140,
+                "            if (!targetMethods.Any())"
+            ],
+            [
+                141,
+                "                if (throwOnError)"
+            ],
+            [
+                142,
+                "                    throw new PriseProxyException("
+            ],
+            [
+                143,
+                "                        $\"Target method {method.Name} is not found on Proxy Type {targetObject.GetType().Name}.\");"
+            ],
+            [
+                144,
+                "                else"
+            ],
+            [
+                145,
+                "                    return null;"
+            ],
+            [
+                146,
+                ""
+            ],
+            [
+                148,
+                "                if (throwOnError)"
+            ],
+            [
+                149,
+                "                    throw new PriseProxyException("
+            ],
+            [
+                150,
+                "                        $\"Target method {method.Name} could not be determined on object {targetObject.GetType().Name}.\");"
+            ],
+            [
+                151,
+                "                else"
+            ],
+            [
+                152,
+                "                    return null;"
+            ],
+            [
+                157,
+                "        internal static object[] SerializeParameters(IParameterConverter parameterConverter, MethodInfo targetMethod,"
+            ],
+            [
+                158,
+                "            object[] args)"
+            ],
+            [
+                205,
+                "        protected override object Invoke(MethodInfo targetMethod, object[] args) => PriseProxy.Invoke(this.remoteObject,"
+            ],
+            [
+                206,
+                "            targetMethod, args, this.parameterConverter, this.resultConverter);"
+            ],
+            [
+                245,
+                ""
+            ],
+            [
+                255,
+                "}"
+            ]
+        ],
+        "deleted": [
+            [
+                17,
+                "            => Invoke(remoteObject, targetMethod, args, new PassthroughParameterConverter(), new PassthroughResultConverter());"
+            ],
+            [
+                19,
+                "        public static object Invoke(object remoteObject, MethodInfo targetMethod, object[] args, IParameterConverter parameterConverter, IResultConverter resultConverter)"
+            ],
+            [
+                26,
+                "                    throw new PriseProxyException($\"Target method {targetMethod.Name} is not found on Proxy Type {remoteObject.GetType().Name}.\");"
+            ],
+            [
+                35,
+                "                    result = remoteMethod.Invoke(remoteObject, SerializeParameters(parameterConverter, remoteMethod, args));"
+            ],
+            [
+                39,
+                "                    return resultConverter.ConvertToLocalTypeAsync(localType, remoteType, result as System.Threading.Tasks.Task);"
+            ],
+            [
+                42,
+                "                    return resultConverter.ConvertToLocalTypeAsync(localType, remoteType, result as System.Threading.Tasks.Task);"
+            ],
+            [
+                58,
+                "            bool isNameCorrect(MethodInfo targetMethod) => targetMethod.Name == callingMethod.Name;"
+            ],
+            [
+                61,
+                "            var targetMethods = targetObject.GetType().GetMethods().Where(isNameCorrect);"
+            ],
+            [
+                63,
+                "                throw new PriseProxyException($\"Target method {callingMethod.Name} is not found on Proxy Type {targetObject.GetType().Name}.\");"
+            ],
+            [
+                68,
+                "            bool isReturnTypeCorrect(MethodInfo targetMethod) => targetMethod.ReturnType == callingMethod.ReturnType;"
+            ],
+            [
+                70,
+                "            // Second, find by method name AND return type"
+            ],
+            [
+                71,
+                "            targetMethods = targetMethods.Where(isReturnTypeCorrect);"
+            ],
+            [
+                75,
+                "            bool isParameterCountCorrect(MethodInfo targetMethod) => targetMethod.GetParameters().Count() == callingMethod.GetParameters().Count();"
+            ],
+            [
+                79,
+                "                var callingMethodParameters = callingMethod.GetParameters();"
+            ],
+            [
+                86,
+                "                        targetParam.ParameterType.Name == callingParam.ParameterType.Name))"
+            ],
+            [
+                93,
+                "                isParameterCountCorrect(targetMethod) &&"
+            ],
+            [
+                94,
+                "                doAllParametersMatch(targetMethod)"
+            ],
+            [
+                98,
+                "                throw new PriseProxyException($\"Target method {callingMethod.Name} could not be determined on object {targetObject.GetType().Name}.\");"
+            ],
+            [
+                103,
+                "        internal static object[] SerializeParameters(IParameterConverter parameterConverter, MethodInfo targetMethod, object[] args)"
+            ],
+            [
+                150,
+                "        protected override object Invoke(MethodInfo targetMethod, object[] args) => PriseProxy.Invoke(this.remoteObject, targetMethod, args, this.parameterConverter, this.resultConverter);"
+            ],
+            [
+                198,
+                "}"
+            ]
+        ]
+    },
+    "num_lines_added": 78,
+    "num_lines_removed": 21
+}

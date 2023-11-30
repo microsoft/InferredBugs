@@ -1,0 +1,22 @@
+     @Transactional(readOnly = true)
+     public MiddlewarePage list(Long apiId, MiddlewareDTO middlewareDTO, PageableDTO pageableDTO) {
+
+          Api api = apiRepository.findOne(apiId);
+          HeimdallException.checkThrow(isBlank(api), GLOBAL_RESOURCE_NOT_FOUND);
+
+          Middleware middleware = GenericConverter.mapper(middlewareDTO, Middleware.class);
+          Api apiFind = new Api();
+          apiFind.setId(apiId);
+          middleware.setApi(apiFind);
+
+          Example<Middleware> example = Example.of(middleware, ExampleMatcher.matching().withIgnoreCase().withStringMatcher(StringMatcher.CONTAINING));
+
+          Sort sort = new Sort(new Sort.Order(Sort.Direction.DESC, "creationDate"));
+
+          Pageable pageable = Pageable.setPageable(pageableDTO.getOffset(), pageableDTO.getLimit(), sort);
+          Page<Middleware> page = middlewareRepository.findAll(example, pageable);
+
+          MiddlewarePage middlewarePage = new MiddlewarePage(PageDTO.build(page));
+
+          return middlewarePage;
+     }

@@ -1,0 +1,31 @@
+    private List<Method> retrieveMethods(TypeElement element, boolean mapperRequiresImplementation) {
+        List<Method> methods = new ArrayList<Method>();
+
+        for ( ExecutableElement executable : methodsIn( element.getEnclosedElements() ) ) {
+            Method method = getMethod( element, executable, mapperRequiresImplementation );
+            if ( method != null ) {
+                methods.add( method );
+            }
+        }
+
+        //Add all methods of used mappers in order to reference them in the aggregated model
+        if ( mapperRequiresImplementation ) {
+            MapperPrism mapperPrism = MapperPrism.getInstanceOn( element );
+            if ( !mapperPrism.isValid ) {
+                throw new AnnotationProcessingException(
+                    "Couldn't retrieve @Mapper annotation", element, mapperPrism.mirror
+                );
+            }
+
+            for ( TypeMirror usedMapper : mapperPrism.uses() ) {
+                methods.addAll(
+                    retrieveMethods(
+                        (TypeElement) ( (DeclaredType) usedMapper ).asElement(),
+                        false
+                    )
+                );
+            }
+        }
+
+        return methods;
+    }

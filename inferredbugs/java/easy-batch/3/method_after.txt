@@ -1,0 +1,41 @@
+    public static void main(String[] args) throws Exception {
+
+        String fruits = "1,apple\n2,orange\n3,banana\n4,apple\n5,pear";
+
+        // Create queues
+        BlockingQueue<Record> appleQueue = new LinkedBlockingQueue<Record>();
+        BlockingQueue<Record> orangeQueue = new LinkedBlockingQueue<Record>();
+        BlockingQueue<Record> defaultQueue = new LinkedBlockingQueue<Record>();
+
+        // Create a content based record dispatcher to dispatch records to according queues based on their content
+        ContentBasedRecordDispatcher recordDispatcher = new ContentBasedRecordDispatcherBuilder()
+                .when(new AppleRecordPredicate()).dispatchTo(appleQueue)
+                .when(new OrangeRecordPredicate()).dispatchTo(orangeQueue)
+                .otherwise(defaultQueue)
+                .build();
+
+        // Build a master engine that will read records from the data source and dispatch them to worker engines
+        Engine masterEngine = aNewEngine()
+                .reader(new StringRecordReader(fruits))
+                .processor(recordDispatcher)
+                .batchProcessEventListener(new PoisonRecordBroadcaster(recordDispatcher))
+                .build();
+
+        // Build easy batch engines
+        Engine workerEngine1 = buildWorkerEngine(appleQueue);
+        Engine workerEngine2 = buildWorkerEngine(orangeQueue);
+        Engine workerEngine3 = buildWorkerEngine(defaultQueue);
+
+        // Create a threads pool to call Easy Batch engines in parallel
+        ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+
+        // Submit master and worker engines to executor service
+        executorService.submit(masterEngine);
+        executorService.submit(workerEngine1);
+        executorService.submit(workerEngine2);
+        executorService.submit(workerEngine3);
+
+        // Shutdown executor service
+        executorService.shutdown();
+
+    }

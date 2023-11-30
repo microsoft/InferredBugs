@@ -1,0 +1,27 @@
+    public void executeSendMessageHookBefore(final ChannelHandlerContext ctx, final RemotingCommand request,
+                                             SendMessageContext context) {
+        if (hasSendMessageHook()) {
+            for (SendMessageHook hook : this.sendMessageHookList) {
+                try {
+                    final SendMessageRequestHeader requestHeader = parseRequestHeader(request);
+
+                    if (null != requestHeader) {
+                        context.setProducerGroup(requestHeader.getProducerGroup());
+                        context.setTopic(requestHeader.getTopic());
+                        context.setBodyLength(request.getBody().length);
+                        context.setMsgProps(requestHeader.getProperties());
+                        context.setBornHost(RemotingHelper.parseChannelRemoteAddr(ctx.channel()));
+                        context.setBrokerAddr(this.brokerController.getBrokerAddr());
+                        context.setQueueId(requestHeader.getQueueId());
+                    }
+
+                    hook.sendMessageBefore(context);
+                    if (requestHeader != null) {
+                        requestHeader.setProperties(context.getMsgProps());
+                    }
+                } catch (Throwable e) {
+                    // Ignore
+                }
+            }
+        }
+    }

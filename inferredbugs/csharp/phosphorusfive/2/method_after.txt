@@ -1,0 +1,18 @@
+        public static string DecryptMarvin (
+            ApplicationContext context, 
+            string cipherText)
+        {
+            // Retrieving default server GnuPG password and email to use for decryption
+            var gpgEmailAddress = context.RaiseNative("p5.security.get-marvin-pgp-key").Get<string>(context);
+            var gpgPassword = context.RaiseNative("p5.security.get-marvin-pgp-key-password").Get<string>(context);
+
+            // Invoking [p5.mime.parse] Active Event, passing in password to use for retrieving private
+            // key from Gnu Privacy Guard
+            Node decryptNode = new Node ("p5.mime.parse", cipherText);
+
+            // Using [p5.mime.parse] as actual decryption implementation
+            var resultNode = context.RaiseNative (decryptNode.Name, decryptNode);
+
+            // Returning first [text] part found in multipart/encrypted
+            return resultNode.FirstChild["text"]["content"].Get<string>(context);
+        }

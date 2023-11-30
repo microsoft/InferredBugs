@@ -1,0 +1,72 @@
+  private void FileWatcherEventHandler(object sender, FileSystemEventArgs args)
+		{
+			synchronize.Wait();
+
+			if (args.ChangeType.HasFlag(WatcherChangeTypes.Created))
+			{
+				var attr = File.GetAttributes(args.FullPath);
+
+				var parentDirectory = ParentDirectoryForEntry(args.FullPath);
+
+				if (attr.HasFlag(FileAttributes.Directory))
+				{
+					var newDirectory = new FileSystemArchiveDirectory(this, parentDirectory, new DirectoryInfo(args.FullPath));
+					parentDirectory.Directories.TrackDirectoryInternal(newDirectory);
+
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Created,
+						Entry = newDirectory,
+					});
+				}
+				else
+				{
+					var newFile = new FileSystemArchiveFile(this, parentDirectory, new FileInfo(args.FullPath));
+					parentDirectory.Files.TrackFileInternal(newFile);
+
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Created,
+						Entry = newFile,
+					});
+				}
+			}
+
+			if (args.ChangeType.HasFlag(WatcherChangeTypes.Changed))
+			{
+				if (TryGetFileFromFullPath(args.FullPath, out var file))
+				{
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Changed,
+						Entry = file,
+					});
+				}
+			}
+
+			if (args.ChangeType.HasFlag(WatcherChangeTypes.Deleted))
+			{
+				if (TryGetFileFromFullPath(args.FullPath, out var file))
+				{
+					file.Parent.Files.UntrackFileInternal(file);
+
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Deleted,
+						Entry = file,
+					});
+				}
+				else if (TryGetDirectoryFromFullPath(args.FullPath, out var directory))
+				{
+					directory.Parent.Directories.UntrackDirectoryInternal(directory);
+
+					OnEntryChanged?.Invoke(new ArchiveEventParameters()
+					{
+						ActionType = ArchiveActionType.Deleted,
+						Entry = directory,
+					});
+				}
+			}
+
+			synchronize.Release();
+		}

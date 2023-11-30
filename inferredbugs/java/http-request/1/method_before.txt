@@ -1,0 +1,24 @@
+  @Test
+  public void progressCallbackSend() throws Exception {
+    final AtomicReference<String> body = new AtomicReference<String>();
+    handler = new RequestHandler() {
+
+      @Override
+      public void handle(Request request, HttpServletResponse response) {
+        body.set(new String(read()));
+        response.setStatus(HTTP_OK);
+      }
+    };
+    final File file = File.createTempFile("post", ".txt");
+    new FileWriter(file).append("hello").close();
+
+    final AtomicInteger tx = new AtomicInteger(0);
+    ProgressCallback progress = new ProgressCallback() {
+      public void onProgress(int transferred, int total) {
+        assertEquals(file.length(), total);
+        assertEquals(tx.incrementAndGet(), transferred);
+      }
+    };
+    post(url).bufferSize(1).progress(progress).send(file);
+    assertEquals(file.length(), tx.get());
+  }

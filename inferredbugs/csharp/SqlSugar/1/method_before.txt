@@ -1,0 +1,35 @@
+        public string GetFiledName()
+        {
+            string reval = null;
+            LambdaExpression lambda = this.expression as LambdaExpression;
+            var isConvet = lambda.Body.NodeType.IsIn(ExpressionType.Convert);
+            var isMember = lambda.Body.NodeType.IsIn(ExpressionType.MemberAccess);
+            if (!isConvet && !isMember)
+                throw new SqlSugarException(ErrorMessage.ExpFileldError);
+            try
+            {
+                if (isConvet && IsSingle)
+                {
+                    var memberExpr = ((UnaryExpression)lambda.Body).Operand as MemberExpression;
+                    reval = memberExpr.Member.Name;
+                }
+                else if (!isConvet && IsSingle)//isMember
+                {
+                    reval = (lambda.Body as MemberExpression).Member.Name;
+                }
+                else if (isConvet && !IsSingle)
+                {
+                    var memberExpr = ((UnaryExpression)lambda.Body).Operand as MemberExpression;
+                    reval = memberExpr.ToString();
+                }
+                else if (!isConvet && !IsSingle)
+                {
+                    reval = lambda.Body.ToString();
+                }
+            }
+            catch
+            {
+                throw new SqlSugarException(ErrorMessage.ExpFileldError);
+            }
+            return reval;
+        }

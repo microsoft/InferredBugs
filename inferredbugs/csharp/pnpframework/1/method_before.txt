@@ -1,0 +1,17 @@
+        public ClientContext GetClientContext(PnPContext pnpContext)
+        {
+            //shloud do only for AppOnly Context
+            if (!pnpContextCached.ContainsKey(pnpContext.Uri.Authority.ToLower()))
+            {
+                pnpContextCached.TryAdd(pnpContext.Uri.Authority.ToLower(),pnpContext);
+            }
+#pragma warning disable CA2000 // Dispose objects before losing scope
+            AuthenticationManager authManager = AuthenticationManager.CreateWithPnPCoreSdk(pnpContext.AuthenticationProvider);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
+            var ctx = authManager.GetContext(pnpContext.Uri.ToString());
+            var ctxSettings = ctx.GetContextSettings();
+            ctxSettings.AuthenticationManager = authManager; //otherwise GetAccessToken would not work for example
+            ctx.AddContextSettings(ctxSettings);
+            return ctx;
+        }

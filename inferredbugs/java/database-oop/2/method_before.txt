@@ -1,0 +1,17 @@
+    public static Connection getConnection(String dbPath) throws SQLException {
+        // 先进先出原则
+        SqliteBaseConnection currCon = null;
+        synchronized (idleConList) {
+            // 当可用连接池不为空时候
+            if (SqliteUtils.isNotEmpty(idleConList)) {
+                currCon = idleConList.get(0);
+                idleConList.remove(0);
+                addRunningConnection(currCon);
+            }
+            if (currCon == null || currCon.getConnection() == null || currCon.getConnection().isClosed()) {
+                currCon = createBaseConnection(dbPath);
+                addRunningConnection(currCon);
+            }
+        }
+        return currCon.getConnection();
+    }

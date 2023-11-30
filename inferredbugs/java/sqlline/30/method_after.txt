@@ -1,0 +1,54 @@
+  @Test
+  public void testOutputWithFailingColumnDisplaySize(
+      @Mocked final JDBCResultSetMetaData meta) {
+    try {
+      new Expectations() {
+        {
+          meta.getColumnCount();
+          result = 3;
+
+          meta.getColumnLabel(1);
+          result = "TABLE_CAT";
+
+          meta.getColumnLabel(2);
+          result = "TABLE_SCHEM";
+
+          meta.getColumnLabel(3);
+          result = "TABLE_NAME";
+
+          meta.getColumnDisplaySize(1);
+          result = new Exception("getColumnDisplaySize exception");
+        }
+      };
+
+      ByteArrayOutputStream os = new ByteArrayOutputStream();
+      PrintStream sqllineOutputStream =
+          new PrintStream(os, false, StandardCharsets.UTF_8.name());
+      sqlLine.setOutputStream(sqllineOutputStream);
+      sqlLine.setErrorStream(sqllineOutputStream);
+      String[] args = {
+          "-d",
+          "org.hsqldb.jdbcDriver",
+          "-u",
+          "jdbc:hsqldb:res:scott",
+          "-n",
+          "SCOTT",
+          "-p",
+          "TIGER"
+      };
+      DispatchCallback callback = new DispatchCallback();
+      sqlLine.initArgs(args, callback);
+      FieldReflection.setFieldValue(
+          sqlLine.getClass().getDeclaredField("initComplete"), sqlLine, true);
+      sqlLine.getConnection();
+      sqlLine.runCommands(callback,
+          "!set incremental true",
+          "!set maxwidth 80",
+          "!set verbose true",
+          "!indexes");
+      assertThat(os.toString("UTF8"), not(containsString("Exception")));
+    } catch (Throwable e) {
+      // fail
+      throw new RuntimeException(e);
+    }
+  }

@@ -1,0 +1,85 @@
+ @GET
+	@Path("/{name}.ixr")
+	public Response getExcecuteReport(@PathParam("name") String name, @DefaultValue("0") @QueryParam("start") int start,
+			@DefaultValue("10") @QueryParam("count") int count,
+			@DefaultValue("") @QueryParam("encoding") String encoding, @Context UriInfo uriInfo) {
+		Collection<ItemCollection> col = null;
+		String reportName = null;
+		String sXSL;
+		String sContentType;
+
+		try {
+			reportName = name + ".ixr";
+			ItemCollection itemCol = reportService.getReport(reportName);
+
+			sXSL = itemCol.getItemValueString("txtXSL").trim();
+			sContentType = itemCol.getItemValueString("txtcontenttype");
+			if ("".equals(sContentType))
+				sContentType = "text/html";
+
+			// if no encoding is provided by the query string than the encoding
+			// from the report will be taken
+			if ("".equals(encoding))
+				encoding = itemCol.getItemValueString("txtencoding");
+			// no encoding defined so take a default encoding
+			// (UTF-8)
+			if ("".equals(encoding))
+				encoding = "UTF-8";
+
+			// execute report
+			Map<String, String> params = getQueryParams(uriInfo);
+			col = reportService.executeReport(reportName, start, count, params, null);
+
+			// if no XSL is provided return standard html format...?
+			if ("".equals(sXSL)) {
+				Response.ResponseBuilder builder = Response.ok(XMLItemCollectionAdapter.putCollection(col),
+						"text/html");
+				return builder.build();
+			}
+
+			// Transform XML per XSL and generate output
+			DocumentCollection xmlCol = XMLItemCollectionAdapter.putCollection(col);
+
+			StringWriter writer = new StringWriter();
+
+			JAXBContext context = JAXBContext.newInstance(DocumentCollection.class);
+
+			Marshaller m = context.createMarshaller();
+			m.setProperty("jaxb.encoding", encoding);
+			m.marshal(xmlCol, writer);
+
+			// create a ByteArray Output Stream
+			ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+			try {
+				// test if FOP Tranformation
+				if ("application/pdf".equals(sContentType.toLowerCase()))
+					ReportRestService.fopTranformation(writer.toString(), sXSL, encoding, outputStream);
+				else
+					ReportRestService.xslTranformation(writer.toString(), sXSL, encoding, outputStream);
+			} finally {
+				outputStream.close();
+			}
+
+			/*
+			 * outputStream.toByteArray() did not work here because the encoding
+			 * will not be considered. For that reason we use the
+			 * toString(encoding) method here.
+			 * 
+			 * 8.9.2012:
+			 * 
+			 * after some tests we see that only toByteArray will work on things
+			 * like fop processing. So for that reason we switched back to the
+			 * toByteArray method again. But we still need to solve the encoding
+			 * issue
+			 */
+
+			Response.ResponseBuilder builder = Response.ok(outputStream.toByteArray(), sContentType);
+			// Response.ResponseBuilder builder = Response.ok(
+			// outputStream.toString(encoding), sContentType);
+			return builder.build();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+
+	}

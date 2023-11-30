@@ -1,0 +1,36 @@
+ @SuppressWarnings("unchecked")
+	public static Message<?> toBinary(Message<?> inputMessage, MessageConverter messageConverter) {
+
+		Map<String, Object> headers = inputMessage.getHeaders();
+		CloudEventAttributes attributes = new CloudEventAttributes(headers);
+
+		// first check the obvious and see if content-type is `cloudevents`
+		if (!attributes.isValidCloudEvent() && headers.containsKey(MessageHeaders.CONTENT_TYPE)) {
+			MimeType contentType = contentTypeResolver.resolve(inputMessage.getHeaders());
+			if (contentType.getType().equals(CloudEventMessageUtils.APPLICATION_CLOUDEVENTS.getType())
+					&& contentType.getSubtype().startsWith(CloudEventMessageUtils.APPLICATION_CLOUDEVENTS.getSubtype())) {
+
+				String dataContentType = StringUtils.hasText(attributes.getDataContentType())
+						? attributes.getDataContentType()
+						: MimeTypeUtils.APPLICATION_JSON_VALUE;
+
+				String suffix = contentType.getSubtypeSuffix();
+				Assert.hasText(suffix, "Content-type 'suffix' can not be determined from " + contentType);
+				MimeType cloudEventDeserializationContentType = MimeTypeUtils
+						.parseMimeType(contentType.getType() + "/" + suffix);
+				Message<?> cloudEventMessage = MessageBuilder.fromMessage(inputMessage)
+						.setHeader(MessageHeaders.CONTENT_TYPE, cloudEventDeserializationContentType)
+						.setHeader(CloudEventMessageUtils.CANONICAL_DATACONTENTTYPE, dataContentType)
+						.build();
+				Map<String, Object> structuredCloudEvent = (Map<String, Object>) messageConverter.fromMessage(cloudEventMessage, Map.class);
+				Message<?> binaryCeMessage = buildCeMessageFromStructured(structuredCloudEvent, inputMessage.getHeaders());
+				return binaryCeMessage;
+			}
+		}
+		else if (StringUtils.hasText(attributes.getDataContentType())) {
+			return MessageBuilder.fromMessage(inputMessage)
+				.setHeader(MessageHeaders.CONTENT_TYPE, attributes.getDataContentType())
+				.build();
+		}
+		return inputMessage;
+	}

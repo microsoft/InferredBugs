@@ -1,0 +1,39 @@
+ public void produce( final DataConsumer receiver ) {
+
+		TarInputStream archiveInputStream = null;
+		try {
+			archiveInputStream = new TarInputStream(new GZIPInputStream(new FileInputStream(archive)));
+
+			while(true) {
+				
+				TarEntry entry = archiveInputStream.getNextEntry();
+
+				if (entry == null) {
+					break;
+				}
+
+				if (!isIncluded(entry.getName())) {
+					continue;					
+				}				
+
+				entry = map(entry);
+				
+				if (entry.isDirectory()) {
+					receiver.onEachDir(entry.getName(), entry.getLinkName(), entry.getUserName(), entry.getUserId(), entry.getGroupName(), entry.getGroupId(), entry.getMode(), entry.getSize());
+					continue;
+				}
+				
+				receiver.onEachFile(archiveInputStream, entry.getName(), entry.getLinkName(), entry.getUserName(), entry.getUserId(), entry.getGroupName(), entry.getGroupId(), entry.getMode(), entry.getSize());						
+			}
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			if (archiveInputStream != null) {
+				try {
+					archiveInputStream.close();
+				} catch (IOException e) {
+				}
+			}
+		}		
+	}

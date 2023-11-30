@@ -1,0 +1,30 @@
+    @Override
+    public void onReactorFinal(Event event)
+    {
+        logger.LogDebug("Entered in method %s", logger.getMethodName());
+
+        // Codes_SRS_AMQPSIOTHUBCONNECTION_12_011: [The function shall call notify lock on close lock.]
+        synchronized (closeLock)
+        {
+            closeLock.notifyLock();
+        }
+
+        // Codes_SRS_AMQPSIOTHUBCONNECTION_12_012: [The function shall set the reactor member variable to null.]
+        this.reactor = null;
+
+        if (reconnectCall)
+        {
+            // Codes_SRS_AMQPSIOTHUBCONNECTION_12_013: [The function shall call openAsync and disable reconnection if it is a reconnection attempt.]
+            reconnectCall = false;
+            try
+            {
+                openAsync();
+            }
+            catch (IOException e)
+            {
+                // Codes_SRS_AMQPSIOTHUBCONNECTION_12_014: [The function shall log the error if openAsync failed.]
+                logger.LogDebug("onReactorFinal has thrown exception: %s", e.getMessage());
+            }
+        }
+        logger.LogDebug("Exited from method %s", logger.getMethodName());
+    }

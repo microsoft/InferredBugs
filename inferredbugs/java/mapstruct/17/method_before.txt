@@ -1,0 +1,40 @@
+    public boolean matches() {
+
+        // check & collect generic types.
+        List<? extends VariableElement> candidateParameters = candidateMethod.getExecutable().getParameters();
+        if ( candidateParameters.size() == parameters.length ) {
+            for ( int i = 0; i < parameters.length; i++ ) {
+                TypeMatcher parameterMatcher = new TypeMatcher();
+                typesMatch = parameterMatcher.visit( candidateParameters.get( i ).asType(),
+                        parameters[i].getTypeMirror() );
+                if ( !typesMatch ) {
+                    break;
+                }
+            }
+        }
+        else {
+            typesMatch = false;
+        }
+
+        // check return type
+        if ( typesMatch ) {
+            TypeMirror candidateReturnType = candidateMethod.getExecutable().getReturnType();
+            TypeMatcher returnTypeMatcher = new TypeMatcher();
+            typesMatch = returnTypeMatcher.visit( candidateReturnType, returnType.getTypeMirror() );
+        }
+
+        // check if all type parameters are indeed mapped
+        if ( candidateMethod.getExecutable().getTypeParameters().size() != this.genericTypesMap.size() ) {
+            typesMatch = false;
+        }
+        else {
+            // check if all entries are in the bounds
+            for (Map.Entry<TypeVariable, TypeMirror> entry : genericTypesMap.entrySet()) {
+                if (!isWithinBounds( entry.getValue(), getTypeParamFromCandite( entry.getKey() ) ) ) {
+                    // checks if the found Type is in bounds of the TypeParameters bounds.
+                    typesMatch = false;
+                }
+            }
+        }
+        return typesMatch;
+    }

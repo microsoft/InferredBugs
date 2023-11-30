@@ -1,0 +1,41 @@
+        public Collection<InvoiceDetail> GetInvoiceDetails(int invoiceId)
+        {
+            _nemesis.Invoke();
+
+            var webClient = new WebClient();
+            string response = webClient.DownloadString(string.Format("{0}/{1}", _invoiceDetailEndpoint, invoiceId));
+
+            var xml = XDocument.Parse(response).Root;
+
+            var list = new Collection<InvoiceDetail>();
+            foreach (var lineItem in xml.Elements("INVOICEID"))
+            {
+                var invoiceDetail = new InvoiceDetail { InvoiceId = (int)lineItem };
+
+                var element = (XElement)lineItem.NextNode;
+                while (element != null && element.Name != "INVOICEID")
+                {
+                    switch (element.Name.LocalName)
+                    {
+                        case "ITEM":
+                            invoiceDetail.ItemIndex = (int)element;
+                            break;
+                        case "PRODUCTID":
+                            invoiceDetail.ProductId = (int)element;
+                            break;
+                        case "QUANTITY":
+                            invoiceDetail.Quantity = (int)element;
+                            break;
+                        case "COST":
+                            invoiceDetail.Cost = (decimal)element;
+                            break;
+                    }
+
+                    element = (XElement)element.NextNode;
+                }
+
+                list.Add(invoiceDetail);
+            }
+
+            return list;
+        }

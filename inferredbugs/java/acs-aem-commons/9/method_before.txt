@@ -1,0 +1,21 @@
+    @Override
+    protected final void doGet(final SlingHttpServletRequest request, final SlingHttpServletResponse response) throws
+            ServletException, IOException {
+
+        final String transformName = PathInfoUtil.getSuffixSegment(request, 0);
+        final NamedImageTransformer namedImageTransformer = this.namedImageTransformers.get(transformName);
+
+        final Image image = this.resolveImage(request);
+        final Layer layer = this.getLayer(image);
+        final String mimeType = this.getMimeType(request, image);
+
+        // Transform the image
+        namedImageTransformer.transform(layer);
+
+        final double quality = (mimeType.equals(MIME_TYPE_GIF) ? IMAGE_GIF_MAX_QUALITY : IMAGE_MAX_QUALITY);
+        response.setContentType(mimeType);
+
+        layer.write(mimeType, quality, response.getOutputStream());
+
+        response.flushBuffer();
+    }

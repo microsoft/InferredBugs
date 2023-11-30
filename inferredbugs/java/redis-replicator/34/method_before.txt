@@ -1,0 +1,36 @@
+    @Override
+    public Event applySetIntSet(RedisInputStream in, DB db, int version) throws IOException {
+        /*
+         * |<encoding>| <length-of-contents>|              <contents>                           |
+         * | 4 bytes  |            4 bytes  | 2 bytes lement| 4 bytes element | 8 bytes element |
+         */
+        BaseRdbParser parser = new BaseRdbParser(in);
+        KeyStringValueSet o11 = new KeyStringValueSet();
+        String key = parser.rdbLoadEncodedStringObject().string;
+        ByteArray aux = parser.rdbLoadPlainStringObject();
+        RedisInputStream stream = new RedisInputStream(new ByteArrayInputStream(aux));
+
+        Set<String> set = new LinkedHashSet<>();
+        int encoding = BaseRdbParser.LenHelper.encoding(stream);
+        long lenOfContent = BaseRdbParser.LenHelper.lenOfContent(stream);
+        for (long i = 0; i < lenOfContent; i++) {
+            switch (encoding) {
+                case 2:
+                    set.add(String.valueOf(stream.readInt(2)));
+                    break;
+                case 4:
+                    set.add(String.valueOf(stream.readInt(4)));
+                    break;
+                case 8:
+                    set.add(String.valueOf(stream.readLong(8)));
+                    break;
+                default:
+                    throw new AssertionError("expect encoding [2,4,8] but:" + encoding);
+            }
+        }
+        o11.setValueRdbType(RDB_TYPE_SET_INTSET);
+        o11.setValue(set);
+        o11.setDb(db);
+        o11.setKey(key);
+        return o11;
+    }

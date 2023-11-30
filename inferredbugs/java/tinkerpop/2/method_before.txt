@@ -1,0 +1,33 @@
+    private FunctionThatThrows<RequestMessage, Object> select(final RequestMessage message, final GremlinServer.Graphs graphs) {
+        final Bindings bindings = new SimpleBindings();
+        bindings.putAll(extractBindingsFromMessage(message));
+
+        if (message.optionalSessionId().isPresent()) {
+            // an in session request...throw in a dummy graph instance for now..............................
+            final Graph g = TinkerFactory.createClassic();
+            bindings.put("g", g);
+
+            final GremlinSession session = getGremlinSession(message.sessionId, bindings);
+            if (logger.isDebugEnabled()) logger.debug("Using session {} ScriptEngine to process {}", message.sessionId, message);
+            return s -> session.eval(message.<String>optionalArgs(RequestMessage.FIELD_GREMLIN).get(), bindings);
+        } else {
+            // a sessionless request
+            if (logger.isDebugEnabled()) logger.debug("Using shared ScriptEngine to process {}", message);
+            return s -> {
+                // put all the preconfigured graphs on the bindings
+                bindings.putAll(graphs.getGraphs());
+
+                try {
+                    // do a safety cleanup of previous transaction...if any
+                    graphs.rollbackAll();
+                    final Object o = sharedScriptEngine.eval(message.<String>optionalArgs(RequestMessage.FIELD_GREMLIN).get(), bindings);
+                    graphs.commitAll();
+                    return o;
+                } catch (ScriptException ex) {
+                    // todo: gotta work on error handling for failed scripts..........
+                    graphs.rollbackAll();
+                    throw ex;
+                }
+            };
+        }
+    }

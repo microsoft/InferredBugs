@@ -1,0 +1,48 @@
+    public void run()
+    {
+        retransmissionsThread.setName("ice4j.ClientTransaction");
+        nextWaitInterval = originalWaitInterval;
+
+        synchronized(this)
+        {
+            for (retransmissionCounter = 0;
+                 retransmissionCounter < maxRetransmissions;
+                 retransmissionCounter ++)
+            {
+                waitFor(nextWaitInterval);
+
+                //did someone tell us to get lost?
+                if(cancelled)
+                    return;
+
+                if(nextWaitInterval < maxWaitInterval)
+                    nextWaitInterval *= 2;
+
+                try
+                {
+                    sendRequest0();
+                }
+                catch (Exception ex)
+                {
+                    //I wonder whether we should notify anyone that a
+                    //retransmission has failed
+                    logger.log(Level.INFO,
+                               "A client tran retransmission failed", ex);
+                }
+            }
+
+            //before stating that a transaction has timeout-ed we should first
+            //wait for a reception of the response
+            if(nextWaitInterval < maxWaitInterval)
+                    nextWaitInterval *= 2;
+
+            waitFor(nextWaitInterval);
+
+            if(cancelled)
+                return;
+
+            stackCallback.removeClientTransaction(this);
+            responseCollector.processTimeout( new StunTimeoutEvent(
+                            this.request, getLocalAddress(), transactionID));
+        }
+    }

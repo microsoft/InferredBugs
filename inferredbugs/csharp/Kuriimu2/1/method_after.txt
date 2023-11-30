@@ -1,0 +1,22 @@
+        [TestMethod]
+        public void WriteTest1()
+        {
+            var expected = new byte[0x30];
+            expected[0x21] = 0x02;
+            Encrypt(expected, new byte[0x10]);
+
+            var content = new byte[0x30];
+            content[0x21] = 0x02;
+            Encrypt(content, new byte[0x10]);
+            var ms = new MemoryStream(content);
+            var xts = new XtsStream(ms, new byte[0x20], new byte[0x10], false, 0x20);
+
+            xts.Position = 0x21;
+            xts.Write(new byte[] { 0x02 }, 0, 1);
+            xts.Flush();
+
+            Assert.AreEqual(0x30, xts.Length);
+            Assert.IsTrue(ms.ToArray().SequenceEqual(expected));
+            Assert.AreEqual(0x22, xts.Position);
+            Assert.AreEqual(0, ms.Position);
+        }

@@ -1,0 +1,33 @@
+        static void Main(string[] args)
+        {
+            //Environment.SetEnvironmentVariable("MXNET_ENGINE_TYPE", "NaiveEngine");
+            MXNet.SetDevice(DeviceType.CPU);
+            uint batchSize = 200;
+
+            string trainImagePath = "./mnist_data/train-images-idx3-ubyte";
+            string trainLabelPath = "./mnist_data/train-labels-idx1-ubyte";
+            string valImagePath = "./mnist_data/t10k-images-idx3-ubyte";
+            string valLabelPath = "./mnist_data/t10k-labels-idx1-ubyte";
+
+            var (train, val) = DataSetParser.MNIST(trainImagePath, trainLabelPath, valImagePath, valLabelPath, batchSize, 1);
+            var model = new Module();
+            BuildNNModel(model);
+            //BuildSymbolModel(model);
+            //BuildConvNNModel(model);
+
+            ImageDataFrame frame = new ImageDataFrame(1, 28, 28);
+            frame.LoadImages("test_4.png");
+
+            NDArray test = frame.ToVariable().Reshape(new Shape(1, 784));
+            model.Fit(train, 1, batchSize, val);
+
+            var prediction = model.Predict(test);
+            var num = nd.Argmax(prediction, 1);
+
+            string modelFolder = "../../../model";
+            model.SaveModel(modelFolder);
+            model.SaveCheckpoint(modelFolder);
+
+            var loadedModel = Module.LoadModel(modelFolder);
+            loadedModel.LoadCheckpoint(modelFolder);
+        }

@@ -1,0 +1,30 @@
+ public void stop( int timeout ) throws InterruptedException {
+		if( !isclosed.compareAndSet( false, true ) ) { // this also makes sure that no further connections will be added to this.connections
+			return;
+		}
+
+		List<WebSocket> socketsToClose = null;
+
+		// copy the connections in a list (prevent callback deadlocks)
+		synchronized ( connections ) {
+			socketsToClose = new ArrayList<WebSocket>( connections );
+		}
+
+		for( WebSocket ws : socketsToClose ) {
+			ws.close( CloseFrame.GOING_AWAY );
+		}
+
+		synchronized ( this ) {
+			if( selectorthread != null ) {
+				if( Thread.currentThread() != selectorthread ) {
+
+				}
+				if( selectorthread != Thread.currentThread() ) {
+					if( socketsToClose.size() > 0 )
+						selectorthread.join( timeout );// isclosed will tell the selectorthread to go down after the last connection was closed
+					selectorthread.interrupt();// in case the selectorthread did not terminate in time we send the interrupt
+					selectorthread.join();
+				}
+			}
+		}
+	}

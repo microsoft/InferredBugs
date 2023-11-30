@@ -1,0 +1,24 @@
+        private static RSA CreateRSAKeyFromPem(string key)
+        {
+            TextReader reader = new StringReader(key);
+            PemReader pemReader = new PemReader(reader);
+
+            object result = pemReader.ReadObject();
+
+            var provider = RSA.Create(); 
+
+            if (result is AsymmetricCipherKeyPair keyPair)
+            {
+                var rsaParams = DotNetUtilities.ToRSAParameters((RsaPrivateCrtKeyParameters)keyPair.Private);
+                provider.ImportParameters(rsaParams);
+                return provider;
+            }
+            else if (result is RsaKeyParameters keyParameters)
+            {
+                var rsaParams = DotNetUtilities.ToRSAParameters(keyParameters);
+                provider.ImportParameters(rsaParams);
+                return provider;
+            }
+
+            throw new Exception("Unexpected PEM type");
+        }

@@ -1,0 +1,73 @@
+    @Override
+    public Response decodeResponse(Object msg, ChannelHandlerContext ctx) {
+        FullHttpResponse httpResponse = (FullHttpResponse) msg;
+        try {
+            ChannelInfo channelInfo = ChannelInfo.getClientChannelInfo(ctx.channel());
+            Long logId = parseLogId(httpResponse.headers().get(LOG_ID), channelInfo.getLogId());
+            HttpResponse response = new HttpResponse();
+            response.setLogId(logId);
+            RpcFuture future = channelInfo.removeRpcFuture(response.getLogId());
+            if (future == null) {
+                return response;
+            }
+            response.setRpcFuture(future);
+
+            if (!httpResponse.status().equals(HttpResponseStatus.OK)) {
+                LOG.warn("status={}", httpResponse.status());
+                response.setException(new RpcException(RpcException.SERVICE_EXCEPTION,
+                        "http status=" + httpResponse.status()));
+                return response;
+            }
+
+            int bodyLen = httpResponse.content().readableBytes();
+            byte[] bytes = new byte[bodyLen];
+            httpResponse.content().readBytes(bytes);
+
+            String contentTypeAndEncoding = httpResponse.headers().get(HttpHeaderNames.CONTENT_TYPE).toLowerCase();
+            String[] splits = StringUtils.split(contentTypeAndEncoding, ";");
+            int protocolType = HttpRpcProtocol.parseProtocolType(splits[0]);
+            String encoding = this.encoding;
+            // 由于uc服务返回的encoding是错误的，所以这里以client端设置的encoding为准。
+            //        for (String split : splits) {
+            //            split = split.trim();
+            //            if (split.startsWith("charset=")) {
+            //                encoding = split.substring("charset=".length());
+            //            }
+            //        }
+
+            Object body = null;
+            if (bodyLen != 0) {
+                try {
+                    body = decodeBody(protocolType, encoding, bytes);
+                } catch (Exception ex) {
+                    LOG.error("decode response body failed");
+                    response.setException(ex);
+                    return response;
+                }
+            }
+
+            if (body != null) {
+                try {
+                    response.setResult(parseHttpResponse(body, future.getRpcMethodInfo()));
+                } catch (Exception ex) {
+                    LOG.error("failed to parse result from HTTP body");
+                    response.setException(ex);
+                }
+            } else {
+                response.setResult(null);
+            }
+
+            // set response attachment
+            if (response.getKvAttachment() == null) {
+                response.setKvAttachment(new HashMap<String, Object>());
+            }
+            for (Map.Entry<String, String> entry : httpResponse.headers()) {
+                response.getKvAttachment().put(entry.getKey(), entry.getValue());
+            }
+
+            return response;
+        } finally {
+            httpResponse.release();
+        }
+
+    }

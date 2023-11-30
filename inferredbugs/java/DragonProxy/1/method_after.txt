@@ -1,0 +1,41 @@
+    @Override
+    public boolean handle(LoginPacket packet) {
+        // Check for supported protocol
+        int index = Arrays.binarySearch(DragonProxy.BEDROCK_SUPPORTED_PROTOCOLS, packet.getProtocolVersion());
+        if (index < 0) {
+            upstream.disconnect();
+            return true;
+        }
+        upstream.setPacketCodec(DragonProxy.BEDROCK_SUPPORTED_CODECS[index]);
+
+        try {
+            // Get chain data that contains identity info
+            JSONObject chainData = (JSONObject) JSONValue.parse(packet.getChainData().array());
+            JSONArray chainArray = (JSONArray) chainData.get("chain");
+
+            Object identityObject = chainArray.get(chainArray.size() - 1);
+
+            JWSObject identity = JWSObject.parse((String) identityObject);
+            JSONObject extraData = (JSONObject) identity.getPayload().toJSONObject().get("extraData");
+
+            this.upstream.setAuthData(new AuthDataImpl(
+                extraData.getAsString("displayName"),
+                extraData.getAsString("identity"),
+                extraData.getAsString("XUID")
+            ));
+        } catch (ParseException | ClassCastException | NullPointerException e) {
+            // Invalid chain data
+            this.upstream.disconnect();
+            return true;
+        }
+
+        // Tell the Bedrock client login was successful.
+        PlayStatusPacket playStatus = new PlayStatusPacket();
+        playStatus.setStatus(PlayStatusPacket.Status.LOGIN_SUCCESS);
+        upstream.sendPacketImmediately(playStatus);
+
+        // Start Resource pack handshake
+        ResourcePacksInfoPacket resourcePacksInfo = new ResourcePacksInfoPacket();
+        upstream.sendPacketImmediately(resourcePacksInfo);
+        return true;
+    }

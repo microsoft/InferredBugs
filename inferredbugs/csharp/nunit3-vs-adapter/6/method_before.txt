@@ -1,0 +1,26 @@
+        [TestCaseSource(nameof(TargetFrameworks)), Platform("Win")]
+        public static void Single_target_csproj(string targetFramework)
+        {
+            var workspace = CreateWorkspace()
+                .AddProject("Test.csproj", $@"
+                    <Project Sdk='Microsoft.NET.Sdk'>
+
+                      <PropertyGroup>
+                        <TargetFramework>{targetFramework}</TargetFramework>
+                      </PropertyGroup>
+
+                      <ItemGroup>
+                        <PackageReference Include='Microsoft.NET.Test.Sdk' Version='*' />
+                        <PackageReference Include='NUnit' Version='*' />
+                        <PackageReference Include='NUnit3TestAdapter' Version='{NuGetPackageVersion}' />
+                      </ItemGroup>
+
+                    </Project>");
+
+            AddTestsCs(workspace);
+
+            workspace.MSBuild(restore: true);
+
+            workspace.VSTest(new[] { $@"bin\Debug\{targetFramework}\Test.dll" })
+                .AssertSinglePassingTest();
+        }

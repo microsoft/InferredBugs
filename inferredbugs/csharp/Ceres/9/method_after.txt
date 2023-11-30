@@ -1,0 +1,51 @@
+    private void SearchContinueRetainTree(MCTSIterator reuseOtherContextForEvaluatedNodes, PositionWithHistory newPositionAndMoves, List<GameMoveStat> gameMoveHistory, bool verbose, DateTime startTime, MCTSManager.MCTSProgressCallback progressCallback, bool isFirstMoveOfGame, MCTSIterator priorContext, MCTSNodeStore store, int numNodesInitial, MCTSNode newRoot, SearchLimit searchLimitTargetAdjusted, bool possiblyUsePositionCache)
+    {
+      TimingStats statsMaterialize = new();
+      if (Manager.Context.ParamsSearch.Execution.TranspositionMode != TranspositionMode.None)
+      {
+        if (!MCTSNodeStructStorage.USE_FAST_TREE_REBUILD)
+        {
+          using (new TimingBlock(statsMaterialize, TimingBlock.LoggingType.None))
+          {
+            MaterializeAllTranspositionLinkages(newRoot);
+          }
+        }
+      }
+
+      // Now rewrite the tree nodes and children "in situ"
+      PositionEvalCache reusePositionCache = null;
+      if (Manager.Context.ParamsSearch.TreeReuseRetainedPositionCacheEnabled)
+      {
+        reusePositionCache = new PositionEvalCache(false, 0);
+      }
+
+      // Create a new dictionary to recieve the new transposition roots
+      TranspositionRootsDict newTranspositionRoots = null;
+      if (priorContext.Tree.TranspositionRoots != null)
+      {
+        newTranspositionRoots = new TranspositionRootsDict(newRoot.N);
+      }
+
+      // TODO: Consider sometimes or always skip rebuild via MakeChildNewRoot,
+      //       instead just set a new root (move it into place as first node).
+      //       Perhaps rebuild only if the MCTSNodeStore would become excessively large.
+      TimingStats makeNewRootTimingStats = new TimingStats();
+      using (new TimingBlock(makeNewRootTimingStats, TimingBlock.LoggingType.None))
+      {
+        MCTSNodeStructStorage.MakeChildNewRoot(Manager.Context.Tree, ref newRoot.Ref, newPositionAndMoves,
+                                               reusePositionCache, newTranspositionRoots);
+      }
+      MCTSManager.TotalTimeSecondsInMakeNewRoot += (float)(statsMaterialize.ElapsedTimeSecs + makeNewRootTimingStats.ElapsedTimeSecs);
+
+      CeresEnvironment.LogInfo("MCTS", "MakeChildNewRoot", $"Select {newRoot.N:N0} from {numNodesInitial:N0} "
+                              + $"in {(int)(makeNewRootTimingStats.ElapsedTimeSecs / 1000.0)}ms");
+
+      // Construct a new search manager reusing this modified store and modified transposition roots.
+      Manager = new MCTSManager(store, reuseOtherContextForEvaluatedNodes, reusePositionCache, newTranspositionRoots,
+                                priorContext.NNEvaluators, priorContext.ParamsSearch, priorContext.ParamsSelect,
+                                searchLimitTargetAdjusted, Manager.LimitManager,
+                                startTime, Manager, gameMoveHistory, isFirstMoveOfGame: isFirstMoveOfGame);
+      Manager.Context.ContemptManager = priorContext.ContemptManager;
+
+      (BestMove, TimingInfo) = MCTSManager.Search(Manager, verbose, progressCallback, possiblyUsePositionCache);
+    }

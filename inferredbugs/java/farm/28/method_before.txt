@@ -1,0 +1,23 @@
+    @Override
+    public Response act(final RqRegex req) throws IOException {
+        final String pid = req.matcher().group(1);
+        final Catalog catalog = new Catalog(this.farm).bootstrap();
+        if (!catalog.exists(pid)) {
+            throw new RsForward(
+                new RsParFlash(
+                    new Par("Project %s not found").say(pid),
+                    Level.WARNING
+                )
+            );
+        }
+        return new RsWithHeaders(
+            new RsWithType(
+                new RsWithBody(
+                    this.getClass().getResource("badge.svg")
+                ),
+                "image/svg+xml"
+            ),
+            "Cache-Control: no-cache",
+            String.format("X-Zerocracy-Project-ID: %s", pid)
+        );
+    }

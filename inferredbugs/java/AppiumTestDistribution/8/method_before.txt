@@ -1,0 +1,26 @@
+    public synchronized AppiumServiceBuilder startAppiumServer(String methodName) throws Exception {
+        device_udid = getNextAvailableDeviceId();
+        if (device_udid == null) {
+            System.out.println("No devices are free to run test or Failed to run test");
+            return null;
+        }
+
+        if (iosDevice.checkiOSDevice(device_udid)) {
+            iosDevice.setIOSWebKitProxyPorts(device_udid);
+            category = iosDevice.getDeviceName(device_udid).replace("\n", " ");
+        } else {
+            category = androidDevice.deviceModel(device_udid);
+        }
+        System.out.println(category + device_udid.replaceAll("\\W", "_"));
+        parent = ExtentTestManager.startTest(methodName, "Mobile Appium Test",
+                category + device_udid.replaceAll("\\W", "_"));
+        parentContext.put(Thread.currentThread().getId(), parent);
+        ExtentTestManager.getTest().log(LogStatus.INFO, "AppiumServerLogs", "<a href=" + System.getProperty("user.dir")
+                + "/target/appiumlogs/" + device_udid.replaceAll("\\W", "_") + "__" + methodName + ".txt" + ">Logs</a>");
+        if (iosDevice.checkiOSDevice(device_udid)) {
+            String webKitPort = iosDevice.startIOSWebKit(device_udid);
+            return appiumMan.appiumServerIOS(device_udid, methodName, webKitPort);
+        } else {
+            return appiumMan.appiumServer(device_udid, methodName);
+        }
+    }

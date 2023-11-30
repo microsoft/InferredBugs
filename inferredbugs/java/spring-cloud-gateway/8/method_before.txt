@@ -1,0 +1,11 @@
+ @Override
+	public Mono<Payload> requestResponse(Payload payload) {
+		AtomicReference<Timer.Sample> timer = new AtomicReference<>();
+		GatewayExchange exchange = GatewayExchange.fromPayload(REQUEST_RESPONSE, payload);
+		Tags tags = getTags(exchange);
+		return findRSocketOrCreatePending(exchange)
+				.flatMap(rSocket -> rSocket.requestResponse(payload))
+				.doOnSubscribe(s -> timer.set(Timer.start(meterRegistry)))
+				.doOnError(t -> count("forward.request.response.error", tags))
+				.doFinally(s -> timer.get().stop(meterRegistry.timer("forward.request.response", tags)));
+	}

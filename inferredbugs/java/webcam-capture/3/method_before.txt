@@ -1,0 +1,43 @@
+ @Override
+	public void open() {
+
+		if (!open.compareAndSet(false, true)) {
+			return;
+		}
+
+		LOG.debug("Opening GStreamer device");
+
+		init();
+
+		starting.set(true);
+
+		Dimension size = getResolution();
+
+		image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_RGB);
+		image.setAccelerationPriority(0);
+		image.flush();
+
+		if (caps != null) {
+			caps.dispose();
+		}
+
+		caps = Caps.fromString(String.format("%s,width=%d,height=%d", format, size.width, size.height));
+
+		filter.setCaps(caps);
+
+		LOG.debug("Link elements");
+
+		pipe.addMany(source, filter, sink);
+		Element.linkMany(source, filter, sink);
+		pipe.setState(State.PLAYING);
+
+		// wait max 20s for image to appear
+		synchronized (this) {
+			LOG.debug("Wait for device to be ready");
+			try {
+				this.wait(20000);
+			} catch (InterruptedException e) {
+				return;
+			}
+		}
+	}

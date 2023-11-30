@@ -1,0 +1,24 @@
+        private Document GetDoc(DocumentScore score)
+        {
+            //var time = Time();
+
+            var fileId = score.DocId.ToDocFileId();
+            var fileName = Path.Combine(_directory, fileId + ".doc");
+            DocumentReader reader;
+
+            if (!_readers.TryGetValue(fileId, out reader))
+            {
+                var fs = File.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var sr = new StreamReader(fs, Encoding.ASCII);
+                reader = new DocumentReader(sr);
+                _readers.Add(fileId, reader);
+            }
+
+            var doc = reader.Get(score.DocId);
+
+            doc.Fields["__score"] = score.Score.ToString(CultureInfo.InvariantCulture);
+
+            //Log.DebugFormat("read {0} from {1} in {2}", doc.Id, fileName, time.Elapsed);
+
+            return doc;
+        }

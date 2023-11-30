@@ -1,0 +1,19 @@
+    public boolean limit() {
+        String key = String.valueOf(System.currentTimeMillis() / 1000);
+        Object result = null;
+        RedisClusterConnection clusterConnection = jedis.getClusterConnection();
+        if (clusterConnection != null){
+            JedisCluster jedisCluster = (JedisCluster) clusterConnection.getNativeConnection();
+            result = jedisCluster.eval(script, Collections.singletonList(key), Collections.singletonList(String.valueOf(limit)));
+        }else {
+            Jedis jedis = (Jedis) clusterConnection.getNativeConnection();
+            result = jedis.eval(script, Collections.singletonList(key), Collections.singletonList(String.valueOf(limit)));
+
+        }
+
+        if (FAIL_CODE != (Long) result) {
+            return true;
+        } else {
+            return false;
+        }
+    }

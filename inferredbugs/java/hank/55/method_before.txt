@@ -1,0 +1,13 @@
+  private ByteBuffer decompressBlock(ByteBuffer block) throws IOException {
+    Buffers buffers = threadLocalBuffers.get();
+    buffers.reset();
+    // Decompress the block
+    InputStream blockInputStream =
+        new ByteArrayInputStream(block.array(), block.arrayOffset() + block.position(), block.remaining());
+    // Build an InputStream corresponding to the compression codec
+    InputStream decompressedBlockInputStream = getBlockCompressionInputStream(blockInputStream);
+    // Decompress into the specialized result buffer
+    IOStreamUtils.copy(decompressedBlockInputStream, buffers.getDecompressionOutputStream(), buffers.getCopyBuffer());
+    decompressedBlockInputStream.close();
+    return buffers.getDecompressionOutputStream().getByteBuffer();
+  }

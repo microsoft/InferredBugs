@@ -1,0 +1,22 @@
+    public ThreadPool getOrCreateClientWorkThreadPool(String serviceName, boolean isSharing, int threadNum) {
+        if (isSharing) {
+            if (defaultWorkThreadPool == null) {
+                synchronized (BrpcThreadPoolManager.class) {
+                    if (defaultWorkThreadPool == null) {
+                        defaultWorkThreadPool = new ThreadPool(threadNum,
+                                new CustomThreadFactory("brpc-client-work-thread-default"));
+                    }
+                }
+            }
+            return defaultWorkThreadPool;
+        }
+
+        ThreadPool threadPool = workThreadPoolMap.get(serviceName);
+        if (threadPool != null) {
+            return threadPool;
+        }
+        threadPool = new ThreadPool(threadNum,
+                new CustomThreadFactory("brpc-client-work-thread-" + serviceName));
+        workThreadPoolMap.put(serviceName, threadPool);
+        return threadPool;
+    }

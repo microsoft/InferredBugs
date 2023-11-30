@@ -1,0 +1,55 @@
+    protected CtField fieldAccess(ASTree expr) throws CompileError {
+        if (expr instanceof Member) {
+            Member mem = (Member)expr;
+            String name = mem.get();
+            try {
+                CtField f = thisClass.getField(name);
+                if (Modifier.isStatic(f.getModifiers()))
+                    mem.setField(f);
+
+                return f;
+            }
+            catch (NotFoundException e) {
+                // EXPR might be part of a static member access?
+                throw new NoFieldException(name, expr);
+            }
+        }
+        else if (expr instanceof Expr) {
+            Expr e = (Expr)expr;
+            int op = e.getOperator();
+            if (op == MEMBER) {
+                Member mem = (Member)e.oprand2();
+                CtField f
+                    = resolver.lookupField(((Symbol)e.oprand1()).get(), mem);
+                mem.setField(f);
+                return f;
+            }
+            else if (op == '.')
+                try {
+                    e.oprand1().accept(this);
+                    if (exprType == CLASS && arrayDim == 0)
+                        return resolver.lookupFieldByJvmName(className,
+                                                    (Symbol)e.oprand2());
+                }
+                catch (NoFieldException nfe) {
+                    if (nfe.getExpr() != e.oprand1())
+                        throw nfe;
+
+                    /* EXPR should be a static field.
+                     * If EXPR might be part of a qualified class name,
+                     * lookupFieldByJvmName2() throws NoFieldException.
+                     */
+                    Member fname = (Member)e.oprand2();
+                    String jvmClassName = nfe.getField();
+                    CtField f = resolver.lookupFieldByJvmName2(jvmClassName,
+                                                               fname, expr);
+                    e.setOperator(MEMBER);
+                    e.setOprand1(new Symbol(MemberResolver.jvmToJavaName(
+                                                            jvmClassName)));
+                    fname.setField(f);
+                    return f;
+                }
+        }
+
+        throw new CompileError("bad filed access");
+    }

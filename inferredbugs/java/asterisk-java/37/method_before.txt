@@ -1,0 +1,44 @@
+    public ManagerResponse sendAction(ManagerAction action, long timeout)
+            throws IOException, TimeoutException, IllegalArgumentException, IllegalStateException
+    {
+        ResponseHandlerResult result;
+        SendActionCallback callbackHandler;
+
+        result = new ResponseHandlerResult();
+        callbackHandler = new DefaultSendActionCallback(result);
+
+        synchronized (result)
+        {
+            sendAction(action, callbackHandler);
+
+            // definitely return null for the response of user events
+            if (action instanceof UserEventAction)
+            {
+                return null;
+            }
+
+            // only wait if we did not yet receive the response.
+            // Responses may be returned really fast.
+            if (result.getResponse() == null)
+            {
+                try
+                {
+                    result.wait(timeout);
+                }
+                catch (InterruptedException ex)
+                {
+                    logger.warn("Interrupted while waiting for result");
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+
+        // still no response?
+        if (result.getResponse() == null)
+        {
+            throw new TimeoutException("Timeout waiting for response to " + action.getAction()
+                    + (action.getActionId() == null ? "" : " (actionId: " + action.getActionId() + ")"));
+        }
+
+        return result.getResponse();
+    }

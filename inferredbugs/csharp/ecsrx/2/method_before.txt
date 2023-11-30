@@ -1,0 +1,34 @@
+        [Fact]
+        public void should_only_remove_entity_when_components_no_longer_match_group()
+        {
+            var mockEventSystem = Substitute.For<IEventSystem>();
+            var accessorToken = new ObservableGroupToken(new[] { typeof(TestComponentOne), typeof(TestComponentTwo) }, "default");
+
+            var existingEntityOne = new Entity(Guid.NewGuid(), mockEventSystem);
+            var componentToRemove = new TestComponentOne();
+            existingEntityOne.AddComponent(componentToRemove);
+            existingEntityOne.AddComponent<TestComponentTwo>();
+
+            var existingEntityTwo = new Entity(Guid.NewGuid(), mockEventSystem);
+            var unapplicableComponent = new TestComponentThree();
+            existingEntityTwo.AddComponent<TestComponentOne>();
+            existingEntityTwo.AddComponent<TestComponentTwo>();
+            existingEntityTwo.AddComponent(unapplicableComponent);
+
+            var dummyEventToSeedMock = new ComponentsRemovedEvent(new Entity(Guid.NewGuid(), mockEventSystem), new[] {new TestComponentOne()});
+            var underlyingEvent = new ReactiveProperty<ComponentsRemovedEvent>(dummyEventToSeedMock);
+            mockEventSystem.Receive<ComponentsRemovedEvent>().Returns(underlyingEvent);
+            mockEventSystem.Receive<EntityAddedEvent>().Returns(Observable.Empty<EntityAddedEvent>());
+            mockEventSystem.Receive<ComponentsAddedEvent>().Returns(Observable.Empty<ComponentsAddedEvent>());
+            mockEventSystem.Receive<EntityRemovedEvent>().Returns(Observable.Empty<EntityRemovedEvent>());
+
+            var cacheableGroupAccessor = new ObservableGroup(mockEventSystem, accessorToken, new IEntity[] { existingEntityOne, existingEntityTwo });
+            existingEntityOne.RemoveComponent(componentToRemove);
+            underlyingEvent.SetValueAndForceNotify(new ComponentsRemovedEvent(existingEntityOne, new [] {componentToRemove}));
+
+            existingEntityTwo.RemoveComponent(unapplicableComponent);
+            underlyingEvent.SetValueAndForceNotify(new ComponentsRemovedEvent(existingEntityTwo, new[] {unapplicableComponent}));
+
+            Assert.Equal(1, cacheableGroupAccessor.CachedEntities.Count);
+            Assert.Equal<IEntity>(existingEntityTwo, cacheableGroupAccessor.CachedEntities[existingEntityTwo.Id]);
+        }

@@ -1,0 +1,75 @@
+ @Override
+	public void init() throws ServletException {
+		super.init();
+		
+		String rootPath = this.getServletContext().getRealPath("/");
+		String encoding = "latin1";//"UTF-8";
+		
+		try
+		{
+		
+			districts = new ArrayList<JSONObject>();
+			
+			for (int i = 1; i <= 62; i++)
+			{
+				String jsonPath = DISTRICT_JSON_FOLDER_PATH + "sd" + i + ".json";
+				
+				URL jsonUrl = getServletContext().getResource(jsonPath);
+				//jsonPath = rootPath + '/' + jsonPath;
+				
+				StringBuilder jsonb = new StringBuilder();
+
+				BufferedReader reader = new BufferedReader(new InputStreamReader(jsonUrl.openStream(),encoding));
+				//BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(jsonPath), encoding));
+				
+				char[] buf = new char[1024];
+		        int numRead=0;
+		        while((numRead=reader.read(buf)) != -1){
+		            jsonb.append(buf, 0, numRead);
+		            buf = new char[1024];
+		        }
+		        reader.close();
+				
+				
+				JSONObject jsono = new JSONObject(jsonb.toString());
+
+				JSONObject jSenator = jsono.getJSONObject("senator");
+				
+				String senatorName = jSenator.getString("name");
+				
+				jSenator.put("name", senatorName);
+				
+				String senatorKey = jSenator.getString("url");
+				senatorKey = senatorKey.substring(senatorKey.lastIndexOf('/')+1);
+				
+				senatorKey = senatorKey.replace("-jr", ""); 
+				senatorKey = senatorKey.replace("-sr", ""); 
+				String[] senatorKeyParts =senatorKey.split("-");
+
+				if (senatorName.contains("-"))
+				{
+					
+					senatorKey = senatorKeyParts[senatorKeyParts.length-2] + '-' + senatorKeyParts[senatorKeyParts.length-1];
+				}
+				else
+				{
+					senatorKey = senatorKeyParts[senatorKeyParts.length-1];
+				}
+				
+				jSenator.put("key", senatorKey);
+				
+				districts.add(jsono);
+				
+				
+				logger.info(jsono.get("district"));
+				logger.info(jsono.getJSONObject("senator").get("name"));
+				
+			}
+			
+			 Collections.sort(districts, new byLastName());
+		}
+		catch (Exception e)
+		{
+			logger.error("error loading json district files",e);
+		}
+	}

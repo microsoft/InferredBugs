@@ -1,0 +1,52 @@
+  @Override
+  public void disconnect()
+  {
+
+    if (!isConnected())
+    {
+      logger.warn("ClusterManager " + _instanceName + " already disconnected");
+      return;
+    }
+
+    logger.info("disconnect " + _instanceName + "(" + _instanceType + ") from "
+        + _clusterName);
+
+    /**
+     * shutdown thread pool first to avoid reset() being invoked in the middle of state
+     * transition
+     */
+    _messagingService.getExecutor().shutDown();
+    resetHandlers();
+
+    _helixAccessor.shutdown();
+
+    if (_leaderElectionHandler != null)
+    {
+      _leaderElectionHandler.reset();
+    }
+
+    if (_participantHealthCheckInfoCollector != null)
+    {
+      _participantHealthCheckInfoCollector.stop();
+    }
+
+    if (_timer != null)
+    {
+      _timer.cancel();
+      _timer = null;
+    }
+
+    if (_instanceType == InstanceType.CONTROLLER)
+    {
+      stopTimerTasks();
+    }
+
+    // unsubscribe accessor from controllerChange
+    _zkClient.unsubscribeAll();
+
+    _zkClient.close();
+
+    // HACK seems that zkClient is not sending DISCONNECT event
+    _zkStateChangeListener.disconnect();
+    logger.info("Cluster manager: " + _instanceName + " disconnected");
+  }

@@ -1,0 +1,48 @@
+    void addToListHttp() {
+        //http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=az&age=3&page=all
+        //http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=az&age=6&page=all
+        //http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=az&age=10&page=all
+
+        final String ADRESSE_1 = "http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=az&age=";
+        final String ADRESSE_2 = "&page=all";
+        final String MUSTER_START = "var programletterlist = {\"";
+        final String[] ALTER = {"3", "6", "10"};
+//        listeThemen.clear();
+        MVStringBuilder seite = new MVStringBuilder(Konstanten.STRING_BUFFER_START_BUFFER);
+        meldungStart();
+        int pos1 = 0, pos2, start = 0, stop = 0;
+        String id = "", thema = "", url = "";
+        for (String alter : ALTER) {
+            seite = getUrlIo.getUri(nameSenderMReader, ADRESSE_1 + alter + ADRESSE_2, Konstanten.KODIERUNG_UTF, 3, seite, "KiKA: Startseite");
+            if ((start = seite.indexOf(MUSTER_START)) != -1) {
+                start += MUSTER_START.length();
+                pos1 = start;
+                if ((stop = seite.indexOf("}};", start)) != -1) {
+                    while ((pos1 = seite.indexOf("\"", pos1)) != -1) {
+                        thema = "";
+                        id = "";
+                        pos1 += 1;
+                        if ((pos2 = seite.indexOf("\"", pos1)) != -1) {
+                            id = seite.substring(pos1, pos2);
+                            try {
+                                // Testen auf Zehl
+                                int z = Integer.parseInt(id);
+                            } catch (Exception ex) {
+                                continue;
+                            }
+                            ++pos2;
+                            if ((pos1 = seite.indexOf("\"", pos2)) != -1) {
+                                ++pos1;
+                                if ((pos2 = seite.indexOf("\"", pos1)) != -1) {
+                                    thema = seite.substring(pos1, pos2);
+                                }
+                            }
+                            // http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=program&id=165&age=10
+                            url = "http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=program&id=" + id + "&age=" + alter;
+                            ladenHttp(url, thema, alter);
+                        }
+                    }
+                }
+            }
+        }
+    }

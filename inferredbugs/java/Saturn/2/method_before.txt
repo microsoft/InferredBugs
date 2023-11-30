@@ -1,0 +1,42 @@
+ private void refreshNamespaceShardingListenerManagerMap() {
+		Collection<ZkCluster> zkClusters = RegistryCenterServiceImpl.ZKADDR_TO_ZKCLUSTER_MAP.values();
+		for (ZkCluster zkCluster: zkClusters) {
+			for(RegistryCenterConfiguration conf: REGISTRY_CENTER_CONFIGURATION_MAP.get(zkCluster.getZkAddr())) {
+				String namespace = conf.getNamespace();
+				if(!namespaceShardingListenerManagerMap.containsKey(namespace)) {
+					// client 从缓存取，不再新建也就不需要关闭
+					try {
+						CuratorFramework client = connect(conf.getNameAndNamespace()).getCuratorClient();
+						NamespaceShardingManager newObj = new NamespaceShardingManager(client, namespace, generateShardingLeadershipHostValue());
+						if (namespaceShardingListenerManagerMap.putIfAbsent(namespace, newObj) == null) {
+							log.info("start NamespaceShardingManager {}", namespace);
+							newObj.start();
+							log.info("done starting NamespaceShardingManager {}", namespace);
+						}
+					} catch (Exception e) {
+						log.error(e.getMessage(), e);
+					}
+				}
+			}
+		}
+		// 关闭无用的
+		Iterator<Entry<String, NamespaceShardingManager>> iterator = namespaceShardingListenerManagerMap.entrySet().iterator();
+		while(iterator.hasNext()) {
+			Entry<String, NamespaceShardingManager> next = iterator.next();
+			String namespace = next.getKey();
+			NamespaceShardingManager namespaceShardingManager = next.getValue();
+			boolean find = false;
+			for (ZkCluster zkCluster: zkClusters) {
+				for(RegistryCenterConfiguration conf: REGISTRY_CENTER_CONFIGURATION_MAP.get(zkCluster.getZkAddr())) {
+					if(conf.getNamespace().equals(namespace)) {
+						find = true;
+						break;
+					}
+				}
+			}
+			if(!find) {
+				namespaceShardingManager.stop();
+				iterator.remove();
+			}
+		}
+	}

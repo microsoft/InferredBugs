@@ -1,0 +1,49 @@
+    private void authPlain(Pop3Connection conn, Pop3State state, String[] args) {
+        // https://tools.ietf.org/html/rfc4616
+        String initialResponse;
+        if (args.length == 2 || args.length == 3 && "=".equals(args[2])) { // Continuation?
+            conn.println(CONTINUATION);
+            try {
+                initialResponse = conn.readLine();
+            } catch (IOException e) {
+                conn.println("-ERR Invalid syntax, expected continuation with iniital-response");
+                return;
+            }
+        } else if (args.length == 3) {
+            initialResponse = args[2];
+        } else {
+            conn.println("-ERR Invalid syntax, expected initial-response : AUTH PLAIN [initial-response]");
+            return;
+        }
+
+        // authorization-id\0authentication-id\0passwd
+        final SaslMessage saslMessage;
+        try {
+            saslMessage = SaslMessage.parse(EncodingUtil.decodeBase64(initialResponse));
+        } catch(IllegalArgumentException ex) { // Invalid Base64
+            log.error("Expected base64 encoding but got <"+initialResponse+">", ex); /* GreenMail is just a test server */
+            conn.println("-ERR Authentication failed, expected base64 encoding : " + ex.getMessage() );
+            return;
+        }
+
+        GreenMailUser user;
+        try {
+            user = state.getUser(saslMessage.getAuthcid());
+            state.setUser(user);
+        } catch (UserException e) {
+            log.error("Can not get user <" + saslMessage.getAuthcid() + ">", e);
+            conn.println("-ERR Authentication failed: " + e.getMessage() /* GreenMail is just a test server */);
+            return;
+        }
+
+        try {
+            state.authenticate(saslMessage.getPasswd());
+            conn.println("+OK");
+        } catch (UserException e) {
+            log.error("Can not authenticate using user <" + user.getLogin() + ">", e);
+            conn.println("-ERR Authentication failed: " + e.getMessage());
+        } catch (FolderException e) {
+            log.error("Can not authenticate using user " + user + ", internal error", e);
+            conn.println("-ERR Authentication failed, internal error: " + e.getMessage());
+        }
+    }

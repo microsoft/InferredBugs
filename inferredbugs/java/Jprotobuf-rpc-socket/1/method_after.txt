@@ -1,0 +1,32 @@
+    public RpcData doHandle(RpcData data) throws Exception {
+        
+        Object input = null;
+        Object[] param;
+        Object ret;
+        if (data.getData() != null && parseFromMethod != null) {
+            input = parseFromMethod.invoke(getInputClass(), new ByteArrayInputStream(data.getData()));;
+            param = new Object[] {input};
+        } else {
+            param = new Object[0];
+        }
+        
+        RpcData retData = new RpcData();
+        // process attachment
+        if (getAttachmentHandler() != null) {
+            byte[] responseAttachment = getAttachmentHandler().handleAttachement(data.getAttachment(), getServiceName(), getMethodName(), param);
+            retData.setAttachment(responseAttachment);
+        }
+        
+        ret = getMethod().invoke(getService(), param);
+        
+        if (ret == null) {
+            return retData;
+        }
+        
+        if (ret != null && ret instanceof GeneratedMessage) {
+            byte[] response = ((GeneratedMessage) ret).toByteArray();
+            retData.setData(response);
+        }
+        
+        return retData;
+    }

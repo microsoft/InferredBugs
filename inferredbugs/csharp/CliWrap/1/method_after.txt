@@ -1,0 +1,36 @@
+        private ProcessStartInfo GetStartInfo()
+        {
+            var result = new ProcessStartInfo
+            {
+                FileName = TargetFilePath,
+                Arguments = Arguments,
+                WorkingDirectory = WorkingDirPath,
+                UserName = Credentials.UserName,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            // Domain and password are only supported on Windows
+            if (Credentials.Domain is not null || Credentials.Password is not null)
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    result.Domain = Credentials.Domain;
+                    result.Password = Credentials.Password?.ToSecureString();
+                }
+                else
+                {
+                    throw new NotSupportedException(
+                        "Starting a process using a custom domain and password is only supported on Windows."
+                    );
+                }
+            }
+
+            foreach (var (key, value) in EnvironmentVariables)
+                result.Environment[key] = value;
+
+            return result;
+        }

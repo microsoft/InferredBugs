@@ -1,0 +1,82 @@
+ private HttpClient getHttpClient(PrintStream logger) throws Exception {
+        boolean ignoreUnverifiedSSL = ignoreUnverifiedSSLPeer;
+        String stashServer = stashServerBaseUrl;
+        DescriptorImpl descriptor = getDescriptor();
+        if ("".equals(stashServer) || stashServer == null) {
+            stashServer = descriptor.getStashRootUrl();
+        }
+        if (!ignoreUnverifiedSSL) {
+            ignoreUnverifiedSSL = descriptor.isIgnoreUnverifiedSsl();
+        }
+
+        URL url = new URL(stashServer);
+        HttpClientBuilder builder = HttpClientBuilder.create();
+        if (url.getProtocol().equals("https")
+                && ignoreUnverifiedSSL) {
+			// add unsafe trust manager to avoid thrown
+			// SSLPeerUnverifiedException
+			try {
+				TrustStrategy easyStrategy = new TrustStrategy() {
+				    public boolean isTrusted(X509Certificate[] chain, String authType)
+				            throws CertificateException {
+				        return true;
+				    }
+				};
+
+				SSLContext sslContext = SSLContexts.custom()
+						.loadTrustMaterial(null, easyStrategy)
+						.useTLS().build();
+				SSLConnectionSocketFactory sslConnSocketFactory
+						= new SSLConnectionSocketFactory(sslContext,
+						SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+				builder.setSSLSocketFactory(sslConnSocketFactory);
+
+				Registry<ConnectionSocketFactory> registry
+						= RegistryBuilder.<ConnectionSocketFactory>create()
+							.register("https", sslConnSocketFactory)
+							.build();
+
+				HttpClientConnectionManager ccm
+						= new BasicHttpClientConnectionManager(registry);
+
+				builder.setConnectionManager(ccm);
+			} catch (NoSuchAlgorithmException nsae) {
+				logger.println("Couldn't establish SSL context:");
+				nsae.printStackTrace(logger);
+			} catch (KeyManagementException kme) {
+				logger.println("Couldn't initialize SSL context:");
+				kme.printStackTrace(logger);
+			} catch (KeyStoreException kse) {
+				logger.println("Couldn't initialize SSL context:");
+				kse.printStackTrace(logger);
+			}
+        }
+
+        // Configure the proxy, if needed
+        // Using the Jenkins methods handles the noProxyHost settings
+        ProxyConfiguration proxyConfig = Jenkins.getInstance().proxy;
+        if (proxyConfig != null) {
+            Proxy proxy = proxyConfig.createProxy(url.getHost());
+            if (proxy != null && proxy.type() == Proxy.Type.HTTP) {
+                SocketAddress addr = proxy.address();
+                if (addr != null && addr instanceof InetSocketAddress) {
+                    InetSocketAddress proxyAddr = (InetSocketAddress) addr;
+                    HttpHost proxyHost = new HttpHost(proxyAddr.getAddress().getHostAddress(), proxyAddr.getPort());
+                    builder = builder.setProxy(proxyHost);
+
+                    String proxyUser = proxyConfig.getUserName();
+                    if (proxyUser != null) {
+                        String proxyPass = proxyConfig.getPassword();
+                        CredentialsProvider cred = new BasicCredentialsProvider();
+                        cred.setCredentials(new AuthScope(proxyHost),
+                                new UsernamePasswordCredentials(proxyUser, proxyPass));
+                        builder = builder
+                                .setDefaultCredentialsProvider(cred)
+                                .setProxyAuthenticationStrategy(new ProxyAuthenticationStrategy());
+                    }
+                }
+            }
+        }
+
+        return builder.build();
+    }

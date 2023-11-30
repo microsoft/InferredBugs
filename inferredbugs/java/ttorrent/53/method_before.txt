@@ -1,0 +1,67 @@
+  public void downloadUninterruptibly(final String dotTorrentPath,
+                                      final String downloadDirPath,
+                                      final long idleTimeoutSec,
+                                      final int minSeedersCount,
+                                      final AtomicBoolean isInterrupted,
+                                      final long maxTimeForConnectMs,
+                                      DownloadProgressListener listener) throws IOException, InterruptedException, NoSuchAlgorithmException {
+    String hash = addTorrent(dotTorrentPath, downloadDirPath, false, true);
+
+    final AnnounceableFileTorrent announceableTorrent = torrentsStorage.getAnnounceableTorrent(hash);
+    if (announceableTorrent == null) throw new IOException("Unable to download torrent completely - announceable torrent is not found");
+    final SharedTorrent torrent = SharedTorrent.fromFile(new File(dotTorrentPath),
+            new File(downloadDirPath),
+            false,
+            false,
+            true,
+            announceableTorrent);
+    torrentsStorage.putIfAbsentActiveTorrent(torrent.getHexInfoHash(), torrent);
+
+    long maxIdleTime = System.currentTimeMillis() + idleTimeoutSec * 1000;
+      torrent.addDownloadProgressListener(listener);
+      final long startDownloadAt = System.currentTimeMillis();
+      long currentLeft = torrent.getLeft();
+
+      while (torrent.getClientState() != ClientState.SEEDING &&
+              torrent.getClientState() != ClientState.ERROR &&
+              (torrent.getSeedersCount() >= minSeedersCount || torrent.getLastAnnounceTime() < 0) &&
+              (System.currentTimeMillis() <= maxIdleTime)) {
+        if (Thread.currentThread().isInterrupted() || isInterrupted.get())
+          throw new InterruptedException("Download of " + torrent.getDirectoryName() + " was interrupted");
+        if (currentLeft > torrent.getLeft()) {
+          currentLeft = torrent.getLeft();
+          maxIdleTime = System.currentTimeMillis() + idleTimeoutSec * 1000;
+        }
+        if (System.currentTimeMillis() - startDownloadAt > maxTimeForConnectMs) {
+          if (getPeersForTorrent(torrent.getHexInfoHash()).size() < minSeedersCount) {
+            break;
+          }
+        }
+        Thread.sleep(100);
+      }
+
+    if (!(torrent.isFinished() && torrent.getClientState() == ClientState.SEEDING)) {
+      removeAndDeleteTorrent(hash, torrent);
+
+      final List<SharingPeer> peersForTorrent = getPeersForTorrent(hash);
+      int connectedPeersForTorrent = peersForTorrent.size();
+      for (SharingPeer peer : peersForTorrent) {
+        peer.unbind(true);
+      }
+
+      final String errorMsg;
+      if (System.currentTimeMillis() > maxIdleTime) {
+        int completedPieces = torrent.getCompletedPieces().cardinality();
+        int totalPieces = torrent.getPieceCount();
+        errorMsg = String.format("No pieces has been downloaded in %d seconds. Downloaded pieces %d/%d, connected peers %d"
+                , idleTimeoutSec, completedPieces, totalPieces, connectedPeersForTorrent);
+      } else if (connectedPeersForTorrent < minSeedersCount) {
+        errorMsg = String.format("Not enough seeders. Required %d, found %d", minSeedersCount, connectedPeersForTorrent);
+      } else if (torrent.getClientState() == ClientState.ERROR) {
+        errorMsg = "Torrent state is ERROR";
+      } else {
+        errorMsg = "Unknown error";
+      }
+      throw new IOException("Unable to download torrent completely - " + errorMsg);
+    }
+  }

@@ -1,0 +1,65 @@
+  @Override
+  public Status read(String table, String key, Set<String> fields,
+      Map<String, ByteIterator> result) {
+    try {
+      PreparedStatement stmt = (fields == null) ? readAllStmt.get() : readStmts.get(fields);
+
+      // Prepare statement on demand
+      if (stmt == null) {
+        Select.Builder selectBuilder;
+
+        if (fields == null) {
+          selectBuilder = QueryBuilder.select().all();
+        } else {
+          selectBuilder = QueryBuilder.select();
+          for (String col : fields) {
+            ((Select.Selection) selectBuilder).column(col);
+          }
+        }
+
+        stmt = session.prepare(selectBuilder.from(table)
+                               .where(QueryBuilder.eq(YCSB_KEY, QueryBuilder.bindMarker()))
+                               .limit(1));
+        stmt.setConsistencyLevel(readConsistencyLevel);
+        if (trace) {
+          stmt.enableTracing();
+        }
+
+        PreparedStatement prevStmt = (fields == null) ?
+                                     readAllStmt.getAndSet(stmt) :
+                                     readStmts.putIfAbsent(new HashSet(fields), stmt);
+        if (prevStmt != null) {
+          stmt = prevStmt;
+        }
+      }
+
+      logger.debug(stmt.getQueryString());
+      logger.debug("key = {}", key);
+
+      ResultSet rs = session.execute(stmt.bind(key));
+
+      if (rs.isExhausted()) {
+        return Status.NOT_FOUND;
+      }
+
+      // Should be only 1 row
+      Row row = rs.one();
+      ColumnDefinitions cd = row.getColumnDefinitions();
+
+      for (ColumnDefinitions.Definition def : cd) {
+        ByteBuffer val = row.getBytesUnsafe(def.getName());
+        if (val != null) {
+          result.put(def.getName(), new ByteArrayByteIterator(val.array()));
+        } else {
+          result.put(def.getName(), null);
+        }
+      }
+
+      return Status.OK;
+
+    } catch (Exception e) {
+      logger.error(MessageFormatter.format("Error reading key: {}", key).getMessage(), e);
+      return Status.ERROR;
+    }
+
+  }

@@ -1,0 +1,26 @@
+  @Test
+  public void testStateTransitionTimeOut() throws Exception {
+    _setupTool.addResourceToCluster(CLUSTER_NAME, TEST_DB, _PARTITIONS, STATE_MODEL);
+    _setupTool.getClusterManagementTool().enableResource(CLUSTER_NAME, TEST_DB, false);
+    _setupTool.rebalanceStorageCluster(CLUSTER_NAME, TEST_DB, 3);
+
+    // Set the timeout values
+    StateTransitionTimeoutConfig stateTransitionTimeoutConfig =
+        new StateTransitionTimeoutConfig(new ZNRecord(TEST_DB));
+    stateTransitionTimeoutConfig.setStateTransitionTimeout("SLAVE", "MASTER", 300);
+    ResourceConfig resourceConfig = new ResourceConfig.Builder(TEST_DB)
+        .setStateTransitionTimeoutConfig(stateTransitionTimeoutConfig)
+        .setRebalanceConfig(new RebalanceConfig(new ZNRecord(TEST_DB)))
+        .setNumPartitions(_PARTITIONS).setHelixEnabled(false).build();
+    _configAccessor.setResourceConfig(CLUSTER_NAME, TEST_DB, resourceConfig);
+    setParticipants(TEST_DB);
+
+
+    _setupTool.getClusterManagementTool().enableResource(CLUSTER_NAME, TEST_DB, true);
+    boolean result =
+        ClusterStateVerifier
+            .verifyByZkCallback(new MasterNbInExtViewVerifier(ZK_ADDR, CLUSTER_NAME));
+    Assert.assertTrue(result);
+
+    verify(TEST_DB);
+  }

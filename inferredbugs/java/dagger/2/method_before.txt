@@ -1,0 +1,31 @@
+  public static void main(String[] args) throws Exception {
+    if (args.length != 3) {
+      printUsage();
+      return;
+    }
+
+    File manifestXml = new File(args[0]);
+    String moduleName = args[1];
+    File baseDir = new File(args[2]);
+
+    if (!manifestXml.exists()) {
+      System.out.println("No such file: " + manifestXml);
+      printUsage();
+      return;
+    }
+
+    if (!baseDir.isDirectory()) {
+      System.out.println("No such directory: " + baseDir);
+      printUsage();
+      return;
+    }
+
+    ModuleGenerator moduleGenerator = new ModuleGenerator();
+    InputSource in = new InputSource(new FileInputStream(manifestXml));
+    Document document = moduleGenerator.manifestToDocument(in);
+    File file = moduleGenerator.path(document, moduleName, baseDir);
+    file.getParentFile().mkdirs();
+    JavaWriter out = new JavaWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
+    moduleGenerator.generate(document, moduleName, out);
+    out.close();
+  }

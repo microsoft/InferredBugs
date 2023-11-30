@@ -1,0 +1,21 @@
+        protected override ICasPrincipal ParseResponseFromServer(string response, string ticket)
+        {
+            if (response == null || !response.StartsWith("yes"))
+            {
+                throw new TicketValidationException("CAS Server could not validate ticket.");
+            }
+
+            try
+            {
+                using (StringReader reader = new StringReader(response))
+                {
+                    reader.ReadLine();
+                    string name = reader.ReadLine();
+                    return new CasPrincipal(new Assertion(name));
+                }
+            }
+            catch (IOException e)
+            {
+                throw new TicketValidationException("CAS Server response could not be parsed.", e);
+            }
+        }

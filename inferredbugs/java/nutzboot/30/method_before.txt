@@ -1,0 +1,103 @@
+    public void init() throws Exception {
+
+        // 创建基础服务器
+        QueuedThreadPool threadPool = new QueuedThreadPool();
+        threadPool.setIdleTimeout(getThreadPoolIdleTimeout());
+        threadPool.setMinThreads(getMinThreads());
+        threadPool.setMaxThreads(getMaxThreads());
+        server = new Server(threadPool);
+        HttpConfiguration httpConfig = conf.make(HttpConfiguration.class, "jetty.httpConfig.");
+        HttpConnectionFactory httpFactory = new HttpConnectionFactory(httpConfig);
+        ServerConnector connector = new ServerConnector(server, httpFactory);
+        connector.setHost(getHost());
+        connector.setPort(getPort());
+        connector.setIdleTimeout(getIdleTimeout());
+        server.setConnectors(new Connector[]{connector});
+
+        // 设置应用上下文
+        wac = new WebAppContext();
+        wac.setContextPath(getContextPath());
+        // wac.setExtractWAR(false);
+        // wac.setCopyWebInf(true);
+        // wac.setProtectedTargets(new String[]{"/java", "/javax", "/org",
+        // "/net", "/WEB-INF", "/META-INF"});
+        wac.setTempDirectory(new File("temp"));
+        wac.setClassLoader(classLoader);
+        wac.setConfigurationDiscovered(true);
+        if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+            wac.setInitParameter("org.eclipse.jetty.servlet.Default.useFileMappedBuffer", "false");
+        }
+
+        List<Resource> resources = new ArrayList<>();
+        for (String resourcePath : getResourcePaths()) {
+            File f = new File(resourcePath);
+            if (f.exists()) {
+                resources.add(Resource.newResource(f));
+            }
+            Enumeration<URL> urls = appContext.getClassLoader().getResources(resourcePath);
+            while (urls.hasMoreElements()) {
+                resources.add(Resource.newResource(urls.nextElement()));
+            }
+        }
+        if (conf.has(PROP_STATIC_PATH_LOCAL)) {
+            File f = new File(conf.get(PROP_STATIC_PATH_LOCAL));
+            if (f.exists()) {
+                log.debug("found static local path, add it : " + f.getAbsolutePath());
+                resources.add(0, Resource.newResource(f));
+            } else {
+                log.debug("static local path not exist, skip it : " + f.getPath());
+            }
+        }
+        wac.setBaseResource(new ResourceCollection(resources.toArray(new Resource[resources.size()])) {
+            @Override
+            public Resource addPath(String path) throws IOException, MalformedURLException {
+                // TODO 为啥ResourceCollection读取WEB-INF的时候返回null
+                // 从而导致org.eclipse.jetty.webapp.WebAppContext.getWebInf()抛NPE
+                // 先临时hack吧
+                Resource resource = super.addPath(path);
+                if (resource == null && "WEB-INF/".equals(path)) {
+                    return Resource.newResource(new File("XXXX"));
+                }
+                return resource;
+            }
+        });
+        if (conf.getBoolean(PROP_GZIP_ENABLE, false)) {
+            GzipHandler gzip = new GzipHandler();
+            gzip.setHandler(wac);
+            gzip.setMinGzipSize(conf.getInt(PROP_GZIP_MIN_CONTENT_SIZE, 512));
+            gzip.setCompressionLevel(conf.getInt(PROP_GZIP_LEVEL, Deflater.DEFAULT_COMPRESSION));
+            server.setHandler(gzip);
+        }
+        else {
+            server.setHandler(wac);
+        }
+        List<String> list = Configuration.ClassList.serverDefault(server);
+        list.add("org.eclipse.jetty.annotations.AnnotationConfiguration");
+        wac.setConfigurationClasses(list);
+        wac.getServletContext().setExtendedListenerTypes(true);
+        wac.getSessionHandler().setMaxInactiveInterval(getSessionTimeout());
+
+        ErrorHandler ep = Lang.first(appContext.getBeans(ErrorHandler.class));
+        if(ep == null){
+            ErrorPageErrorHandler handler = new ErrorPageErrorHandler();
+            handler.setErrorPages(getErrorPages());
+            ep = handler;
+        }
+        wac.setErrorHandler(ep);
+        wac.setWelcomeFiles(getWelcomeFiles());
+
+        // 设置一下额外的东西
+        server.setAttribute("org.eclipse.jetty.server.Request.maxFormContentSize", getMaxFormContentSize());
+        server.setDumpAfterStart(false);
+        server.setDumpBeforeStop(false);
+        server.setStopAtShutdown(true);
+
+        addNutzSupport();
+
+        ServerContainer sc = WebSocketServerContainerInitializer.configureContext(wac);
+        for (Class<?> klass : Scans.me().scanPackage(appContext.getPackage())) {
+            if (klass.getAnnotation(ServerEndpoint.class) != null) {
+                sc.addEndpoint(klass);
+            }
+        }
+    }

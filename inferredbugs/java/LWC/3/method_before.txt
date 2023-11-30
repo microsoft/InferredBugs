@@ -1,0 +1,97 @@
+    public void load() {
+        configuration = Configuration.load("core.yml");
+        registerCoreModules();
+
+        // check for upgrade before everything else
+        new ConfigPost300().run();
+        plugin.loadDatabase();
+
+        Performance.init();
+
+        physicalDatabase = new PhysDB();
+        memoryDatabase = new MemDB();
+        updateThread = new UpdateThread(this);
+
+        // Permissions init
+        permissions = new NoPermissions();
+
+        if (resolvePlugin("PermissionsBukkit") != null) {
+            permissions = new BukkitPermissions();
+        } else if (resolvePlugin("PermissionsEx") != null) {
+            permissions = new PEXPermissions();
+        } else {
+            // Default to Permissions over SuperPermissions, except with SuperpermsBridge
+            Plugin legacy = resolvePlugin("Permissions");
+
+            try {
+                // super perms bridge
+                if (((com.nijikokun.bukkit.Permissions.Permissions)legacy).getHandler() instanceof com.platymuus.bukkit.permcompat.PermissionHandler) {
+                    permissions = new SuperPermsPermissions();
+                } else {
+                    permissions = new NijiPermissions();
+                }
+            } catch (NoClassDefFoundError e) { }
+
+            // attempt super perms if we still have nothing
+            if (permissions.getClass() == NoPermissions.class) {
+                try {
+                    Method method = CraftHumanEntity.class.getDeclaredMethod("hasPermission", String.class);
+                    if (method != null) {
+                        permissions = new SuperPermsPermissions();
+                    }
+                } catch(NoSuchMethodException e) {
+                    // server does not support SuperPerms
+                }
+            }
+        }
+
+        // Currency init
+        currency = new NoCurrency();
+
+        if (resolvePlugin("iConomy") != null) {
+            // We need to figure out which iConomy plugin we have...
+            Plugin plugin = resolvePlugin("iConomy");
+
+            // get the class name
+            String className = plugin.getClass().getName();
+
+            // check for the iConomy5 package
+            try {
+                if (className.startsWith("com.iConomy")) {
+                    currency = new iConomy5Currency();
+                } else {
+                    // iConomy 6!
+                    currency = new iConomy6Currency();
+                }
+            } catch (NoClassDefFoundError e) { }
+        } else if (resolvePlugin("BOSEconomy") != null) {
+            currency = new BOSECurrency();
+        } else if (resolvePlugin("Essentials") != null) {
+            currency = new EssentialsCurrency();
+        }
+
+        log("Permissions API: " + Colors.Red + permissions.getClass().getSimpleName());
+        log("Currency API: " + Colors.Red + currency.getClass().getSimpleName());
+
+        log("Loading " + Database.DefaultType);
+        try {
+            physicalDatabase.connect();
+            memoryDatabase.connect();
+
+            physicalDatabase.load();
+            memoryDatabase.load();
+
+            log("Using: " + StringUtils.capitalizeFirstLetter(physicalDatabase.getConnection().getMetaData().getDriverVersion()));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // check any major conversions
+        new MySQLPost200().run();
+
+        // precache lots of protections
+        physicalDatabase.precache();
+
+        // tell all modules we're loaded
+        moduleLoader.loadAll();
+    }

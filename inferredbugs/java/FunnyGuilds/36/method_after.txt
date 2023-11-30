@@ -1,0 +1,52 @@
+    public boolean checkPlayer(Player player, SecurityType type, Object... values) {
+        if (!Settings.getConfig().regionsEnabled) {
+            return false;
+        }
+        
+        if (isBanned(User.get(player))) {
+            return true;
+        }
+        
+        switch (type) {
+            case FREECAM:
+                Guild guild = null;
+
+                for (Object value : values) {
+                    if (value instanceof Guild) {
+                        guild = (Guild) value;
+                    }
+                }
+
+                if (guild == null) {
+                    return false;
+                }
+
+                Region region = RegionUtils.get(guild.getRegion());
+
+                if (region == null) {
+                    return false;
+                }
+
+                int dis = (int) region.getCenter().distance(player.getLocation());
+
+                if (dis < 6) {
+                    return false;
+                }
+                
+                for (Player w : Bukkit.getOnlinePlayers()) {
+                    if (w.isOp()) {
+                        w.sendMessage(SecurityUtils.getBustedMessage(player.getName(), "FreeCam"));
+                        w.sendMessage(SecurityUtils.getNoteMessage("Zaatakowal krysztal z odleglosci &c" + dis + " kratek"));
+                    }
+                }
+                
+                blocked.add(User.get(player));
+                return true;
+            case EVERYTHING:
+                break;
+            default:
+                break;
+        }
+        
+        return false;
+    }

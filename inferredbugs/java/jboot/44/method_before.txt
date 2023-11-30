@@ -1,0 +1,52 @@
+    @Override
+    protected <T> T doGet(Class<T> targetClass, int injectDepth) throws ReflectiveOperationException {
+        // Aop.get(obj.getClass()) 可以用 Aop.inject(obj)，所以注掉下一行代码
+        // targetClass = (Class<T>)getUsefulClass(targetClass);
+
+        targetClass = (Class<T>) getMappingClass(targetClass);
+
+        Singleton si = targetClass.getAnnotation(Singleton.class);
+        boolean singleton = (si != null ? si.value() : this.singleton);
+
+        Object ret;
+        if (!singleton) {
+            ret = createObject(targetClass);
+            doInject(targetClass, ret, injectDepth);
+            return (T) ret;
+        }
+
+        ret = singletonCache.get(targetClass);
+        if (ret != null) {
+            return (T) ret;
+        }
+
+        //只有在循环依赖的时候，这个context才会有值
+        ret = context.get().get(targetClass);
+        if (ret != null) {
+            return (T) ret;
+        }
+
+        synchronized (this) {
+            ret = singletonCache.get(targetClass);
+            if (ret == null) {
+//              ret = createObject(targetClass);
+//              doInject(targetClass, ret, injectDepth);
+//              singletonCache.put(targetClass, ret);
+
+                ret = createObject(targetClass);
+
+                //保存到本次初始化的上下文
+                context.get().put(targetClass, ret);
+
+                //循环注入
+                doInject(targetClass, ret, injectDepth);
+
+                //保存到缓存、并清除上下文数据
+                singletonCache.put(targetClass, ret);
+                context.get().clear();
+                context.remove();
+            }
+        }
+
+        return (T) ret;
+    }

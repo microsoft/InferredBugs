@@ -1,0 +1,57 @@
+    private static void writeSymJson(@NotNull Binding binding, JsonGenerator json) throws IOException {
+        if (binding.start < 0) {
+            return;
+        }
+
+        String name = binding.node.name;
+        boolean isExported = !(
+                Binding.Kind.VARIABLE == binding.kind ||
+                        Binding.Kind.PARAMETER == binding.kind ||
+                        Binding.Kind.SCOPE == binding.kind ||
+                        Binding.Kind.ATTRIBUTE == binding.kind ||
+                        (name != null && (name.length() == 0 || name.startsWith("lambda%"))));
+
+        String path = binding.qname.replace("%20", ".");
+
+        if (!seenDef.contains(path)) {
+            seenDef.add(path);
+
+            json.writeStartObject();
+            json.writeStringField("name", name);
+            json.writeStringField("path", path);
+            json.writeStringField("file", binding.file);
+            json.writeNumberField("identStart", binding.start);
+            json.writeNumberField("identEnd", binding.end);
+            json.writeNumberField("defStart", binding.bodyStart);
+            json.writeNumberField("defEnd", binding.bodyEnd);
+            json.writeBooleanField("exported", isExported);
+            json.writeStringField("kind", kindName(binding.kind));
+
+            if (binding.kind == Binding.Kind.METHOD || binding.kind == Binding.Kind.CLASS_METHOD) {
+                // get args expression
+                Type t = binding.type;
+
+                if (t.isUnionType()) {
+                    t = t.asUnionType().firstUseful();
+                }
+
+                if (t != null && t.isFuncType()) {
+                    Function func = t.asFuncType().func;
+                    if (func != null) {
+                        String signature = func.getArgList();
+                        if (!signature.equals("")) {
+                            signature = "(" + signature + ")";
+                        }
+                        json.writeStringField("signature", signature);
+                    }
+                }
+            }
+
+            Str docstring = binding.findDocString();
+            if (docstring != null) {
+                json.writeStringField("docstring", docstring.value);
+            }
+
+            json.writeEndObject();
+        }
+    }

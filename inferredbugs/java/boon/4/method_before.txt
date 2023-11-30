@@ -1,0 +1,53 @@
+    public static Map<String, Pair<Method>> getPropertySetterGetterMethods(
+            Class<? extends Object> theClass ) {
+
+        Method[] methods = theClass.getMethods ( );
+
+        Map<String, Pair<Method>> methodMap = new LinkedHashMap<> ( methods.length );
+        List<Method> getterMethodList = new ArrayList<> ( methods.length );
+
+        for ( int index = 0; index < methods.length; index++ ) {
+            Method method = methods[index];
+            String name = method.getName ( );
+
+            if ( method.getParameterTypes ( ).length == 1
+                    && method.getReturnType ( ) == void.class
+                    && name.startsWith ( "set" ) ) {
+                Pair<Method> pair = new Pair<Method> ( );
+                pair.setFirst ( method );
+                String propertyName = slc ( name, 3 );
+
+                propertyName = lower ( slc ( propertyName, 0, 1 ) ) + slc ( propertyName, 1 );
+                methodMap.put ( propertyName, pair );
+            }
+
+            if ( method.getParameterTypes ( ).length > 0
+                    || method.getReturnType ( ) == void.class
+                    || !( name.startsWith ( "get" ) || name.startsWith ( "is" ) )
+                    || name.equals ( "getClass" ) ) {
+                continue;
+            }
+            getterMethodList.add ( method );
+        }
+
+        for ( Method method : getterMethodList ) {
+            String name = method.getName ( );
+            String propertyName = null;
+            if ( name.startsWith ( "is" ) ) {
+                propertyName = slc ( name, 2 );
+            } else if ( name.startsWith ( "get" ) ) {
+                propertyName = slc ( name, 3 );
+            }
+
+            propertyName = lower ( slc ( propertyName, 0, 1 ) ) + slc ( propertyName, 1 );
+
+            Pair<Method> pair = methodMap.get ( propertyName );
+            if ( pair == null ) {
+                pair = new Pair<Method> ( );
+                methodMap.put ( propertyName, pair );
+            }
+            pair.setSecond ( method );
+
+        }
+        return methodMap;
+    }

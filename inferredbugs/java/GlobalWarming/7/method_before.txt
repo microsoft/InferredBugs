@@ -1,0 +1,35 @@
+    @Override
+    protected void loadKeys() {
+        sensitivity = CarbonSensitivity.LOW;
+        String carbonSensitivity = conf.getString("carbonSensitivity");
+        if (carbonSensitivity != null && !carbonSensitivity.isEmpty()) {
+            try {
+                sensitivity = CarbonSensitivity.valueOf(carbonSensitivity);
+            } catch (Exception e) {
+                GlobalWarming.getInstance().getLogger().warning(
+                      String.format(
+                            "Unknown carbon sensitivity for: [%s], defaulting to [%s]",
+                            getDisplayName(worldId),
+                            sensitivity));
+            }
+        }
+
+        this.enabled = this.conf.getBoolean("enabled");
+        this.associatedWorldId = Bukkit.getWorld(this.conf.getString("association")).getUID();
+        this.enabledEffects = new HashSet<>();
+        this.blastFurnaceMultiplier = this.conf.getDouble("blastFurnaceMultiplier", 1.2);
+        this.methaneTicksLivedModifier = this.conf.getDouble("methaneTicksLivedModifier", 0.01);
+        this.bonemealReductionAllowed = this.conf.getBoolean("bonemealReductionAllowed", true);
+        this.bonemealReductionModifier = this.conf.getDouble("bonemealReductionModifier", 0.5);
+
+        for (String effect : this.conf.getStringList("enabledEffects")) {
+            try {
+                this.enabledEffects.add(ClimateEffectType.valueOf(effect));
+            } catch (IllegalArgumentException ex) {
+                GlobalWarming.getInstance().getLogger().severe(String.format(
+                      "Could not load effect: [%s] for world: [%s]",
+                      effect,
+                      getDisplayName(worldId)));
+            }
+        }
+    }

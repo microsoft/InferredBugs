@@ -1,0 +1,21 @@
+    public void start() {
+        List<Peer> peers = discovery.getLocalPeers(10);
+        if (peers.isEmpty()) {
+            peers = getSeedPeers();
+        }
+
+        for (Peer peer : peers) {
+            peer.setType(Peer.OUT);
+            addPeerToGroup(NetworkConstant.NETWORK_PEER_OUT_GROUP, peer);
+        }
+
+        boolean isConsensus = NulsContext.MODULES_CONFIG.getCfgValue(PocConsensusConstant.CFG_CONSENSUS_SECTION, PocConsensusConstant.PROPERTY_DELEGATE_PEER, false);
+        if (isConsensus) {
+            network.maxOutCount(network.maxOutCount() * 5);
+            network.maxInCount(network.maxInCount() * 5);
+        }
+
+        System.out.println("-----------peerManager start");
+        //start  heart beat thread
+        ThreadManager.createSingleThreadAndRun(NulsConstant.MODULE_ID_NETWORK, "peerDiscovery", this.discovery);
+    }

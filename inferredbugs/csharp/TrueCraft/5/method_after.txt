@@ -1,0 +1,43 @@
+        private void DoNetwork(object discarded)
+        {
+            for (int i = 0; i < Clients.Count; i++)
+            {
+                var client = Clients[i] as RemoteClient;
+                var sendTimeout = DateTime.Now.AddMilliseconds(50);
+                while (client.PacketQueue.Count != 0 && DateTime.Now < sendTimeout)
+                {
+                    IPacket packet;
+                    while (!client.PacketQueue.TryDequeue(out packet)) { }
+                    PacketReader.WritePacket(client.MinecraftStream, packet);
+                    if (packet is DisconnectPacket)
+                    {
+                        DisconnectClient(client);
+                        i--;
+                        break;
+                    }
+                }
+                var receiveTimeout = DateTime.Now.AddMilliseconds(50);
+                while (client.DataAvailable && DateTime.Now < receiveTimeout)
+                {
+                    var packet = PacketReader.ReadPacket(client.MinecraftStream);
+                    if (PacketHandlers[packet.ID] != null)
+                    {
+                        try
+                        {
+                            PacketHandlers[packet.ID](packet, client, this);
+                        }
+                        catch (Exception e)
+                        {
+                            Log(LogCategory.Debug, "Disconnecting client due to exception in network worker");
+                            Log(LogCategory.Debug, e.ToString());
+                            DisconnectClient(client);
+                            i--;
+                        }
+                    }
+                    else
+                    {
+                        // TODO: Something productive
+                    }
+                }
+            }
+        }

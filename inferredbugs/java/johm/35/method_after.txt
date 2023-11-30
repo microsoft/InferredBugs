@@ -1,0 +1,34 @@
+    @Test
+    public void cannotSearchAfterDeletingIndexes() {
+        User user = new User();
+        user.setAge(88);
+        JOhm.save(user);
+
+        user.setAge(77); // younger
+        JOhm.save(user);
+
+        user.setAge(66); // younger still
+        JOhm.save(user);
+
+        Long id = user.getId();
+
+        assertNotNull(JOhm.get(User.class, id));
+
+        List<User> users = JOhm.find(User.class, "age", 88);
+        assertEquals(0, users.size()); // index already updated
+        users = JOhm.find(User.class, "age", 77);
+        assertEquals(0, users.size()); // index already updated
+        users = JOhm.find(User.class, "age", 66);
+        assertEquals(1, users.size());
+
+        JOhm.delete(User.class, id);
+
+        users = JOhm.find(User.class, "age", 88);
+        assertEquals(0, users.size());
+        users = JOhm.find(User.class, "age", 77);
+        assertEquals(0, users.size());
+        users = JOhm.find(User.class, "age", 66);
+        assertEquals(0, users.size());
+
+        assertNull(JOhm.get(User.class, id));
+    }

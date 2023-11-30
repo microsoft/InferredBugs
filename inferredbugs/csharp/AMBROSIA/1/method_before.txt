@@ -1,0 +1,72 @@
+        public static void main(string[] args)
+        {
+            ParseAndValidateOptions(args);
+
+            var replicaName = $"{_instanceName}{_replicaNumber}";
+
+            if (_ipAddress == null)
+            {
+                _ipAddress = GetLocalIPAddress();
+            }
+
+            string storageConnectionString = null;
+
+            if (storageConnectionString == null)
+            {
+                storageConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONN_STRING");
+            }
+
+            if (!_isActiveActive && _replicaNumber != 0)
+            {
+                throw new InvalidOperationException("Can't specify a replica number without the activeActive flag");
+            }
+
+            if (storageConnectionString == null)
+            {
+                throw new InvalidOperationException("Azure storage connection string not found. Use appSettings in your app.config to provide this using the key AZURE_STORAGE_CONN_STRING, or use the environment variable AZURE_STORAGE_CONN_STRING.");
+            }
+
+            int connectionsPoolPerWorker;
+            string connectionsPoolPerWorkerString = "0";
+            if (connectionsPoolPerWorkerString != null)
+            {
+                try
+                {
+                    connectionsPoolPerWorker = Convert.ToInt32(connectionsPoolPerWorkerString);
+                }
+                catch
+                {
+                    throw new InvalidOperationException("Maximum number of connections per CRA worker is wrong. Use appSettings in your app.config to provide this using the key CRA_WORKER_MAX_CONN_POOL.");
+                }
+            }
+            else
+            {
+                connectionsPoolPerWorker = 1000;
+            }
+
+            ISecureStreamConnectionDescriptor descriptor = null;
+            if (_secureNetworkClassName != null)
+            {
+                Type type;
+                if (_secureNetworkAssemblyName != null)
+                {
+                    var assembly = Assembly.Load(_secureNetworkAssemblyName);
+                    type = assembly.GetType(_secureNetworkClassName);
+                }
+                else
+                {
+                    type = Type.GetType(_secureNetworkClassName);
+                }
+                descriptor = (ISecureStreamConnectionDescriptor)Activator.CreateInstance(type);
+            }
+
+            var dataProvider = new CRA.DataProvider.Azure.AzureDataProvider(storageConnectionString);
+            var worker = new CRAWorker
+                (replicaName, _ipAddress, _port,
+                dataProvider, descriptor, connectionsPoolPerWorker);
+
+            worker.DisableDynamicLoading(); 
+            worker.SideloadVertex(new AmbrosiaRuntime(), "ambrosia");
+
+            worker.Start();
+        }

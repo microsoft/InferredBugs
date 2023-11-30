@@ -1,0 +1,155 @@
+    public void evict() throws Exception {
+        Object key = null;
+        boolean testWhileIdle;
+        long minEvictableIdleTimeMillis;
+        
+        synchronized (this) {
+            // Get local copy of current config. Can't sync when used later as
+            // it can result in a deadlock. Has the added advantage that config
+            // is consistent for entire method execution 
+            testWhileIdle = _testWhileIdle;
+            minEvictableIdleTimeMillis = _minEvictableIdleTimeMillis;
+            
+            // Initialize key to last key value
+            if (_evictionKeyCursor != null && 
+                    _evictionKeyCursor._lastReturned != null) {
+                key = _evictionKeyCursor._lastReturned.value();
+            }
+        }
+        
+        for (int i=0,m=getNumTests(); i<m; i++) {
+            final ObjectTimestampPair pair;
+            synchronized (this) {
+                // make sure pool map is not empty; otherwise do nothing
+                if (_poolMap == null || _poolMap.size() == 0) {
+                    continue;
+                }
+
+                // if we don't have a key cursor, then create one
+                if (null == _evictionKeyCursor) {
+                    resetEvictionKeyCursor();
+                    key = null;
+                }
+
+                // if we don't have an object cursor, create one
+                if (null == _evictionCursor) {
+                    // if the _evictionKeyCursor has a next value, use this key
+                    if (_evictionKeyCursor.hasNext()) {
+                        key = _evictionKeyCursor.next();
+                        resetEvictionObjectCursor(key);
+                    } else {
+                        // Reset the key cursor and try again
+                        resetEvictionKeyCursor();
+                        if (_evictionKeyCursor != null) {
+                            if (_evictionKeyCursor.hasNext()) {
+                                key = _evictionKeyCursor.next();
+                                resetEvictionObjectCursor(key);
+                            }
+                        }
+                    }
+                }  
+
+                if (_evictionCursor == null) {
+                    continue; // should never happen; do nothing
+                }
+                
+                // If eviction cursor is exhausted, try to move
+                // to the next key and reset
+                if((_lifo && !_evictionCursor.hasPrevious()) ||
+                        (!_lifo && !_evictionCursor.hasNext())) {
+                    if (_evictionKeyCursor != null) {
+                        if (_evictionKeyCursor.hasNext()) {
+                            key = _evictionKeyCursor.next();
+                            resetEvictionObjectCursor(key);
+                        } else { // Need to reset Key cursor
+                            resetEvictionKeyCursor();
+                            if (_evictionKeyCursor != null) {
+                                if (_evictionKeyCursor.hasNext()) {
+                                    key = _evictionKeyCursor.next();
+                                    resetEvictionObjectCursor(key);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if((_lifo && !_evictionCursor.hasPrevious()) ||
+                        (!_lifo && !_evictionCursor.hasNext())) {
+                    continue; // reset failed, do nothing
+                }
+
+                // if LIFO and the _evictionCursor has a previous object, 
+                // or FIFO and _evictionCursor has a next object, test it
+                pair = _lifo ? 
+                        (ObjectTimestampPair) _evictionCursor.previous() : 
+                        (ObjectTimestampPair) _evictionCursor.next();
+                _evictionCursor.remove();
+                _totalIdle--;
+                _totalInternalProcessing++;
+            }
+
+            boolean removeObject=false;
+            if((minEvictableIdleTimeMillis > 0) &&
+               (System.currentTimeMillis() - pair.tstamp > 
+               minEvictableIdleTimeMillis)) {
+                removeObject=true;
+            }
+            if(testWhileIdle && removeObject == false) {
+                boolean active = false;
+                try {
+                    _factory.activateObject(key,pair.value);
+                    active = true;
+                } catch(Exception e) {
+                    removeObject=true;
+                }
+                if(active) {
+                    if(!_factory.validateObject(key,pair.value)) {
+                        removeObject=true;
+                    } else {
+                        try {
+                            _factory.passivateObject(key,pair.value);
+                        } catch(Exception e) {
+                            removeObject=true;
+                        }
+                    }
+                }
+            }
+            
+            if(removeObject) {
+                try {
+                    _factory.destroyObject(key, pair.value);
+                } catch(Exception e) {
+                    // ignored
+                } finally {
+                    // Do not remove the key from the _poolList or _poolmap,
+                    // even if the list stored in the _poolMap for this key is
+                    // empty when minIdle > 0.
+                    //
+                    // Otherwise if it was the last object for that key,
+                    // drop that pool
+                    if (_minIdle == 0) {
+                        synchronized (this) {
+                            ObjectQueue objectQueue = 
+                                (ObjectQueue)_poolMap.get(key);
+                            if (objectQueue != null && 
+                                    objectQueue.queue.isEmpty()) {
+                                _poolMap.remove(key);
+                                _poolList.remove(key);  
+                            }
+                        }
+                    }
+                }
+            }
+            synchronized (this) {
+                if(!removeObject) {
+                    _evictionCursor.add(pair);
+                    _totalIdle++;
+                    if (_lifo) {
+                        // Skip over the element we just added back 
+                        _evictionCursor.previous();
+                    }
+                }
+                _totalInternalProcessing--;
+            }
+        }
+    }

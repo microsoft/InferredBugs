@@ -1,0 +1,17 @@
+ @Override
+	public String getActionURL(FacesContext context, String viewId) {
+		String actionURL = super.getActionURL(context, viewId);
+		ServletContext servletContext = getServletContext(context);
+		Map<String, String> mappedResources = getMappedResources(servletContext);
+
+		if (mappedResources.containsKey(viewId) && (extensionless || isOriginalViewExtensionless(context))) {
+			// User has requested to always render extensionless, or the requested viewId was mapped and the current
+			// request is extensionless; render the action URL extensionless as well.
+			String pathInfo = context.getViewRoot().getViewId().equals(viewId) ? coalesce(getRequestPathInfo(context), "") : "";
+			actionURL = removeExtension(servletContext, actionURL, viewId);
+			return pathInfo.isEmpty() ? actionURL : (stripTrailingSlash(actionURL) + pathInfo + getQueryString(actionURL));
+		}
+
+		// Not a resource we mapped or not a forwarded one, take the version from the parent view handler.
+		return actionURL;
+	}

@@ -1,0 +1,101 @@
+ @Test
+	public void sendTest() {
+		//Setup
+		PircBotX bot = new PircBotX() {
+			@Override
+			public void sendAction(String target, String action) {
+				signal.set(target, action);
+			}
+
+			@Override
+			public void sendCTCPCommand(String target, String command) {
+				signal.set(target, command);
+			}
+
+			@Override
+			public void sendCTCPResponse(String target, String message) {
+				signal.set(target, message);
+			}
+
+			@Override
+			public void sendInvite(String nick, String channel) {
+				signal.set(nick, channel);
+			}
+
+			@Override
+			public void sendMessage(String target, String message) {
+				signal.set(target, message);
+			}
+
+			@Override
+			public void sendNotice(String target, String notice) {
+				signal.set(target, notice);
+			}
+		};
+
+		//Make sure all methods call each other appropiatly
+		final String string = "AString";
+		final User user = new User(bot, "AUser");
+		final Channel chan = new Channel(bot, "AChannel");
+		final BaseEvent event = new Action.Event(bot, user, chan, string);
+
+
+		bot.sendAction(event, string);
+		signal.compare("AUser", string);
+
+		bot.sendAction(user, string);
+		signal.compare("AUser", string);
+
+		bot.sendAction(chan, string);
+		signal.compare("AChannel", string);
+
+
+		bot.sendCTCPCommand(event, string);
+		signal.compare("AUser", string);
+
+		bot.sendCTCPCommand(user, string);
+		signal.compare("AUser", string);
+
+
+		bot.sendCTCPResponse(event, string);
+		signal.compare("AUser", string);
+
+		bot.sendCTCPResponse(user, string);
+		signal.compare("AUser", string);
+
+
+		bot.sendInvite(event, string);
+		signal.compare("AUser", string);
+
+		bot.sendInvite(event, chan);
+		signal.compare("AUser", "AChannel");
+
+		bot.sendInvite(event, chan);
+		signal.compare("AUser", "AChannel");
+
+		bot.sendInvite(user, chan);
+		signal.compare("AUser", "AChannel");
+
+		bot.sendInvite(chan, chan);
+		signal.compare("AChannel", "AChannel");
+
+
+		bot.sendMessage(event, string);
+		signal.compare("AUser", string);
+
+		bot.sendMessage(user, string);
+		signal.compare("AUser", string);
+
+		bot.sendMessage(chan, string);
+		signal.compare("AChannel", string);
+
+
+		bot.sendNotice(event, string);
+		signal.compare("AUser", string);
+
+		bot.sendNotice(user, string);
+		signal.compare("AUser", string);
+
+		bot.sendNotice(chan, string);
+		signal.compare("AChannel", string);
+	}

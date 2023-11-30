@@ -1,0 +1,33 @@
+        [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope", Justification = "Reviewed. XhtmlTextWriter takes care of disposting StreamWriter.")]
+        public override Tuple<string, string> GetReport()
+        {
+            Logger.Instance.WriteMethodEntry();
+
+            Tuple<string, string> report;
+
+            try
+            {
+                this.ReportWriter = new XhtmlTextWriter(new StreamWriter(this.ReportFileName));
+                this.ReportToCWriter = new XhtmlTextWriter(new StreamWriter(this.ReportToCFileName));
+
+                var sectionTitle = "AAD Connect Sync Service Configuration";
+
+                this.WriteSectionHeader(sectionTitle, 1);
+
+                this.ProcessGlobalSettings();
+                this.ProcessMetaverseConfiguration();
+                this.ProcessConnectorConfigurations();
+            }
+            catch (Exception e)
+            {
+                throw Logger.Instance.ReportError(e);
+            }
+            finally
+            {
+                report = this.GetReportTuple();
+
+                Logger.Instance.WriteMethodExit();
+            }
+
+            return report;
+        }

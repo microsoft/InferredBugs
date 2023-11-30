@@ -1,0 +1,28 @@
+        [Test]
+        public void TestDirectionality()
+        {
+            var model = new AdjacentModel(DirectionSet.Cartesian2d);
+            model.AddAdjacency(new Tile(1), new Tile(2), 1, 0, 0);
+            model.SetUniformFrequency();
+
+            var topology = new GridTopology(2, 1, false);
+
+            var up = Direction.YPlus;
+            var down = Direction.YMinus;
+
+#pragma warning disable CS0618 // Type or member is obsolete
+            var edgedPathConstraint = new EdgedPathConstraint(
+#pragma warning restore CS0618 // Type or member is obsolete
+                new Dictionary<Tile, ISet<Direction>>()
+                {
+                   { new Tile(1), new[]{ up, down }.ToHashSet() },
+                   { new Tile(2), new[]{ up, down }.ToHashSet() },
+                }
+                );
+
+            var propagator = new TilePropagator(model, topology, constraints: new[] { edgedPathConstraint });
+
+            propagator.Run();
+
+            Assert.AreEqual(Resolution.Contradiction, propagator.Status);
+        }

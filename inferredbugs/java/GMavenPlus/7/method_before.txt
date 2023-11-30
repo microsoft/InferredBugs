@@ -1,0 +1,79 @@
+    public void execute() throws MojoExecutionException, MojoFailureException {
+        usePluginClassLoader = true;
+        if (groovyVersionSupportsAction()) {
+            logGroovyVersion("execute");
+
+            if (scripts == null || scripts.length == 0) {
+                getLog().info("No scripts specified for execution.  Skipping.");
+                return;
+            }
+
+            final SecurityManager sm = System.getSecurityManager();
+            try {
+                System.setSecurityManager(new NoExitSecurityManager());
+                // get classes we need with reflection
+                Class groovyShellClass = Class.forName("groovy.lang.GroovyShell");
+
+                // create a GroovyShell to run scripts in
+                Object shell = ReflectionUtils.invokeConstructor(ReflectionUtils.findConstructor(groovyShellClass));
+                initializeProperties();
+                for (Object k : properties.keySet()) {
+                    String key = (String) k;
+                    ReflectionUtils.invokeMethod(ReflectionUtils.findMethod(groovyShellClass, "setProperty", String.class, Object.class), shell, key, properties.get(key));
+                }
+
+                // run the scripts
+                int scriptNum = 1;
+                for (String script : scripts) {
+                    Closer closer = Closer.create();
+                    try {
+                        try {
+                            URL url = new URL(script);
+                            // it's a URL to a script
+                            getLog().info("Fetching Groovy script from " + url.toString() + ".");
+                            BufferedReader reader;
+                            if (sourceEncoding != null) {
+                                reader = closer.register(new BufferedReader(new InputStreamReader(url.openStream(), sourceEncoding)));
+                            } else {
+                                reader = closer.register(new BufferedReader(new InputStreamReader(url.openStream())));
+                            }
+                            StringBuilder scriptSource = new StringBuilder();
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                scriptSource.append(line).append("\n");
+                            }
+                            if (!scriptSource.toString().isEmpty()) {
+                                ReflectionUtils.invokeMethod(ReflectionUtils.findMethod(groovyShellClass, "evaluate", String.class), shell, scriptSource.toString());
+                            }
+                        } catch (MalformedURLException e) {
+                            // it's not a URL to a script, treat as a script body
+                            ReflectionUtils.invokeMethod(ReflectionUtils.findMethod(groovyShellClass, "evaluate", String.class), shell, script);
+                        } catch (Throwable throwable) {
+                            throw closer.rethrow(throwable);
+                        } finally {
+                            closer.close();
+                        }
+                    } catch (IOException ioe) {
+                        if (continueExecuting) {
+                            getLog().error("An Exception occurred while executing script " + scriptNum + ".  Continuing to execute remaining scripts.", ioe);
+                        } else {
+                            throw new MojoExecutionException("An Exception occurred while executing script " + scriptNum + ".", ioe);
+                        }
+                    }
+                    scriptNum++;
+                }
+            } catch (ClassNotFoundException e) {
+                throw new MojoExecutionException("Unable to get a Groovy class from classpath.  Do you have Groovy as a compile dependency in your project or the plugin?", e);
+            } catch (InvocationTargetException e) {
+                throw new MojoExecutionException("Error occurred while calling a method on a Groovy class from classpath.", e);
+            } catch (InstantiationException e) {
+                throw new MojoExecutionException("Error occurred while instantiating a Groovy class from classpath.", e);
+            } catch (IllegalAccessException e) {
+                throw new MojoExecutionException("Unable to access a method on a Groovy class from classpath.", e);
+            } finally {
+                System.setSecurityManager(sm);
+            }
+        } else {
+            getLog().error("Your Groovy version (" + getGroovyVersion() + ") doesn't support script execution.  The minimum version of Groovy required is " + minGroovyVersion + ".  Skipping script execution.");
+        }
+    }

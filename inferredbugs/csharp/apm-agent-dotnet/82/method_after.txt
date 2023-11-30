@@ -1,0 +1,19 @@
+  [Fact]
+		public void PublicStringDictionaryPropertyRemoveItem()
+		{
+			var mockPayloadSender = new MockPayloadSender();
+			using var agent = new ApmAgent(new AgentComponents(payloadSender: mockPayloadSender));
+
+			var transaction = agent.Tracer.StartTransaction("test", "test");
+
+			transaction.Labels["foo"] = "bar";
+			transaction.SetLabel("intItem", 42);
+			transaction.Labels.Remove("foo");
+
+			transaction.End();
+
+			var spanJsonString = SerializePayloadItem(transaction);
+			spanJsonString.Should().Contain(GetAssertString(42, "intItem"));
+			spanJsonString.Should().NotContain("foo");
+			spanJsonString.Should().NotContain("bar");
+		}

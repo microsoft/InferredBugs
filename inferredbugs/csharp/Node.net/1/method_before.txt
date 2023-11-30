@@ -1,0 +1,42 @@
+ public static IronJS.CommonObject Require( string file ) {
+
+		string pathpart = Path.GetDirectoryName( file );
+		path = Directory.GetCurrentDirectory() + pathpart;
+		string filename = Path.GetFileName( file );
+		Console.WriteLine( "require() path of js file: " + path );
+
+		// for compiled-in functionality, return existing references.
+		// TODO: clean up the global namespace, `http' et al. are directly visible
+		if( file == "http" ) {
+			// TODO: re-add after httpserver.cs is converted to IJS 0.2
+			// return httpObj;
+		}
+		if( file == "net" ) {
+			return netObj;
+		}
+		/*
+		if( file == "sys" ) {
+			return sys;
+		}
+		*/
+
+		Console.WriteLine( "requiring: " + file );
+		FileStream fs;
+		string filepath;
+		try {
+			filepath = path + "\\" + filename + ".js";
+			Console.WriteLine( "full file name: " + filepath );
+			fs = new FileStream( filepath, FileMode.Open, FileAccess.Read );
+		}
+		catch {
+			filepath = path + "\\node_modules\\" + filename + "\\index.js";
+			Console.WriteLine( "full file name: " + filepath );
+			fs = new FileStream( path + "\\node_modules\\" + file + "\\index.js", FileMode.Open, FileAccess.Read );
+		}
+
+		string code = new StreamReader( fs ).ReadToEnd();
+		// extra semicolon provided after file contents.. just in case
+		code = "var exports = {}; " + code + "; exports;";
+		// print( "evaluating require: " + code );
+		return ctx.Execute<IronJS.CommonObject>( code );
+	}

@@ -1,0 +1,187 @@
+    public static File cacheResource(URL resourceURL, String target) throws IOException {
+        // Find appropriate subdirectory in cache for the resource ...
+        File urlFile;
+        try {
+            urlFile = new File(new URI(resourceURL.toString().split("#")[0]));
+        } catch (IllegalArgumentException | URISyntaxException e) {
+            urlFile = new File(resourceURL.getPath());
+        }
+        String name = urlFile.getName();
+        boolean reference = false;
+        long size, timestamp;
+        File cacheDir = getCacheDir();
+        File cacheSubdir = cacheDir.getCanonicalFile();
+        String s = System.getProperty("org.bytedeco.javacpp.cachedir.nosubdir", "false").toLowerCase();
+        boolean noSubdir = s.equals("true") || s.equals("t") || s.equals("");
+        URLConnection urlConnection = resourceURL.openConnection();
+        if (urlConnection instanceof JarURLConnection) {
+            JarFile jarFile = ((JarURLConnection)urlConnection).getJarFile();
+            JarEntry jarEntry = ((JarURLConnection)urlConnection).getJarEntry();
+            File jarFileFile = new File(jarFile.getName());
+            File jarEntryFile = new File(jarEntry.getName());
+            size = jarEntry.getSize();
+            timestamp = jarEntry.getTime();
+            if (!noSubdir) {
+                String subdirName = jarFileFile.getName();
+                String parentName = jarEntryFile.getParent();
+                if (parentName != null) {
+                    subdirName = subdirName + File.separator + parentName;
+                }
+                cacheSubdir = new File(cacheSubdir, subdirName);
+            }
+        } else if (urlConnection instanceof HttpURLConnection) {
+            size = urlConnection.getContentLength();
+            timestamp = urlConnection.getLastModified();
+            if (!noSubdir) {
+                String path = resourceURL.getHost() + resourceURL.getPath();
+                cacheSubdir = new File(cacheSubdir, path.substring(0, path.lastIndexOf('/') + 1));
+            }
+        } else {
+            size = urlFile.length();
+            timestamp = urlFile.lastModified();
+            if (!noSubdir) {
+                cacheSubdir = new File(cacheSubdir, urlFile.getParentFile().getName());
+            }
+        }
+        if (resourceURL.getRef() != null) {
+            // ... get the URL fragment to let users rename library files ...
+            String newName = resourceURL.getRef();
+            // ... but create a symbolic link only if the name does not change ...
+            reference = newName.equals(name);
+            name = newName;
+        }
+        File file = new File(cacheSubdir, name);
+        File lockFile = new File(cacheDir, ".lock");
+        FileChannel lockChannel = null;
+        FileLock lock = null;
+        ReentrantLock threadLock = null;
+        if (target != null && target.length() > 0) {
+            // ... create symbolic link to already extracted library or ...
+            try {
+                Path path = file.toPath(), targetPath = Paths.get(target);
+                if ((!file.exists() || !Files.isSymbolicLink(path) || !Files.readSymbolicLink(path).equals(targetPath))
+                        && targetPath.isAbsolute() && !targetPath.equals(path)) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Locking " + cacheDir + " to create symbolic link");
+                    }
+                    threadLock = new ReentrantLock();
+                    threadLock.lock();
+                    lockChannel = new FileOutputStream(lockFile).getChannel();
+                    lock = lockChannel.lock();
+                    if ((!file.exists() || !Files.isSymbolicLink(path) || !Files.readSymbolicLink(path).equals(targetPath))
+                            && targetPath.isAbsolute() && !targetPath.equals(path)) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Creating symbolic link " + path + " to " + targetPath);
+                        }
+                        try {
+                            file.getParentFile().mkdirs();
+                            Files.createSymbolicLink(path, targetPath);
+                        } catch (java.nio.file.FileAlreadyExistsException e) {
+                            file.delete();
+                            Files.createSymbolicLink(path, targetPath);
+                        }
+                    }
+                }
+            } catch (IOException | RuntimeException e) {
+                // ... (probably an unsupported operation on Windows, but DLLs never need links,
+                // or other (filesystem?) exception: for example,
+                // "sun.nio.fs.UnixException: No such file or directory" on File.toPath()) ...
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Failed to create symbolic link " + file + ": " + e);
+                }
+                return null;
+            } finally {
+                if (lock != null) {
+                    lock.release();
+                }
+                if (lockChannel != null) {
+                    lockChannel.close();
+                }
+                if (threadLock != null) {
+                    threadLock.unlock();
+                }
+            }
+        } else {
+            if (urlFile.exists() && reference) {
+                // ... try to create a symbolic link to the existing file, if we can, ...
+                try {
+                    Path path = file.toPath(), urlPath = urlFile.toPath();
+                    if ((!file.exists() || !Files.isSymbolicLink(path) || !Files.readSymbolicLink(path).equals(urlPath))
+                            && urlPath.isAbsolute() && !urlPath.equals(path)) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Locking " + cacheDir + " to create symbolic link");
+                        }
+                        threadLock = new ReentrantLock();
+                        threadLock.lock();
+                        lockChannel = new FileOutputStream(lockFile).getChannel();
+                        lock = lockChannel.lock();
+                        if ((!file.exists() || !Files.isSymbolicLink(path) || !Files.readSymbolicLink(path).equals(urlPath))
+                                && urlPath.isAbsolute() && !urlPath.equals(path)) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("Creating symbolic link " + path + " to " + urlPath);
+                            }
+                            try {
+                                file.getParentFile().mkdirs();
+                                Files.createSymbolicLink(path, urlPath);
+                            } catch (java.nio.file.FileAlreadyExistsException e) {
+                                file.delete();
+                                Files.createSymbolicLink(path, urlPath);
+                            }
+                        }
+                    }
+                    return file;
+                } catch (IOException | RuntimeException e) {
+                    // ... (let's try to copy the file instead, such as on Windows) ...
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Could not create symbolic link " + file + ": " + e);
+                    }
+                } finally {
+                    if (lock != null) {
+                        lock.release();
+                    }
+                    if (lockChannel != null) {
+                        lockChannel.close();
+                    }
+                    if (threadLock != null) {
+                        threadLock.unlock();
+                    }
+                }
+            }
+            // ... check if it has not already been extracted, and if not ...
+            if (!file.exists() || file.length() != size || file.lastModified() != timestamp
+                    || !cacheSubdir.equals(file.getCanonicalFile().getParentFile())) {
+                // ... add lock to avoid two JVMs access cacheDir simultaneously and ...
+                try {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Locking " + cacheDir + " before extracting");
+                    }
+                    threadLock = new ReentrantLock();
+                    threadLock.lock();
+                    lockChannel = new FileOutputStream(lockFile).getChannel();
+                    lock = lockChannel.lock();
+                    // ... check if other JVM has extracted it before this JVM get the lock ...
+                    if (!file.exists() || file.length() != size || file.lastModified() != timestamp
+                            || !cacheSubdir.equals(file.getCanonicalFile().getParentFile())) {
+                        // ... extract it from our resources ...
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Extracting " + resourceURL);
+                        }
+                        file.delete();
+                        extractResource(resourceURL, file, null, null);
+                        file.setLastModified(timestamp);
+                    }
+                } finally {
+                    if (lock != null) {
+                        lock.release();
+                    }
+                    if (lockChannel != null) {
+                        lockChannel.close();
+                    }
+                    if (threadLock != null) {
+                        threadLock.unlock();
+                    }
+                }
+            }
+        }
+        return file;
+    }

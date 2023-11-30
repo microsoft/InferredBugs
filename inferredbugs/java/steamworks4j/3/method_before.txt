@@ -1,0 +1,31 @@
+ private String extractLibrary(String sharedLibName) throws IOException {
+
+		File nativesPath = new File(System.getProperty("java.io.tmpdir") + "/steamworks4j/" + libraryCrc);
+		File nativeFile = new File(nativesPath, sharedLibName);
+
+		if (!nativesPath.exists()) {
+			if (!nativesPath.mkdirs()) {
+				throw new IOException("Error creating temp folder: " + nativesPath.getCanonicalPath());
+			}
+		}
+
+		ZipFile zip = new ZipFile(libraryPath);
+		ZipEntry entry = zip.getEntry(sharedLibName);
+		InputStream input = zip.getInputStream(entry);
+
+		if (input == null) {
+			throw new IOException("Error extracting " + sharedLibName + " from " + libraryPath);
+		}
+
+		FileOutputStream output = new FileOutputStream(nativeFile);
+		byte[] buffer = new byte[4096];
+		while (true) {
+			int length = input.read(buffer);
+			if (length == -1) break;
+			output.write(buffer, 0, length);
+		}
+		input.close();
+		output.close();
+
+		return nativeFile.getAbsolutePath();
+	}

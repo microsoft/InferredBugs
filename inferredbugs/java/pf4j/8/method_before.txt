@@ -1,0 +1,24 @@
+    @Override
+    public Map<String, Set<String>> readClasspathStorages() {
+        log.debug("Reading extensions storages from classpath");
+        Map<String, Set<String>> result = new LinkedHashMap<>();
+
+        Set<String> bucket = new HashSet<>();
+        try {
+            Enumeration<URL> urls = getClass().getClassLoader().getResources(getExtensionsResource());
+            while (urls.hasMoreElements()) {
+                URL url = urls.nextElement();
+                log.debug("Read '{}'", url.getFile());
+                Reader reader = new InputStreamReader(url.openStream(), "UTF-8");
+                LegacyExtensionStorage.read(reader, bucket);
+            }
+
+            debugExtensions(bucket);
+
+            result.put(null, bucket);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+        }
+
+        return result;
+    }

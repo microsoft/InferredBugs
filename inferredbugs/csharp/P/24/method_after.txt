@@ -1,0 +1,28 @@
+        private void WriteFunctionBody(TextWriter output, Function function)
+        {
+            var funLocation = context.LocationResolver.GetLocation(function);
+            context.WriteLine(output, $"#line {funLocation.Line} \"{funLocation.File.Name}\"");
+            
+            // TODO: figure out how many args are actually necessary based on function calls.
+            context.WriteLine(output, $"PRT_VALUE* {FunCallRetValName} = NULL;");
+            context.WriteLine(output, $"PRT_VALUE** {FunCallArgsArrayName}[32];");
+            context.WriteLine(output, "PRT_MACHINEINST_PRIV* p_this = (PRT_MACHINEINST_PRIV*)context;");
+            if (function.Signature.ReturnType.IsSameTypeAs(PrimitiveType.Null))
+            {
+                context.WriteLine(output, $"PRT_VALUE* {FunResultValName} = NULL;");
+            }
+            else
+            {
+                string nameForReturnType = context.Names.GetNameForType(function.Signature.ReturnType);
+                context.WriteLine(output, $"PRT_VALUE* {FunResultValName} = PrtMkDefaultValue(&{nameForReturnType});");
+            }
+
+            for (var i = 0; i < function.Signature.Parameters.Count; i++)
+            {
+                Variable argument = function.Signature.Parameters[i];
+                string varName = context.Names.GetNameForDecl(argument);
+                context.WriteLine(output, $"PRT_VALUE** {varName} = argRefs[{i}];");
+            }
+
+            WriteFunctionStatements(output, function, "p_return");
+        }

@@ -1,0 +1,28 @@
+    @Override
+    protected ReadResponse doRead(ServerIdentity identity, ReadRequest request) {
+        LwM2mPath path = request.getPath();
+
+        // Manage Object case
+        if (path.isObject()) {
+            List<LwM2mObjectInstance> lwM2mObjectInstances = new ArrayList<>();
+            for (LwM2mInstanceEnabler instance : instances.values()) {
+                ReadResponse response = instance.read(identity);
+                if (response.isSuccess()) {
+                    lwM2mObjectInstances.add((LwM2mObjectInstance) response.getContent());
+                }
+            }
+            return ReadResponse.success(new LwM2mObject(getId(), lwM2mObjectInstances));
+        }
+
+        // Manage Instance case
+        LwM2mInstanceEnabler instance = instances.get(path.getObjectInstanceId());
+        if (instance == null)
+            return ReadResponse.notFound();
+
+        if (path.getResourceId() == null) {
+            return instance.read(identity);
+        }
+
+        // Manage Resource case
+        return instance.read(identity, path.getResourceId());
+    }

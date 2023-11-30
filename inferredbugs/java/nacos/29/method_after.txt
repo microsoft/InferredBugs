@@ -1,0 +1,39 @@
+    private void checkLocalConfig(CacheData cacheData) {
+        final String dataId = cacheData.dataId;
+        final String group = cacheData.group;
+        final String tenant = cacheData.tenant;
+        File path = LocalConfigInfoProcessor.getFailoverFile(agent.getName(), dataId, group, tenant);
+
+        // 没有 -> 有
+        if (!cacheData.isUseLocalConfigInfo() && path.exists()) {
+            String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
+            String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
+            cacheData.setUseLocalConfigInfo(true);
+            cacheData.setLocalConfigInfoVersion(path.lastModified());
+            cacheData.setContent(content);
+
+            LOGGER.warn("[{}] [failover-change] failover file created. dataId={}, group={}, tenant={}, md5={}, content={}",
+                agent.getName(), dataId, group, tenant, md5, ContentUtils.truncateContent(content));
+            return;
+        }
+
+        // 有 -> 没有。不通知业务监听器，从server拿到配置后通知。
+        if (cacheData.isUseLocalConfigInfo() && !path.exists()) {
+            cacheData.setUseLocalConfigInfo(false);
+            LOGGER.warn("[{}] [failover-change] failover file deleted. dataId={}, group={}, tenant={}", agent.getName(),
+                dataId, group, tenant);
+            return;
+        }
+
+        // 有变更
+        if (cacheData.isUseLocalConfigInfo() && path.exists()
+            && cacheData.getLocalConfigInfoVersion() != path.lastModified()) {
+            String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
+            String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
+            cacheData.setUseLocalConfigInfo(true);
+            cacheData.setLocalConfigInfoVersion(path.lastModified());
+            cacheData.setContent(content);
+            LOGGER.warn("[{}] [failover-change] failover file changed. dataId={}, group={}, tenant={}, md5={}, content={}",
+                agent.getName(), dataId, group, tenant, md5, ContentUtils.truncateContent(content));
+        }
+    }

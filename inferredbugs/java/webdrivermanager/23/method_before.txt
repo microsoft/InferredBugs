@@ -1,0 +1,50 @@
+    protected void manage(Architecture arch, String version) {
+        httpClient = new HttpClient(config().getProxyValue(),
+                config().getProxyUser(), config().getProxyPass());
+        httpClient.setTimeout(config().getTimeout());
+        try (HttpClient wdmHttpClient = httpClient) {
+            downloader = new Downloader(driverManagerType);
+            urlFilter = new UrlFilter();
+
+            boolean getLatest = version == null || version.isEmpty()
+                    || version.equalsIgnoreCase(LATEST.name())
+                    || version.equalsIgnoreCase(NOT_SPECIFIED.name());
+            boolean cache = config().isForcingCache() || !isNetAvailable();
+
+            log.trace(">> Managing {} arch={} version={} getLatest={} cache={}",
+                    getDriverName(), arch, version, getLatest, cache);
+
+            Optional<String> driverInCache = handleCache(arch, version,
+                    getLatest, cache);
+
+            if (driverInCache.isPresent()) {
+                versionToDownload = version;
+                downloadedVersion = version;
+                log.debug("Driver for {} {} found in cache {}", getDriverName(),
+                        version, driverInCache.get());
+                exportDriver(config().getExportParameter(exportParameterKey),
+                        driverInCache.get());
+
+            } else {
+                List<URL> candidateUrls = filterCandidateUrls(arch, version,
+                        getLatest);
+
+                if (candidateUrls.isEmpty()) {
+                    String versionStr = getLatest ? "(latest version)"
+                            : version;
+                    String errorMessage = getDriverName() + " " + versionStr
+                            + " for " + config().getMyOsName() + arch.toString()
+                            + " not found in "
+                            + config().getDriverUrl(driverUrlKey);
+                    log.error(errorMessage);
+                    throw new WebDriverManagerException(errorMessage);
+                }
+
+                downloadCandidateUrls(candidateUrls);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            handleException(e, arch, version);
+        }
+    }

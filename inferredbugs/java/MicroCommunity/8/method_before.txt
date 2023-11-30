@@ -1,0 +1,31 @@
+    private JSONObject builderStaffInfo(JSONObject paramObj, DataFlowContext dataFlowContext) {
+
+        //首先根据员工ID查询员工信息，根据员工信息修改相应的数据
+        ResponseEntity responseEntity = null;
+        AppService appService = DataFlowFactory.getService(dataFlowContext.getAppId(), ServiceCodeConstant.SERVICE_CODE_QUERY_USER_USERINFO);
+        if (appService == null) {
+            throw new ListenerExecuteException(1999, "当前没有权限访问" + ServiceCodeConstant.SERVICE_CODE_QUERY_USER_USERINFO);
+
+        }
+        String requestUrl = appService.getUrl() + "?userId=" + paramObj.getString("userId");
+        HttpHeaders header = new HttpHeaders();
+        header.add(CommonConstant.HTTP_SERVICE.toLowerCase(), ServiceCodeConstant.SERVICE_CODE_QUERY_USER_USERINFO);
+        dataFlowContext.getRequestHeaders().put("REQUEST_URL", requestUrl);
+        HttpEntity<String> httpEntity = new HttpEntity<String>("", header);
+        doRequest(dataFlowContext, appService, httpEntity);
+        responseEntity = dataFlowContext.getResponseEntity();
+
+        if (responseEntity.getStatusCode() != HttpStatus.OK) {
+            dataFlowContext.setResponseEntity(responseEntity);
+        }
+
+        JSONObject userInfo = JSONObject.parseObject(responseEntity.getBody().toString());
+
+        if (!paramObj.getString("oldPwd").equals(userInfo.getString("password"))) {
+            throw new IllegalArgumentException("原始密码错误");
+        }
+        userInfo.putAll(paramObj);
+        userInfo.put("password", paramObj.getString("newPwd"));
+
+        return userInfo;
+    }

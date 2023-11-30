@@ -1,0 +1,23 @@
+ @Test
+	public void TestNullAttr() throws Exception {
+		Configuration config = new Configuration();
+		Text value = new Text();
+
+		SerDe jserde = new GeoJsonSerDe();
+		Properties proptab = new Properties();
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMNS, "num");
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMN_TYPES, "int");
+		jserde.initialize(config, proptab);
+        StructObjectInspector rowOI = (StructObjectInspector)jserde.getObjectInspector();
+
+        value.set("{\"properties\":{\"num\":7}}");
+		Object row = jserde.deserialize(value);
+		StructField f0 = rowOI.getStructFieldRef("num");
+		Object fieldData = rowOI.getStructFieldData(row, f0);
+		Assert.assertEquals(7, ((IntWritable)fieldData).get());
+        value.set("{\"properties\":{}}");
+        row = jserde.deserialize(value);
+		f0 = rowOI.getStructFieldRef("num");
+		fieldData = rowOI.getStructFieldData(row, f0);
+		Assert.assertEquals(null, fieldData);
+	}

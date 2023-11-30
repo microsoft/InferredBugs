@@ -1,0 +1,55 @@
+  private HttpURLConnection connect0(final URI ipUri, final String method, final byte[] entity,
+                                     final Map<String, List<String>> headers,
+                                     final String hostname)
+      throws IOException {
+    if (log.isTraceEnabled()) {
+      log.trace("req: {} {} {} {} {} {}", method, ipUri, headers.size(),
+                Joiner.on(',').withKeyValueSeparator("=").join(headers),
+                entity.length, Json.asPrettyStringUnchecked(entity));
+    } else {
+      log.debug("req: {} {} {} {}", method, ipUri, headers.size(), entity.length);
+    }
+
+    final URLConnection urlConnection = ipUri.toURL().openConnection();
+    final HttpURLConnection connection = (HttpURLConnection) urlConnection;
+
+    // We verify the TLS certificate against the original hostname since verifying against the
+    // IP address will fail
+    if (urlConnection instanceof HttpsURLConnection) {
+      System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
+      connection.setRequestProperty("Host", hostname);
+      ((HttpsURLConnection) connection).setHostnameVerifier(new HostnameVerifier() {
+        @Override
+        public boolean verify(String ip, SSLSession sslSession) {
+          final String tHostname = hostname.endsWith(".") ?
+                                   hostname.substring(0, hostname.length() - 1) : hostname;
+          return new DefaultHostnameVerifier().verify(tHostname, sslSession);
+        }
+      });
+    }
+
+    connection.setRequestProperty("Accept-Encoding", "gzip");
+    connection.setInstanceFollowRedirects(false);
+    connection.setConnectTimeout((int) HTTP_TIMEOUT_MILLIS);
+    connection.setReadTimeout((int) HTTP_TIMEOUT_MILLIS);
+    for (Map.Entry<String, List<String>> header : headers.entrySet()) {
+      for (final String value : header.getValue()) {
+        connection.addRequestProperty(header.getKey(), value);
+      }
+    }
+    if (entity.length > 0) {
+      connection.setDoOutput(true);
+      connection.getOutputStream().write(entity);
+    }
+    if (urlConnection instanceof HttpsURLConnection) {
+      setRequestMethod(connection, method, true);
+    } else {
+      setRequestMethod(connection, method, false);
+    }
+
+    if (connection.getResponseCode() == HTTP_BAD_GATEWAY) {
+      throw new ConnectException("502 Bad Gateway");
+    }
+
+    return connection;
+  }

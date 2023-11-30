@@ -1,0 +1,34 @@
+    public DataValue getDataForRule(Scenario scenario, Column phxMetaColumn) throws Exception {
+        // TODO Make a Set of Rules that have already been applied so that so we don't generate for every value
+
+        List<Scenario> scenarios = parser.getScenarios();
+        DataValue value = null;
+        if (scenarios.contains(scenario)) {
+            logger.debug("We found a correct Scenario");
+            // Assume the first rule map
+            Map<DataTypeMapping, List> ruleMap = modelList.get(0);
+            List<Column> ruleList = ruleMap.get(phxMetaColumn.getType());
+
+            // Make sure Column from Phoenix Metadata matches a rule column
+            if (ruleList.contains(phxMetaColumn)) {
+                // Generate some random data based on this rule
+                logger.debug("We found a correct column rule");
+                Column columnRule = getColumnForRule(ruleList, phxMetaColumn);
+
+                value = getDataValue(columnRule);
+                synchronized (value) {
+                    // Add the prefix to the value if it exists.
+                    if (columnRule.getPrefix() != null) {
+                        value.setValue(columnRule.getPrefix() + value.getValue());
+                    }
+                }
+
+            } else {
+                logger.warn("Attempted to apply rule to data, but could not find a rule to match type:"
+                                + phxMetaColumn.getType()
+                );
+            }
+
+        }
+        return value;
+    }

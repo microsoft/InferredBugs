@@ -1,0 +1,48 @@
+    public static void signalPublish(String key, String value) throws Exception {
+
+        long start = System.currentTimeMillis();
+        final Datum datum = new Datum();
+        datum.key = key;
+        datum.value = value;
+
+        if (RaftCore.getDatum(key) == null) {
+            datum.timestamp.set(1L);
+        } else {
+            datum.timestamp.set(RaftCore.getDatum(key).timestamp.incrementAndGet());
+        }
+
+        JSONObject json = new JSONObject();
+        json.put("datum", datum);
+        json.put("source", peers.local());
+
+        onPublish(datum, peers.local());
+
+        final String content = JSON.toJSONString(json);
+
+        for (final String server : peers.allServersIncludeMyself()) {
+            if (isLeader(server)) {
+                continue;
+            }
+            final String url = buildURL(server, API_ON_PUB);
+            HttpClient.asyncHttpPostLarge(url, Arrays.asList("key=" + key), content, new AsyncCompletionHandler<Integer>() {
+                @Override
+                public Integer onCompleted(Response response) throws Exception {
+                    if (response.getStatusCode() != HttpURLConnection.HTTP_OK) {
+                        Loggers.RAFT.warn("RAFT", "failed to publish data to peer, datumId=" + datum.key + ", peer=" + server + ", http code=" + response.getStatusCode());
+                        return 1;
+                    }
+                    return 0;
+                }
+
+                @Override
+                public STATE onContentWriteCompleted() {
+                    return STATE.CONTINUE;
+                }
+            });
+
+        }
+
+        long end = System.currentTimeMillis();
+        Loggers.RAFT.info("signalPublish cost " + (end - start) + " ms" + " : " + key);
+
+    }

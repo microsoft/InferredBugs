@@ -1,0 +1,16 @@
+    private static String usageString(CommandLine commandLine, Help.Ansi ansi) throws UnsupportedEncodingException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        commandLine.usage(new PrintStream(baos, true, "UTF8"), ansi);
+        String result = baos.toString("UTF8");
+
+        if (ansi == Help.Ansi.AUTO) {
+            baos.reset();
+            commandLine.usage(new PrintStream(baos, true, "UTF8"));
+            assertEquals(result, baos.toString("UTF8"));
+        } else if (ansi == Help.Ansi.ON) {
+            baos.reset();
+            commandLine.usage(new PrintStream(baos, true, "UTF8"), Help.defaultColorScheme(Help.Ansi.ON));
+            assertEquals(result, baos.toString("UTF8"));
+        }
+        return result;
+    }

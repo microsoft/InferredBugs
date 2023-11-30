@@ -1,0 +1,60 @@
+    @Override
+    public Page download(Request request, Task task) {
+        Site site = null;
+        if (task != null) {
+            site = task.getSite();
+        }
+        Set<Integer> acceptStatCode;
+        String charset = null;
+        Map<String, String> headers = null;
+        if (site != null) {
+            acceptStatCode = site.getAcceptStatCode();
+            charset = site.getCharset();
+            headers = site.getHeaders();
+        } else {
+            acceptStatCode = Sets.newHashSet(200);
+        }
+        logger.info("downloading page {}", request.getUrl());
+        CloseableHttpResponse httpResponse = null;
+        int statusCode=0;
+        try {
+            HttpHost proxyHost = null;
+            Proxy proxy = null; //TODO
+            if (site.getHttpProxyPool() != null && site.getHttpProxyPool().isEnable()) {
+                proxy = site.getHttpProxyFromPool();
+                proxyHost = proxy.getHttpHost();
+            } else if(site.getHttpProxy()!= null){
+                proxyHost = site.getHttpProxy();
+            }
+            
+            HttpUriRequest httpUriRequest = getHttpUriRequest(request, site, headers, proxyHost);//���������˴���
+            httpResponse = getHttpClient(site, proxy).execute(httpUriRequest);//getHttpClient�������˴�����֤
+            statusCode = httpResponse.getStatusLine().getStatusCode();
+            request.putExtra(Request.STATUS_CODE, statusCode);
+            if (statusAccept(acceptStatCode, statusCode)) {
+                Page page = handleResponse(request, charset, httpResponse, task);
+                onSuccess(request);
+                return page;
+            } else {
+                logger.warn("code error " + statusCode + "\t" + request.getUrl());
+                return null;
+            }
+        } catch (IOException e) {
+            logger.warn("download page " + request.getUrl() + " error", e);
+            if (site.getCycleRetryTimes() > 0) {
+                return addToCycleRetry(request, site);
+            }
+            onError(request);
+            return null;
+        } finally {
+        	request.putExtra(Request.STATUS_CODE, statusCode);
+            try {
+                if (httpResponse != null) {
+                    //ensure the connection is released back to pool
+                    EntityUtils.consume(httpResponse.getEntity());
+                }
+            } catch (IOException e) {
+                logger.warn("close response fail", e);
+            }
+        }
+    }

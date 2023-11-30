@@ -1,0 +1,51 @@
+  private ZooKeeperClient setupZookeeperClient(final AgentConfig config, final String id,
+                                               final CountDownLatch zkRegistrationSignal) {
+    ACLProvider aclProvider = null;
+    List<AuthInfo> authorization = null;
+
+    if (config.isZooKeeperEnableAcls()) {
+      final String agentUser = config.getZookeeperAclAgentUser();
+      final String agentPassword = config.getZooKeeperAclAgentPassword();
+      final String masterUser = config.getZookeeperAclMasterUser();
+      final String masterDigest = config.getZooKeeperAclMasterDigest();
+
+      if (isNullOrEmpty(agentUser) || isNullOrEmpty(agentPassword)) {
+        throw new HeliosRuntimeException(
+            "ZooKeeper ACLs enabled but agent username and/or password not set");
+      }
+
+      if (isNullOrEmpty(masterUser) || isNullOrEmpty(masterDigest)) {
+        throw new HeliosRuntimeException(
+            "ZooKeeper ACLs enabled but master username and/or digest not set");
+      }
+
+      aclProvider = heliosAclProvider(
+          masterUser, masterDigest,
+          agentUser, digest(agentUser, agentPassword));
+      authorization = Lists.newArrayList(new AuthInfo(
+          "digest", String.format("%s:%s", agentUser, agentPassword).getBytes()));
+    }
+
+    final RetryPolicy zooKeeperRetryPolicy = new ExponentialBackoffRetry(1000, 3);
+    final CuratorFramework curator = new CuratorClientFactoryImpl().newClient(
+        config.getZooKeeperConnectionString(),
+        config.getZooKeeperSessionTimeoutMillis(),
+        config.getZooKeeperConnectionTimeoutMillis(),
+        zooKeeperRetryPolicy,
+        config.getZooKeeperNamespace(),
+        aclProvider,
+        authorization);
+
+    final ZooKeeperClient client = new DefaultZooKeeperClient(curator,
+                                                              config.getZooKeeperClusterId());
+    client.start();
+
+    // Register the agent
+    zkRegistrar = new ZooKeeperRegistrarService(
+        client,
+        new AgentZooKeeperRegistrar(this, config.getName(),
+                                    id, config.getZooKeeperRegistrationTtlMinutes()),
+        zkRegistrationSignal);
+
+    return client;
+  }

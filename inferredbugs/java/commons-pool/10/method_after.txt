@@ -1,0 +1,54 @@
+    public void clearOldest() {
+        // Map of objects to destroy my key
+        final Map toDestroy = new HashMap();
+
+        // build sorted map of idle objects
+        final Map map = new TreeMap();
+        synchronized (this) {
+            for (Iterator keyiter = _poolMap.keySet().iterator(); keyiter.hasNext();) {
+                final Object key = keyiter.next();
+                final CursorableLinkedList list = ((ObjectQueue)_poolMap.get(key)).queue;
+                for (Iterator it = list.iterator(); it.hasNext();) {
+                    // each item into the map uses the objectimestamppair object
+                    // as the key.  It then gets sorted based on the timstamp field
+                    // each value in the map is the parent list it belongs in.
+                    map.put(it.next(), key);
+                }
+            }
+
+            // Now iterate created map and kill the first 15% plus one to account for zero
+            Set setPairKeys = map.entrySet();
+            int itemsToRemove = ((int) (map.size() * 0.15)) + 1;
+
+            Iterator iter = setPairKeys.iterator();
+            while (iter.hasNext() && itemsToRemove > 0) {
+                Map.Entry entry = (Map.Entry) iter.next();
+                // kind of backwards on naming.  In the map, each key is the objecttimestamppair
+                // because it has the ordering with the timestamp value.  Each value that the
+                // key references is the key of the list it belongs to.
+                Object key = entry.getValue();
+                ObjectTimestampPair pairTimeStamp = (ObjectTimestampPair) entry.getKey();
+                final CursorableLinkedList list =
+                    ((ObjectQueue)(_poolMap.get(key))).queue;
+                list.remove(pairTimeStamp);
+
+                if (toDestroy.containsKey(key)) {
+                    ((List)toDestroy.get(key)).add(pairTimeStamp);
+                } else {
+                    List listForKey = new ArrayList();
+                    listForKey.add(pairTimeStamp);
+                    toDestroy.put(key, listForKey);
+                }
+                // if that was the last object for that key, drop that pool
+                if (list.isEmpty()) {
+                    _poolMap.remove(key);
+                    _poolList.remove(key);
+                }
+                _totalIdle--;
+                _totalInternalProcessing++;
+                itemsToRemove--;
+            }
+
+        }
+        destroy(toDestroy, _factory);
+    }

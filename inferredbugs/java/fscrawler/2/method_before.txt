@@ -1,0 +1,30 @@
+    public void start() throws Exception {
+        logger.info("Starting FS crawler");
+        if (loop < 0) {
+            logger.info("FS crawler started in watch mode. It will run unless you stop it with CTRL+C.");
+        }
+
+        if (loop == 0 && !rest) {
+            closed = true;
+        }
+
+        if (closed) {
+            logger.info("Fs crawler is closed. Exiting");
+            return;
+        }
+
+        esClientManager.start();
+        esClientManager.createIndices(settings);
+
+        // Start the REST Server if needed
+        if (rest) {
+            RestServer.start(settings, esClientManager);
+            logger.info("FS crawler Rest service started on [{}]", settings.getRest().url());
+        }
+
+        // Start the crawler thread - but not if only in rest mode
+        if (loop != 0) {
+            fsCrawlerThread = new Thread(new FSParser(settings), "fs-crawler");
+            fsCrawlerThread.start();
+        }
+    }

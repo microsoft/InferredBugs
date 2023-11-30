@@ -1,0 +1,39 @@
+    @Override
+    public void writeRequested(ChannelHandlerContext ctx, MessageEvent me) throws Exception{
+
+        if(log.isDebugEnabled()){
+            log.debug("[IncomingMessageReliablityHandler] Handle Downstream Message Event.");
+        }
+
+        if(me.getMessage() instanceof CoapResponse){
+            CoapResponse coapResponse = (CoapResponse) me.getMessage();
+
+            if(log.isDebugEnabled()){
+                log.debug("[OutgoingMessageReliabilityHandler] Handle downstream event for message with ID " +
+                    coapResponse.getMessageID() + " for " + me.getRemoteAddress() );
+            }
+
+            boolean alreadyConfirmed;
+            synchronized(monitor){
+                Object o = incomingMessagesToBeConfirmed.remove(me.getRemoteAddress(),
+                                                                     coapResponse.getMessageID());
+                
+                if (o == null){
+                    System.out.println("Object o ist NULL!!!");
+                }
+                else{
+                    System.out.println("Object o ist NICHT NULL!!!");
+                }
+                alreadyConfirmed = (Boolean) o;
+            }
+
+            if(alreadyConfirmed){
+                coapResponse.getHeader().setMsgType(MsgType.CON);
+            }
+            else{
+                coapResponse.getHeader().setMsgType(MsgType.ACK);
+            }
+        }
+
+        ctx.sendDownstream(me);
+    }

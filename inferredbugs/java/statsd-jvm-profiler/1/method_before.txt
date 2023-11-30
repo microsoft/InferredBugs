@@ -1,0 +1,16 @@
+    public static void premain(final String args, final Instrumentation instrumentation) {
+        Map<String, String> argMap = parseArgs(args);
+        String statsdServer = argMap.get("server");
+        int statsdPort = Integer.valueOf(argMap.get("port"));
+        String prefix = argMap.get("prefix");
+        List<String> filterPackages = Arrays.asList(argMap.get("filterPackages").split(":"));
+
+        StatsDClient client = new NonBlockingStatsDClient(prefix, statsdServer, statsdPort);
+
+        Profiler memoryProfiler = new MemoryProfiler(client);
+        Profiler cpuProfiler = new CPUProfiler(client, filterPackages);
+        Collection<Profiler> profilers = Arrays.asList(memoryProfiler, cpuProfiler);
+
+        scheduleProfilers(profilers);
+        registerShutdownHook(profilers);
+    }

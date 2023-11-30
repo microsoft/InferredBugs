@@ -1,0 +1,31 @@
+    public Pipeline getPipeline() {
+        AbstractProject first = Jenkins.getInstance().getItem(firstJob, Jenkins.getInstance(), AbstractProject.class);
+        AbstractBuild prevBuild = null;
+
+        List<Stage> stages = newArrayList();
+        boolean isFirst = true;
+        for (AbstractProject job : getAllDownstreamJobs(first)) {
+            AbstractBuild build = job.getLastBuild();
+            Task task;
+            if (isFirst || build.equals(getDownstreamBuild(job, prevBuild))) {
+                Status status = resolveStatus(build);
+                if (status == Status.RUNNING) {
+                    task = new Task(job.getDisplayName(), status, (int) Math.round((double) (System.currentTimeMillis() - build.getTimestamp().getTimeInMillis()) / build.getEstimatedDuration() * 100.0));
+                } else {
+                    task = new Task(job.getDisplayName(), status, 100);
+                }
+                prevBuild = build;
+            } else {
+                task = new Task(job.getDisplayName(), Status.NOTRUNNED, 0);
+                prevBuild = null;
+            }
+
+
+
+            Stage stage = new Stage(job.getDisplayName(), singletonList(task));
+            stages.add(stage);
+            isFirst = false;
+        }
+
+        return new Pipeline(title, stages);
+    }

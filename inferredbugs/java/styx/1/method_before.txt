@@ -1,0 +1,14 @@
+  Map<WorkflowInstance, Long> readActiveWorkflowInstances() throws IOException {
+    final Table activeStatesTable = connection.getTable(ACTIVE_STATES_TABLE_NAME);
+    final ImmutableMap.Builder<WorkflowInstance, Long> map = ImmutableMap.builder();
+
+    for (Result result : activeStatesTable.getScanner(STATE_CF, STATE_QUALIFIER)) {
+      final WorkflowInstance workflowInstance =
+          WorkflowInstance.parseKey(Bytes.toString(result.getRow()));
+      final long counter = Long.parseLong(Bytes.toString(result.value()));
+
+      map.put(workflowInstance, counter);
+    }
+
+    return map.build();
+  }

@@ -1,0 +1,48 @@
+ @Override
+	public void apply(FaceletContext context, UIComponent parent) throws IOException {
+		if (!ComponentHandler.isNew(parent)) {
+			return;
+		}
+
+		if (!TRUE.equals(getApplicationAttribute(context.getFacesContext(), Socket.class.getName()))) {
+			throw new IllegalStateException(ERROR_ENDPOINT_NOT_ENABLED);
+		}
+
+		String channelName = channel.isLiteral() ? channel.getValue(context) : null;
+
+		if (channelName == null || !PATTERN_CHANNEL.matcher(channelName).matches()) {
+			throw new IllegalArgumentException(String.format(ERROR_INVALID_CHANNEL, channelName));
+		}
+
+		Object userObject = getObject(context, user);
+
+		if (userObject != null && !(userObject instanceof Serializable)) {
+			throw new IllegalArgumentException(String.format(ERROR_INVALID_USER, userObject));
+		}
+
+		SocketChannelManager channelManager = getReference(SocketChannelManager.class);
+		String scopeName = (scope == null) ? null : scope.isLiteral() ? getString(context, scope) : "";
+		String channelId;
+
+		try {
+			channelId = channelManager.register(channelName, scopeName, (Serializable) userObject);
+		}
+		catch (IllegalArgumentException ignore) {
+			throw new IllegalArgumentException(String.format(ERROR_INVALID_SCOPE, scopeName));
+		}
+
+		if (channelId == null) {
+			throw new IllegalArgumentException(String.format(ERROR_DUPLICATE_CHANNEL, channelName));
+		}
+
+		Integer portNumber = getObject(context, port, Integer.class);
+		String onopenFunction = getString(context, onopen);
+		String onmessageFunction = onmessage.getValue(context);
+		String oncloseFunction = getString(context, onclose);
+		String functions = onopenFunction + "," + onmessageFunction + "," + oncloseFunction;
+		ValueExpression connectedExpression = getValueExpression(context, connected, Boolean.class);
+
+		SystemEventListener listener = new SocketFacesListener(portNumber, channelName, channelId, functions, connectedExpression);
+		subscribeToViewEvent(PostAddToViewEvent.class, listener);
+		subscribeToViewEvent(PreRenderViewEvent.class, listener);
+	}

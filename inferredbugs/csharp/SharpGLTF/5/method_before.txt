@@ -1,0 +1,46 @@
+        private Object _GetConstantRuntimeValue(SchemaType type, Object value)
+        {
+            if (value == null) throw new ArgumentNullException();
+
+            if (type is StringType stype)
+            {
+                if (value is String) return value;
+
+                return value == null ? null : System.Convert.ChangeType(value, typeof(string), System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (type is BlittableType btype)
+            {
+                if (btype.DataType == typeof(Boolean).GetTypeInfo())
+                {
+                    if (value is Boolean) return value;
+
+                    var str = value as String;
+
+                    if (str.ToLower() == "false") return false;
+                    if (str.ToLower() == "true") return true;
+                    throw new NotImplementedException();
+                }
+
+                if (value is String) return value;
+
+                return value == null ? null : System.Convert.ChangeType(value, btype.DataType.AsType(), System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (type is EnumType etype)
+            {
+                var etypeName = _GetRuntimeName(type);
+
+                if (value is String) return $"{etypeName}.{value}";
+                else return $"({etypeName}){value}";
+            }
+
+            if (type is ArrayType aType)
+            {
+                var atypeName = _GetRuntimeName(type);
+
+                return value.ToString();
+            }
+
+            throw new NotImplementedException();
+        }

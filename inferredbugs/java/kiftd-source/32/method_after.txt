@@ -1,0 +1,126 @@
+ public String doUploadFile(final HttpServletRequest request, final HttpServletResponse response,
+			final MultipartFile file) {
+		String account = (String) request.getSession().getAttribute("ACCOUNT");
+		final String folderId = request.getParameter("folderId");
+		final String fname = request.getParameter("fname");
+		final String originalFileName = (fname != null ? fname : file.getOriginalFilename());
+		String fileName = originalFileName;
+		final String repeType = request.getParameter("repeType");
+		// 再次检查上传文件名与目标目录ID
+		if (folderId == null || folderId.length() <= 0 || originalFileName == null || originalFileName.length() <= 0) {
+			return UPLOADERROR;
+		}
+		Folder folder = flm.queryById(folderId);
+		if (folder == null) {
+			return UPLOADERROR;
+		}
+		// 检查上传权限
+		if (!ConfigureReader.instance().authorized(account, AccountAuth.UPLOAD_FILES, fu.getAllFoldersId(folderId))
+				|| !ConfigureReader.instance().accessFolder(folder, account)) {
+			return UPLOADERROR;
+		}
+		// 检查上传文件体积是否超限
+		long mufs = ConfigureReader.instance().getUploadFileSize(account);
+		if (mufs >= 0 && file.getSize() > mufs) {
+			return UPLOADERROR;
+		}
+		// 检查是否存在同名文件。不存在：直接存入新节点；存在：检查repeType代表的上传类型：覆盖、跳过、保留两者。
+		final List<Node> nodes = this.fm.queryByParentFolderId(folderId);
+		if (nodes.parallelStream().anyMatch((e) -> e.getFileName().equals(originalFileName))) {
+			// 针对存在同名文件的操作
+			if (repeType != null) {
+				switch (repeType) {
+				// 跳过则忽略上传请求并直接返回上传成功（跳过不应上传）
+				case "skip":
+					return UPLOADSUCCESS;
+				// 如果要覆盖的文件不存在与其他节点共享文件块的情况，则找到该文件块并将新内容写入其中，同时更新原节点信息（除了文件名、父目录和ID之外的全部信息）。
+				// 如果要覆盖的文件是某个文件块的众多副本之一，那么“覆盖”就是新存入一个文件块，然后再更新原节点信息（除了文件名、父目录和ID之外的全部信息）。
+				case "cover":
+					// 特殊操作权限检查，“覆盖”操作同时还要求用户必须具备删除权限，否则不能执行
+					if (!ConfigureReader.instance().authorized(account, AccountAuth.DELETE_FILE_OR_FOLDER,
+							fu.getAllFoldersId(folderId))) {
+						return UPLOADERROR;
+					}
+					for (Node f : nodes) {
+						// 找到要覆盖的节点
+						if (f.getFileName().equals(originalFileName)) {
+							try {
+								// 首先先将该节点中必须覆盖的信息更新
+								f.setFileSize(fbu.getFileSize(file));
+								f.setFileCreationDate(ServerTimeUtil.accurateToDay());
+								if (account != null) {
+									f.setFileCreator(account);
+								} else {
+									f.setFileCreator("\u533f\u540d\u7528\u6237");
+								}
+								// 该节点对应的文件块是否独享？
+								Map<String, String> map = new HashMap<>();
+								map.put("path", f.getFilePath());
+								map.put("fileId", f.getFileId());
+								List<Node> nodesHasSomeBlock = fm.queryByPathExcludeById(map);
+								if (nodesHasSomeBlock == null || nodesHasSomeBlock.isEmpty()) {
+									// 如果该节点的文件块仅由该节点引用，那么直接重写此文件块
+									if (fm.update(f) > 0) {
+										if (fbu.isValidNode(f)) {
+											File block = fbu.getFileFromBlocks(f);
+											file.transferTo(block);
+											this.lu.writeUploadFileEvent(request, f, account);
+											return UPLOADSUCCESS;
+										}
+									}
+								} else {
+									// 如果此文件块还被其他节点引用，那么为此节点新建一个文件块
+									File block = fbu.saveToFileBlocks(file);
+									// 并将该节点的文件块索引更新为新的文件块
+									f.setFilePath(block.getName());
+									if (fm.update(f) > 0) {
+										if (fbu.isValidNode(f)) {
+											this.lu.writeUploadFileEvent(request, f, account);
+											return UPLOADSUCCESS;
+										} else {
+											block.delete();
+										}
+									}
+								}
+								return UPLOADERROR;
+							} catch (Exception e) {
+								return UPLOADERROR;
+							}
+						}
+					}
+					return UPLOADERROR;
+				// 保留两者，使用型如“xxxxx (n).xx”的形式命名新文件。其中n为计数，例如已经存在2个文件，则新文件的n记为2
+				case "both":
+					// 设置新文件名为标号形式
+					fileName = FileNodeUtil.getNewNodeName(originalFileName, nodes);
+					break;
+				default:
+					// 其他声明，容错，暂无效果
+					return UPLOADERROR;
+				}
+			} else {
+				// 如果既有重复文件、同时又没声明如何操作，则直接上传失败。
+				return UPLOADERROR;
+			}
+		}
+		// 判断该文件夹内的文件数量是否超限
+		if (fm.countByParentFolderId(folderId) >= FileNodeUtil.MAXIMUM_NUM_OF_SINGLE_FOLDER) {
+			return FILES_TOTAL_OUT_OF_LIMIT;
+		}
+		// 将文件存入节点并获取其存入生成路径，型如“UUID.block”形式。
+		final File block = this.fbu.saveToFileBlocks(file);
+		if (block == null) {
+			return UPLOADERROR;
+		}
+		final String fsize = this.fbu.getFileSize(file);
+		Node newNode = fbu.insertNewNode(fileName, account, block.getName(), fsize, folderId);
+		if (newNode != null) {
+			// 存入成功，则写入日志并返回成功提示
+			this.lu.writeUploadFileEvent(request, newNode, account);
+			return UPLOADSUCCESS;
+		} else {
+			// 存入失败则删除残余文件块，并返回失败提示
+			block.delete();
+			return UPLOADERROR;
+		}
+	}

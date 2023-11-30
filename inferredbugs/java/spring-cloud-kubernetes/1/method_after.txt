@@ -1,0 +1,30 @@
+ @Override
+	public void postProcessEnvironment(ConfigurableEnvironment environment,
+			SpringApplication application) {
+
+		final boolean kubernetesEnabled = environment
+				.getProperty("spring.cloud.kubernetes.enabled", Boolean.class, true);
+		if (!kubernetesEnabled) {
+			return;
+		}
+
+		if (isInsideKubernetes()) {
+			if (hasKubernetesProfile(environment)) {
+				if (LOG.isDebugEnabled()) {
+					LOG.debug("'kubernetes' already in list of active profiles");
+				}
+			}
+			else {
+				if (LOG.isDebugEnabled()) {
+					LOG.debug("Adding 'kubernetes' to list of active profiles");
+				}
+				environment.addActiveProfile(KUBERNETES_PROFILE);
+			}
+		}
+		else {
+			if (LOG.isDebugEnabled()) {
+				LOG.warn(
+						"Not running inside kubernetes. Skipping 'kubernetes' profile activation.");
+			}
+		}
+	}

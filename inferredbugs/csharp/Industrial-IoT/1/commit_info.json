@@ -1,0 +1,541 @@
+{
+    "hash": "7ca3b1b43b39998dc27cbe0d6250efda044f363d",
+    "message": "Support listing published nodes with namespace information using OPC \u2026 (#179)\n\nSupport listing endpoints and published nodes with namespace information using OPC server endpoint\r\n\r\nSince the existing GetPublishedNodes method call only returns NodeId, whose namespace index\r\nlives in a different server, add a new opc method that calls into the existing and tested iot hub method to expose the new list format.",
+    "file_num_lines": 611,
+    "diff_parsed": {
+        "added": [
+            [
+                12,
+                "    using System.Text;"
+            ],
+            [
+                117,
+                ""
+            ],
+            [
+                118,
+                "                    MethodState getConfiguredNodesOnEndpointMethod = CreateMethod(methodsFolder, \"GetConfiguredNodesOnEndpoint\", \"GetConfiguredNodesOnEndpoint\");"
+            ],
+            [
+                119,
+                "                    SetGetConfiguredNodesOnEndpointMethodProperties(ref getConfiguredNodesOnEndpointMethod);"
+            ],
+            [
+                120,
+                ""
+            ],
+            [
+                121,
+                "                    MethodState getGetConfiguredEndpointsMethod = CreateMethod(methodsFolder, \"GetConfiguredEndpoints\", \"GetConfiguredEndpoints\");"
+            ],
+            [
+                122,
+                "                    SetGetConfiguredEndpointsMethodProperties(ref getGetConfiguredEndpointsMethod);"
+            ],
+            [
+                160,
+                "        /// Sets properties of the UnpublishNode method."
+            ],
+            [
+                186,
+                "        /// Sets properties of the GetPublishedNodes method, which is only there for backward compatibility."
+            ],
+            [
+                227,
+                "        /// <summary>"
+            ],
+            [
+                228,
+                "        /// Sets properties of the GetConfiguredNodesOnEndpoint method"
+            ],
+            [
+                229,
+                "        /// </summary>"
+            ],
+            [
+                230,
+                "        private void SetGetConfiguredNodesOnEndpointMethodProperties(ref MethodState method)"
+            ],
+            [
+                231,
+                "        {"
+            ],
+            [
+                232,
+                "            // define input arguments"
+            ],
+            [
+                233,
+                "            method.InputArguments = new PropertyState<Argument[]>(method)"
+            ],
+            [
+                234,
+                "            {"
+            ],
+            [
+                235,
+                "                NodeId = new NodeId(method.BrowseName.Name + \"InArgs\", NamespaceIndex),"
+            ],
+            [
+                236,
+                "                BrowseName = BrowseNames.InputArguments"
+            ],
+            [
+                237,
+                "            };"
+            ],
+            [
+                238,
+                "            method.InputArguments.DisplayName = method.InputArguments.BrowseName.Name;"
+            ],
+            [
+                239,
+                "            method.InputArguments.TypeDefinitionId = VariableTypeIds.PropertyType;"
+            ],
+            [
+                240,
+                "            method.InputArguments.ReferenceTypeId = ReferenceTypeIds.HasProperty;"
+            ],
+            [
+                241,
+                "            method.InputArguments.DataType = DataTypeIds.Argument;"
+            ],
+            [
+                242,
+                "            method.InputArguments.ValueRank = ValueRanks.OneDimension;"
+            ],
+            [
+                243,
+                ""
+            ],
+            [
+                244,
+                "            method.InputArguments.Value = new Argument[]"
+            ],
+            [
+                245,
+                "            {"
+            ],
+            [
+                246,
+                "                new Argument() { Name = \"RequestJson\", Description = \"Request model as json string.\",  DataType = DataTypeIds.String, ValueRank = ValueRanks.Scalar }"
+            ],
+            [
+                247,
+                "            };"
+            ],
+            [
+                248,
+                ""
+            ],
+            [
+                249,
+                "            // set output arguments"
+            ],
+            [
+                250,
+                "            method.OutputArguments = new PropertyState<Argument[]>(method)"
+            ],
+            [
+                251,
+                "            {"
+            ],
+            [
+                252,
+                "                NodeId = new NodeId(method.BrowseName.Name + \"OutArgs\", NamespaceIndex),"
+            ],
+            [
+                253,
+                "                BrowseName = BrowseNames.OutputArguments"
+            ],
+            [
+                254,
+                "            };"
+            ],
+            [
+                255,
+                "            method.OutputArguments.DisplayName = method.OutputArguments.BrowseName.Name;"
+            ],
+            [
+                256,
+                "            method.OutputArguments.TypeDefinitionId = VariableTypeIds.PropertyType;"
+            ],
+            [
+                257,
+                "            method.OutputArguments.ReferenceTypeId = ReferenceTypeIds.HasProperty;"
+            ],
+            [
+                258,
+                "            method.OutputArguments.DataType = DataTypeIds.Argument;"
+            ],
+            [
+                259,
+                "            method.OutputArguments.ValueRank = ValueRanks.OneDimension;"
+            ],
+            [
+                260,
+                ""
+            ],
+            [
+                261,
+                "            method.OutputArguments.Value = new Argument[]"
+            ],
+            [
+                262,
+                "            {"
+            ],
+            [
+                263,
+                "                new Argument() { Name = \"ResponseJson\", Description = \"Response model as json string.\",  DataType = DataTypeIds.String, ValueRank = ValueRanks.Scalar }"
+            ],
+            [
+                264,
+                "            };"
+            ],
+            [
+                265,
+                "            method.OnCallMethod = new GenericMethodCalledEventHandler(OnGetConfiguredNodesOnEndpointCall);"
+            ],
+            [
+                266,
+                "        }"
+            ],
+            [
+                267,
+                ""
+            ],
+            [
+                268,
+                ""
+            ],
+            [
+                269,
+                "        /// <summary>"
+            ],
+            [
+                270,
+                "        /// Sets properties of the GetConfiguredEndpoints method"
+            ],
+            [
+                271,
+                "        /// </summary>"
+            ],
+            [
+                272,
+                "        private void SetGetConfiguredEndpointsMethodProperties(ref MethodState method)"
+            ],
+            [
+                273,
+                "        {"
+            ],
+            [
+                274,
+                "            // define input arguments"
+            ],
+            [
+                275,
+                "            method.InputArguments = new PropertyState<Argument[]>(method)"
+            ],
+            [
+                276,
+                "            {"
+            ],
+            [
+                277,
+                "                NodeId = new NodeId(method.BrowseName.Name + \"InArgs\", NamespaceIndex),"
+            ],
+            [
+                278,
+                "                BrowseName = BrowseNames.InputArguments"
+            ],
+            [
+                279,
+                "            };"
+            ],
+            [
+                280,
+                "            method.InputArguments.DisplayName = method.InputArguments.BrowseName.Name;"
+            ],
+            [
+                281,
+                "            method.InputArguments.TypeDefinitionId = VariableTypeIds.PropertyType;"
+            ],
+            [
+                282,
+                "            method.InputArguments.ReferenceTypeId = ReferenceTypeIds.HasProperty;"
+            ],
+            [
+                283,
+                "            method.InputArguments.DataType = DataTypeIds.Argument;"
+            ],
+            [
+                284,
+                "            method.InputArguments.ValueRank = ValueRanks.OneDimension;"
+            ],
+            [
+                285,
+                ""
+            ],
+            [
+                286,
+                "            method.InputArguments.Value = new Argument[]"
+            ],
+            [
+                287,
+                "            {"
+            ],
+            [
+                288,
+                "                new Argument() { Name = \"RequestJson\", Description = \"Request model as json string.\",  DataType = DataTypeIds.String, ValueRank = ValueRanks.Scalar }"
+            ],
+            [
+                289,
+                "            };"
+            ],
+            [
+                290,
+                ""
+            ],
+            [
+                291,
+                "            // set output arguments"
+            ],
+            [
+                292,
+                "            method.OutputArguments = new PropertyState<Argument[]>(method)"
+            ],
+            [
+                293,
+                "            {"
+            ],
+            [
+                294,
+                "                NodeId = new NodeId(method.BrowseName.Name + \"OutArgs\", NamespaceIndex),"
+            ],
+            [
+                295,
+                "                BrowseName = BrowseNames.OutputArguments"
+            ],
+            [
+                296,
+                "            };"
+            ],
+            [
+                297,
+                "            method.OutputArguments.DisplayName = method.OutputArguments.BrowseName.Name;"
+            ],
+            [
+                298,
+                "            method.OutputArguments.TypeDefinitionId = VariableTypeIds.PropertyType;"
+            ],
+            [
+                299,
+                "            method.OutputArguments.ReferenceTypeId = ReferenceTypeIds.HasProperty;"
+            ],
+            [
+                300,
+                "            method.OutputArguments.DataType = DataTypeIds.Argument;"
+            ],
+            [
+                301,
+                "            method.OutputArguments.ValueRank = ValueRanks.OneDimension;"
+            ],
+            [
+                302,
+                ""
+            ],
+            [
+                303,
+                "            method.OutputArguments.Value = new Argument[]"
+            ],
+            [
+                304,
+                "            {"
+            ],
+            [
+                305,
+                "                new Argument() { Name = \"ResponseJson\", Description = \"Response model as json string.\",  DataType = DataTypeIds.String, ValueRank = ValueRanks.Scalar }"
+            ],
+            [
+                306,
+                "            };"
+            ],
+            [
+                307,
+                "            method.OnCallMethod = new GenericMethodCalledEventHandler(OnGetConfiguredEndpointsCall);"
+            ],
+            [
+                308,
+                "        }"
+            ],
+            [
+                309,
+                ""
+            ],
+            [
+                743,
+                ""
+            ],
+            [
+                744,
+                "        /// <summary>"
+            ],
+            [
+                745,
+                "        /// Handle method call to get list of configured nodes on a specific endpoint."
+            ],
+            [
+                746,
+                "        /// </summary>"
+            ],
+            [
+                747,
+                "        private ServiceResult OnGetConfiguredNodesOnEndpointCall(ISystemContext context, MethodState method, IList<object> inputArguments, IList<object> outputArguments) {"
+            ],
+            [
+                748,
+                "            string logPrefix = \"GetConfiguredNodesOnEndpointCall:\";"
+            ],
+            [
+                749,
+                "            try"
+            ],
+            [
+                750,
+                "            {"
+            ],
+            [
+                751,
+                "                var methodResult = HubCommunication.HandleGetConfiguredNodesOnEndpointMethodAsync(new Microsoft.Azure.Devices.Client.MethodRequest(\"GetConfiguredNodesOnEndpointMethod\", Encoding.UTF8.GetBytes(inputArguments[0] as string)), null).Result;"
+            ],
+            [
+                752,
+                "                outputArguments[0] = methodResult.ResultAsJson;"
+            ],
+            [
+                753,
+                "            }"
+            ],
+            [
+                754,
+                "            catch (Exception ex)"
+            ],
+            [
+                755,
+                "            {"
+            ],
+            [
+                756,
+                "                Logger.Error($\"{logPrefix} The request is invalid!\");"
+            ],
+            [
+                757,
+                "                return ServiceResult.Create(ex, null, StatusCodes.Bad);"
+            ],
+            [
+                758,
+                "            }"
+            ],
+            [
+                759,
+                "            return ServiceResult.Good;"
+            ],
+            [
+                760,
+                "        }"
+            ],
+            [
+                761,
+                ""
+            ],
+            [
+                762,
+                "        /// <summary>"
+            ],
+            [
+                763,
+                "        /// Handle method call to get configured endpoints"
+            ],
+            [
+                764,
+                "        /// </summary>"
+            ],
+            [
+                765,
+                "        private ServiceResult OnGetConfiguredEndpointsCall(ISystemContext context, MethodState method, IList<object> inputArguments, IList<object> outputArguments) {"
+            ],
+            [
+                766,
+                "            string logPrefix = \"GetConfiguredEndpointsCall:\";"
+            ],
+            [
+                767,
+                "            try"
+            ],
+            [
+                768,
+                "            {"
+            ],
+            [
+                769,
+                "                var methodResult = HubCommunication.HandleGetConfiguredEndpointsMethodAsync(new Microsoft.Azure.Devices.Client.MethodRequest(\"GetConfiguredEndpointsMethod\", Encoding.UTF8.GetBytes(inputArguments[0] as string)), null).Result;"
+            ],
+            [
+                770,
+                "                outputArguments[0] = methodResult.ResultAsJson;"
+            ],
+            [
+                771,
+                "            }"
+            ],
+            [
+                772,
+                "            catch (Exception ex)"
+            ],
+            [
+                773,
+                "            {"
+            ],
+            [
+                774,
+                "                Logger.Error($\"{logPrefix} The request is invalid!\");"
+            ],
+            [
+                775,
+                "                return ServiceResult.Create(ex, null, StatusCodes.Bad);"
+            ],
+            [
+                776,
+                "            }"
+            ],
+            [
+                777,
+                "            return ServiceResult.Good;"
+            ],
+            [
+                778,
+                "        }"
+            ],
+            [
+                780,
+                "}"
+            ]
+        ],
+        "deleted": [
+            [
+                153,
+                "        /// Sets properies of the UnpublishNode method."
+            ],
+            [
+                179,
+                "        /// Sets properies of the GetPublishedNodes method, which is only there for backward compatibility."
+            ],
+            [
+                654,
+                "}"
+            ]
+        ]
+    },
+    "num_lines_added": 129,
+    "num_lines_removed": 3
+}

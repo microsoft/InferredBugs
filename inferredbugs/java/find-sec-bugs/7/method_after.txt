@@ -1,0 +1,47 @@
+    private void visitInvoke(InvokeInstruction obj) {
+        assert obj != null;
+        try {
+            TaintMethodConfig methodConfig = getMethodConfig(obj);
+            Taint taint = getMethodTaint(methodConfig);
+            assert taint != null;
+            if (FindSecBugsGlobalConfig.getInstance().isDebugTaintState()) {
+                taint.setDebugInfo(obj.getMethodName(cpg) + "()"); //TODO: Deprecated debug info
+            }
+            taint.addSource(new UnknownSource(UnknownSourceType.RETURN,taint.getState()).setSignatureMethod(obj.getClassName(cpg).replace(".","/")+"."+obj.getMethodName(cpg)+obj.getSignature(cpg)));
+            if (taint.isUnknown()) {
+                taint.addLocation(getTaintLocation(), false);
+            }
+            taintMutableArguments(methodConfig, obj);
+            transferTaintToMutables(methodConfig, taint); // adds variable index to taint too
+            Taint taintCopy = new Taint(taint);
+            // return type is not always the instance type
+            taintCopy.setRealInstanceClass(methodConfig != null && methodConfig.getOutputTaint() != null ? methodConfig.getOutputTaint().getRealInstanceClass() : null);
+
+            TaintFrame tf = getFrame();
+
+            int stackDepth = tf.getStackDepth();
+            int nbParam = getNumWordsConsumed(obj);
+            List<Taint> parameters = new ArrayList<>(nbParam);
+            for(int i=0;i<Math.min(stackDepth,nbParam);i++) {
+                parameters.add(new Taint(tf.getStackValue(i)));
+            }
+
+            modelInstruction(obj, getNumWordsConsumed(obj), getNumWordsProduced(obj), taintCopy);
+
+            for(TaintFrameAdditionalVisitor visitor : visitors) {
+                try {
+                    visitor.visitInvoke(obj, methodGen, getFrame() , parameters, cpg);
+                }
+                catch (Throwable e) {
+                    LOG.log(Level.SEVERE,"Error while executing "+visitor.getClass().getName(),e);
+                }
+            }
+
+        } catch (Exception e) {
+            String className = ClassName.toSlashedClassName(obj.getReferenceType(cpg).toString());
+            String methodName = obj.getMethodName(cpg);
+            String signature = obj.getSignature(cpg);
+
+            throw new RuntimeException("Unable to call " + className + '.' + methodName + signature, e);
+        }
+    }

@@ -1,0 +1,67 @@
+ @SuppressWarnings("rawtypes")
+	@Override
+	public void onFinished(Invocation invocation,Object result) {
+		Object[] args = invocation.getArgs();
+		MappedStatement mt = (MappedStatement)args[0]; 
+		
+		QueryMethodCache cacheInfo = null;
+		if(mt.getSqlCommandType().equals(SqlCommandType.SELECT)){	
+			if(result == null)return;  
+			if((cacheInfo = getQueryMethodCache(mt.getId())) == null)return;
+			
+			if(result instanceof List){
+				List list = (List)result;
+				if(list.isEmpty())return;
+				result = cacheInfo.uniqueResult ? list.get(0) : result;
+			}
+			final String cacheKey = genarateQueryCacheKey(cacheInfo.keyPattern, args[1]);
+			//按主键查询以及标记非引用关系的缓存直接读取缓存
+			if(cacheInfo.isPk || !cacheInfo.uniqueResult){
+				if(cacheProvider.set(cacheKey,result, cacheInfo.expire)){
+					if(logger.isDebugEnabled())logger.debug("method[{}] put result to cache，cacheKey:{}",mt.getId(),cacheKey);
+				}
+				//结果为集合的情况，增加key到cacheGroup
+				if(!cacheInfo.uniqueResult){
+					cacheProvider.putGroupKeys(cacheInfo.cacheGroupKey, cacheKey,cacheInfo.expire);
+				}
+			}else{
+				//之前没有按主键的缓存，增加按主键缓存
+				String idCacheKey = genarateQueryCacheKey(getQueryByPkMethodCache(mt.getId()).keyPattern,result);
+				
+				if(idCacheKey != null && cacheKey != null && cacheProvider.set(idCacheKey,result, cacheInfo.expire) 
+						&& cacheProvider.set(cacheKey,idCacheKey, cacheInfo.expire)){
+					if(logger.isDebugEnabled())logger.debug("method[{}] put result to cache，cacheKey:{},and add ref cacheKey:{}",mt.getId(),idCacheKey,cacheKey);
+				}
+			}
+		}else{
+			if(updateCacheMethods.containsKey(mt.getId())){
+				String cacheByPkKey = null;
+				UpdateByPkMethodCache updateMethodCache = updateCacheMethods.get(mt.getId());
+				if(updateMethodCache.sqlCommandType.equals(SqlCommandType.DELETE)){
+					cacheByPkKey = genarateQueryCacheKey(updateMethodCache.keyPattern,args[1]);
+					cacheProvider.remove(cacheByPkKey);
+					if(logger.isDebugEnabled())logger.debug("method[{}] remove cacheKey:{} from cache",mt.getId(),cacheByPkKey);
+					//TODO 清除关联缓存
+					
+				}else{
+					cacheByPkKey = genarateQueryCacheKey(updateMethodCache.keyPattern,args[1]);
+					boolean insertCommond = mt.getSqlCommandType().equals(SqlCommandType.INSERT);
+					if(insertCommond || mt.getSqlCommandType().equals(SqlCommandType.UPDATE)){
+						if(result != null){
+							QueryMethodCache queryByPkMethodCache = getQueryByPkMethodCache(mt.getId());
+							cacheProvider.set(cacheByPkKey,args[1], queryByPkMethodCache.expire);
+							if(logger.isDebugEnabled())logger.debug("method[{}] update cacheKey:{}",mt.getId(),cacheByPkKey);
+							//插入其他唯一字段引用
+							if(insertCommond)cacheUniqueSelectRef(args[1], mt, cacheByPkKey);
+							//
+							addCurrentThreadCacheKey(cacheByPkKey);
+						}
+					}
+				}				
+				//TODO 删除同一cachegroup关联缓存
+				cacheProvider.clearGroupKeys(updateMethodCache.cacheGroupKey);
+			}
+			
+			
+		}
+	}

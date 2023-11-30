@@ -1,0 +1,39 @@
+    @Override
+    public void executeTask(IConversationMemory memory) {
+        IData<String> expressionsData = memory.getCurrentStep().getLatestData(EXPRESSIONS_PARSED_IDENTIFIER);
+        List<IData<Context>> contextDataList = memory.getCurrentStep().getAllData(CONTEXT_IDENTIFIER);
+
+        if (expressionsData == null && contextDataList == null) {
+            return;
+        }
+
+        List<Expression> aggregatedExpressions = new LinkedList<>();
+
+        if (contextDataList != null) {
+            aggregatedExpressions.addAll(extractContextProperties(contextDataList));
+        }
+
+        if (expressionsData != null) {
+            aggregatedExpressions.addAll(expressionProvider.parseExpressions(expressionsData.getResult()));
+        }
+
+        List<PropertyEntry> properties = propertyDisposer.extractProperties(aggregatedExpressions);
+
+        // see if action "CATCH_ANY_INPUT_AS_PROPERTY" was in the last step, so we take last user input into account
+        IConversationStepStack previousSteps = memory.getPreviousSteps();
+        if (previousSteps.size() > 0) {
+            IData<List<String>> actionsData = previousSteps.get(0).getLatestData(ACTIONS_IDENTIFIER);
+            List<String> actions = actionsData.getResult();
+            if (actions != null && actions.contains(CATCH_ANY_INPUT_AS_PROPERTY_ACTION)) {
+                IData<String> initialInputData = memory.getCurrentStep().getLatestData(INPUT_INITIAL_IDENTIFIER);
+                String initialInput = initialInputData.getResult();
+                if (!initialInput.isEmpty()) {
+                    properties.add(new PropertyEntry(Collections.singletonList(EXPRESSION_MEANING_USER_INPUT), initialInput));
+                }
+            }
+        }
+
+        if (!properties.isEmpty()) {
+            memory.getCurrentStep().storeData(dataFactory.createData(PROPERTIES_EXTRACTED_IDENTIFIER, properties, true));
+        }
+    }

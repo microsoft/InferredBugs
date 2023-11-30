@@ -1,0 +1,22 @@
+  private void AssertWith1TransactionAnd1Error(Action<ApmAgent> action)
+		{
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			action(agent);
+
+			payloadSender.Transactions.Should().NotBeEmpty();
+			payloadSender.Transactions.Should().NotBeEmpty();
+
+			payloadSender.FirstTransaction.Name.Should().Be(TransactionName);
+			payloadSender.FirstTransaction.Type.Should().Be(TransactionType);
+
+			var duration = payloadSender.FirstTransaction.Duration;
+			duration.Should().BeGreaterOrEqualToMinimumSleepLength();
+
+			payloadSender.Errors.Should().NotBeEmpty();
+			payloadSender.Errors.Should().NotBeEmpty();
+
+			payloadSender.FirstError.Exception.Type.Should().Be(typeof(InvalidOperationException).FullName);
+			payloadSender.FirstError.Exception.Message.Should().Be(ExceptionMessage);
+		}

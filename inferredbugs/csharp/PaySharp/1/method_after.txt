@@ -1,0 +1,50 @@
+        private static string RSA(string data, string privateKeyPem, string charset, string signType, bool keyFromFile)
+        {
+
+            byte[] signatureBytes = null;
+            try
+            {
+                RSA rsaCsp = null;
+                if (keyFromFile)
+                {
+                    //文件读取
+                    rsaCsp = LoadCertificateFile(privateKeyPem, signType);
+                }
+                else
+                {
+                    //字符串获取
+                    rsaCsp = LoadCertificateString(privateKeyPem, signType);
+                }
+
+                byte[] dataBytes = null;
+
+                if (string.IsNullOrEmpty(charset))
+                {
+                    dataBytes = Encoding.UTF8.GetBytes(data);
+                }
+                else
+                {
+                    dataBytes = Encoding.GetEncoding(charset).GetBytes(data);
+                }
+
+                if (null == rsaCsp)
+                {
+                    throw new Exception("您使用的私钥格式错误，请检查RSA私钥配置" + ",charset = " + charset);
+                }
+
+                if ("RSA2".Equals(signType))
+                {
+                    signatureBytes = rsaCsp.SignData(dataBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                }
+                else
+                {
+                    signatureBytes = rsaCsp.SignData(dataBytes, HashAlgorithmName.SHA1, RSASignaturePadding.Pkcs1);
+                }
+            }
+            catch (Exception)
+            {
+                throw new Exception("您使用的私钥格式错误，请检查RSA私钥配置" + ",charset = " + charset);
+            }
+
+            return Convert.ToBase64String(signatureBytes);
+        }

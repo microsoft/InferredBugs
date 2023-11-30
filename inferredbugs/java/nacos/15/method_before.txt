@@ -1,0 +1,34 @@
+    @NeedAuth
+    @RequestMapping("/remvIP4Dom")
+    public String remvIP4Dom(HttpServletRequest request) throws Exception {
+        String dom = WebUtils.required(request, "dom");
+        String ipListString = WebUtils.required(request, "ipList");
+
+        Loggers.DEBUG_LOG.debug("[REMOVE-IP] full arguments: serviceName:" + dom + ", iplist:" + ipListString);
+
+        List<IpAddress> newIPs = new ArrayList<>();
+        List<String> ipList = new ArrayList<>();
+        if (Boolean.parseBoolean(WebUtils.optional(request, SwitchEntry.PARAM_JSON, Boolean.FALSE.toString()))) {
+            newIPs = JSON.parseObject(ipListString, new TypeReference<List<IpAddress>>() {
+            });
+        } else {
+            ipList = Arrays.asList(ipListString.split(","));
+        }
+
+        List<IpAddress> ipObjList = new ArrayList<>(ipList.size());
+        if (Boolean.parseBoolean(WebUtils.optional(request, SwitchEntry.PARAM_JSON, Boolean.FALSE.toString()))) {
+            ipObjList = newIPs;
+        } else {
+            for (String ip : ipList) {
+                ipObjList.add(IpAddress.fromJSON(ip));
+            }
+        }
+
+        domainsManager.easyRemvIP4Dom(dom, ipObjList);
+
+        Loggers.EVT_LOG.info("{" + dom + "} {POS} {IP-REMV}" + " dead: "
+            + ipList + " operator: "
+            + WebUtils.optional(request, "clientIP", "unknown"));
+
+        return "ok";
+    }

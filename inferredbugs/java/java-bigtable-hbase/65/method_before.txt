@@ -1,0 +1,32 @@
+  @Test
+  public void testPartialResults() throws Exception {
+    byte[] key1 = randomBytes(8);
+    byte[] key2 = randomBytes(8);
+    FlatRow response1 =
+        FlatRow.newBuilder()
+            .withRowKey(ByteString.copyFrom(key1))
+            .addCell(
+                new Cell(
+                    "cf",
+                    ByteString.EMPTY,
+                    10,
+                    ByteString.copyFromUtf8("hi!"),
+                    new ArrayList<String>()))
+            .build();
+
+    RuntimeException exception = new RuntimeException("Something bad happened");
+    when(mockBulkRead.add(any(Query.class)))
+        .thenReturn(ApiFutures.immediateFuture(response1))
+        .thenReturn(ApiFutures.<FlatRow>immediateFailedFuture(exception));
+
+    List<Get> gets = Arrays.asList(new Get(key1), new Get(key2));
+    Object[] results = new Object[2];
+
+    try {
+      createExecutor(options).batch(gets, results);
+    } catch (RetriesExhaustedWithDetailsException ignored) {
+    }
+    Assert.assertTrue("first result is a result", results[0] instanceof Result);
+    Assert.assertTrue(Bytes.equals(((Result) results[0]).getRow(), key1));
+    Assert.assertEquals(exception, results[1]);
+  }

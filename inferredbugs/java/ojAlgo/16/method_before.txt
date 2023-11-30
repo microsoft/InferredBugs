@@ -1,0 +1,20 @@
+    public void train(final Access1D<Double> givenInput, final Access1D<Double> targetOutput) {
+
+        Access1D<Double> current = this.invoke(givenInput);
+
+        myGradients[0].fillMatching(givenInput);
+        myGradients[myGradients.length - 1].fillMatching(targetOutput, myError.getDerivative(), current);
+
+        for (int k = this.depth() - 1; k >= 0; k--) {
+
+            CalculationLayer layer = this.getLayer(k);
+
+            Access1D<Double> input = k == 0 ? givenInput : this.getOutput(k - 1);
+            Primitive64Store output = this.getOutput(k);
+
+            Primitive64Store upstreamGradient = myGradients[k];
+            Primitive64Store downstreamGradient = myGradients[k + 1];
+
+            layer.adjust(input, downstreamGradient, -myLearningRate, upstreamGradient, output);
+        }
+    }

@@ -1,0 +1,413 @@
+{
+    "hash": "f21e63cc98d1baea6e13a164e206ab7d7cdca5a7",
+    "message": "Cleanup DateAndSizeRollingFileAppender",
+    "file_num_lines": 133,
+    "diff_parsed": {
+        "added": [
+            [
+                4,
+                "using System.Runtime.CompilerServices;"
+            ],
+            [
+                80,
+                "    /// <remarks>"
+            ],
+            [
+                81,
+                "    /// The implementation should be unconditional on the arguments and have no side effects."
+            ],
+            [
+                82,
+                "    /// </remarks>"
+            ],
+            [
+                90,
+                "            if (_currentFileNumber == _uninitializedFileNumber)"
+            ],
+            [
+                91,
+                "                Initialize(timestamp);"
+            ],
+            [
+                92,
+                ""
+            ],
+            [
+                118,
+                "    [MethodImpl(MethodImplOptions.NoInlining)]"
+            ],
+            [
+                119,
+                "    private void Initialize(DateTime timestamp)"
+            ],
+            [
+                120,
+                "    {"
+            ],
+            [
+                121,
+                "        System.IO.Directory.CreateDirectory(Directory);"
+            ],
+            [
+                122,
+                ""
+            ],
+            [
+                123,
+                "        _currentDate = timestamp.Date;"
+            ],
+            [
+                124,
+                ""
+            ],
+            [
+                125,
+                "        // Check if the file name depends on date and number (will work if the implementation is an unconditional pure method)"
+            ],
+            [
+                126,
+                "        var baseFileName = GetFileName(DateOnly.FromDateTime(_currentDate), 0);"
+            ],
+            [
+                127,
+                "        _isFileNameDateDependent = !FileNameEquals(baseFileName, GetFileName(DateOnly.FromDateTime(_currentDate).AddDays(1), 0));"
+            ],
+            [
+                128,
+                "        _isFileNameNumberDependent = !FileNameEquals(baseFileName, GetFileName(DateOnly.FromDateTime(_currentDate), 1));"
+            ],
+            [
+                129,
+                ""
+            ],
+            [
+                130,
+                "        _currentFileNumber = FindLastRollingFileNumber(DateOnly.FromDateTime(_currentDate));"
+            ],
+            [
+                131,
+                "    }"
+            ],
+            [
+                132,
+                ""
+            ],
+            [
+                133,
+                "    private void OpenStream()"
+            ],
+            [
+                134,
+                "    {"
+            ],
+            [
+                135,
+                "        Debug.Assert(Stream is null);"
+            ],
+            [
+                136,
+                ""
+            ],
+            [
+                137,
+                "        var fileName = Path.Combine(Directory, GetFileName(DateOnly.FromDateTime(_currentDate), _currentFileNumber));"
+            ],
+            [
+                138,
+                ""
+            ],
+            [
+                139,
+                "        try"
+            ],
+            [
+                140,
+                "        {"
+            ],
+            [
+                141,
+                "            Stream = new FileStream(fileName, FileMode.Append, FileAccess.Write, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);"
+            ],
+            [
+                142,
+                "        }"
+            ],
+            [
+                143,
+                "        catch (Exception ex)"
+            ],
+            [
+                144,
+                "        {"
+            ],
+            [
+                145,
+                "            throw new IOException($\"Could not open log file '{fileName}'\", ex);"
+            ],
+            [
+                146,
+                "        }"
+            ],
+            [
+                147,
+                ""
+            ],
+            [
+                148,
+                "        FileOpened();"
+            ],
+            [
+                149,
+                "    }"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "    private void CloseStream()"
+            ],
+            [
+                152,
+                "    {"
+            ],
+            [
+                153,
+                "        if (Stream is null)"
+            ],
+            [
+                154,
+                "            return;"
+            ],
+            [
+                155,
+                ""
+            ],
+            [
+                156,
+                "        FileClosing();"
+            ],
+            [
+                157,
+                "        Flush();"
+            ],
+            [
+                158,
+                ""
+            ],
+            [
+                159,
+                "        Stream.Dispose();"
+            ],
+            [
+                160,
+                "        Stream = null;"
+            ],
+            [
+                161,
+                "    }"
+            ],
+            [
+                162,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                51,
+                ""
+            ],
+            [
+                61,
+                "    private void OpenStream()"
+            ],
+            [
+                62,
+                "    {"
+            ],
+            [
+                63,
+                "        Debug.Assert(Stream is null);"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                65,
+                "        if (_currentFileNumber == _uninitializedFileNumber)"
+            ],
+            [
+                66,
+                "            Initialize();"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                68,
+                "        var fileName = Path.Combine(Directory, GetFileName(DateOnly.FromDateTime(_currentDate), _currentFileNumber));"
+            ],
+            [
+                69,
+                ""
+            ],
+            [
+                70,
+                "        try"
+            ],
+            [
+                71,
+                "        {"
+            ],
+            [
+                72,
+                "            Stream = new FileStream(fileName, FileMode.Append, FileAccess.Write, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);"
+            ],
+            [
+                73,
+                "        }"
+            ],
+            [
+                74,
+                "        catch (Exception ex)"
+            ],
+            [
+                75,
+                "        {"
+            ],
+            [
+                76,
+                "            throw new IOException($\"Could not open log file '{fileName}'\", ex);"
+            ],
+            [
+                77,
+                "        }"
+            ],
+            [
+                78,
+                ""
+            ],
+            [
+                79,
+                "        FileOpened();"
+            ],
+            [
+                80,
+                "    }"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                82,
+                "    private void CloseStream()"
+            ],
+            [
+                83,
+                "    {"
+            ],
+            [
+                84,
+                "        if (Stream is null)"
+            ],
+            [
+                85,
+                "            return;"
+            ],
+            [
+                86,
+                ""
+            ],
+            [
+                87,
+                "        FileClosing();"
+            ],
+            [
+                88,
+                "        Flush();"
+            ],
+            [
+                89,
+                ""
+            ],
+            [
+                90,
+                "        Stream.Dispose();"
+            ],
+            [
+                91,
+                "        Stream = null;"
+            ],
+            [
+                92,
+                "    }"
+            ],
+            [
+                93,
+                ""
+            ],
+            [
+                94,
+                "    private void Initialize()"
+            ],
+            [
+                95,
+                "    {"
+            ],
+            [
+                96,
+                "        System.IO.Directory.CreateDirectory(Directory);"
+            ],
+            [
+                97,
+                ""
+            ],
+            [
+                98,
+                "        _currentDate = DateTime.UtcNow.Date;"
+            ],
+            [
+                99,
+                ""
+            ],
+            [
+                100,
+                "        // Check if the file name depends on date and number (will work if the implementation is an unconditional pure method)"
+            ],
+            [
+                101,
+                "        var baseFileName = GetFileName(DateOnly.FromDateTime(_currentDate), 0);"
+            ],
+            [
+                102,
+                "        _isFileNameDateDependent = !FileNameEquals(baseFileName, GetFileName(DateOnly.FromDateTime(_currentDate).AddDays(1), 0));"
+            ],
+            [
+                103,
+                "        _isFileNameNumberDependent = !FileNameEquals(baseFileName, GetFileName(DateOnly.FromDateTime(_currentDate), 1));"
+            ],
+            [
+                104,
+                ""
+            ],
+            [
+                105,
+                "        _currentFileNumber = FindLastRollingFileNumber(DateOnly.FromDateTime(_currentDate));"
+            ],
+            [
+                106,
+                "    }"
+            ],
+            [
+                107,
+                ""
+            ]
+        ]
+    },
+    "num_lines_added": 52,
+    "num_lines_removed": 48
+}

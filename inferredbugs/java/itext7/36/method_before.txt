@@ -1,0 +1,72 @@
+    public void flatFields() {
+        if (document.isAppendMode()) {
+            throw new PdfException(PdfException.FieldFlatteningIsNotSupportedInAppendMode);
+        }
+        List<PdfFormField> fields = getFormFields();
+        PdfPage page = null;
+        for (PdfFormField field : fields) {
+
+            PdfDictionary pageDic = field.getPdfObject().getAsDictionary(PdfName.P);
+            if (pageDic == null) {
+                continue;
+            }
+            for (int i = 1; i <= document.getNumOfPages(); i++) {
+                page = document.getPage(i);
+                if (page.getPdfObject() == pageDic) {
+                    break;
+                }
+            }
+
+            PdfDictionary appDic = field.getPdfObject().getAsDictionary(PdfName.AP);
+            PdfObject asNormal = null;
+            if (appDic != null) {
+                asNormal = appDic.getAsStream(PdfName.N);
+                if (asNormal == null) {
+                    asNormal = appDic.getAsDictionary(PdfName.N);
+                }
+            }
+            if (generateAppearance) {
+                if (appDic == null || asNormal == null) {
+                    field.regenerateField();
+                    appDic = field.getPdfObject().getAsDictionary(PdfName.AP);
+                }
+            }
+            if (appDic != null) {
+                PdfObject normal = appDic.get(PdfName.N);
+                PdfFormXObject xObject = null;
+                if (normal.isStream()) {
+                    xObject = new PdfFormXObject((PdfStream) normal);
+                } else if (normal.isDictionary()) {
+                    PdfName as = field.getPdfObject().getAsName(PdfName.AS);
+                    xObject = new PdfFormXObject(((PdfDictionary)normal).getAsStream(as)).makeIndirect(document);
+                }
+
+                if (xObject != null) {
+                    Rectangle box = field.getPdfObject().getAsRectangle(PdfName.Rect);
+                    PdfCanvas canvas = new PdfCanvas(page);
+                    canvas.addXObject(xObject, box.getX(), box.getY());
+                    PdfArray fFields = getFields();
+                    fFields.remove(field.getPdfObject().getIndirectReference());
+                    PdfArray annots = page.getPdfObject().getAsArray(PdfName.Annots);
+                    annots.remove(field.getPdfObject().getIndirectReference());
+                    PdfDictionary parent = field.getPdfObject().getAsDictionary(PdfName.Parent);
+                    if (parent != null) {
+                        PdfArray kids = parent.getAsArray(PdfName.Kids);
+                        kids.remove(field.getPdfObject().getIndirectReference());
+                        if (kids == null || kids.isEmpty()) {
+                            fFields.remove(parent.getIndirectReference());
+                        }
+                    }
+                }
+            }
+        }
+
+        if (page.getPdfObject().getAsArray(PdfName.Annots).isEmpty()) {
+            page.getPdfObject().remove(PdfName.Annots);
+        }
+
+        getPdfObject().remove(PdfName.NeedAppearances);
+        if (getFields().isEmpty()) {
+            document.getCatalog().getPdfObject().remove(PdfName.AcroForm);
+        }
+    }

@@ -1,0 +1,23 @@
+ @Test
+	public void testUpsertSelectSameBatchConcurrently() throws Exception {
+		try (Connection conn = driver.connect(url, props)) {
+		        int numUpsertSelectRunners = 5;
+		        ExecutorService exec = Executors.newFixedThreadPool(numUpsertSelectRunners);
+		        CompletionService<Boolean> completionService = new ExecutorCompletionService<Boolean>(exec);
+		        List<Future<Boolean>> futures = Lists.newArrayListWithExpectedSize(numUpsertSelectRunners);
+		        // run one UPSERT SELECT for 100 rows (that locks the rows for a long time)
+		        futures.add(completionService.submit(new UpsertSelectRunner(dataTable, 0, 105, 1)));
+		        // run four UPSERT SELECTS for 5 rows (that overlap with slow running UPSERT SELECT)
+		        for (int i = 0; i < 100; i += 25) {
+		            futures.add(completionService.submit(new UpsertSelectRunner(dataTable, i, i+25, 5)));
+		        }
+		        int received = 0;
+		        while (received < futures.size()) {
+		            Future<Boolean> resultFuture = completionService.take();
+		            Boolean result = resultFuture.get();
+		            received++;
+		            assertTrue(result);
+		        }
+		        exec.shutdownNow();
+		}
+	}

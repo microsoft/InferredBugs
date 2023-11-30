@@ -1,0 +1,115 @@
+    private Type getType(TypeMirror mirror, boolean isLiteral) {
+        if ( !canBeProcessed( mirror ) ) {
+            throw new TypeHierarchyErroneousException( mirror );
+        }
+
+        ImplementationType implementationType = getImplementationType( mirror );
+
+        boolean isIterableType = typeUtils.isSubtype( mirror, iterableType );
+        boolean isCollectionType = typeUtils.isSubtype( mirror, collectionType );
+        boolean isMapType = typeUtils.isSubtype( mirror, mapType );
+        boolean isStreamType = streamType != null && typeUtils.isSubtype( mirror, streamType );
+
+        boolean isEnumType;
+        boolean isInterface;
+        String name;
+        String packageName;
+        String qualifiedName;
+        TypeElement typeElement;
+        Type componentType;
+        Boolean toBeImported = null;
+
+        if ( mirror.getKind() == TypeKind.DECLARED ) {
+            DeclaredType declaredType = (DeclaredType) mirror;
+
+            isEnumType = declaredType.asElement().getKind() == ElementKind.ENUM;
+            isInterface = declaredType.asElement().getKind() == ElementKind.INTERFACE;
+            name = declaredType.asElement().getSimpleName().toString();
+
+            typeElement = (TypeElement) declaredType.asElement();
+
+            if ( typeElement != null ) {
+                packageName = elementUtils.getPackageOf( typeElement ).getQualifiedName().toString();
+                qualifiedName = typeElement.getQualifiedName().toString();
+            }
+            else {
+                packageName = null;
+                qualifiedName = name;
+            }
+
+            componentType = null;
+        }
+        else if ( mirror.getKind() == TypeKind.ARRAY ) {
+            TypeMirror componentTypeMirror = getComponentType( mirror );
+            StringBuilder builder = new StringBuilder("[]");
+
+            while ( componentTypeMirror.getKind() == TypeKind.ARRAY ) {
+                componentTypeMirror = getComponentType( componentTypeMirror );
+                builder.append( "[]" );
+            }
+
+            if ( componentTypeMirror.getKind() == TypeKind.DECLARED ) {
+                DeclaredType declaredType = (DeclaredType) componentTypeMirror;
+                TypeElement componentTypeElement = (TypeElement) declaredType.asElement();
+
+                String arraySuffix = builder.toString();
+                name = componentTypeElement.getSimpleName().toString() + arraySuffix;
+                packageName = elementUtils.getPackageOf( componentTypeElement ).getQualifiedName().toString();
+                qualifiedName = componentTypeElement.getQualifiedName().toString() + arraySuffix;
+            }
+            else if (componentTypeMirror.getKind().isPrimitive()) {
+                // When the component type is primitive and is annotated with ElementType.TYPE_USE then
+                // the typeMirror#toString returns (@CustomAnnotation :: byte) for the javac compiler
+                name = NativeTypes.getName( componentTypeMirror.getKind() ) + builder.toString();
+                packageName = null;
+                // for primitive types only name (e.g. byte, short..) required as qualified name
+                qualifiedName = name;
+                toBeImported = false;
+            }
+            else {
+                name = mirror.toString();
+                packageName = null;
+                qualifiedName = name;
+                toBeImported = false;
+            }
+
+            isEnumType = false;
+            isInterface = false;
+            typeElement = null;
+            componentType = getType( getComponentType( mirror ) );
+        }
+        else {
+            isEnumType = false;
+            isInterface = false;
+            name = mirror.toString();
+            packageName = null;
+            qualifiedName = name;
+            typeElement = null;
+            componentType = null;
+            toBeImported = false;
+        }
+
+        return new Type(
+            typeUtils, elementUtils, this,
+            roundContext.getAnnotationProcessorContext().getAccessorNaming(),
+            mirror,
+            typeElement,
+            getTypeParameters( mirror, false ),
+            implementationType,
+            componentType,
+            packageName,
+            name,
+            qualifiedName,
+            isInterface,
+            isEnumType,
+            isIterableType,
+            isCollectionType,
+            isMapType,
+            isStreamType,
+            toBeImportedTypes,
+            notToBeImportedTypes,
+            toBeImported,
+            isLiteral,
+            loggingVerbose
+        );
+    }

@@ -1,0 +1,40 @@
+    @Override
+    public void soService(ServiceDataFlowEvent event) throws ListenerExecuteException{
+
+
+        DataFlowContext dataFlowContext = event.getDataFlowContext();
+        AppService service = event.getAppService();
+        JSONObject data = dataFlowContext.getReqJson();
+        Assert.hasKeyAndValue(data,"storeId","请求报文中未包含storeId节点");
+        Assert.hasKeyAndValue(data,"name","请求报文中未包含name节点");
+        ResponseEntity<String> responseEntity = null;
+        //根据名称查询用户信息
+        responseEntity = super.callService(dataFlowContext,ServiceCodeConstant.SERVICE_CODE_QUERY_USER_BY_NAME,data);
+
+        if(responseEntity.getStatusCode() != HttpStatus.OK){
+            dataFlowContext.setResponseEntity(responseEntity);
+            return ;
+        }
+
+
+        String useIds = getUserIds(responseEntity,dataFlowContext);
+        if(StringUtil.isEmpty(useIds)){
+            responseEntity = new ResponseEntity<String>(new JSONArray().toJSONString(),HttpStatus.OK);
+            dataFlowContext.setResponseEntity(responseEntity);
+            return ;
+        }
+
+        JSONArray userInfos = getUserInfos(responseEntity);
+        Map<String,String> paramIn = new HashMap<>();
+        paramIn.put("userIds",useIds);
+        paramIn.put("storeId",data.getString("storeId"));
+        //查询是商户员工的userId
+        responseEntity = super.callService(dataFlowContext,ServiceCodeConstant.SERVICE_CODE_QUERY_STOREUSER_BYUSERIDS,paramIn);
+
+        if(responseEntity.getStatusCode() != HttpStatus.OK){
+            return ;
+        }
+
+        responseEntity = new ResponseEntity<String>(getStaffUsers(userInfos,responseEntity).toJSONString(),HttpStatus.OK);
+        dataFlowContext.setResponseEntity(responseEntity);
+    }

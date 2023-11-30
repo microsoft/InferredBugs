@@ -1,0 +1,37 @@
+    private Map<String, Set<String>> readIndexFiles() {
+        // checking cache
+        if (entries != null) {
+            return entries;
+        }
+
+        entries = new HashMap<String, Set<String>>();
+
+        List<PluginWrapper> plugins = pluginManager.getPlugins();
+        for (PluginWrapper plugin : plugins) {
+            String pluginId = plugin.getDescriptor().getPluginId();
+            log.debug("Reading extensions index file for plugin '{}'", pluginId);
+            Set<String> entriesPerPlugin = new HashSet<String>();
+
+            try {
+                URL url = plugin.getPluginClassLoader().getResource(ExtensionsIndexer.EXTENSIONS_RESOURCE);
+                log.debug("Read '{}'", url.getFile());
+                Reader reader = new InputStreamReader(url.openStream(), "UTF-8");
+                ExtensionsIndexer.readIndex(reader, entriesPerPlugin);
+
+                if (entriesPerPlugin.isEmpty()) {
+                    log.debug("No extensions found");
+                } else {
+                    log.debug("Found possible {} extensions:", entriesPerPlugin.size());
+                    for (String entry : entriesPerPlugin) {
+                        log.debug("   " + entry);
+                    }
+                }
+
+                entries.put(pluginId, entriesPerPlugin);
+            } catch (IOException e) {
+                log.error(e.getMessage(), e);
+            }
+        }
+
+        return entries;
+    }

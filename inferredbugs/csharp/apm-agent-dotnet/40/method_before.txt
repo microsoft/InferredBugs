@@ -1,0 +1,23 @@
+  [Fact]
+		public void TransactionWithSpanWithSubTypeAndAction()
+		{
+			const string transactionName = "TestTransaction";
+			const string transactionType = "UnitTest";
+			const string spanName = "TestSpan";
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			var transaction = agent.Tracer.StartTransaction(transactionName, transactionType);
+			var span = transaction.StartSpan(spanName, ApiConstants.TypeDb, ApiConstants.SubtypeMssql, ApiConstants.ActionQuery);
+			span.End();
+			transaction.End();
+
+			payloadSender.Payloads.Should().NotBeEmpty();
+			payloadSender.SpansOnFirstTransaction.Should().NotBeEmpty();
+
+			payloadSender.SpansOnFirstTransaction[0].Type.Should().Be(ApiConstants.TypeDb);
+			payloadSender.SpansOnFirstTransaction[0].Subtype.Should().Be(ApiConstants.SubtypeMssql);
+			payloadSender.SpansOnFirstTransaction[0].Action.Should().Be(ApiConstants.ActionQuery);
+
+			payloadSender.Payloads[0].Service.Should().NotBeNull();
+		}

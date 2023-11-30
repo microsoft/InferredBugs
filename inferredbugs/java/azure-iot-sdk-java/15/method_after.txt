@@ -1,0 +1,32 @@
+    @Test
+    public void handleMessageReturnsNoReceivedMessage() throws IOException
+    {
+        new NonStrictExpectations()
+        {
+            {
+
+                new AmqpsIotHubConnection(mockConfig, 1);
+
+                result = mockConnection;
+                mockConfig.getDeviceTelemetryMessageCallback();
+                result = mockMessageCallback;
+                mockConfig.getDeviceId();
+                result = "deviceId";
+            }
+        };
+
+        AmqpsTransport transport = new AmqpsTransport(mockConfig);
+        transport.open();
+        transport.handleMessage();
+
+        Queue<AmqpsMessage> receivedMessages = Deencapsulation.getField(transport, "receivedMessages");
+        Assert.assertEquals(0, receivedMessages.size());
+
+        new Verifications()
+        {
+            {
+                mockMessageCallback.execute((Message) any, any);
+                times = 0;
+            }
+        };
+    }

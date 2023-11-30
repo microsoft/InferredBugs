@@ -1,0 +1,573 @@
+{
+    "hash": "68394f52a5719581d8fc813e818d893ffb4e3782",
+    "message": "- Fix a crash when moving a group-task under itself.\n- Culling Relations\n- Other minor refactoring",
+    "file_num_lines": 817,
+    "diff_parsed": {
+        "added": [
+            [
+                26,
+                "            ShowRelations = true;"
+            ],
+            [
+                34,
+                "                ForeFill = Brushes.YellowGreen,"
+            ],
+            [
+                35,
+                "                SlackFill = new System.Drawing.Drawing2D.HatchBrush(System.Drawing.Drawing2D.HatchStyle.LightDownwardDiagonal, Color.Blue, Color.Transparent)"
+            ],
+            [
+                41,
+                "                ForeFill = Brushes.YellowGreen,"
+            ],
+            [
+                42,
+                "                SlackFill = new System.Drawing.Drawing2D.HatchBrush(System.Drawing.Drawing2D.HatchStyle.LightDownwardDiagonal, Color.Red, Color.Transparent)"
+            ],
+            [
+                77,
+                "        /// <summary>"
+            ],
+            [
+                78,
+                "        /// Get the Rectangle region on the chart that is currently visible"
+            ],
+            [
+                79,
+                "        /// </summary>"
+            ],
+            [
+                127,
+                "        /// Get or set format for Tasks"
+            ],
+            [
+                132,
+                "        /// Get or set format for critical Tasks"
+            ],
+            [
+                137,
+                "        /// Get or set format for headers"
+            ],
+            [
+                141,
+                "        /// <summary>"
+            ],
+            [
+                142,
+                "        /// Get or set format for relations"
+            ],
+            [
+                143,
+                "        /// </summary>"
+            ],
+            [
+                144,
+                "        public RelationFormat RelationFormat { get; set; }"
+            ],
+            [
+                145,
+                ""
+            ],
+            [
+                152,
+                "        /// <summary>"
+            ],
+            [
+                153,
+                "        /// Get or set whether to show relations"
+            ],
+            [
+                154,
+                "        /// </summary>"
+            ],
+            [
+                156,
+                "        public bool ShowRelations { get; set; }"
+            ],
+            [
+                158,
+                "        /// <summary>"
+            ],
+            [
+                159,
+                "        /// Get or set whether to show slack"
+            ],
+            [
+                160,
+                "        /// </summary>"
+            ],
+            [
+                272,
+                "            this._Draw(graphics, this.Viewport);"
+            ],
+            [
+                294,
+                "                if (this.ShowRelations)"
+            ],
+            [
+                295,
+                "                    this._DrawPredecessorLines(graphics, clipRect);"
+            ],
+            [
+                791,
+                "        private void _DrawPredecessorLines(Graphics graphics, Rectangle clipRect)"
+            ],
+            [
+                793,
+                "            RectangleF cliprectf = new RectangleF(clipRect.X, clipRect.Y, clipRect.Width, clipRect.Height);"
+            ],
+            [
+                794,
+                "            foreach (var task in _mProject.Tasks)"
+            ],
+            [
+                796,
+                "                var succ = task;"
+            ],
+            [
+                797,
+                "                IEnumerable<Task> predecessors = _mProject.Relationships[succ];"
+            ],
+            [
+                798,
+                "                while (succ.Parent != null && succ.Parent.IsCollapsed)"
+            ],
+            [
+                800,
+                "                    succ = succ.Parent;"
+            ],
+            [
+                801,
+                "                    predecessors = predecessors.Concat(_mProject.Relationships[succ]);"
+            ],
+            [
+                802,
+                "                }"
+            ],
+            [
+                803,
+                ""
+            ],
+            [
+                804,
+                "                if (_mTaskRects.ContainsKey(succ))"
+            ],
+            [
+                805,
+                "                {"
+            ],
+            [
+                806,
+                "                    foreach (var predecessor in predecessors)"
+            ],
+            [
+                808,
+                "                        var pred = predecessor;"
+            ],
+            [
+                809,
+                "                        /* while (pred.Parent != null && pred.Parent.IsCollapsed)"
+            ],
+            [
+                810,
+                "                            pred = pred.Parent; */"
+            ],
+            [
+                812,
+                "                        if (_mTaskRects.ContainsKey(pred))"
+            ],
+            [
+                813,
+                "                        {"
+            ],
+            [
+                814,
+                "                            var prect = _mTaskRects[pred];"
+            ],
+            [
+                815,
+                "                            var srect = _mTaskRects[succ];"
+            ],
+            [
+                816,
+                "                            if (pred.End < succ.Start)"
+            ],
+            [
+                817,
+                "                            {"
+            ],
+            [
+                818,
+                "                                var p1 = new PointF(prect.Right, prect.Top + prect.Height / 2.0f);"
+            ],
+            [
+                819,
+                "                                var p2 = new PointF(srect.Left - BarWidth / 2, prect.Top + prect.Height / 2.0f);"
+            ],
+            [
+                820,
+                "                                var p3 = new PointF(srect.Left - BarWidth / 2, srect.Top + srect.Height / 2.0f);"
+            ],
+            [
+                821,
+                "                                var p4 = new PointF(srect.Left, srect.Top + srect.Height / 2.0f);"
+            ],
+            [
+                822,
+                "                                var size = new SizeF(Math.Abs(p4.X - p1.X), Math.Abs(p4.Y - p1.Y));"
+            ],
+            [
+                823,
+                "                                var linerect = p1.Y < p4.Y ? new RectangleF(p1, size) : new RectangleF(new PointF(p1.X, p1.Y - size.Height), size);"
+            ],
+            [
+                824,
+                "                                if (cliprectf.IntersectsWith(linerect))"
+            ],
+            [
+                825,
+                "                                {"
+            ],
+            [
+                826,
+                "                                    graphics.DrawLines(Pens.Black, new PointF[] { p1, p2, p3, p4 });"
+            ],
+            [
+                827,
+                "                                }"
+            ],
+            [
+                828,
+                "                            }"
+            ],
+            [
+                829,
+                "                            // The logic is more complicated than I thought I got to go take a break now!!"
+            ],
+            [
+                830,
+                "                            /*else"
+            ],
+            [
+                831,
+                "                            {"
+            ],
+            [
+                832,
+                "                                var p1 = new PointF(srect.Left - BarWidth / 2, prect.Bottom < srect.Bottom ? prect.Bottom : prect.Top);"
+            ],
+            [
+                833,
+                "                                var p2 = new PointF(srect.Left - BarWidth / 2, srect.Top + BarHeight / 2.0f);"
+            ],
+            [
+                834,
+                "                                var p3 = new PointF(srect.Left,  srect.Top + BarHeight / 2.0f);"
+            ],
+            [
+                835,
+                "                                var size = new SizeF(Math.Abs(p1.X - p3.X), Math.Abs(p1.Y - p3.Y));"
+            ],
+            [
+                836,
+                "                                var linerect = p1.Y < p3.Y ? new RectangleF(p1, size) : new RectangleF(p3, size);"
+            ],
+            [
+                837,
+                "                                if (cliprectf.IntersectsWith(linerect))"
+            ],
+            [
+                838,
+                "                                {"
+            ],
+            [
+                839,
+                "                                    graphics.DrawLines(Pens.Black, new PointF[] { p1, p2, p3 });"
+            ],
+            [
+                840,
+                "                                }"
+            ],
+            [
+                841,
+                "                            }*/"
+            ],
+            [
+                842,
+                "                        }"
+            ],
+            [
+                863,
+                "                    // draw task bar"
+            ],
+            [
+                870,
+                ""
+            ],
+            [
+                871,
+                "                    // draw slack"
+            ],
+            [
+                872,
+                "                    if (this.ShowSlack && task.Complete < 1.0f)"
+            ],
+            [
+                873,
+                "                    {"
+            ],
+            [
+                874,
+                "                        var slackrect = _RowToSlackRect(row, task);"
+            ],
+            [
+                875,
+                "                        graphics.FillRectangle(e.Format.SlackFill, slackrect);"
+            ],
+            [
+                876,
+                "                    }"
+            ],
+            [
+                877,
+                ""
+            ],
+            [
+                878,
+                "                    // write text"
+            ],
+            [
+                879,
+                "                    var txtpoint = _TextAlignLeftMiddle(graphics, outline, task.Name, e.Font);"
+            ],
+            [
+                880,
+                "                    txtpoint.X += outline.Width;"
+            ],
+            [
+                881,
+                "                    graphics.DrawString(task.Name, e.Font, e.Format.Color, txtpoint);"
+            ],
+            [
+                1021,
+                ""
+            ],
+            [
+                1022,
+                "        /// <summary>"
+            ],
+            [
+                1023,
+                "        /// Get or set the brush for slack bars"
+            ],
+            [
+                1024,
+                "        /// </summary>"
+            ],
+            [
+                1025,
+                "        public Brush SlackFill { get; set; }"
+            ],
+            [
+                1026,
+                "    }"
+            ],
+            [
+                1027,
+                ""
+            ],
+            [
+                1028,
+                "    public struct RelationFormat"
+            ],
+            [
+                1029,
+                "    {"
+            ],
+            [
+                1030,
+                "        public Pen Line { get; set; }"
+            ],
+            [
+                1145,
+                "    public class RelationPaintEventArgs : ChartPaintEventArgs"
+            ],
+            [
+                1147,
+                "        public Task Before { get; private set; }"
+            ],
+            [
+                1148,
+                ""
+            ],
+            [
+                1149,
+                "        public Task After { get; private set; }"
+            ],
+            [
+                1151,
+                "        public RelationFormat Format { get; set; }"
+            ],
+            [
+                1152,
+                ""
+            ],
+            [
+                1153,
+                "        public RelationPaintEventArgs(Graphics graphics, Rectangle clipRect, Chart chart, Task before, Task after, RelationFormat format)"
+            ],
+            [
+                1154,
+                "            : base(graphics, clipRect, chart)"
+            ],
+            [
+                1155,
+                "        {"
+            ],
+            [
+                1156,
+                "            this.Before = before;"
+            ],
+            [
+                1157,
+                "            this.After = after;"
+            ],
+            [
+                1158,
+                "            this.Format = format;"
+            ]
+        ],
+        "deleted": [
+            [
+                26,
+                "            ShowRelationships = true;"
+            ],
+            [
+                34,
+                "                ForeFill = Brushes.YellowGreen"
+            ],
+            [
+                40,
+                "                ForeFill = Brushes.YellowGreen"
+            ],
+            [
+                122,
+                "        /// Format for Tasks"
+            ],
+            [
+                127,
+                "        /// Format for critical Tasks"
+            ],
+            [
+                132,
+                "        /// Format for headers"
+            ],
+            [
+                143,
+                "        public bool ShowRelationships { get; set; }"
+            ],
+            [
+                256,
+                "            this._Draw(graphics, Rectangle.Empty);"
+            ],
+            [
+                278,
+                "                if (this.ShowRelationships) this._DrawPredecessorLines(graphics);"
+            ],
+            [
+                774,
+                "        private void _DrawPredecessorLines(Graphics graphics)"
+            ],
+            [
+                776,
+                "            foreach (var task in _mTaskRects.Keys)"
+            ],
+            [
+                778,
+                "                foreach(var predecessor in _mProject.Relationships[task])"
+            ],
+            [
+                780,
+                "                    if (_mTaskRects.ContainsKey(predecessor))"
+            ],
+            [
+                782,
+                "                        var prect = _mTaskRects[predecessor];"
+            ],
+            [
+                783,
+                "                        var srect = _mTaskRects[task];"
+            ],
+            [
+                785,
+                "                        graphics.DrawLine(Pens.Black, new PointF(prect.Right, prect.Top + prect.Height / 2.0f), new PointF(prect.Right + BarWidth / 2, prect.Top + prect.Height / 2.0f));"
+            ],
+            [
+                786,
+                "                        graphics.DrawLine(Pens.Black, new PointF(prect.Right + BarWidth / 2, srect.Top + srect.Height / 2.0f), new PointF(prect.Right + BarWidth / 2, prect.Top + prect.Height / 2.0f));"
+            ],
+            [
+                787,
+                "                        graphics.DrawLine(Pens.Black, new PointF(prect.Right + BarWidth / 2, srect.Top + srect.Height / 2.0f), new PointF(srect.Left, srect.Top + srect.Height / 2.0f));"
+            ],
+            [
+                808,
+                "                    // draw task"
+            ],
+            [
+                815,
+                "                    var size = graphics.MeasureString(task.Name, e.Font);"
+            ],
+            [
+                816,
+                "                    graphics.DrawString(task.Name, e.Font, e.Format.Color, new PointF(task.End * BarWidth, outline.Top + (this.BarHeight - size.Height) / 2));"
+            ],
+            [
+                834,
+                ""
+            ],
+            [
+                835,
+                "                    // draw slack"
+            ],
+            [
+                836,
+                "                    if (this.ShowSlack)"
+            ],
+            [
+                837,
+                "                    {"
+            ],
+            [
+                838,
+                "                        var slackrect = _RowToSlackRect(row, task);"
+            ],
+            [
+                839,
+                "                        graphics.FillRectangle(new System.Drawing.Drawing2D.HatchBrush(System.Drawing.Drawing2D.HatchStyle.LightDownwardDiagonal, Color.Blue, Color.Transparent), slackrect);"
+            ],
+            [
+                840,
+                "                    }"
+            ],
+            [
+                1077,
+                "    public class PrecedentPaintEventArgs : ChartPaintEventArgs"
+            ],
+            [
+                1079,
+                "        public PrecedentPaintEventArgs()"
+            ],
+            [
+                1080,
+                "            : base(null, Rectangle.Empty, null)"
+            ],
+            [
+                1081,
+                "        {"
+            ]
+        ]
+    },
+    "num_lines_added": 108,
+    "num_lines_removed": 32
+}

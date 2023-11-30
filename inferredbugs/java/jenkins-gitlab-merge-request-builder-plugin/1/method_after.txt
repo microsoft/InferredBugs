@@ -1,0 +1,52 @@
+    public void check(GitlabMergeRequest gitlabMergeRequest) {
+
+        if (_mergeRequestStatus == null) {
+            _mergeRequestStatus = new GitlabMergeRequestStatus();
+        }
+
+        if (_iid == null) {
+            _iid = gitlabMergeRequest.getIid();
+        }
+
+        if (_targetBranch == null) {
+            _targetBranch = gitlabMergeRequest.getTargetBranch();
+        }
+
+        if (_sourceBranch == null) {
+            _sourceBranch = gitlabMergeRequest.getSourceBranch();
+        }
+
+        if (_sourceProject == null) {
+            try {
+                GitlabAPI api = _builder.getGitlab().get();
+                _sourceProject = getSourceProject(gitlabMergeRequest, api);
+            } catch (IOException e) {
+                _logger.log(Level.SEVERE, "Failed to get source project for Merge request " + gitlabMergeRequest.getId() + " :\n" + e.getMessage());
+                return;
+            }
+        }
+        
+        try {
+            GitlabAPI api = _builder.getGitlab().get();
+            GitlabNote lastJenkinsNote = getJenkinsNote(gitlabMergeRequest, api);
+            GitlabCommit latestCommit = getLatestCommit(gitlabMergeRequest, api);
+
+            if (lastJenkinsNote == null) {
+                _shouldRun = true;
+            } else if (latestCommit == null) {
+                _logger.log(Level.SEVERE, "Failed to determine the lastest commit for merge request {" + gitlabMergeRequest.getId() + "}. This might be caused by a stalled MR in gitlab.");
+                return;
+            } else {
+                _shouldRun = latestCommitIsNotReached(latestCommit);
+            }
+            if (_shouldRun) {
+            	_mergeRequestStatus.setLatestCommitOfMergeRequest(_id.toString(), latestCommit.getId());
+            }
+        } catch (IOException e) {
+            _logger.log(Level.SEVERE, "Failed to fetch commits for Merge Request " + gitlabMergeRequest.getId());
+        }
+
+        if (_shouldRun) {
+            build();
+        }
+    }

@@ -1,0 +1,20 @@
+        private static InputContainer MakeContainer(string url, MediaOptions options, AVFormatContextDelegate contextDelegate)
+        {
+            FFmpegLoader.LoadFFmpeg();
+
+            var context = ffmpeg.avformat_alloc_context();
+            options.DemuxerOptions.ApplyFlags(context);
+            var dict = new FFDictionary(options.DemuxerOptions.PrivateOptions, false).Pointer;
+
+            var avio = contextDelegate(context);
+
+            ffmpeg.avformat_open_input(&context, url, null, &dict)
+                .ThrowIfError("An error occurred while opening the file");
+
+            ffmpeg.avformat_find_stream_info(context, null)
+                .ThrowIfError("Cannot find stream info");
+
+            var container = new InputContainer(context, avio);
+            container.OpenStreams(options);
+            return container;
+        }

@@ -1,0 +1,46 @@
+  @Override
+  public void run() {
+    final Set<String> artifacts = new HashSet<>();
+    installNodeModules(artifacts);
+
+    final File base = new File(cwd, "node_modules");
+    final File libs = new File(base, ".lib");
+
+    if (force || libs.exists()) {
+      final double version = Double.parseDouble(System.getProperty("java.specification.version"));
+      final boolean isGraalVM =
+        System.getProperty("java.vm.name", "").toLowerCase().contains("graalvm") ||
+        // from graal 20.0.0 the vm name doesn't contain graalvm in the name
+        // but it is now part of the vendor version
+        System.getProperty("java.vendor.version", "").toLowerCase().contains("graalvm");
+
+      if (!isGraalVM) {
+
+        // not on graal, install graaljs and dependencies
+        warn("Installing GraalJS...");
+        // graaljs + dependencies
+        installGraalJS(artifacts);
+
+        if (version >= 11) {
+          // verify if the current JDK contains the jdk.internal.vm.ci module
+          try {
+            String modules = exec(javaHomePrefix() + "java", "--list-modules");
+            if (modules.contains("jdk.internal.vm.ci")) {
+              warn("Installing JVMCI Compiler...");
+              // jvmci compiler + dependencies
+              installGraalJMVCICompiler();
+            }
+          } catch (IOException | InterruptedException e) {
+            err(e.getMessage());
+          }
+        } else {
+          warn("Current JDK only supports GraalJS in Interpreted mode!");
+        }
+      }
+    }
+
+    // always create a launcher even if no dependencies are needed
+    createLauncher(artifacts);
+    // always install the es4x type definitions
+    installTypeDefinitions();
+  }

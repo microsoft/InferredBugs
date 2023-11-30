@@ -1,0 +1,28 @@
+    private static Field findSingleFieldUsingStrategy(FieldMatcherStrategy strategy, Object object,
+                                                      boolean checkHierarchy, Class<?> startClass) {
+        assertObjectInGetInternalStateIsNotNull(object);
+        Field foundField = null;
+        final Class<?> originalStartClass = startClass;
+        while (startClass != null) {
+            final Field[] declaredFields = startClass.getDeclaredFields();
+            for (Field field : declaredFields) {
+                if (strategy.matches(field) && hasFieldProperModifier(object, field)) {
+                    if (foundField != null) {
+                        throw new TooManyFieldsFoundException("Two or more fields matching " + strategy + ".");
+                    }
+                    foundField = field;
+                }
+            }
+            if (foundField != null) {
+                break;
+            } else if (checkHierarchy == false) {
+                break;
+            }
+            startClass = startClass.getSuperclass();
+        }
+        if (foundField == null) {
+            strategy.notFound(originalStartClass, !isClass(object));
+        }
+        foundField.setAccessible(true);
+        return foundField;
+    }

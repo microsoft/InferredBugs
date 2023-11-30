@@ -1,0 +1,81 @@
+    @Override
+    public Result transfer(byte[] from, byte[] to, Na values, String password, String remark) {
+        try {
+            AssertUtil.canNotEmpty(from, "the from address can not be empty");
+            AssertUtil.canNotEmpty(to, "the to address can not be empty");
+            AssertUtil.canNotEmpty(values, "the amount can not be empty");
+
+            if (values.isZero() || values.isLessThan(Na.ZERO)) {
+                return Result.getFailed("amount error");
+            }
+
+            Result<Account> accountResult = accountService.getAccount(from);
+            if (accountResult.isFailed()) {
+                return accountResult;
+            }
+            Account account = accountResult.getData();
+
+            if (accountService.isEncrypted(account).isSuccess()) {
+                AssertUtil.canNotEmpty(password, "the password can not be empty");
+
+                Result passwordResult = accountService.validPassword(account, password);
+                if (passwordResult.isFailed()) {
+                    return passwordResult;
+                }
+            }
+
+            TransferTransaction tx = new TransferTransaction();
+            if (StringUtils.isNotBlank(remark)) {
+                try {
+                    tx.setRemark(remark.getBytes(NulsConfig.DEFAULT_ENCODING));
+                } catch (UnsupportedEncodingException e) {
+                    e.printStackTrace();
+                }
+            }
+            tx.setTime(TimeService.currentTimeMillis());
+            CoinData coinData = new CoinData();
+            Coin toCoin = new Coin(to, values);
+            coinData.getTo().add(toCoin);
+
+            CoinDataResult coinDataResult = getCoinData(from, values, tx.size() + P2PKHScriptSig.DEFAULT_SERIALIZE_LENGTH);
+            if (!coinDataResult.isEnough()) {
+                return Result.getFailed(LedgerErrorCode.BALANCE_NOT_ENOUGH);
+            }
+            coinData.setFrom(coinDataResult.getCoinList());
+            if (coinDataResult.getChange() != null) {
+                coinData.getTo().add(coinDataResult.getChange());
+            }
+            tx.setCoinData(coinData);
+
+            tx.setHash(NulsDigestData.calcDigestData(tx.serialize()));
+            P2PKHScriptSig sig = new P2PKHScriptSig();
+            sig.setPublicKey(account.getPubKey());
+            sig.setSignData(accountService.signData(tx.getHash().serialize(), account, password));
+            tx.setScriptSig(sig.serialize());
+
+            ValidateResult result1 = tx.verify();
+            if (result1.isFailed()) {
+                return result1;
+            }
+            result1 = this.ledgerService.verifyCoinData(tx, this.getAllUnconfirmedTransaction().getData());
+            if (result1.isFailed()) {
+                return result1;
+            }
+
+            Result saveResult = saveUnconfirmedTransaction(tx);
+            if (saveResult.isFailed()) {
+                return saveResult;
+            }
+            Result sendResult = this.transactionService.broadcastTx(tx);
+            if (sendResult.isFailed()) {
+                return sendResult;
+            }
+            return Result.getSuccess().setData(tx.getHash().getDigestHex());
+        } catch (IOException e) {
+            Log.error(e);
+            return Result.getFailed(e.getMessage());
+        } catch (NulsException e) {
+            Log.error(e);
+            return Result.getFailed(e.getErrorCode());
+        }
+    }

@@ -1,0 +1,25 @@
+ @RequiresPermissions("adminSystemVariable")
+	@RequestMapping(value="variableSave${url.suffix}", method = RequestMethod.POST)
+	@ResponseBody
+	public BaseVO variableSave(System sys, Model model, HttpServletRequest request){
+		System system;
+		
+		if(Global.system.get(sys.getName()) == null){
+			system = new System();
+			system.setName(sys.getName());
+		}else{
+			//有，编辑即可
+			system = sqlService.findAloneByProperty(System.class, "name", sys.getName());
+		}
+		
+		system.setDescription(sys.getDescription());
+		system.setLasttime(DateUtil.timeForUnix10());
+		system.setValue(sys.getValue());
+		sqlService.save(system);
+		
+		/***更新内存数据****/
+		systemService.refreshSystemCache();
+		
+		ActionLogCache.insert(request, system.getId(), "保存系统变量", system.getName()+"="+system.getValue());
+		return success();
+	}

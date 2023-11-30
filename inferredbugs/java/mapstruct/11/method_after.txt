@@ -1,0 +1,23 @@
+    @Override
+    public Mapper process(ProcessorContext context, TypeElement mapperTypeElement, Mapper mapper) {
+        String componentModel = MapperPrism.getInstanceOn( mapperTypeElement ).componentModel();
+        String effectiveComponentModel = OptionsHelper.getEffectiveComponentModel(
+            context.getOptions(),
+            componentModel
+        );
+
+        if ( !"cdi".equalsIgnoreCase( effectiveComponentModel ) ) {
+            return mapper;
+        }
+
+        mapper.addAnnotation( new Annotation( new Type( "javax.enterprise.context", "ApplicationScoped" ) ) );
+
+        ListIterator<MapperReference> iterator = mapper.getReferencedMappers().listIterator();
+        while ( iterator.hasNext() ) {
+            MapperReference reference = iterator.next();
+            iterator.remove();
+            iterator.add( new CdiMapperReference( reference.getMapperType() ) );
+        }
+
+        return mapper;
+    }

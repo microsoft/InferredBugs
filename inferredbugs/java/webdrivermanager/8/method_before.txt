@@ -1,0 +1,55 @@
+ public static final synchronized void download(URL url, String version,
+			String export, List<String> driverName) throws IOException {
+		File targetFile = new File(getTarget(version, url));
+		File binary = null;
+
+		// Check if binary exists
+		boolean download = !targetFile.getParentFile().exists()
+				|| (targetFile.getParentFile().exists()
+						&& targetFile.getParentFile().list().length == 0)
+				|| WdmConfig.getBoolean("wdm.override");
+
+		if (!download) {
+			// Check if existing binary is valid
+			Collection<File> listFiles = FileUtils
+					.listFiles(targetFile.getParentFile(), null, true);
+			for (File file : listFiles) {
+				for (String s : driverName) {
+					if (file.getName().startsWith(s) && file.canExecute()) {
+						binary = file;
+						log.debug(
+								"Using binary driver previously downloaded {}",
+								binary);
+						download = false;
+						break;
+					} else {
+						download = true;
+					}
+				}
+				if (!download) {
+					break;
+				}
+			}
+		}
+
+		if (download) {
+			log.info("Downloading {} to {}", url, targetFile);
+			URLConnection conn = url.openConnection();
+			conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+			conn.addRequestProperty("Connection", "keep-alive");
+			conn.connect();
+			FileUtils.copyInputStreamToFile(conn.getInputStream(), targetFile);
+
+			if (!export.contains("edge")) {
+				binary = extract(targetFile, export);
+				targetFile.delete();
+			} else {
+				binary = targetFile;
+			}
+
+		}
+		if (export != null) {
+			BrowserManager.exportDriver(export, binary.toString());
+		}
+
+	}

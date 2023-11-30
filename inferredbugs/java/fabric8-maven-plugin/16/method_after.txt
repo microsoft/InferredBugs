@@ -1,0 +1,61 @@
+    protected void applyEntities(Controller controller, KubernetesClient kubernetes, String namespace, String fileName, Set<HasMetadata> entities) throws Exception {
+        // Apply all items
+        for (HasMetadata entity : entities) {
+            if (entity instanceof Pod) {
+                Pod pod = (Pod) entity;
+                controller.applyPod(pod, fileName);
+            } else if (entity instanceof Service) {
+                Service service = (Service) entity;
+                controller.applyService(service, fileName);
+            } else if (entity instanceof ReplicationController) {
+                ReplicationController replicationController = (ReplicationController) entity;
+                controller.applyReplicationController(replicationController, fileName);
+            } else if (entity != null) {
+                controller.apply(entity, fileName);
+            }
+        }
+
+        File file = null;
+        try {
+            Fabric8ServiceHub hub = getFabric8ServiceHub(controller);
+            file = hub.getClientToolsService().getKubeCtlExecutable();
+        } catch (Exception e) {
+            log.warn("%s", e.getMessage());
+        }
+        if (file != null) {
+            log.info("[[B]]HINT:[[B]] Use the command `%s get pods -w` to watch your pods start up",file.getName());
+        }
+
+        Logger serviceLogger = createExternalProcessLogger("[[G]][SVC][[G]] ");
+        long serviceUrlWaitTimeSeconds = this.serviceUrlWaitTimeSeconds;
+        for (HasMetadata entity : entities) {
+            if (entity instanceof Service) {
+                Service service = (Service) entity;
+                String name = getName(service);
+                Resource<Service, DoneableService> serviceResource = kubernetes.services().inNamespace(namespace).withName(name);
+                String url = null;
+                // lets wait a little while until there is a service URL in case the exposecontroller is running slow
+                for (int i = 0; i < serviceUrlWaitTimeSeconds; i++) {
+                    if (i > 0) {
+                        Thread.sleep(1000);
+                    }
+                    Service s = serviceResource.get();
+                    if (s != null) {
+                        url = getExternalServiceURL(s);
+                        if (Strings.isNotBlank(url)) {
+                            break;
+                        }
+                    }
+                    if (!isExposeService(service)) {
+                        break;
+                    }
+                }
+
+                // lets not wait for other services
+                serviceUrlWaitTimeSeconds = 1;
+                if (Strings.isNotBlank(url) && url.startsWith("http")) {
+                    serviceLogger.info("" + name + ": " + url);
+                }
+            }
+        }
+    }

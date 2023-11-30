@@ -1,0 +1,51 @@
+ static
+	private MapValues createMapValues(FieldName name, String identifier, List<Feature> features, List<Double> coefficients){
+		DocumentBuilder documentBuilder = DOMUtil.createDocumentBuilder();
+
+		InlineTable inlineTable = new InlineTable();
+
+		List<String> columns = Arrays.asList("input", "output");
+
+		ListIterator<Feature> featureIt = features.listIterator();
+		ListIterator<Double> coefficientIt = coefficients.listIterator();
+
+		PMMLEncoder encoder = null;
+
+		while(featureIt.hasNext()){
+			Feature feature = featureIt.next();
+			Double coefficient = coefficientIt.next();
+
+			if(!(feature instanceof BinaryFeature)){
+				continue;
+			}
+
+			BinaryFeature binaryFeature = (BinaryFeature)feature;
+			if(!(name).equals(binaryFeature.getName())){
+				continue;
+			}
+
+			featureIt.remove();
+			coefficientIt.remove();
+
+			if(encoder == null){
+				encoder = binaryFeature.getEncoder();
+			}
+
+			Row row = DOMUtil.createRow(documentBuilder, columns, Arrays.asList(binaryFeature.getValue(), coefficient));
+
+			inlineTable.addRows(row);
+		}
+
+		MapValues mapValues = new MapValues()
+			.addFieldColumnPairs(new FieldColumnPair(name, columns.get(0)))
+			.setOutputColumn(columns.get(1))
+			.setInlineTable(inlineTable)
+			.setDefaultValue(ValueUtil.formatValue(0d));
+
+		DerivedField derivedField = encoder.createDerivedField(FieldName.create("lookup(" + name.getValue() + (identifier != null ? (", " + identifier) : "") + ")"), OpType.CONTINUOUS, DataType.DOUBLE, mapValues);
+
+		featureIt.add(new ContinuousFeature(encoder, derivedField));
+		coefficientIt.add(1d);
+
+		return mapValues;
+	}

@@ -1,0 +1,31 @@
+        [Fact]
+        public void CanUseRegisterExtensionMethod()
+        {
+            var curie = new CuriesLink("aap", "http://www.helpt.com/{?rel}");
+
+            var builder = Hypermedia.CreateBuilder();
+            var selfLink = new Link<ProductRepresentation>("product", "http://www.product.com?id=1");
+            var link2 = new Link("related", "http://www.related.com");
+            var link3 = curie.CreateLink<CategoryRepresentation>("category", "http://www.category.com");
+            
+            builder.Register(selfLink, link2, link3);
+            
+            var config = builder.Build();
+
+            // arrange
+            var mediaFormatter = new JsonHalMediaTypeOutputFormatter(
+                new JsonSerializerSettings(), ArrayPool<char>.Shared);
+            var content = new StringContent(string.Empty);
+            var type = representation.GetType();
+
+            // act
+            using (var stream = new StringWriter())
+            {
+                mediaFormatter.WriteObject(stream, representation);
+
+                string serialisedResult = stream.ToString();
+
+                // assert
+                this.Assent(serialisedResult);
+            }
+        }

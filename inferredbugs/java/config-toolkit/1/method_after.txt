@@ -1,0 +1,60 @@
+ public static Map<String, String> loadLocalProperties(String rootNode, String group) {
+		Preconditions.checkArgument(!Strings.isNullOrEmpty(rootNode) && !Strings.isNullOrEmpty(group), "rootNode or group cannot be empty.");
+
+		Map<String, String> properties = null;
+		final String localOverrideFile = findLocalOverrideFile();
+		InputStream in = null;
+		try {
+			in = LocalOverrideFileLoader.class.getClassLoader().getResourceAsStream(localOverrideFile);
+			if (in != null) {
+				final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+				final DocumentBuilder builder = factory.newDocumentBuilder();
+
+				final Document doc = builder.parse(in);
+				final Element factoriesNode = Preconditions.checkNotNull(doc.getDocumentElement(), "Root xml node node-factories not exists.");
+
+				Node factoryNode = findChild(factoriesNode, "node-factory", "root", rootNode);
+				if (factoryNode != null) {
+					Node nodeGroup = findChild(factoryNode, "group", "id", group);
+					if (nodeGroup != null) {
+						NodeList childNodes = nodeGroup.getChildNodes();
+						int nodeCount = childNodes.getLength();
+						if (nodeCount > 0) {
+							properties = Maps.newHashMap();
+							for (int i = 0; i < nodeCount; i++) {
+								Node item = childNodes.item(i);
+								if (item.hasAttributes()) {
+									NamedNodeMap attributes = item.getAttributes();
+									Node keyAttr = attributes.getNamedItem("key");
+									if (keyAttr != null) {
+										String propKey = keyAttr.getNodeValue();
+										String propVal = item.getFirstChild().getNodeValue();
+										if (propKey != null && propVal != null) {
+											properties.put(propKey, propVal);
+										}
+									}
+
+								}
+
+							}
+						}
+					}
+				}
+			}
+		} catch (ParserConfigurationException e) {
+			throw Throwables.propagate(e);
+		} catch (SAXException e) {
+			throw Throwables.propagate(e);
+		} catch (IOException e) {
+			throw Throwables.propagate(e);
+		} finally {
+			if (in != null) {
+				try {
+					in.close();
+				} catch (IOException e) {
+					// IGNORE
+				}
+			}
+		}
+		return properties;
+	}

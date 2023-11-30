@@ -1,0 +1,23 @@
+    public AcmeProvider provider() {
+        synchronized (this) {
+            if (provider == null) {
+                List<AcmeProvider> candidates = new ArrayList<>();
+                for (AcmeProvider acp : ServiceLoader.load(AcmeProvider.class)) {
+                    if (acp.accepts(serverUri)) {
+                        candidates.add(acp);
+                    }
+                }
+
+                if (candidates.isEmpty()) {
+                    throw new IllegalArgumentException("No ACME provider found for " + serverUri);
+                } else if (candidates.size() > 1) {
+                    throw new IllegalStateException("There are " + candidates.size() + " "
+                        + AcmeProvider.class.getSimpleName() + " accepting " + serverUri
+                        + ". Please check your classpath.");
+                } else {
+                    provider = candidates.get(0);
+                }
+            }
+        }
+        return provider;
+    }

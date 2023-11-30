@@ -1,0 +1,43 @@
+        private static int GetFieldCount(Expression node)
+        {
+            int num = 0;
+            if (node.NodeType == ExpressionType.Lambda) node = (node as LambdaExpression).Body;
+
+            switch (node.NodeType)
+            {
+                case ExpressionType.MemberInit:
+                    var initExpression = node as MemberInitExpression;
+                    foreach (var exp in initExpression.NewExpression.Arguments)
+                    {
+                        if (TypeUtils.IsPrimitiveType(exp.Type))
+                            num += 1;
+                        else
+                            num += _countComplex(exp);
+                    }
+                    foreach (MemberAssignment member in initExpression.Bindings)
+                    {
+                        num += _countPrimitive(((System.Reflection.PropertyInfo)member.Member).PropertyType);
+                    }
+
+                    break;
+
+                case ExpressionType.MemberAccess:
+                    var memberExpression = node as MemberExpression;
+                    num += _countComplex(memberExpression);
+
+                    break;
+
+                case ExpressionType.New:
+                    var newExpression = node as NewExpression;
+                    //foreach (var exp in newExpression.Arguments) num += _countComplex(exp);
+                    if (newExpression.Members != null)
+                    {
+                        foreach (var member in newExpression.Members)
+                            num += _countPrimitive(((System.Reflection.PropertyInfo)member).PropertyType);
+                    }
+
+                    break;
+            }
+
+            return num;
+        }

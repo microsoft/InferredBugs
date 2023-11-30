@@ -1,0 +1,55 @@
+    @Override
+    public Page download(Request request, Task task) {
+        Site site = null;
+        if (task != null) {
+            site = task.getSite();
+        }
+        Set<Integer> acceptStatCode;
+        String charset = null;
+        Map<String, String> headers = null;
+        if (site != null) {
+            acceptStatCode = site.getAcceptStatCode();
+            charset = site.getCharset();
+            headers = site.getHeaders();
+        } else {
+            acceptStatCode = new HashSet<Integer>();
+            acceptStatCode.add(200);
+        }
+        logger.info("downloading page " + request.getUrl());
+        HttpGet httpGet = new HttpGet(request.getUrl());
+        if (headers != null) {
+            for (Map.Entry<String, String> headerEntry : headers.entrySet()) {
+                httpGet.addHeader(headerEntry.getKey(), headerEntry.getValue());
+            }
+        }
+        CloseableHttpResponse httpResponse = null;
+        try {
+            httpResponse = getHttpClient(site).execute(httpGet);
+            int statusCode = httpResponse.getStatusLine().getStatusCode();
+            if (acceptStatCode.contains(statusCode)) {
+                //charset
+                if (charset == null) {
+                    String value = httpResponse.getEntity().getContentType().getValue();
+                    charset = UrlUtils.getCharset(value);
+                }
+                return handleResponse(request, charset, httpResponse, task);
+            } else {
+                logger.warn("code error " + statusCode + "\t" + request.getUrl());
+                return null;
+            }
+        } catch (IOException e) {
+            logger.warn("download page " + request.getUrl() + " error", e);
+            if (site.getCycleRetryTimes() > 0) {
+                return addToCycleRetry(request, site);
+            }
+            return null;
+        } finally {
+            try {
+                if (httpResponse != null) {
+                    httpResponse.close();
+                }
+            } catch (IOException e) {
+                logger.warn("close response fail", e);
+            }
+        }
+    }

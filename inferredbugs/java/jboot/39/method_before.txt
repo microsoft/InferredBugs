@@ -1,0 +1,39 @@
+    @Override
+    public void inject(Class<?> targetClass, Object targetObject, int injectDepth) throws ReflectiveOperationException {
+        if ((injectDepth--) <= 0) {
+            return;
+        }
+
+        targetClass = getUsefulClass(targetClass);
+        Field[] fields = targetClass.getDeclaredFields();
+        if (fields.length == 0) {
+            return;
+        }
+
+        for (Field field : fields) {
+
+            Inject inject = field.getAnnotation(Inject.class);
+            if (inject != null) {
+                injectByJFinalInject(targetObject, field, inject, injectDepth);
+                continue;
+            }
+
+            javax.inject.Inject javaxInject = field.getAnnotation(javax.inject.Inject.class);
+            if (javaxInject != null) {
+                injectByJavaxInject(targetObject, field, javaxInject, injectDepth);
+                continue;
+            }
+
+            ConfigInject configInject = field.getAnnotation(ConfigInject.class);
+            if (configInject != null) {
+                injectByConfig(targetObject, field, configInject);
+                continue;
+            }
+
+            RPCInject rpcInject = field.getAnnotation(RPCInject.class);
+            if (rpcInject != null) {
+                injectByRPC(targetObject, field, rpcInject);
+                continue;
+            }
+        }
+    }

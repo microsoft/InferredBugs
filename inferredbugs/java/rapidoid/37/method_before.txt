@@ -1,0 +1,25 @@
+ public void complete(Channel ctx, boolean isKeepAlive, Req req, Object result) {
+
+		if (result == null) {
+			http.notFound(ctx, isKeepAlive, this, req);
+			return; // not found
+		}
+
+		if (result instanceof HttpStatus) {
+			complete(ctx, isKeepAlive, req, U.rte("HttpStatus result is not supported!"));
+			return;
+		}
+
+		if (result instanceof Throwable) {
+			HttpIO.errorAndDone(req, (Throwable) result, Customization.of(req).errorHandler());
+			return;
+
+		} else {
+			HttpUtils.resultToResponse(req, result);
+		}
+
+		// the Req object will do the rendering
+		if (!req.isAsync()) {
+			req.done();
+		}
+	}

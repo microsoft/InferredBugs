@@ -1,0 +1,70 @@
+    @Override
+    public int sendSignedRequest(URI uri, ClaimBuilder claims, Session session, Registration registration)
+                throws AcmeException {
+        if (uri == null) {
+            throw new NullPointerException("uri must not be null");
+        }
+        if (claims == null) {
+            throw new NullPointerException("claims must not be null");
+        }
+        if (session == null) {
+            throw new NullPointerException("session must not be null");
+        }
+        if (registration == null) {
+            throw new NullPointerException("registration must not be null");
+        }
+        if (conn != null) {
+            throw new IllegalStateException("Connection was not closed. Race condition?");
+        }
+
+        try {
+            KeyPair keypair = registration.getKeyPair();
+
+            if (session.getNonce() == null) {
+                LOG.debug("Getting initial nonce, HEAD {}", uri);
+                conn = httpConnector.openConnection(uri);
+                conn.setRequestMethod("HEAD");
+                conn.connect();
+                updateSession(session);
+                conn = null;
+            }
+
+            if (session.getNonce() == null) {
+                throw new AcmeException("No nonce available");
+            }
+
+            LOG.debug("POST {} with claims: {}", uri, claims);
+
+            conn = httpConnector.openConnection(uri);
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Accept-Charset", "utf-8");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setDoOutput(true);
+
+            final PublicJsonWebKey jwk = PublicJsonWebKey.Factory.newPublicJwk(keypair.getPublic());
+
+            JsonWebSignature jws = new JsonWebSignature();
+            jws.setPayload(claims.toString());
+            jws.getHeaders().setObjectHeaderValue("nonce", Base64Url.encode(session.getNonce()));
+            jws.getHeaders().setJwkHeaderValue("jwk", jwk);
+            jws.setAlgorithmHeaderValue(SignatureUtils.keyAlgorithm(jwk));
+            jws.setKey(keypair.getPrivate());
+            byte[] outputData = jws.getCompactSerialization().getBytes("utf-8");
+
+            conn.setFixedLengthStreamingMode(outputData.length);
+            conn.connect();
+
+            try (OutputStream out = conn.getOutputStream()) {
+                out.write(outputData);
+            }
+
+            logHeaders();
+
+            updateSession(session);
+
+            return conn.getResponseCode();
+        } catch (JoseException | IOException ex) {
+            throw new AcmeException("Request failed: " + uri, ex);
+        }
+    }

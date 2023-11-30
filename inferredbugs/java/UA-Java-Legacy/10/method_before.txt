@@ -1,0 +1,42 @@
+ public static String getSecurityProviderName() {
+		if (securityProviderName == null) {
+			Provider provider = null;
+			if (LOGGER.isDebugEnabled())
+				LOGGER.debug("Providers={}",
+						Arrays.toString(Security.getProviders()));
+			boolean isAndroid = System.getProperty("java.runtime.name")
+					.toLowerCase().contains("android");
+			if (isAndroid) {
+				if (Security.getProvider("SC") != null)
+					securityProviderName = "SC";
+				else {
+					provider = hasClass("org.spongycastle.jce.provider.BouncyCastleProvider");
+					if (provider != null)
+						securityProviderName = "SC";
+				}
+			} else if (Security.getProvider("BC") != null)
+				securityProviderName = "BC";
+			else {
+				if (provider == null) {
+					provider = hasClass("org.bouncycastle.jce.provider.BouncyCastleProvider");
+					if (provider != null)
+						securityProviderName = "BC";
+				}
+				if (provider == null) {
+					provider = hasClass("com.sun.crypto.provider.SunJCE");
+					if (provider != null)
+					{
+	                    throw new RuntimeException("BouncyCastle Security Provider not available! Not recommended SunJCE Security Provider is found, use it with CryptoUtil.setSecurityProviderName.");                      
+					}
+				}
+				if (provider != null)
+					securityProviderName = provider.getName();
+
+			}
+			if (securityProviderName != null)
+				LOGGER.info("Using SecurityProvider {}", securityProviderName);
+			else
+				throw new RuntimeException("NO SECURITY PROVIDER AVAILABLE!");
+		}
+		return securityProviderName;
+	}

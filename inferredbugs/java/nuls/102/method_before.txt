@@ -1,0 +1,58 @@
+    @Override
+    public ValidateResult verifyCoinData(AbstractCoinTransaction tx, List<Transaction> txList) {
+
+        if (txList == null || txList.isEmpty()) {
+            //It's all an orphan that can go here
+            return ValidateResult.getFailedResult(ErrorCode.ORPHAN_TX);
+        }
+
+        UtxoData data = (UtxoData) tx.getCoinData();
+
+
+        Map<String, UtxoOutput> outputMap = getAllOutputMap(txList);
+
+
+        for (int i = 0; i < data.getInputs().size(); i++) {
+            UtxoInput input = data.getInputs().get(i);
+            UtxoOutput output = ledgerCacheService.getUtxo(input.getKey());
+
+            if (output == null && tx.getStatus() == TxStatusEnum.UNCONFIRM) {
+                output = outputMap.get(input.getKey());
+                if (null == output) {
+                    return ValidateResult.getFailedResult(ErrorCode.ORPHAN_TX);
+                }
+            } else if (output == null) {
+                return ValidateResult.getFailedResult(ErrorCode.UTXO_NOT_FOUND);
+            }
+
+            if (tx.getStatus() == TxStatusEnum.UNCONFIRM) {
+                if (tx.getType() == TransactionConstant.TX_TYPE_STOP_AGENT) {
+                    if (output.getStatus() != OutPutStatusEnum.UTXO_CONSENSUS_LOCK) {
+                        return ValidateResult.getFailedResult(ErrorCode.UTXO_STATUS_CHANGE);
+                    }
+                } else if (!output.isUsable()) {
+                    return ValidateResult.getFailedResult(ErrorCode.UTXO_STATUS_CHANGE);
+                }
+            }
+//            else if (tx.getStatus() == TxStatusEnum.AGREED) {
+//                if (!output.isSpend()) {
+//                    return ValidateResult.getFailedResult(ErrorCode.UTXO_STATUS_CHANGE);
+//                }
+//            }
+
+            byte[] owner = output.getOwner();
+            P2PKHScriptSig p2PKHScriptSig = null;
+            try {
+                p2PKHScriptSig = P2PKHScriptSig.createFromBytes(tx.getScriptSig());
+            } catch (NulsException e) {
+                return ValidateResult.getFailedResult(ErrorCode.DATA_ERROR);
+            }
+            byte[] user = p2PKHScriptSig.getSignerHash160();
+            if (!Arrays.equals(owner, user)) {
+                return ValidateResult.getFailedResult(ErrorCode.INVALID_INPUT);
+            }
+
+            return ValidateResult.getSuccessResult();
+        }
+        return ValidateResult.getSuccessResult();
+    }

@@ -1,0 +1,53 @@
+    private X509Certificate retrieveAndVerifyCertificateChain(
+            final String signingCertificateChainUrl) throws CertificateException {
+        try (InputStream in =
+                getAndVerifySigningCertificateChainUrl(signingCertificateChainUrl).openConnection(proxy).getInputStream()) {
+            CertificateFactory certificateFactory =
+                    CertificateFactory.getInstance(ServletConstants.SIGNATURE_CERTIFICATE_TYPE);
+            @SuppressWarnings("unchecked")
+            Collection<X509Certificate> certificateChain =
+                    (Collection<X509Certificate>) certificateFactory.generateCertificates(in);
+            /*
+             * check the before/after dates on the certificate date to confirm that it is valid on
+             * the current date
+             */
+            X509Certificate signingCertificate = certificateChain.iterator().next();
+            signingCertificate.checkValidity();
+
+            // check the certificate chain
+            TrustManagerFactory trustManagerFactory =
+                    TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init((KeyStore) null);
+
+            X509TrustManager x509TrustManager = null;
+            for (TrustManager trustManager : trustManagerFactory.getTrustManagers()) {
+                if (trustManager instanceof X509TrustManager) {
+                    x509TrustManager = (X509TrustManager) trustManager;
+                }
+            }
+
+            if (x509TrustManager == null) {
+                throw new IllegalStateException(
+                        "No X509 TrustManager available. Unable to check certificate chain");
+            } else {
+                x509TrustManager.checkServerTrusted(
+                        certificateChain.toArray(new X509Certificate[certificateChain.size()]),
+                        ServletConstants.SIGNATURE_TYPE);
+            }
+
+            /*
+             * verify Echo API's hostname is specified as one of subject alternative names on the
+             * signing certificate
+             */
+            if (!subjectAlernativeNameListContainsEchoSdkDomainName(signingCertificate
+                    .getSubjectAlternativeNames())) {
+                throw new CertificateException(
+                        "The provided certificate is not valid for the Echo SDK");
+            }
+
+            return signingCertificate;
+        } catch (KeyStoreException | IOException | NoSuchAlgorithmException ex) {
+            throw new CertificateException("Unable to verify certificate at URL: "
+                    + signingCertificateChainUrl, ex);
+        }
+    }

@@ -1,0 +1,78 @@
+    @Override
+    public void onResponse(SearchResponse response) {
+        long timeTaken = System.currentTimeMillis() - timeLastQuery;
+
+        SearchHit[] hits = response.getHits().getHits();
+        int numBuckets = hits.length;
+
+        // reset the value for next fetch date if the previous one is too old
+        if (resetFetchDateAfterNSecs != -1) {
+            Calendar diffCal = Calendar.getInstance();
+            diffCal.setTime(lastDate);
+            diffCal.add(Calendar.SECOND, resetFetchDateAfterNSecs);
+            // compare to now
+            if (diffCal.before(Calendar.getInstance())) {
+                LOG.info(
+                        "{} lastDate set to null based on resetFetchDateAfterNSecs {}",
+                        logIdprefix, resetFetchDateAfterNSecs);
+                lastDate = null;
+                lastStartOffset = 0;
+            }
+        }
+
+        int alreadyprocessed = 0;
+        int numDocs = 0;
+
+        synchronized (buffer) {
+            for (SearchHit hit : hits) {
+                Map<String, SearchHits> innerHits = hit.getInnerHits();
+                // wanted just one per bucket : no inner hits
+                if (innerHits == null) {
+                    numDocs++;
+                    if (!addHitToBuffer(hit)) {
+                        alreadyprocessed++;
+                    }
+                    continue;
+                }
+                // more than one per bucket
+                SearchHits inMyBucket = innerHits.get("urls_per_bucket");
+                for (SearchHit subHit : inMyBucket.getHits()) {
+                    numDocs++;
+                    if (!addHitToBuffer(subHit)) {
+                        alreadyprocessed++;
+                    }
+                }
+            }
+
+            // Shuffle the URLs so that we don't get blocks of URLs from the
+            // same host or domain
+            if (numBuckets != numDocs) {
+                Collections.shuffle((List) buffer);
+            }
+        }
+
+        queryTimes.addMeasurement(timeTaken);
+        // could be derived from the count of query times above
+        eventCounter.scope("ES_queries").incrBy(1);
+        eventCounter.scope("ES_docs").incrBy(numDocs);
+        eventCounter.scope("already_being_processed").incrBy(alreadyprocessed);
+
+        LOG.info(
+                "{} ES query returned {} hits from {} buckets in {} msec with {} already being processed",
+                logIdprefix, numDocs, numBuckets, timeTaken, alreadyprocessed);
+
+        // no more results?
+        if (numBuckets == 0) {
+            lastDate = null;
+            lastStartOffset = 0;
+        }
+        // still got some results but paging won't help
+        else if (numBuckets < maxBucketNum) {
+            lastStartOffset = 0;
+        } else {
+            lastStartOffset += numBuckets;
+        }
+
+        // remove lock
+        isInQuery.set(false);
+    }

@@ -1,0 +1,19 @@
+    @Override
+    public byte[] readMasterKey(long ledgerId) throws IOException, BookieException {
+        synchronized(fileInfoCache) {
+            FileInfo fi = fileInfoCache.get(ledgerId);
+            if (fi == null) {
+                File lf = findIndexFile(ledgerId);
+                if (lf == null) {
+                    throw new Bookie.NoLedgerException(ledgerId);
+                }
+                evictFileInfoIfNecessary();        
+                fi = new FileInfo(lf, null);
+                byte[] key = fi.getMasterKey();
+                fileInfoCache.put(ledgerId, fi);
+                openLedgers.add(ledgerId);
+                return key;
+            }
+            return fi.getMasterKey();
+        }
+    }

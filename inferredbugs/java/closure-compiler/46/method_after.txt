@@ -1,0 +1,20 @@
+  private EnvTypePair analyzeLooseCallNodeBwd(
+      Node callNode, TypeEnv outEnv, JSType retType) {
+    Preconditions.checkArgument(callNode.isCall());
+    Preconditions.checkNotNull(retType);
+    Node callee = callNode.getFirstChild();
+    TypeEnv tmpEnv = outEnv;
+    FunctionTypeBuilder builder = new FunctionTypeBuilder();
+    for (int i = callNode.getChildCount() - 2; i >= 0; i--) {
+      Node arg = callNode.getChildAtIndex(i + 1);
+      tmpEnv = analyzeExprBwd(arg, tmpEnv).env;
+      // Wait until FWD to get more precise argument types.
+      builder.addReqFormal(JSType.BOTTOM);
+    }
+    JSType looseRetType = retType.isUnknown() ? JSType.BOTTOM : retType;
+    JSType looseFunctionType =
+        builder.addRetType(looseRetType).addLoose().buildType();
+    println("loose function type is ", looseFunctionType);
+    EnvTypePair calleePair = analyzeExprBwd(callee, tmpEnv, looseFunctionType);
+    return new EnvTypePair(calleePair.env, retType);
+  }

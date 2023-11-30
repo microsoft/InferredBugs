@@ -1,0 +1,22 @@
+    @Test
+    public void testSimplePool() throws InterruptedException {
+        TestScheduler s = new TestScheduler();
+        AtomicInteger count = new AtomicInteger();
+        MemberFactory2<Integer, NonBlockingPool2<Integer>> memberFactory = pool -> new NonBlockingMember2<Integer>(pool,
+                null);
+        Pool2<Integer> pool = NonBlockingPool2.factory(() -> count.incrementAndGet()) //
+                .healthy(n -> true) //
+                .disposer(n -> {
+                }) //
+                .maxSize(3) //
+                .returnToPoolDelayAfterHealthCheckFailureMs(1000) //
+                .memberFactory(memberFactory) //
+                .scheduler(s) //
+                .build();
+        TestObserver<Member2<Integer>> ts = pool.member() //
+                .doOnSuccess(m -> m.checkin()) //
+                .test();
+        s.triggerActions();
+        ts.assertValueCount(1) //
+                .assertComplete();
+    }

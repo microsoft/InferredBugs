@@ -1,0 +1,38 @@
+    private void throwAcmeException() throws AcmeException {
+        try {
+            String contentType = AcmeUtils.getContentType(conn.getHeaderField(CONTENT_TYPE_HEADER));
+            if (!"application/problem+json".equals(contentType)) {
+                throw new AcmeException("HTTP " + conn.getResponseCode() + ": " + conn.getResponseMessage());
+            }
+
+            Problem problem = new Problem(readJsonResponse(), conn.getURL());
+
+            if (problem.getType() == null) {
+                throw new AcmeException(problem.getDetail());
+            }
+
+            String error = AcmeUtils.stripErrorPrefix(problem.getType().toString());
+
+            if ("unauthorized".equals(error)) {
+                throw new AcmeUnauthorizedException(problem);
+            }
+
+            if ("userActionRequired".equals(error)) {
+                URI tos = collectLinks("terms-of-service").stream()
+                        .findFirst()
+                        .map(this::resolveUri)
+                        .orElse(null);
+                throw new AcmeUserActionRequiredException(problem, tos);
+            }
+
+            if ("rateLimited".equals(error)) {
+                Optional<Instant> retryAfter = getRetryAfterHeader();
+                Collection<URL> rateLimits = getLinks("urn:ietf:params:acme:documentation");
+                throw new AcmeRateLimitedException(problem, retryAfter.orElse(null), rateLimits);
+            }
+
+            throw new AcmeServerException(problem);
+        } catch (IOException ex) {
+            throw new AcmeNetworkException(ex);
+        }
+    }

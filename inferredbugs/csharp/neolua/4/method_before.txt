@@ -1,0 +1,42 @@
+  public static LambdaExpression ParseChunk(Lua runtime, LuaCompileOptions options, bool hasEnvironment, ILuaLexer code, Type typeDelegate, Type returnType, IEnumerable<KeyValuePair<string, Type>> args)
+		{
+			var parameters = new List<ParameterExpression>();
+			if (returnType == null)
+				returnType = typeof(LuaResult);
+			var globalScope = new GlobalScope(runtime, options, returnType, returnType == typeof(LuaResult) ? Expression.Property(null, Lua.ResultEmptyPropertyInfo) : null);
+
+			// Registers the global LuaTable
+			if (hasEnvironment)
+				parameters.Add(globalScope.RegisterParameter(typeof(LuaTable), csEnv));
+
+			if (args != null)
+			{
+				foreach (var c in args)
+				{
+					if (c.Key == "..." && c.Value.IsArray)
+						ParseLamdaDefinitionArgList(globalScope, parameters);
+					else
+						parameters.Add(globalScope.RegisterParameter(c.Value, c.Key)); // Add alle arguments
+				}
+			}
+
+			// Get the first token
+			if (code.Current == null)
+				code.Next();
+
+			// Get the name for the chunk and clean it from all unwanted chars
+			var chunkName = CreateNameFromFile(code.Current.Start.FileName);
+			if ((globalScope.EmitDebug & LuaDebugLevel.RegisterMethods) == LuaDebugLevel.RegisterMethods)
+				chunkName = Lua.RegisterUniqueName(chunkName);
+
+			// Create the block
+			ParseBlock(globalScope, code);
+
+			if (code.Current.Typ != LuaToken.Eof)
+				throw ParseError(code.Current, Properties.Resources.rsParseEof);
+
+			// Create the function
+			return typeDelegate == null ?
+				Expression.Lambda(globalScope.ExpressionBlock, chunkName, parameters) :
+				Expression.Lambda(typeDelegate, globalScope.ExpressionBlock, chunkName, parameters);
+		}

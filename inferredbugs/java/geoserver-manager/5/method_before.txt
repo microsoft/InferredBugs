@@ -1,0 +1,26 @@
+    @Before
+    public void setup() throws Exception {
+        String ws = "topp";
+        String storeName = "testshpcollection";    
+        
+        // Delete all resources except styles
+        deleteAllWorkspacesRecursively(); 
+        
+        // Create workspace
+        assertTrue(publisher.createWorkspace(ws));
+        
+        // Publish shp collection
+        URI location = new ClassPathResource("testdata/multipleshp.zip").getFile().toURI();
+        assertTrue(publisher.publishShpCollection(ws, storeName, location));
+        
+        String storeType = reader.getDatastore(ws, storeName).getStoreType();
+        assertEquals(storeType, "Shapefile");
+        
+        // Test published layer names
+        List<String> layers = reader.getLayers().getNames();
+        assertTrue(layers.contains("cities"));
+        assertTrue(layers.contains("boundaries"));        
+        
+        // Publish style
+        publisher.publishStyle(new ClassPathResource("testdata/default_line.sld").getFile(), "default_line");
+    }

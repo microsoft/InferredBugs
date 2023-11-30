@@ -1,0 +1,51 @@
+ @Override
+	public void getLRContextByUTF8(String fileId, HttpServletRequest request, HttpServletResponse response) {
+		final String account = (String) request.getSession().getAttribute("ACCOUNT");
+		// 权限检查
+		if (fileId != null) {
+			Node n = nm.queryById(fileId);
+			if (n != null) {
+				if (ConfigureReader.instance().authorized(account, AccountAuth.DOWNLOAD_FILES,
+						fu.getAllFoldersId(n.getFileParentFolder()))
+						&& ConfigureReader.instance().accessFolder(fm.queryById(n.getFileParentFolder()), account)) {
+					File file = fbu.getFileFromBlocks(n);
+					if (file != null && file.isFile()) {
+						// 后缀检查
+						String suffix = "";
+						if (n.getFileName().indexOf(".") >= 0) {
+							suffix = n.getFileName().substring(n.getFileName().lastIndexOf(".")).trim().toLowerCase();
+						}
+						if (".lrc".equals(suffix)) {
+							String contentType = "text/plain";
+							response.setContentType(contentType);
+							// 执行转换并写出输出流
+							try {
+								String inputFileEncode = tcg.getTxtCharset(new FileInputStream(file));
+								BufferedReader bufferedReader = new BufferedReader(
+										new InputStreamReader(new FileInputStream(file), inputFileEncode));
+								BufferedWriter bufferedWriter = new BufferedWriter(
+										new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
+								String line;
+								while ((line = bufferedReader.readLine()) != null) {
+									bufferedWriter.write(line);
+									bufferedWriter.newLine();
+								}
+								bufferedWriter.close();
+								bufferedReader.close();
+								return;
+							} catch (IOException e) {
+							} catch (Exception e) {
+								Printer.instance.print(e.getMessage());
+								lu.writeException(e);
+							}
+
+						}
+					}
+				}
+			}
+		}
+		try {
+			response.sendError(500);
+		} catch (Exception e1) {
+		}
+	}

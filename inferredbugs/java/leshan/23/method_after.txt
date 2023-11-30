@@ -1,0 +1,28 @@
+    @Override
+    protected ObserveResponse doObserve(final ServerIdentity identity, final ObserveRequest request) {
+        final LwM2mPath path = request.getPath();
+
+        // Manage Object case
+        if (path.isObject()) {
+            List<LwM2mObjectInstance> lwM2mObjectInstances = new ArrayList<>();
+            for (LwM2mInstanceEnabler instance : instances.values()) {
+                ReadResponse response = instance.observe(identity);
+                if (response.isSuccess()) {
+                    lwM2mObjectInstances.add((LwM2mObjectInstance) response.getContent());
+                }
+            }
+            return ObserveResponse.success(new LwM2mObject(getId(), lwM2mObjectInstances));
+        }
+
+        // Manage Instance case
+        final LwM2mInstanceEnabler instance = instances.get(path.getObjectInstanceId());
+        if (instance == null)
+            return ObserveResponse.notFound();
+
+        if (path.getResourceId() == null) {
+            return instance.observe(identity);
+        }
+
+        // Manage Resource case
+        return instance.observe(identity, path.getResourceId());
+    }

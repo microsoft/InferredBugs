@@ -1,0 +1,91 @@
+        [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope", Justification = "Reviewed. XhtmlTextWriter takes care of disposting StreamWriter.")]
+        public override Tuple<string, string> GetReport()
+        {
+            Logger.Instance.WriteMethodEntry();
+
+            Tuple<string, string> report;
+
+            try
+            {
+                this.ReportWriter = new XhtmlTextWriter(new StreamWriter(this.ReportFileName));
+                this.ReportToCWriter = new XhtmlTextWriter(new StreamWriter(this.ReportToCFileName));
+
+                this.ReportWriter.WriteFullBeginTag("html");
+
+                this.WriteReportHeader();
+
+                this.ReportWriter.WriteFullBeginTag("body");
+
+                this.ReportWriter.WriteFullBeginTag("h1");
+                this.ReportWriter.Write("AAD Connect Sync Service Configuration");
+                this.ReportWriter.WriteEndTag("h1");
+                this.ReportWriter.WriteLine();
+
+                this.WriteDocumenterInfo();
+
+                string syncVersionXPath = "//mv-data//parameter-values/parameter[@name = 'Microsoft.Synchronize.ServerConfigurationVersion']";
+
+                this.ReportWriter.WriteFullBeginTag("strong");
+                this.ReportWriter.Write(string.Format(CultureInfo.InvariantCulture, "{0} Config ({1}):", "Target / Pilot", this.PilotXml.XPathSelectElement(syncVersionXPath)));
+                this.ReportWriter.WriteEndTag("strong");
+
+                {
+                    this.ReportWriter.WriteBeginTag("span");
+                    this.ReportWriter.WriteAttribute("class", "Unchanged");
+                    this.ReportWriter.WriteLine(HtmlTextWriter.TagRightChar);
+                    this.ReportWriter.Write(this.pilotConfigRelativePath);
+                    this.ReportWriter.WriteEndTag("span");
+
+                    this.ReportWriter.WriteBeginTag("br");
+                    this.ReportWriter.WriteLine(HtmlTextWriter.SelfClosingTagEnd);
+                }
+
+                this.ReportWriter.WriteFullBeginTag("strong");
+                this.ReportWriter.Write(string.Format(CultureInfo.InvariantCulture, "{0} Config ({1}):", "Reference / Production", this.ProductionXml.XPathSelectElement(syncVersionXPath)));
+                this.ReportWriter.WriteEndTag("strong");
+
+                {
+                    this.ReportWriter.WriteBeginTag("span");
+                    this.ReportWriter.WriteAttribute("class", "Unchanged");
+                    this.ReportWriter.WriteLine(HtmlTextWriter.TagRightChar);
+                    this.ReportWriter.Write(this.productionConfigRelativePath);
+                    this.ReportWriter.WriteEndTag("span");
+
+                    this.ReportWriter.WriteBeginTag("br");
+                    this.ReportWriter.WriteLine(HtmlTextWriter.SelfClosingTagEnd);
+                }
+
+                this.ReportWriter.WriteLine();
+
+                this.ReportWriter.WriteFullBeginTag("h1");
+                this.ReportWriter.Write("Table of Contents");
+                this.ReportWriter.WriteEndTag("h1");
+                this.ReportWriter.WriteLine();
+
+                this.ReportWriter.WriteLine("##TOC##");
+
+                var sectionTitle = "AAD Connect Sync Service Configuration";
+
+                this.WriteSectionHeader(sectionTitle, 1);
+
+                this.ProcessGlobalSettings();
+                this.ProcessMetaverseConfiguration();
+                this.ProcessConnectorConfigurations();
+            }
+            catch (Exception e)
+            {
+                throw Logger.Instance.ReportError(e);
+            }
+            finally
+            {
+                this.ReportWriter.WriteEndTag("body");
+
+                this.ReportWriter.WriteEndTag("html");
+
+                report = this.GetReportTuple();
+
+                Logger.Instance.WriteMethodExit();
+            }
+
+            return report;
+        }

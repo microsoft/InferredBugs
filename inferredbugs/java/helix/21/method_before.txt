@@ -1,0 +1,26 @@
+  void enqueueData(ZNRecordUpdate e)
+  {
+    if(!_initialized || _shutdownFlag)
+    {
+      LOG.error("inited:" + _initialized + " shutdownFlag:"+_shutdownFlag+" , return");
+      return;
+    }
+    // Do local merge if receive multiple update on the same path
+    synchronized(_dataBufferRef)
+    {
+      if(_dataBufferRef.get().containsKey(e.getPath()))
+      {
+        ZNRecord oldVal = _dataBufferRef.get().get(e.getPath()).getRecord();
+        oldVal = e.getZNRecordUpdater().update(oldVal);
+        _dataBufferRef.get().get(e.getPath())._record = oldVal;
+      }
+      else
+      {
+        _dataBufferRef.get().put(e.getPath(), e);
+      }
+    }
+    if(_dataBufferRef.get().size() > MAX_UPDATE_LIMIT)
+    {
+      sendData();
+    }
+  }

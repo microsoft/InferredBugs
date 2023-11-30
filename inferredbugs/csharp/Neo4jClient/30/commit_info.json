@@ -1,0 +1,417 @@
+{
+    "hash": "0028df8cad7a1078b0d2e963c77efda1284b8643",
+    "message": "Refactor Test ShouldDeserializePathsResultAsSetBased to use new http Mock framework.",
+    "file_num_lines": 607,
+    "diff_parsed": {
+        "added": [
+            [
+                8,
+                "using Neo4jClient.Test.GraphClientTests.Gremlin;"
+            ],
+            [
+                26,
+                "            const string queryText = @\"START d=node({p0}), e=node({p1})"
+            ],
+            [
+                27,
+                "                                        MATCH p = allShortestPaths( d-[*..15]-e )"
+            ],
+            [
+                28,
+                "                                        RETURN p\";"
+            ],
+            [
+                29,
+                ""
+            ],
+            [
+                30,
+                "            var parameters = new Dictionary<string, object>"
+            ],
+            [
+                34,
+                "                };"
+            ],
+            [
+                36,
+                "            var cypherQuery = new CypherQuery(queryText, parameters, CypherResultMode.Set);"
+            ],
+            [
+                37,
+                "            var cypherApiQuery = new CypherApiQuery(cypherQuery);"
+            ],
+            [
+                38,
+                ""
+            ],
+            [
+                39,
+                "            using (var testHarness = new RestTestHarness"
+            ],
+            [
+                42,
+                "                        MockRequest.Get(\"\"),"
+            ],
+            [
+                43,
+                "                        MockResponse.NeoRoot()"
+            ],
+            [
+                46,
+                "                    MockRequest.PostObjectAsJson(\"/cypher\", cypherApiQuery),"
+            ],
+            [
+                47,
+                "                    MockResponse.Json(HttpStatusCode.OK,"
+            ],
+            [
+                48,
+                "                    @\"{"
+            ],
+            [
+                63,
+                "                            }\")"
+            ],
+            [
+                65,
+                "                })"
+            ],
+            [
+                66,
+                "            {"
+            ],
+            [
+                67,
+                "                var graphClient = (GraphClient)testHarness.CreateAndConnectGraphClient();"
+            ],
+            [
+                68,
+                ""
+            ],
+            [
+                69,
+                "                //Act"
+            ],
+            [
+                70,
+                "                var results = graphClient"
+            ],
+            [
+                71,
+                "                    .ExecuteGetCypherResults<PathsResult>(cypherQuery)"
+            ],
+            [
+                72,
+                "                    .ToArray();"
+            ],
+            [
+                73,
+                ""
+            ],
+            [
+                74,
+                "                //Assert"
+            ],
+            [
+                75,
+                "                Assert.IsInstanceOf<IEnumerable<PathsResult>>(results);"
+            ],
+            [
+                76,
+                "                Assert.AreEqual(results.First().Length, 2);"
+            ],
+            [
+                77,
+                "                Assert.AreEqual(results.First().Start, \"http://foo/db/data/node/215\");"
+            ],
+            [
+                78,
+                "                Assert.AreEqual(results.First().End, \"http://foo/db/data/node/219\");"
+            ],
+            [
+                79,
+                "                Assert.AreEqual(results.Skip(1).First().Length, 2);"
+            ],
+            [
+                80,
+                "                Assert.AreEqual(results.Skip(1).First().Start, \"http://foo/db/data/node/215\");"
+            ],
+            [
+                81,
+                "                Assert.AreEqual(results.Skip(1).First().End, \"http://foo/db/data/node/219\");"
+            ],
+            [
+                82,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                25,
+                "            const string queryText = @\""
+            ],
+            [
+                26,
+                "                START d=node({p0}), e=node({p1})"
+            ],
+            [
+                27,
+                "                MATCH p = allShortestPaths( d-[*..15]-e )"
+            ],
+            [
+                28,
+                "                RETURN p\";"
+            ],
+            [
+                29,
+                "            var query = new CypherQuery("
+            ],
+            [
+                30,
+                "                queryText,"
+            ],
+            [
+                31,
+                "                new Dictionary<string, object>"
+            ],
+            [
+                35,
+                "                },"
+            ],
+            [
+                36,
+                "                CypherResultMode.Set);"
+            ],
+            [
+                38,
+                "            var httpFactory = MockHttpFactory.Generate(\"http://foo/db/data\", new Dictionary<IRestRequest, IHttpResponse>"
+            ],
+            [
+                39,
+                "            {"
+            ],
+            [
+                41,
+                "                    new RestRequest"
+            ],
+            [
+                43,
+                "                        Resource = \"\","
+            ],
+            [
+                44,
+                "                        Method = Method.GET"
+            ],
+            [
+                46,
+                "                    new NeoHttpResponse"
+            ],
+            [
+                48,
+                "                        StatusCode = HttpStatusCode.OK,"
+            ],
+            [
+                49,
+                "                        ContentType = \"application/json\","
+            ],
+            [
+                50,
+                "                        TestContent ="
+            ],
+            [
+                51,
+                "                            @\"{"
+            ],
+            [
+                52,
+                "                                'cypher' : 'http://foo/db/data/cypher',"
+            ],
+            [
+                53,
+                "                                'batch' : 'http://foo/db/data/batch',"
+            ],
+            [
+                54,
+                "                                'node' : 'http://foo/db/data/node',"
+            ],
+            [
+                55,
+                "                                'node_index' : 'http://foo/db/data/index/node',"
+            ],
+            [
+                56,
+                "                                'relationship_index' : 'http://foo/db/data/index/relationship',"
+            ],
+            [
+                57,
+                "                                'reference_node' : 'http://foo/db/data/node/0',"
+            ],
+            [
+                58,
+                "                                'extensions_info' : 'http://foo/db/data/ext',"
+            ],
+            [
+                59,
+                "                                'extensions' : {"
+            ],
+            [
+                60,
+                "                                'GremlinPlugin' : {"
+            ],
+            [
+                61,
+                "                                    'execute_script' : 'http://foo/db/data/ext/GremlinPlugin/graphdb/execute_script'"
+            ],
+            [
+                62,
+                "                                }"
+            ],
+            [
+                63,
+                "                                }"
+            ],
+            [
+                64,
+                "                            }\".Replace('\\'', '\"')"
+            ],
+            [
+                65,
+                "                    }"
+            ],
+            [
+                66,
+                "                },"
+            ],
+            [
+                67,
+                "                {"
+            ],
+            [
+                68,
+                "                    new RestRequest"
+            ],
+            [
+                69,
+                "                    {"
+            ],
+            [
+                70,
+                "                        Resource = \"/cypher\","
+            ],
+            [
+                71,
+                "                        Method = Method.POST,"
+            ],
+            [
+                72,
+                "                        RequestFormat = DataFormat.Json"
+            ],
+            [
+                73,
+                "                    }.AddBody(new CypherApiQuery(query)),"
+            ],
+            [
+                74,
+                "                    new NeoHttpResponse"
+            ],
+            [
+                75,
+                "                    {"
+            ],
+            [
+                76,
+                "                        StatusCode = HttpStatusCode.OK,"
+            ],
+            [
+                77,
+                "                        ContentType = \"application/json\","
+            ],
+            [
+                78,
+                "                        TestContent ="
+            ],
+            [
+                79,
+                "                            @\"{"
+            ],
+            [
+                94,
+                "                            }\".Replace('\\'', '\"')"
+            ],
+            [
+                96,
+                "                }"
+            ],
+            [
+                97,
+                "            });"
+            ],
+            [
+                98,
+                "            var graphClient = new GraphClient(new Uri(\"http://foo/db/data\"), httpFactory);"
+            ],
+            [
+                99,
+                "            graphClient.Connect();"
+            ],
+            [
+                100,
+                ""
+            ],
+            [
+                101,
+                "            //Act"
+            ],
+            [
+                102,
+                "            var results = graphClient"
+            ],
+            [
+                103,
+                "                .ExecuteGetCypherResults<PathsResult>(query)"
+            ],
+            [
+                104,
+                "                .ToArray();"
+            ],
+            [
+                105,
+                ""
+            ],
+            [
+                106,
+                "            //Assert"
+            ],
+            [
+                107,
+                "            Assert.IsInstanceOf<IEnumerable<PathsResult>>(results);"
+            ],
+            [
+                108,
+                "            Assert.AreEqual(results.First().Length, 2);"
+            ],
+            [
+                109,
+                "            Assert.AreEqual(results.First().Start, \"http://foo/db/data/node/215\");"
+            ],
+            [
+                110,
+                "            Assert.AreEqual(results.First().End, \"http://foo/db/data/node/219\");"
+            ],
+            [
+                111,
+                "            Assert.AreEqual(results.Skip(1).First().Length, 2);"
+            ],
+            [
+                112,
+                "            Assert.AreEqual(results.Skip(1).First().Start, \"http://foo/db/data/node/215\");"
+            ],
+            [
+                113,
+                "            Assert.AreEqual(results.Skip(1).First().End, \"http://foo/db/data/node/219\");"
+            ]
+        ]
+    },
+    "num_lines_added": 35,
+    "num_lines_removed": 66
+}

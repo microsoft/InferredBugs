@@ -1,0 +1,43 @@
+    private void portForward(Controller controller, String podName) throws MojoExecutionException {
+        File file = getKubeCtlExecutable(controller);
+        String command = file.getName();
+        log.info("Port forwarding to port " + remoteDebugPort + " on pod " + podName + " using command: " + command);
+
+        String arguments = " port-forward " + podName + " " + localDebugPort + ":" + remoteDebugPort;
+        String commands = command + arguments;
+        log.info("Executing command: " + commands);
+        final String message = "port forward";
+        final Process process;
+        try {
+            process = Runtime.getRuntime().exec(file.getAbsolutePath() + arguments);
+            Runtime.getRuntime().addShutdownHook(new Thread("mvn fabric8:run-interactive shutdown hook") {
+                @Override
+                public void run() {
+                    if (process != null) {
+                        log.info("Terminating port forward process:");
+                        try {
+                            process.destroy();
+                        } catch (Exception e) {
+                            log.error("Failed to terminate process " + message);
+                        }
+                        try {
+                            if (process != null && process.isAlive()) {
+                                process.destroyForcibly();
+                            }
+                        } catch (Exception e) {
+                            log.error("Failed to forcibly terminate process " + message);
+                        }
+                    }
+                }
+            });
+
+            log.info("");
+            log.info("Now you can start a Remote debug execution in your IDE by using localhost and the debug port " + localDebugPort);
+            log.info("");
+
+            processCommandAsync(process, createExternalProcessLogger("[[B]]" + command + "[[B]] "), commands, message);
+        } catch (Exception e) {
+            throw new MojoExecutionException("Failed to execute process " + commands + " for " +
+                    message + ": " + e, e);
+        }
+    }

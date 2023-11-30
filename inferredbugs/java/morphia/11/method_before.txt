@@ -1,0 +1,35 @@
+    private <T> Iterable<Key<T>> insert(final DBCollection dbColl, final Iterable<T> entities, final WriteConcern wc) {
+        final List<DBObject> list = entities instanceof List
+                                    ? new ArrayList<DBObject>(((List<T>) entities).size())
+                                    : new ArrayList<DBObject>();
+
+        final Map<Object, DBObject> involvedObjects = new LinkedHashMap<Object, DBObject>();
+        for (final T ent : entities) {
+            final MappedClass mc = mapper.getMappedClass(ent);
+            if (mc.getAnnotation(NotSaved.class) != null) {
+                throw new MappingException(
+                                              "Entity type: " + mc.getClazz().getName()
+                                              + " is marked as NotSaved which means you should not try to save it!");
+            }
+            list.add(entityToDBObj(ent, involvedObjects));
+        }
+
+        final WriteResult wr = null;
+
+        final DBObject[] dbObjects = new DBObject[list.size()];
+        dbColl.insert(list.toArray(dbObjects), wc);
+
+        throwOnError(wc, wr);
+
+        final List<Key<T>> savedKeys = new ArrayList<Key<T>>();
+        final Iterator<T> entitiesIT = entities.iterator();
+        final Iterator<DBObject> dbObjectsIT = list.iterator();
+
+        while (entitiesIT.hasNext()) {
+            final T entity = entitiesIT.next();
+            final DBObject dbObj = dbObjectsIT.next();
+            savedKeys.add(postSaveGetKey(entity, dbObj, dbColl, involvedObjects));
+        }
+
+        return savedKeys;
+    }

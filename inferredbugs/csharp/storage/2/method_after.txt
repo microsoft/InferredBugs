@@ -1,0 +1,27 @@
+      public Task DeleteAsync(IEnumerable<string> fullPaths, CancellationToken cancellationToken = default)
+      {
+         ZipArchive archive = GetArchive(true);
+
+         foreach(string fullPath in fullPaths)
+         {
+            string nid = StoragePath.Normalize(fullPath, false);
+
+            ZipArchiveEntry entry = archive.GetEntry(nid);
+            if(entry != null)
+            {
+               entry.Delete();
+            }
+            else
+            {
+               //try to delete this as a folder
+               string prefix = fullPath + StoragePath.PathSeparatorString;
+               List<ZipArchiveEntry> folderEntries = archive.Entries.Where(e => e.FullName.StartsWith(prefix)).ToList();
+               foreach(ZipArchiveEntry fi in folderEntries)
+               {
+                  fi.Delete();
+               }
+            }
+         }
+
+         return Task.FromResult(true);
+      }

@@ -1,0 +1,32 @@
+    private void respondError(OutputStream respond, String origerror, int errorcase, String url) {
+        try {
+            // set rewrite values
+            serverObjects tp = new serverObjects();
+            tp.put("errormessage", errorcase);
+            tp.put("httperror", origerror);
+            tp.put("url", url);
+            
+            // rewrite the file
+            File file = new File(htRootPath, "/proxymsg/error.html");
+            byte[] result;
+            ByteArrayOutputStream o = new ByteArrayOutputStream();
+            FileInputStream fis = new FileInputStream(file);
+            httpTemplate.writeTemplate(fis, o, tp, "-UNRESOLVED_PATTERN-".getBytes());
+            o.close();
+            result = o.toByteArray();
+            
+            // return header
+            httpHeader header = new httpHeader();
+            header.put("Date", httpc.dateString(httpc.nowDate()));
+            header.put("Content-type", "text/html");
+            header.put("Content-length", "" + o.size());
+            header.put("Pragma", "no-cache");
+            
+            // write the array to the client
+            respondHeader(respond, origerror, header);
+            serverFileUtils.write(result, respond);
+            respond.flush();
+        } catch (IOException e) {
+            
+        }
+    }

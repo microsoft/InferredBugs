@@ -1,0 +1,457 @@
+{
+    "hash": "9cff529b42edf8e1c6baf64e567ce54007d902b6",
+    "message": "Move to flatten protocol (#920)\n\n* Move to flatten protocol\r\n\r\n* Some progress\r\n\r\n* cr\r\n\r\n* Let's get this green",
+    "file_num_lines": 212,
+    "diff_parsed": {
+        "added": [
+            [
+                10,
+                "using PuppeteerSharp.Helpers;"
+            ],
+            [
+                20,
+                "    public class Connection : IDisposable"
+            ],
+            [
+                37,
+                "            _asyncSessions = new AsyncDictionaryHelper<string, CDPSession>(_sessions, \"Session {0} not found\");"
+            ],
+            [
+                44,
+                "        private readonly AsyncDictionaryHelper<string, CDPSession> _asyncSessions;"
+            ],
+            [
+                92,
+                "        internal int GetMessageID() => Interlocked.Increment(ref _lastId);"
+            ],
+            [
+                93,
+                "        internal Task RawSendASync(int id, string method, object args, string sessionId = null)"
+            ],
+            [
+                94,
+                "            => Transport.SendAsync(JsonConvert.SerializeObject(new ConnectionRequest"
+            ],
+            [
+                95,
+                "            {"
+            ],
+            [
+                96,
+                "                Id = id,"
+            ],
+            [
+                97,
+                "                Method = method,"
+            ],
+            [
+                98,
+                "                Params = args,"
+            ],
+            [
+                99,
+                "                SessionId = sessionId"
+            ],
+            [
+                100,
+                "            }, JsonHelper.DefaultJsonSerializerSettings));"
+            ],
+            [
+                101,
+                ""
+            ],
+            [
+                109,
+                "            var id = GetMessageID();"
+            ],
+            [
+                123,
+                "            await RawSendASync(id, method, args).ConfigureAwait(false);"
+            ],
+            [
+                137,
+                "                TargetId = targetInfo.TargetId,"
+            ],
+            [
+                138,
+                "                Flatten = true"
+            ],
+            [
+                140,
+                "            return await GetSessionAsync(sessionId).ConfigureAwait(false);"
+            ],
+            [
+                174,
+                "        internal static Connection FromSession(CDPSession session) => session.Connection;"
+            ],
+            [
+                175,
+                "        internal CDPSession GetSession(string sessionId) => _sessions.GetValueOrDefault(sessionId);"
+            ],
+            [
+                176,
+                "        internal Task<CDPSession> GetSessionAsync(string sessionId) => _asyncSessions.GetItemAsync(sessionId);"
+            ],
+            [
+                177,
+                ""
+            ],
+            [
+                203,
+                "                ProcessIncomingMessage(obj);"
+            ],
+            [
+                216,
+                "            var param = obj.Params?.ToObject<ConnectionResponseParams>();"
+            ],
+            [
+                218,
+                "            if (method == \"Target.attachedToTarget\")"
+            ],
+            [
+                221,
+                "                var session = new CDPSession(this, param.TargetInfo.Type, sessionId);"
+            ],
+            [
+                222,
+                "                _asyncSessions.AddItem(sessionId, session);"
+            ],
+            [
+                232,
+                ""
+            ],
+            [
+                233,
+                "            if (!string.IsNullOrEmpty(obj.SessionId))"
+            ],
+            [
+                234,
+                "            {"
+            ],
+            [
+                235,
+                "                var session = GetSession(obj.SessionId);"
+            ],
+            [
+                236,
+                "                session.OnMessage(obj);"
+            ],
+            [
+                237,
+                "            }"
+            ],
+            [
+                238,
+                "            else if (obj.Id.HasValue)"
+            ],
+            [
+                239,
+                "            {"
+            ],
+            [
+                240,
+                "                //If we get the object we are waiting for we return if"
+            ],
+            [
+                241,
+                "                //if not we add this to the list, sooner or later some one will come for it"
+            ],
+            [
+                242,
+                "                if (_callbacks.TryRemove(obj.Id.Value, out var callback))"
+            ],
+            [
+                243,
+                "                {"
+            ],
+            [
+                244,
+                "                    if (obj.Error != null)"
+            ],
+            [
+                245,
+                "                    {"
+            ],
+            [
+                246,
+                "                        callback.TaskWrapper.TrySetException(new MessageException(callback, obj.Error));"
+            ],
+            [
+                247,
+                "                    }"
+            ],
+            [
+                248,
+                "                    else"
+            ],
+            [
+                249,
+                "                    {"
+            ],
+            [
+                250,
+                "                        callback.TaskWrapper.TrySetResult(obj.Result);"
+            ],
+            [
+                251,
+                "                    }"
+            ],
+            [
+                252,
+                "                }"
+            ],
+            [
+                253,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                19,
+                "    public class Connection : IDisposable, IConnection"
+            ],
+            [
+                96,
+                "            var id = Interlocked.Increment(ref _lastId);"
+            ],
+            [
+                97,
+                "            var message = JsonConvert.SerializeObject(new ConnectionRequest"
+            ],
+            [
+                98,
+                "            {"
+            ],
+            [
+                99,
+                "                Id = id,"
+            ],
+            [
+                100,
+                "                Method = method,"
+            ],
+            [
+                101,
+                "                Params = args"
+            ],
+            [
+                102,
+                "            }, JsonHelper.DefaultJsonSerializerSettings);"
+            ],
+            [
+                103,
+                ""
+            ],
+            [
+                117,
+                "            await Transport.SendAsync(message).ConfigureAwait(false);"
+            ],
+            [
+                131,
+                "                TargetId = targetInfo.TargetId"
+            ],
+            [
+                133,
+                "            var session = new CDPSession(this, targetInfo.Type, sessionId);"
+            ],
+            [
+                134,
+                "            _sessions.TryAdd(sessionId, session);"
+            ],
+            [
+                135,
+                "            return session;"
+            ],
+            [
+                169,
+                "        internal static IConnection FromSession(CDPSession session)"
+            ],
+            [
+                170,
+                "        {"
+            ],
+            [
+                171,
+                "            var connection = session.Connection;"
+            ],
+            [
+                172,
+                "            while (connection is CDPSession)"
+            ],
+            [
+                173,
+                "            {"
+            ],
+            [
+                174,
+                "                connection = connection.Connection;"
+            ],
+            [
+                175,
+                "            }"
+            ],
+            [
+                176,
+                "            return connection;"
+            ],
+            [
+                177,
+                "        }"
+            ],
+            [
+                203,
+                ""
+            ],
+            [
+                204,
+                "                var id = obj.Id;"
+            ],
+            [
+                205,
+                ""
+            ],
+            [
+                206,
+                "                if (id.HasValue)"
+            ],
+            [
+                207,
+                "                {"
+            ],
+            [
+                208,
+                "                    //If we get the object we are waiting for we return if"
+            ],
+            [
+                209,
+                "                    //if not we add this to the list, sooner or later some one will come for it"
+            ],
+            [
+                210,
+                "                    if (_callbacks.TryRemove(id.Value, out var callback))"
+            ],
+            [
+                211,
+                "                    {"
+            ],
+            [
+                212,
+                "                        if (obj.Error != null)"
+            ],
+            [
+                213,
+                "                        {"
+            ],
+            [
+                214,
+                "                            callback.TaskWrapper.TrySetException(new MessageException(callback, obj.Error));"
+            ],
+            [
+                215,
+                "                        }"
+            ],
+            [
+                216,
+                "                        else"
+            ],
+            [
+                217,
+                "                        {"
+            ],
+            [
+                218,
+                "                            callback.TaskWrapper.TrySetResult(obj.Result);"
+            ],
+            [
+                219,
+                "                        }"
+            ],
+            [
+                220,
+                "                    }"
+            ],
+            [
+                221,
+                "                }"
+            ],
+            [
+                222,
+                "                else"
+            ],
+            [
+                223,
+                "                {"
+            ],
+            [
+                224,
+                "                    ProcessIncomingMessage(obj);"
+            ],
+            [
+                225,
+                "                }"
+            ],
+            [
+                238,
+                "            var param = obj.Params.ToObject<ConnectionResponseParams>();"
+            ],
+            [
+                240,
+                "            if (method == \"Target.receivedMessageFromTarget\")"
+            ],
+            [
+                243,
+                "                if (_sessions.TryGetValue(sessionId, out var session))"
+            ],
+            [
+                244,
+                "                {"
+            ],
+            [
+                245,
+                "                    session.OnMessage(param.Message);"
+            ],
+            [
+                246,
+                "                }"
+            ],
+            [
+                308,
+                ""
+            ],
+            [
+                309,
+                "        #region IConnection"
+            ],
+            [
+                310,
+                "        ILoggerFactory IConnection.LoggerFactory => LoggerFactory;"
+            ],
+            [
+                311,
+                "        bool IConnection.IsClosed => IsClosed;"
+            ],
+            [
+                312,
+                "        Task<JObject> IConnection.SendAsync(string method, object args, bool waitForCallback)"
+            ],
+            [
+                313,
+                "            => SendAsync(method, args, waitForCallback);"
+            ],
+            [
+                314,
+                "        IConnection IConnection.Connection => null;"
+            ],
+            [
+                315,
+                "        void IConnection.Close(string closeReason) => Close(closeReason);"
+            ],
+            [
+                316,
+                "        #endregion"
+            ]
+        ]
+    },
+    "num_lines_added": 50,
+    "num_lines_removed": 61
+}

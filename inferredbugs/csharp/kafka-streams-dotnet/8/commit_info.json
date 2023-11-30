@@ -1,0 +1,621 @@
+{
+    "hash": "64bdb61201674a0ebe7685604023a71ac4289c2c",
+    "message": "restore global store DONED",
+    "file_num_lines": 301,
+    "diff_parsed": {
+        "added": [
+            [
+                11,
+                "using System.IO;"
+            ],
+            [
+                13,
+                "using System.Net;"
+            ],
+            [
+                14,
+                "using System.Text;"
+            ],
+            [
+                15,
+                "using Streamiz.Kafka.Net.Crosscutting;"
+            ],
+            [
+                17,
+                "using Streamiz.Kafka.Net.SerDes;"
+            ],
+            [
+                30,
+                "        private SyncKafkaSupplier mockKafkaSupplier;"
+            ],
+            [
+                40,
+                "            mockKafkaSupplier = new SyncKafkaSupplier();"
+            ],
+            [
+                43,
+                "            var globalConsumer = mockKafkaSupplier.GetConsumer(consumerConfig, null);"
+            ],
+            [
+                46,
+                "            streamConfigMock.Setup(c => c.StateDir).Returns($\"./{Guid.NewGuid().ToString()}\");"
+            ],
+            [
+                91,
+                ""
+            ],
+            [
+                92,
+                "            var storeNames = stateManager.StateStoreNames.ToList();"
+            ],
+            [
+                93,
+                "            Assert.AreEqual(2, storeNames.Count);"
+            ],
+            [
+                94,
+                "            Assert.IsTrue(storeNames.Contains(\"kv-store\"));"
+            ],
+            [
+                95,
+                "            Assert.IsTrue(storeNames.Contains(\"other-store\"));"
+            ],
+            [
+                225,
+                "        [Test]"
+            ],
+            [
+                226,
+                "        public void ShouldCheckpointWrite()"
+            ],
+            [
+                227,
+                "        {"
+            ],
+            [
+                228,
+                "            stateManager.Initialize();"
+            ],
+            [
+                229,
+                ""
+            ],
+            [
+                230,
+                "            var offsets = new Dictionary<TopicPartition, long>();"
+            ],
+            [
+                231,
+                "            offsets.AddOrUpdate(new TopicPartition(\"kv-store-topic\", 0), 30);"
+            ],
+            [
+                232,
+                "            offsets.AddOrUpdate(new TopicPartition(\"kv-store-topic\", 1), 12);"
+            ],
+            [
+                233,
+                "            stateManager.UpdateChangelogOffsets(offsets);"
+            ],
+            [
+                234,
+                ""
+            ],
+            [
+                235,
+                "            Directory.CreateDirectory(Path.Combine(streamConfigMock.Object.StateDir, streamConfigMock.Object.ApplicationId, \"global\"));"
+            ],
+            [
+                236,
+                ""
+            ],
+            [
+                237,
+                "            stateManager.Checkpoint();"
+            ],
+            [
+                238,
+                ""
+            ],
+            [
+                239,
+                "            var lines = File.ReadAllLines(Path.Combine(streamConfigMock.Object.StateDir, streamConfigMock.Object.ApplicationId, \"global\", \".checkpoint\"));"
+            ],
+            [
+                240,
+                ""
+            ],
+            [
+                241,
+                "            Directory.Delete(Path.Combine(streamConfigMock.Object.StateDir), true);"
+            ],
+            [
+                242,
+                ""
+            ],
+            [
+                243,
+                "            Assert.AreEqual(4, lines.Length);"
+            ],
+            [
+                244,
+                "            Assert.AreEqual(\"0\", lines[0]);"
+            ],
+            [
+                245,
+                "            Assert.AreEqual(\"2\", lines[1]);"
+            ],
+            [
+                246,
+                "            Assert.AreEqual(\"kv-store-topic 0 30\", lines[2]);"
+            ],
+            [
+                247,
+                "            Assert.AreEqual(\"kv-store-topic 1 12\", lines[3]);"
+            ],
+            [
+                248,
+                ""
+            ],
+            [
+                249,
+                "        }"
+            ],
+            [
+                250,
+                ""
+            ],
+            [
+                251,
+                "        [Test]"
+            ],
+            [
+                252,
+                "        public void ShouldCheckpointWriteException()"
+            ],
+            [
+                253,
+                "        {"
+            ],
+            [
+                254,
+                "            stateManager.Initialize();"
+            ],
+            [
+                255,
+                ""
+            ],
+            [
+                256,
+                "            var offsets = new Dictionary<TopicPartition, long>();"
+            ],
+            [
+                257,
+                "            offsets.AddOrUpdate(new TopicPartition(\"kv-store-topic\", 0), 30);"
+            ],
+            [
+                258,
+                "            offsets.AddOrUpdate(new TopicPartition(\"kv-store-topic\", 1), 12);"
+            ],
+            [
+                259,
+                "            stateManager.UpdateChangelogOffsets(offsets);"
+            ],
+            [
+                260,
+                ""
+            ],
+            [
+                261,
+                "            // Should raise catched exception because directory ./app/global does not exist"
+            ],
+            [
+                262,
+                "            stateManager.Checkpoint();"
+            ],
+            [
+                263,
+                ""
+            ],
+            [
+                264,
+                "            Assert.False(File.Exists(Path.Combine(streamConfigMock.Object.StateDir, streamConfigMock.Object.ApplicationId, \"global\", \".checkpoint\")));"
+            ],
+            [
+                265,
+                "        }"
+            ],
+            [
+                266,
+                ""
+            ],
+            [
+                267,
+                "        [Test]"
+            ],
+            [
+                268,
+                "        public void ShouldThrowNotImplementedException()"
+            ],
+            [
+                269,
+                "        {"
+            ],
+            [
+                270,
+                "            Assert.Throws<NotImplementedException>(() =>"
+            ],
+            [
+                271,
+                "            {"
+            ],
+            [
+                272,
+                "                var c = stateManager.ChangelogPartitions;"
+            ],
+            [
+                273,
+                "            } );"
+            ],
+            [
+                274,
+                ""
+            ],
+            [
+                275,
+                "            Assert.Throws<NotImplementedException>(() => stateManager.GetRegisteredChangelogPartitionFor(\"\"));"
+            ],
+            [
+                276,
+                "        }"
+            ],
+            [
+                277,
+                ""
+            ],
+            [
+                278,
+                "        [Test]"
+            ],
+            [
+                279,
+                "        public void ShouldInitializeThrowStreamsException()"
+            ],
+            [
+                280,
+                "        {"
+            ],
+            [
+                281,
+                "            StringBuilder sb = new StringBuilder();"
+            ],
+            [
+                282,
+                "            sb.AppendLine(\"0\").AppendLine(\"1\").AppendLine(\"toto 0 130\");"
+            ],
+            [
+                283,
+                ""
+            ],
+            [
+                284,
+                "            Directory.CreateDirectory(Path.Combine(streamConfigMock.Object.StateDir, streamConfigMock.Object.ApplicationId, \"global\"));"
+            ],
+            [
+                285,
+                ""
+            ],
+            [
+                286,
+                "            File.WriteAllText("
+            ],
+            [
+                287,
+                "                Path.Combine(streamConfigMock.Object.StateDir, streamConfigMock.Object.ApplicationId, \"global\", \".checkpoint\"),"
+            ],
+            [
+                288,
+                "                sb.ToString());"
+            ],
+            [
+                289,
+                ""
+            ],
+            [
+                290,
+                "            Assert.Throws<StreamsException>(() => stateManager.Initialize());"
+            ],
+            [
+                291,
+                ""
+            ],
+            [
+                292,
+                "            Directory.Delete(Path.Combine(streamConfigMock.Object.StateDir), true);"
+            ],
+            [
+                293,
+                "        }"
+            ],
+            [
+                294,
+                ""
+            ],
+            [
+                295,
+                "        [Test]"
+            ],
+            [
+                296,
+                "        public void ShouldInitializeFromCheckpointThrowStreamsException()"
+            ],
+            [
+                297,
+                "        {"
+            ],
+            [
+                298,
+                "            Mock<IOffsetCheckpointManager> mockOffsetManager = new Mock<IOffsetCheckpointManager>();"
+            ],
+            [
+                299,
+                "            mockOffsetManager.Setup(x => x.Read(It.IsAny<TaskId>())).Throws<Exception>();"
+            ],
+            [
+                300,
+                "            mockOffsetManager.Setup(x => x.Configure(streamConfigMock.Object, It.IsAny<TaskId>()))"
+            ],
+            [
+                301,
+                "                .Callback(() => { });"
+            ],
+            [
+                302,
+                ""
+            ],
+            [
+                303,
+                "            streamConfigMock.Setup(c => c.OffsetCheckpointManager).Returns(mockOffsetManager.Object);"
+            ],
+            [
+                304,
+                ""
+            ],
+            [
+                305,
+                "            stateManager.SetGlobalProcessorContext(context);"
+            ],
+            [
+                306,
+                ""
+            ],
+            [
+                307,
+                "            Assert.Throws<StreamsException>(() => stateManager.Initialize());"
+            ],
+            [
+                308,
+                "        }"
+            ],
+            [
+                309,
+                ""
+            ],
+            [
+                310,
+                "        [Test]"
+            ],
+            [
+                311,
+                "        public void RestoreFromCheckpoint()"
+            ],
+            [
+                312,
+                "        {"
+            ],
+            [
+                313,
+                "            var serdes = new StringSerDes();"
+            ],
+            [
+                314,
+                ""
+            ],
+            [
+                315,
+                "            byte[] GetBytes(string content)"
+            ],
+            [
+                316,
+                "                => serdes.Serialize(content, SerializationContext.Empty);"
+            ],
+            [
+                317,
+                ""
+            ],
+            [
+                318,
+                "            kvStoreMock"
+            ],
+            [
+                319,
+                "                .Setup(s => s.Init(context, It.IsAny<IStateStore>()))"
+            ],
+            [
+                320,
+                "                .Callback((ProcessorContext c, IStateStore store) =>"
+            ],
+            [
+                321,
+                "                {"
+            ],
+            [
+                322,
+                "                    stateManager.Register(store, (k, v) => { });"
+            ],
+            [
+                323,
+                "                });"
+            ],
+            [
+                324,
+                ""
+            ],
+            [
+                325,
+                "            otherStoreMock"
+            ],
+            [
+                326,
+                "                .Setup(s => s.Init(context, It.IsAny<IStateStore>()))"
+            ],
+            [
+                327,
+                "                .Callback((ProcessorContext c, IStateStore store) =>"
+            ],
+            [
+                328,
+                "                {"
+            ],
+            [
+                329,
+                "                    stateManager.Register(store, (k, v) => { });"
+            ],
+            [
+                330,
+                "                });"
+            ],
+            [
+                331,
+                ""
+            ],
+            [
+                332,
+                "            StringBuilder sb = new StringBuilder();"
+            ],
+            [
+                333,
+                "            sb.AppendLine(\"0\").AppendLine(\"1\").AppendLine(\"kv-store-topic 0 10\");"
+            ],
+            [
+                334,
+                ""
+            ],
+            [
+                335,
+                "            var producer = mockKafkaSupplier.GetProducer(new ProducerConfig());"
+            ],
+            [
+                336,
+                "            for(int i = 0 ; i < 10; ++i)"
+            ],
+            [
+                337,
+                "                producer.Produce(\"other-store-topic\","
+            ],
+            [
+                338,
+                "                    new Message<byte[], byte[]>()"
+            ],
+            [
+                339,
+                "                    {"
+            ],
+            [
+                340,
+                "                        Key = GetBytes($\"key{i}\"),"
+            ],
+            [
+                341,
+                "                        Value = GetBytes($\"value{i}\")"
+            ],
+            [
+                342,
+                "                    });"
+            ],
+            [
+                343,
+                ""
+            ],
+            [
+                344,
+                "            Directory.CreateDirectory(Path.Combine(streamConfigMock.Object.StateDir, streamConfigMock.Object.ApplicationId, \"global\"));"
+            ],
+            [
+                345,
+                ""
+            ],
+            [
+                346,
+                "            File.WriteAllText("
+            ],
+            [
+                347,
+                "                Path.Combine(streamConfigMock.Object.StateDir, streamConfigMock.Object.ApplicationId, \"global\", \".checkpoint\"),"
+            ],
+            [
+                348,
+                "                sb.ToString());"
+            ],
+            [
+                349,
+                ""
+            ],
+            [
+                350,
+                "            stateManager.Initialize();"
+            ],
+            [
+                351,
+                ""
+            ],
+            [
+                352,
+                "            Assert.AreEqual(10, stateManager.ChangelogOffsets[new TopicPartition(\"kv-store-topic\", 0)]);"
+            ],
+            [
+                353,
+                "            Assert.AreEqual(9, stateManager.ChangelogOffsets[new TopicPartition(\"other-store-topic\", 0)]);"
+            ],
+            [
+                354,
+                ""
+            ],
+            [
+                355,
+                "            Directory.Delete(Path.Combine(streamConfigMock.Object.StateDir), true);"
+            ],
+            [
+                356,
+                ""
+            ],
+            [
+                357,
+                "        }"
+            ],
+            [
+                358,
+                ""
+            ],
+            [
+                364,
+                "            store.Setup(kvStore => kvStore.Persistent).Returns(true);"
+            ]
+        ],
+        "deleted": [
+            [
+                34,
+                "            var mockSupplier = new SyncKafkaSupplier();"
+            ],
+            [
+                37,
+                "            var globalConsumer = mockSupplier.GetConsumer(consumerConfig, null);"
+            ],
+            [
+                40,
+                "            streamConfigMock.Setup(c => c.StateDir).Returns(\".\");"
+            ]
+        ]
+    },
+    "num_lines_added": 149,
+    "num_lines_removed": 3
+}

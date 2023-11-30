@@ -1,0 +1,22 @@
+    @Override
+    public Object configure(Object c) throws Exception {
+        final ExtensionList list = Jenkins.getInstance().getExtensionList(target);
+        if (list.size() != 1) {
+            throw new IllegalStateException();
+        }
+        final Object o = list.get(0);
+
+        if (c instanceof Map) {
+            Map config = (Map) c;
+            final Set<Attribute> attributes = describe();
+            for (Attribute attribute : attributes) {
+                final String name = attribute.getName();
+                if (config.containsKey(name)) {
+                    final Object value = Configurator.lookup(attribute.getType()).configure(config.get(name));
+                    attribute.setValue(o, value);
+                }
+            }
+        }
+
+        return o;
+    }

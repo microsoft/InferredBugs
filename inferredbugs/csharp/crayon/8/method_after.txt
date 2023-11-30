@@ -1,0 +1,63 @@
+        private Expression ParseEntityRoot(TokenStream tokens)
+        {
+            string next = tokens.PeekValue();
+            switch (next)
+            {
+                case "true":
+                case "false":
+                    return new InlineConstant(PType.BOOL, tokens.Pop(), next == "true");
+                case "null":
+                    return new InlineConstant(PType.NULL, tokens.Pop(), null);
+                case ".":
+                    Token dotToken = tokens.Pop();
+                    Token numToken = EnsureInteger(tokens.Pop());
+                    string strValue = "0." + numToken.Value;
+                    double dblValue;
+                    if (!numToken.HasWhitespacePrefix && double.TryParse(strValue, out dblValue))
+                    {
+                        return new InlineConstant(PType.DOUBLE, dotToken, dblValue);
+                    }
+                    throw new ParserException(dotToken, "Unexpected '.'");
+
+                default: break;
+            }
+            char firstChar = next[0];
+            switch (firstChar)
+            {
+                case '\'':
+                    return new InlineConstant(PType.CHAR, tokens.Pop(), PastelUtil.ConvertStringTokenToValue(next));
+                case '"':
+                    return new InlineConstant(PType.STRING, tokens.Pop(), PastelUtil.ConvertStringTokenToValue(next));
+                case '@':
+                    Token atToken = tokens.PopExpected("@");
+                    Token compileTimeFunction = EnsureTokenIsValidName(tokens.Pop(), "Expected compile time function name.");
+                    if (!tokens.IsNext("(")) tokens.PopExpected("(");
+                    return new CompileTimeFunctionReference(atToken, compileTimeFunction);
+            }
+
+            if (firstChar >= '0' && firstChar <= '9')
+            {
+                Token numToken = EnsureInteger(tokens.Pop());
+                if (tokens.IsNext("."))
+                {
+                    Token dotToken = tokens.Pop();
+                    if (dotToken.HasWhitespacePrefix) throw new ParserException(dotToken, "Unexpected '.'");
+                    Token decimalToken = EnsureInteger(tokens.Pop());
+                    if (decimalToken.HasWhitespacePrefix) throw new ParserException(decimalToken, "Unexpected '" + decimalToken.Value + "'");
+                    double dblValue;
+                    if (double.TryParse(numToken.Value + "." + decimalToken.Value, out dblValue))
+                    {
+                        return new InlineConstant(PType.DOUBLE, numToken, dblValue);
+                    }
+                    throw new ParserException(decimalToken, "Unexpected token.");
+                }
+                return new InlineConstant(PType.INT, numToken, int.Parse(numToken.Value));
+            }
+
+            if (IsValidName(tokens.PeekValue()))
+            {
+                return new Variable(tokens.Pop());
+            }
+
+            throw new ParserException(tokens.Peek(), "Unrecognized expression.");
+        }

@@ -1,0 +1,41 @@
+        public void Flush()
+        {
+            if (_flushing || _flushed)
+                return;
+
+            _flushing = true;
+
+            this.Log("waiting for model builder");
+
+            using (_modelBuilder)
+            {
+                _modelBuilder.Join();
+            }
+
+            using (_vectorStream)
+            {
+                _vectorStream.Flush();
+                _vectorStream.Close();
+            }
+
+            var tasks = new Task[_dirty.Count];
+            var taskId = 0;
+            var columnWriters = new List<ColumnSerializer>();
+
+            foreach (var column in _dirty)
+            {
+                var columnWriter = new ColumnSerializer(
+                    CollectionId, column.Key, SessionFactory, new RemotePostingsWriter(_config, CollectionName));
+
+                columnWriters.Add(columnWriter);
+
+                tasks[taskId++] = columnWriter.SerializeColumnSegment(column.Value);
+            }
+
+            Task.WaitAll(tasks);
+
+            _flushed = true;
+            _flushing = false;
+
+            this.Log(string.Format("***FLUSHED***"));
+        }

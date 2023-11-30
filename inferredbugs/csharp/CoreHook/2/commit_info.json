@@ -1,0 +1,325 @@
+{
+    "hash": "b745dc57cfa64ed281f172d8a1a4ffd40c737d6d",
+    "message": "fix: Update ThreadHelper class with public GetProcAddress implementation",
+    "file_num_lines": 219,
+    "diff_parsed": {
+        "added": [
+            [
+                17,
+                ""
+            ],
+            [
+                18,
+                ""
+            ],
+            [
+                19,
+                "            /*Interop.Kernel32.CreateRemoteThread("
+            ],
+            [
+                20,
+                "                       hProcess,"
+            ],
+            [
+                21,
+                "                       IntPtr.Zero,"
+            ],
+            [
+                22,
+                "                       UIntPtr.Zero,"
+            ],
+            [
+                23,
+                "                       GetWin32ProcAddress(module, function),"
+            ],
+            [
+                24,
+                "                       remoteAllocAddr,"
+            ],
+            [
+                25,
+                "                       0,"
+            ],
+            [
+                26,
+                "                       IntPtr.Zero);*/"
+            ],
+            [
+                27,
+                ""
+            ],
+            [
+                30,
+                "        public static IntPtr GetProcAddress(SafeProcessHandle processHandle, string module, string function)"
+            ],
+            [
+                186,
+                "                    case 0x10b:"
+            ],
+            [
+                189,
+                "                    case 0x20b:"
+            ],
+            [
+                207,
+                ""
+            ],
+            [
+                210,
+                "            using (var reader = new BinaryReader(new MemoryStream(exportTable)))"
+            ],
+            [
+                211,
+                "            {"
+            ],
+            [
+                212,
+                "                reader.BaseStream.Position = 0x10;"
+            ],
+            [
+                213,
+                ""
+            ],
+            [
+                214,
+                "                var ordinalBase = reader.ReadInt32();"
+            ],
+            [
+                215,
+                "                var addressTableEntryCount = reader.ReadUInt32();"
+            ],
+            [
+                216,
+                "                var namePointerTableEntryCount = reader.ReadUInt32();"
+            ],
+            [
+                217,
+                "                var exportAddressTableRva = reader.ReadUInt32() - exportTableRva;"
+            ],
+            [
+                218,
+                "                var exportNamePointerTableRva = reader.ReadUInt32() - exportTableRva;"
+            ],
+            [
+                219,
+                "                var ordinalTableRva = reader.ReadUInt32() - exportTableRva;"
+            ],
+            [
+                220,
+                ""
+            ],
+            [
+                221,
+                "                reader.BaseStream.Position = exportNamePointerTableRva;"
+            ],
+            [
+                222,
+                ""
+            ],
+            [
+                223,
+                "                var functionAddress = IntPtr.Zero;"
+            ],
+            [
+                224,
+                ""
+            ],
+            [
+                225,
+                "                for(int x = 0; x < namePointerTableEntryCount; ++x)"
+            ],
+            [
+                226,
+                "                {"
+            ],
+            [
+                227,
+                "                    reader.BaseStream.Position = exportNamePointerTableRva + (x * 4);"
+            ],
+            [
+                228,
+                ""
+            ],
+            [
+                229,
+                "                    var nameRva = reader.ReadUInt32();"
+            ],
+            [
+                230,
+                ""
+            ],
+            [
+                231,
+                "                    if(nameRva == 0)"
+            ],
+            [
+                232,
+                "                    {"
+            ],
+            [
+                233,
+                "                        continue;"
+            ],
+            [
+                234,
+                "                    }"
+            ],
+            [
+                235,
+                ""
+            ],
+            [
+                236,
+                "                    reader.BaseStream.Position = nameRva - exportTableRva;"
+            ],
+            [
+                237,
+                ""
+            ],
+            [
+                238,
+                "                    if(functionName == ReadAsciiString(reader))"
+            ],
+            [
+                239,
+                "                    {"
+            ],
+            [
+                240,
+                "                        reader.BaseStream.Position = ordinalTableRva + (x * 2);"
+            ],
+            [
+                241,
+                "                        var ordinal = reader.ReadUInt16();"
+            ],
+            [
+                242,
+                ""
+            ],
+            [
+                243,
+                "                        if(ordinal >= addressTableEntryCount)"
+            ],
+            [
+                244,
+                "                        {"
+            ],
+            [
+                245,
+                "                            throw new Win32Exception(\"Invalid function export table\");"
+            ],
+            [
+                246,
+                "                        }"
+            ],
+            [
+                247,
+                ""
+            ],
+            [
+                248,
+                "                        reader.BaseStream.Position = exportAddressTableRva + (ordinal * 4);"
+            ],
+            [
+                249,
+                ""
+            ],
+            [
+                250,
+                "                        functionAddress = new IntPtr(reader.ReadUInt32());"
+            ],
+            [
+                251,
+                "                    }"
+            ],
+            [
+                252,
+                "                }"
+            ],
+            [
+                253,
+                ""
+            ],
+            [
+                254,
+                "                return functionAddress;"
+            ],
+            [
+                255,
+                "            }"
+            ],
+            [
+                256,
+                ""
+            ],
+            [
+                257,
+                "        }"
+            ],
+            [
+                258,
+                "        private static string ReadAsciiString(BinaryReader reader)"
+            ],
+            [
+                259,
+                "        {"
+            ],
+            [
+                260,
+                "            var stringBuilder = new StringBuilder();"
+            ],
+            [
+                261,
+                ""
+            ],
+            [
+                262,
+                "            char character = '\\0';"
+            ],
+            [
+                263,
+                "            while((character = reader.ReadChar()) != '\\0')"
+            ],
+            [
+                264,
+                "            {"
+            ],
+            [
+                265,
+                "                stringBuilder.Append(character);"
+            ],
+            [
+                266,
+                "            }"
+            ],
+            [
+                267,
+                ""
+            ],
+            [
+                268,
+                "            return stringBuilder.ToString();"
+            ]
+        ],
+        "deleted": [
+            [
+                19,
+                "        private static IntPtr GetProcAddress(SafeProcessHandle processHandle, string module, string function)"
+            ],
+            [
+                175,
+                "                    case 0x10:"
+            ],
+            [
+                178,
+                "                    case 0x20:"
+            ],
+            [
+                198,
+                "            throw new NotImplementedException();"
+            ]
+        ]
+    },
+    "num_lines_added": 74,
+    "num_lines_removed": 4
+}

@@ -1,0 +1,233 @@
+{
+    "hash": "fc09bf32bba5b70115fbe2b1c0ff11e26a77ed3f",
+    "message": "Fixes #85\n\nNow the factory is respecting the Ioc loading of the DbContext if it is\ncompleted successfully, and only falling back if there is no Ioc\ncontainer defined.\n\nAdded 2 tests to make sure you can load a Ef5Repository without defining\nthe connection string if you are using an Ioc dependency resolver, and a\nsecond test to make sure that the DbContexts loaded are the same since\nthe Ioc container defines them to use the same one",
+    "file_num_lines": 56,
+    "diff_parsed": {
+        "added": [
+            [
+                19,
+                "            return new Ef5Repository<T, TKey>(GetDbContext());"
+            ],
+            [
+                20,
+                "        }"
+            ],
+            [
+                21,
+                ""
+            ],
+            [
+                22,
+                "        public override ICompoundKeyRepository<T, TKey, TKey2> GetInstance<T, TKey, TKey2>()"
+            ],
+            [
+                23,
+                "        {"
+            ],
+            [
+                24,
+                "            return new Ef5Repository<T, TKey, TKey2>(GetDbContext());"
+            ],
+            [
+                25,
+                "        }"
+            ],
+            [
+                26,
+                ""
+            ],
+            [
+                27,
+                "        private DbContext GetDbContext()"
+            ],
+            [
+                28,
+                "        {"
+            ],
+            [
+                29,
+                "            var connectionString = RepositoryConfiguration[\"connectionString\"];"
+            ],
+            [
+                30,
+                ""
+            ],
+            [
+                32,
+                "            if (RepositoryDependencyResolver.Current == null && String.IsNullOrEmpty(connectionString))"
+            ],
+            [
+                39,
+                "            var tmpDbContextType = RepositoryConfiguration[\"dbContextType\"];"
+            ],
+            [
+                40,
+                "            if (!String.IsNullOrEmpty(tmpDbContextType))"
+            ],
+            [
+                42,
+                "                dbContextType = Type.GetType(tmpDbContextType);"
+            ],
+            [
+                61,
+                "            else // the default way of getting a DbContext if there is no Ioc container setup"
+            ],
+            [
+                63,
+                "                dbContext = dbContextType == null"
+            ],
+            [
+                64,
+                "                                ? new DbContext(connectionString)"
+            ],
+            [
+                65,
+                "                                : (DbContext)Activator.CreateInstance(dbContextType, connectionString);"
+            ],
+            [
+                68,
+                "            return dbContext;"
+            ]
+        ],
+        "deleted": [
+            [
+                20,
+                "            if (RepositoryDependencyResolver.Current == null && String.IsNullOrEmpty(RepositoryConfiguration[\"connectionString\"]))"
+            ],
+            [
+                27,
+                "            if (!String.IsNullOrEmpty(RepositoryConfiguration[\"dbContextType\"]))"
+            ],
+            [
+                29,
+                "                dbContextType = Type.GetType(RepositoryConfiguration[\"dbContextType\"]);"
+            ],
+            [
+                32,
+                "            var connectionString = RepositoryConfiguration[\"connectionString\"];"
+            ],
+            [
+                33,
+                ""
+            ],
+            [
+                50,
+                ""
+            ],
+            [
+                51,
+                "            // the default way of getting a DbContext if there is no Ioc container setup"
+            ],
+            [
+                52,
+                "            dbContext = dbContextType == null"
+            ],
+            [
+                53,
+                "                            ? new DbContext(connectionString)"
+            ],
+            [
+                54,
+                "                            : (DbContext) Activator.CreateInstance(dbContextType, connectionString);"
+            ],
+            [
+                55,
+                ""
+            ],
+            [
+                56,
+                "            return new Ef5Repository<T, TKey>(dbContext);"
+            ],
+            [
+                57,
+                "        }"
+            ],
+            [
+                58,
+                ""
+            ],
+            [
+                59,
+                "        public override ICompoundKeyRepository<T, TKey, TKey2> GetInstance<T, TKey, TKey2>()"
+            ],
+            [
+                60,
+                "        {"
+            ],
+            [
+                61,
+                "            // check for required parameters"
+            ],
+            [
+                62,
+                "            if (String.IsNullOrEmpty(RepositoryConfiguration[\"connectionString\"]))"
+            ],
+            [
+                63,
+                "            {"
+            ],
+            [
+                64,
+                "                throw new ConfigurationErrorsException(\"The connectionString attribute is required in order to use the Ef5Repository via the configuration file.\");"
+            ],
+            [
+                65,
+                "            }"
+            ],
+            [
+                66,
+                ""
+            ],
+            [
+                67,
+                "            Type dbContextType = null;"
+            ],
+            [
+                68,
+                ""
+            ],
+            [
+                69,
+                "            if (!String.IsNullOrEmpty(RepositoryConfiguration[\"dbContextType\"]))"
+            ],
+            [
+                71,
+                "                dbContextType = Type.GetType(RepositoryConfiguration[\"dbContextType\"]);"
+            ],
+            [
+                74,
+                "            var connectionString = RepositoryConfiguration[\"connectionString\"];"
+            ],
+            [
+                75,
+                ""
+            ],
+            [
+                76,
+                "            // TODO: look at dbContextType (from Enyim.Caching configuration bits) and how it caches, see about implementing cache or expanding FastActivator to take parameters"
+            ],
+            [
+                77,
+                "            var dbContext = dbContextType == null ?"
+            ],
+            [
+                78,
+                "                new DbContext(connectionString) :"
+            ],
+            [
+                79,
+                "                (DbContext)Activator.CreateInstance(dbContextType, connectionString);"
+            ],
+            [
+                80,
+                ""
+            ],
+            [
+                81,
+                "            return new Ef5Repository<T, TKey, TKey2>(dbContext);"
+            ]
+        ]
+    },
+    "num_lines_added": 21,
+    "num_lines_removed": 34
+}

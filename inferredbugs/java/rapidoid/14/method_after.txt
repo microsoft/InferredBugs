@@ -1,0 +1,66 @@
+ @Override
+	protected void doProcessing() {
+
+		long now = U.time();
+		int connectingN = connecting.size();
+
+		for (int i = 0; i < connectingN; i++) {
+			ConnectionTarget target = connecting.poll();
+			assert target != null;
+
+			if (target.retryAfter < now) {
+				Log.debug("connecting", "address", target.addr);
+
+				try {
+					SelectionKey newKey = target.socketChannel.register(selector, SelectionKey.OP_CONNECT);
+					newKey.attach(target);
+				} catch (ClosedChannelException e) {
+					Log.warn("Closed channel", e);
+				}
+			} else {
+				connecting.add(target);
+			}
+		}
+
+		RapidoidChannel channel;
+
+		while ((channel = connected.poll()) != null) {
+
+			SocketChannel socketChannel = channel.socketChannel;
+			Log.debug("connected", "address", socketChannel.socket().getRemoteSocketAddress());
+
+			try {
+				SelectionKey newKey = socketChannel.register(selector, SelectionKey.OP_READ);
+				U.notNull(channel.protocol, "protocol");
+				RapidoidConnection conn = attachConn(newKey, channel.protocol);
+
+				conn.setClient(channel.isClient);
+
+				try {
+					processNext(conn, true);
+				} finally {
+					conn.setInitial(false);
+				}
+
+			} catch (ClosedChannelException e) {
+				Log.warn("Closed channel", e);
+			}
+		}
+
+		RapidoidConnection restartedConn;
+		while ((restartedConn = restarting.poll()) != null) {
+			Log.debug("restarting", "connection", restartedConn);
+
+			processNext(restartedConn, true);
+		}
+
+		synchronized (done) {
+			for (int i = 0; i < done.size(); i++) {
+				RapidoidConnection conn = done.get(i);
+				if (conn.key != null && conn.key.isValid()) {
+					conn.key.interestOps(SelectionKey.OP_WRITE);
+				}
+			}
+			done.clear();
+		}
+	}

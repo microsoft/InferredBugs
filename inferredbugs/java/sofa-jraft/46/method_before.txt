@@ -1,0 +1,23 @@
+    @Override
+    public boolean connect(final Endpoint endpoint) {
+        if (this.rpcClient == null) {
+            throw new IllegalStateException("Client service is not inited.");
+        }
+        if (isConnected(endpoint)) {
+            return true;
+        }
+        try {
+            final PingRequest req = PingRequest.newBuilder() //
+                .setSendTimestamp(System.currentTimeMillis()) //
+                .build();
+            final ErrorResponse resp = (ErrorResponse) this.rpcClient.invokeSync(endpoint.toString(), req,
+                this.defaultInvokeCtx, this.rpcOptions.getRpcConnectTimeoutMs());
+            return resp.getErrorCode() == 0;
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (final RemotingException e) {
+            LOG.error("Fail to connect {}, remoting exception: {}.", endpoint, e.getMessage());
+            return false;
+        }
+    }

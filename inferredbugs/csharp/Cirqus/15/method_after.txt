@@ -1,0 +1,28 @@
+        CommandProcessor GetCommandProcessor(bool useCaching)
+        {
+            var eventStore = new MongoDbEventStore(_database, "events");
+
+            _timeTaker = new TimeTaker
+            {
+                InnerEventStore = eventStore,
+            };
+
+            var serializer = new JsonDomainEventSerializer();
+
+            IAggregateRootRepository aggregateRootRepository = new DefaultAggregateRootRepository(_timeTaker, serializer);
+
+            if (useCaching)
+            {
+                aggregateRootRepository = new CachingAggregateRootRepositoryDecorator(aggregateRootRepository, new InMemorySnapshotCache{ApproximateMaxNumberOfCacheEntries = 100}, eventStore, serializer);
+            }
+
+            _timeTaker.InnerAggregateRootRepository = aggregateRootRepository;
+
+            var eventDispatcher = new ViewManagerEventDispatcher(_timeTaker, eventStore, serializer, _domainTypeMapper);
+
+            var commandProcessor = new CommandProcessor(_timeTaker, _timeTaker, eventDispatcher, serializer, _commandMapper, _domainTypeMapper);
+
+            RegisterForDisposal(commandProcessor);
+
+            return commandProcessor;
+        }

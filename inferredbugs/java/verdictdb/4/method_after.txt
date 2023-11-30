@@ -1,0 +1,72 @@
+ @Override
+	public ExactRelation rewriteWithSubsampledErrorBounds() {
+		ExactRelation r = rewriteWithPartition();
+//		List<SelectElem> selectElems = r.selectElemsWithAggregateSource();
+		List<SelectElem> selectElems = ((AggregatedRelation) r).getAggList();
+		
+		// another wrapper to combine all subsampled aggregations.
+		List<SelectElem> finalAgg = new ArrayList<SelectElem>();
+		
+		for (int i = 0; i < selectElems.size() - 1; i++) {	// excluding the last one which is psize
+			// odd columns are for mean estimation
+			// even columns are for err estimation
+			if (i%2 == 1) continue;
+			
+			SelectElem meanElem = selectElems.get(i);
+			SelectElem errElem = selectElems.get(i+1);
+			ColNameExpr est = new ColNameExpr(meanElem.getAlias(), r.getAliasName());
+			ColNameExpr errEst = new ColNameExpr(errElem.getAlias(), r.getAliasName());
+			ColNameExpr psize = new ColNameExpr(partitionSizeAlias, r.getAliasName());
+			
+			Expr originalAggExpr = elems.get(i/2).getExpr();
+			
+			// average estimate
+			Expr meanEstExpr = null;
+			if (originalAggExpr.isCountDistinct()) {
+				meanEstExpr = FuncExpr.round(FuncExpr.avg(est));
+			} else {
+				meanEstExpr = BinaryOpExpr.from(FuncExpr.sum(BinaryOpExpr.from(est, psize, "*")),
+	                    					FuncExpr.sum(psize), "/");
+				if (originalAggExpr.isCount()) {
+					meanEstExpr = FuncExpr.round(meanEstExpr);
+				}
+			}
+			finalAgg.add(new SelectElem(meanEstExpr, meanElem.getAlias()));
+
+			// error estimation
+			Expr errEstExpr = BinaryOpExpr.from(
+					BinaryOpExpr.from(FuncExpr.stddev(errEst), FuncExpr.sqrt(FuncExpr.avg(psize)), "*"),
+					FuncExpr.sqrt(FuncExpr.sum(psize)),
+					"/");
+			finalAgg.add(new SelectElem(errEstExpr, errElem.getAlias()));
+		}
+		
+		/*
+		 * Example input query:
+		 * select category, avg(col)
+		 * from t
+		 * group by category
+		 * 
+		 * Transformed query:
+		 * select category, sum(est * psize) / sum(psize) AS final_est
+		 * from (
+		 *   select category, avg(col) AS est, count(*) as psize
+		 *   from t
+		 *   group by category, verdict_partition) AS vt1
+		 * group by category
+		 * 
+		 * where t1 was obtained by rewriteWithPartition().
+		 */ 
+		if (source instanceof ApproxGroupedRelation) {
+			List<ColNameExpr> groupby = ((ApproxGroupedRelation) source).getGroupby();
+			List<ColNameExpr> groupbyInNewSource = new ArrayList<ColNameExpr>();
+			for (ColNameExpr g : groupby) {
+				groupbyInNewSource.add(new ColNameExpr(g.getCol(), r.getAliasName()));
+			}
+			r = new GroupedRelation(vc, r, groupbyInNewSource);
+		}
+		
+		r = new AggregatedRelation(vc, r, finalAgg);
+		r.setAliasName(getAliasName());
+		return r;
+	}

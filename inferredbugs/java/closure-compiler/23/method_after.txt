@@ -1,0 +1,83 @@
+  private String getFunctionAnnotation(Node fnNode) {
+    Preconditions.checkState(fnNode.getType() == Token.FUNCTION);
+    StringBuilder sb = new StringBuilder("/**\n");
+
+    JSType type = fnNode.getJSType();
+
+    if (type == null || type.isUnknownType()) {
+      return "";
+    }
+
+    FunctionType funType = (FunctionType) fnNode.getJSType();
+
+    // We need to use the child nodes of the function as the nodes for the
+    // parameters of the function type do not have the real parameter names.
+    // FUNCTION
+    //   NAME
+    //   LP
+    //     NAME param1
+    //     NAME param2
+    if (fnNode != null) {
+      Node paramNode = NodeUtil.getFunctionParameters(fnNode).getFirstChild();
+
+      // Param types
+      for (Node n : funType.getParameters()) {
+        // Bail out if the paramNode is not there.
+        if (paramNode == null) {
+          break;
+        }
+        sb.append(" * @param {" + getParameterNodeJSDocType(n) + "} ");
+        sb.append(paramNode.getString());
+        sb.append("\n");
+        paramNode = paramNode.getNext();
+      }
+    }
+
+    // Return type
+    JSType retType = funType.getReturnType();
+    if (retType != null && !retType.isUnknownType() && !retType.isEmptyType()) {
+      sb.append(" * @return {" + retType + "}\n");
+    }
+
+    // Constructor/interface
+    if (funType.isConstructor() || funType.isInterface()) {
+
+      FunctionType superConstructor = funType.getSuperClassConstructor();
+
+      if (superConstructor != null) {
+        ObjectType superInstance =
+          funType.getSuperClassConstructor().getInstanceType();
+        if (!superInstance.toString().equals("Object")) {
+          sb.append(" * @extends {"  + superInstance + "}\n");
+        }
+      }
+
+      if (funType.isInterface()) {
+        for (ObjectType interfaceType : funType.getExtendedInterfaces()) {
+          sb.append(" * @extends {" + interfaceType + "}\n");
+        }
+      }
+
+      // Avoid duplicates, add implemented type to a set first
+      Set<String> interfaces = Sets.newTreeSet();
+      for (ObjectType interfaze : funType.getImplementedInterfaces()) {
+        interfaces.add(interfaze.toString());
+      }
+      for (String interfaze : interfaces) {
+        sb.append(" * @implements {"  + interfaze + "}\n");
+      }
+
+      if (funType.isConstructor()) {
+        sb.append(" * @constructor\n");
+      } else if (funType.isInterface()) {
+        sb.append(" * @interface\n");
+      }
+    }
+
+    if (fnNode != null && fnNode.getBooleanProp(Node.IS_DISPATCHER)) {
+      sb.append(" * @javadispatch\n");
+    }
+
+    sb.append(" */\n");
+    return sb.toString();
+  }

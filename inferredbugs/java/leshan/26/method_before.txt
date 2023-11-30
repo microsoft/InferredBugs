@@ -1,0 +1,50 @@
+    public void createPSKClient() {
+        ObjectsInitializer initializer = new ObjectsInitializer();
+        initializer.setInstancesForObject(LwM2mId.SECURITY,
+                Security.psk(
+                        "coaps://" + server.getSecuredAddress().getHostString() + ":"
+                                + server.getSecuredAddress().getPort(),
+                        12345, GOOD_PSK_ID.getBytes(StandardCharsets.UTF_8), GOOD_PSK_KEY));
+        initializer.setInstancesForObject(LwM2mId.SERVER, new Server(12345, LIFETIME, BindingMode.U, false));
+        initializer.setInstancesForObject(LwM2mId.DEVICE, new Device("Eclipse Leshan", MODEL_NUMBER, "12345", "U"));
+        initializer.setDummyInstancesForObject(LwM2mId.ACCESS_CONTROL);
+        List<LwM2mObjectEnabler> objects = initializer.createAll();
+
+        InetSocketAddress clientAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        LeshanClientBuilder builder = new LeshanClientBuilder(getCurrentEndpoint());
+        builder.setLocalAddress(clientAddress.getHostString(), clientAddress.getPort());
+        builder.setObjects(objects);
+
+        // set an editable PSK store for tests
+        builder.setEndpointFactory(new EndpointFactory() {
+
+            @Override
+            public CoapEndpoint createUnsecuredEndpoint(InetSocketAddress address, NetworkConfig coapConfig,
+                    ObservationStore store) {
+                CoapEndpoint.Builder builder = new CoapEndpoint.Builder();
+                builder.setInetSocketAddress(address);
+                builder.setNetworkConfig(coapConfig);
+                return builder.build();
+            }
+
+            @Override
+            public CoapEndpoint createSecuredEndpoint(DtlsConnectorConfig dtlsConfig, NetworkConfig coapConfig,
+                    ObservationStore store) {
+                CoapEndpoint.Builder builder = new CoapEndpoint.Builder();
+                Builder dtlsConfigBuilder = new Builder(dtlsConfig);
+                if (dtlsConfig.getPskStore() != null) {
+                    PskPublicInformation identity = dtlsConfig.getPskStore().getIdentity(null);
+                    SecretKey key = dtlsConfig.getPskStore().getKey(identity);
+                    singlePSKStore = new SinglePSKStore(identity, key);
+                    dtlsConfigBuilder.setPskStore(singlePSKStore);
+                }
+                builder.setConnector(new DTLSConnector(dtlsConfigBuilder.build()));
+                builder.setNetworkConfig(coapConfig);
+                return builder.build();
+            }
+        });
+
+        // create client;
+        client = builder.build();
+        setupClientMonitoring();
+    }

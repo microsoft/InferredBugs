@@ -1,0 +1,35 @@
+    @Test
+    public void serverToClientBackpressure() throws InterruptedException {
+        Object lock = new Object();
+        BackpressureDetector clientBackpressureDetector = new BackpressureDetector(madMultipleCutoff);
+
+        ReactorNumbersGrpc.ReactorNumbersStub stub = ReactorNumbersGrpc.newReactorStub(channel);
+
+        Mono<Empty> reactorRequest = Mono.just(Empty.getDefaultInstance());
+
+        Flux<NumberProto.Number> reactorResponse = stub.responsePressure(reactorRequest);
+        reactorResponse.subscribe(
+                n -> {
+                    clientBackpressureDetector.tick();
+                    System.out.println(n.getNumber(0) + "  <--");
+                    try { Thread.sleep(50); } catch (InterruptedException e) {}
+                },
+                t -> {
+                    t.printStackTrace();
+                    synchronized (lock) {
+                        lock.notify();
+                    }
+                },
+                () -> {
+                    System.out.println("Client done.");
+                    synchronized (lock) {
+                        lock.notify();
+                    }
+                });
+
+        synchronized (lock) {
+            lock.wait(TimeUnit.SECONDS.toMillis(20));
+        }
+
+        assertThat(serverRespBPDetector.backpressureDelayOcurred()).isTrue();
+    }

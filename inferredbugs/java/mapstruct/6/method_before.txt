@@ -1,0 +1,51 @@
+    private List<MappedProperty> getMappedProperties(ExecutableElement method, Map<String, Mapping> mappings) {
+        TypeElement returnTypeElement = (TypeElement) typeUtils.asElement( method.getReturnType() );
+        TypeElement parameterElement = (TypeElement) typeUtils.asElement( method.getParameters().get( 0 ).asType() );
+
+        List<MappedProperty> properties = new ArrayList<MappedProperty>();
+
+        List<ExecutableElement> sourceGetters = Filters.getterMethodsIn(
+            elementUtils.getAllMembers( parameterElement )
+        );
+        List<ExecutableElement> targetSetters = Filters.setterMethodsIn(
+            elementUtils.getAllMembers( returnTypeElement )
+        );
+        List<ExecutableElement> sourceSetters = Filters.setterMethodsIn(
+            elementUtils.getAllMembers( parameterElement )
+        );
+        List<ExecutableElement> targetGetters = Filters.getterMethodsIn(
+            elementUtils.getAllMembers( returnTypeElement )
+        );
+
+        reportErrorIfMappedPropertiesDontExist( method, mappings, sourceGetters, targetSetters );
+
+        for ( ExecutableElement getterMethod : sourceGetters ) {
+            String sourcePropertyName = Executables.getPropertyName( getterMethod );
+            Mapping mapping = mappings.get( sourcePropertyName );
+
+            for ( ExecutableElement setterMethod : targetSetters ) {
+                String targetPropertyName = Executables.getPropertyName( setterMethod );
+
+                if ( targetPropertyName.equals( mapping != null ? mapping.getTargetName() : sourcePropertyName ) ) {
+                    properties.add(
+                        new MappedProperty(
+                            sourcePropertyName,
+                            getterMethod.getSimpleName().toString(),
+                            Executables.getCorrespondingPropertyAccessor( getterMethod, sourceSetters )
+                                .getSimpleName()
+                                .toString(),
+                            retrieveReturnType( getterMethod ),
+                            mapping != null ? mapping.getTargetName() : targetPropertyName,
+                            Executables.getCorrespondingPropertyAccessor( setterMethod, targetGetters )
+                                .getSimpleName()
+                                .toString(),
+                            setterMethod.getSimpleName().toString(),
+                            retrieveParameter( setterMethod ).getType()
+                        )
+                    );
+                }
+            }
+        }
+
+        return properties;
+    }

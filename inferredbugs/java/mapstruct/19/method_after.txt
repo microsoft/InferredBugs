@@ -1,0 +1,60 @@
+    private PropertyMapping getPropertyMapping(List<MapperReference> mapperReferences,
+                                               List<SourceMethod> methods,
+                                               SourceMethod method,
+                                               Parameter parameter,
+                                               ExecutableElement sourceAccessor,
+                                               ExecutableElement targetAcessor,
+                                               String dateFormat) {
+        Type sourceType = typeFactory.getReturnType( sourceAccessor );
+        Type targetType = null;
+        String conversionString = parameter.getName() + "." + sourceAccessor.getSimpleName().toString() + "()";
+        if ( Executables.isSetterMethod( targetAcessor ) ) {
+            targetType = typeFactory.getSingleParameter( targetAcessor ).getType();
+        }
+        else if ( Executables.isGetterMethod( targetAcessor ) ) {
+            targetType = typeFactory.getReturnType( targetAcessor );
+        }
+
+        String targetPropertyName = Executables.getPropertyName( targetAcessor );
+
+        String mappedElement = "property '" + Executables.getPropertyName( sourceAccessor ) + "'";
+
+        ParameterAssignment parameterAssignment = mappingResolver.getParameterAssignment(
+            method,
+            mappedElement,
+            mapperReferences,
+            methods,
+            sourceType,
+            targetType,
+            targetPropertyName,
+            dateFormat,
+            conversionString
+        );
+
+        PropertyMapping property = new PropertyMapping(
+            parameter.getName(),
+            Executables.getPropertyName( sourceAccessor ),
+            sourceAccessor.getSimpleName().toString(),
+            sourceType,
+            Executables.getPropertyName( targetAcessor ),
+            targetAcessor.getSimpleName().toString(),
+            targetType,
+            parameterAssignment != null ? parameterAssignment.getMethodReference() : null,
+            parameterAssignment != null ? parameterAssignment.getTypeConversion() : null
+        );
+
+        if ( !isPropertyMappable( property ) ) {
+            messager.printMessage(
+                Kind.ERROR,
+                String.format(
+                    "Can't map property \"%s %s\" to \"%s %s\".",
+                    property.getSourceType(),
+                    property.getSourceName(),
+                    property.getTargetType(),
+                    property.getTargetName()
+                ),
+                method.getExecutable()
+            );
+        }
+        return property;
+    }

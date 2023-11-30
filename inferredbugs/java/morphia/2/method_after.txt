@@ -1,0 +1,32 @@
+ public void updateKeyInfo(final Object entity, final DBObject dbObj, EntityCache cache) {
+		MappedClass mc = getMappedClass(entity);
+
+		// update id field, if there.		
+		if ((mc.getIdField() != null) && (dbObj != null) && (dbObj.get(ID_KEY) != null)) {
+			try {
+				MappedField mf = mc.getMappedIdField();
+				Object oldIdValue = mc.getIdField().get(entity);
+				readMappedField(dbObj, mf, entity, cache);
+				Object dbIdValue = mc.getIdField().get(entity);
+				if (oldIdValue != null) {
+					// The entity already had an id set. Check to make sure it
+					// hasn't changed. That would be unexpected, and could
+					// indicate a bad state.
+					if (!dbIdValue.equals(oldIdValue)) {
+						mf.setFieldValue(entity, oldIdValue);//put the value back...
+						
+						throw new RuntimeException("@Id mismatch: " + oldIdValue + " != " + dbIdValue + " for "
+								+ entity.getClass().getName());
+					}
+				} else {
+					mc.getIdField().set(entity, dbIdValue);
+				}
+			} catch (Exception e) {
+				if (e.getClass().equals(RuntimeException.class)) {
+					throw (RuntimeException) e;
+				}
+
+				throw new RuntimeException("Error setting @Id field after save/insert.", e);
+			}
+		}
+	}

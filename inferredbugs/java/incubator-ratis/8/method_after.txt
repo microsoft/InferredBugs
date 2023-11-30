@@ -1,0 +1,49 @@
+  @Test(timeout = 1000)
+  public void testExtendingGracePeriod() throws Exception {
+    final TimeoutScheduler scheduler = TimeoutScheduler.newInstance();
+    final TimeDuration grace = TimeDuration.valueOf(100, TimeUnit.MILLISECONDS);
+    scheduler.setGracePeriod(grace);
+    Assert.assertFalse(scheduler.hasScheduler());
+
+    final ErrorHandler errorHandler = new ErrorHandler();
+
+    {
+      final AtomicBoolean fired = new AtomicBoolean(false);
+      scheduler.onTimeout(TimeDuration.valueOf(150, TimeUnit.MILLISECONDS), () -> {
+        Assert.assertFalse(fired.get());
+        fired.set(true);
+      }, errorHandler);
+      Assert.assertTrue(scheduler.hasScheduler());
+
+      Thread.sleep(100);
+      Assert.assertFalse(fired.get());
+      Assert.assertTrue(scheduler.hasScheduler());
+
+      Thread.sleep(100);
+      Assert.assertTrue(fired.get());
+      Assert.assertTrue(scheduler.hasScheduler());
+    }
+
+    {
+      // submit another task during grace period
+      final AtomicBoolean fired2 = new AtomicBoolean(false);
+      scheduler.onTimeout(TimeDuration.valueOf(150, TimeUnit.MILLISECONDS), () -> {
+        Assert.assertFalse(fired2.get());
+        fired2.set(true);
+      }, errorHandler);
+
+      Thread.sleep(100);
+      Assert.assertFalse(fired2.get());
+      Assert.assertTrue(scheduler.hasScheduler());
+
+      Thread.sleep(100);
+      Assert.assertTrue(fired2.get());
+      Assert.assertTrue(scheduler.hasScheduler());
+
+      Thread.sleep(100);
+      Assert.assertTrue(fired2.get());
+      Assert.assertFalse(scheduler.hasScheduler());
+    }
+
+    errorHandler.assertNoError();
+  }

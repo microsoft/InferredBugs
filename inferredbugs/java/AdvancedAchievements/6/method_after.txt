@@ -1,0 +1,35 @@
+ @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+	public void onInventoryClick(InventoryClickEvent event) {
+		Inventory inventory = event.getInventory();
+		if (!(inventory.getHolder() instanceof AchievementInventoryHolder) || event.getRawSlot() < 0) {
+			return;
+		}
+
+		// Prevent players from taking items out of the GUI.
+		event.setCancelled(true);
+
+		// Clicking empty slots should do nothing
+		if (event.getCurrentItem() == null) {
+			return;
+		}
+
+		int currentPage = ((AchievementInventoryHolder) inventory.getHolder()).getPageIndex();
+		Player player = (Player) event.getWhoClicked();
+		if (currentPage == MAIN_GUI_PAGE) {
+			// Main GUI, check whether player can interact with the selected item.
+			if (event.getCurrentItem().getType() != lockedMaterial && event.getRawSlot() < getMainGUIItemCount()) {
+				categoryGUI.displayCategoryGUI(event.getCurrentItem(), player, 0);
+			}
+			return;
+		}
+
+		ItemStack categoryItem = inventory.getItem(0);
+		// Check whether a navigation button was clicked in a category GUI.
+		if (isButtonClicked(event, guiItems.getBackButton())) {
+			mainGUI.displayMainGUI(player);
+		} else if (isButtonClicked(event, guiItems.getPreviousButton())) {
+			categoryGUI.displayCategoryGUI(categoryItem, player, currentPage - 1);
+		} else if (isButtonClicked(event, guiItems.getNextButton())) {
+			categoryGUI.displayCategoryGUI(categoryItem, player, currentPage + 1);
+		}
+	}

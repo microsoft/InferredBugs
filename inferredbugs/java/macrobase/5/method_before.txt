@@ -1,0 +1,53 @@
+    @Test
+    public void testDumpSmall() throws Exception {
+        MacroBaseConf conf = new MacroBaseConf();
+        ArrayList<Integer> attrs = new ArrayList<>();
+        attrs.add(1);
+        attrs.add(2);
+        OutlierClassifier dummy = new OutlierClassifier() {
+
+            MBStream<OutlierClassificationResult> result = new MBStream<>();
+
+            @Override
+            public MBStream<OutlierClassificationResult> getStream() throws Exception {
+
+                return result;
+            }
+
+            @Override
+            public void initialize() throws Exception {
+
+            }
+
+            @Override
+            public void consume(List<Datum> records) throws Exception {
+                for(Datum r : records) {
+                    result.add(new OutlierClassificationResult(r, true));
+                }
+            }
+
+            @Override
+            public void shutdown() throws Exception {
+
+            }
+        };
+
+        File f = folder.newFile("testDumpSmall");
+
+        DumpClassifier dumper = new DumpClassifier(conf, dummy, f.getAbsolutePath());
+        List<Datum> data = new ArrayList<>();
+        data.add(new Datum(attrs, new ArrayRealVector()));
+        data.add(new Datum(attrs, new ArrayRealVector()));
+        dumper.consume(data);
+
+        List<OutlierClassificationResult> results = dumper.getStream().drain();
+
+        assertEquals(results.size(), data.size());
+        OutlierClassificationResult first = results.get(0);
+        assertEquals(true, first.isOutlier());
+        assertEquals(1, first.getDatum().getAttributes().get(0).intValue());
+
+        Path filePath = Paths.get(dumper.getFilePath());
+        assertTrue(Files.exists(filePath));
+        Files.deleteIfExists(Paths.get(dumper.getFilePath()));
+    }

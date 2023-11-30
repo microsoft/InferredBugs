@@ -1,0 +1,42 @@
+        [Test]
+        public void RemoveRadioTapField()
+        {
+            var dev = new CaptureFileReaderDevice(NUnitSetupClass.CaptureDirectory + "80211_plus_radiotap_header.pcap");
+            dev.Open();
+            var rawCapture = dev.GetNextPacket();
+            dev.Close();
+
+            var p = Packet.ParsePacket(rawCapture.LinkLayerType, rawCapture.Data) as RadioPacket;
+            Assert.IsNotNull(p);
+            Assert.IsNotNull(p[RadioTapType.Flags]);
+            Assert.IsNotNull(p[RadioTapType.Rate]);
+            Assert.IsNotNull(p[RadioTapType.Channel]);
+            Assert.IsNotNull(p[RadioTapType.DbmAntennaSignal]);
+            Assert.IsNotNull(p[RadioTapType.DbmAntennaNoise]);
+            Assert.IsNotNull(p[RadioTapType.LockQuality]);
+            Assert.IsNotNull(p[RadioTapType.Antenna]);
+            Assert.IsNotNull(p[RadioTapType.DbAntennaSignal]);
+            var macFrame = p.PayloadPacket as MacFrame;
+            Assert.IsNotNull(macFrame);
+            Assert.IsTrue(macFrame.AppendFcs);
+            Assert.IsTrue(macFrame.FcsValid);
+
+            //Now remove a couple of radio tap fields and check that it is still valid
+            p.Remove(RadioTapType.Rate);
+            p.Remove(RadioTapType.Antenna);
+
+            var recreatedFrame = Packet.ParsePacket(rawCapture.LinkLayerType, p.Bytes) as RadioPacket;
+            Assert.IsNotNull(recreatedFrame);
+            Assert.IsNotNull(recreatedFrame[RadioTapType.Flags]);
+            Assert.IsNull(recreatedFrame[RadioTapType.Rate]);
+            Assert.IsNotNull(recreatedFrame[RadioTapType.Channel]);
+            Assert.IsNotNull(recreatedFrame[RadioTapType.DbmAntennaSignal]);
+            Assert.IsNotNull(recreatedFrame[RadioTapType.DbmAntennaNoise]);
+            Assert.IsNotNull(recreatedFrame[RadioTapType.LockQuality]);
+            Assert.IsNull(recreatedFrame[RadioTapType.Antenna]);
+            Assert.IsNotNull(recreatedFrame[RadioTapType.DbAntennaSignal]);
+            var recreatedMacFrame = p.PayloadPacket as MacFrame;
+            Assert.IsNotNull(recreatedMacFrame);
+            Assert.IsTrue(recreatedMacFrame.AppendFcs);
+            Assert.IsTrue(recreatedMacFrame.FcsValid);
+        }

@@ -1,0 +1,28 @@
+    private static void parseAlterColumn(final Parser parser,
+            final PgTable table) {
+        parser.expectOptional("COLUMN");
+
+        final String columnName = parser.parseIdentifier();
+
+        if (parser.expectOptional("SET")) {
+            if (parser.expectOptional("STATISTICS")) {
+                final PgColumn col = table.getColumn(columnName);
+                col.setStatistics(parser.parseInteger());
+            } else if (parser.expectOptional("DEFAULT")) {
+                final String defaultValue = parser.getExpression();
+
+                if (table.containsColumn(columnName)) {
+                    final PgColumn column = table.getColumn(columnName);
+                    column.setDefaultValue(defaultValue);
+                } else {
+                    throw new ParserException("Cannot find column '"
+                            + columnName + " 'in table '" + table.getName()
+                            + "'");
+                }
+            } else {
+                parser.throwUnsupportedCommand();
+            }
+        } else {
+            parser.throwUnsupportedCommand();
+        }
+    }

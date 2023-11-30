@@ -1,0 +1,20 @@
+    @Test
+    public void testInputStreamContent() {
+        InputStream inputStream = $.class.getResourceAsStream("/poem.txt");
+        InputStreamContentProvider inputStreamContentProvider = new InputStreamContentProvider(inputStream);
+        MultiPartContentProvider multiPartProvider = new MultiPartContentProvider();
+        System.out.println(multiPartProvider.getContentType());
+        multiPartProvider.addFilePart("poetry", "poem.txt", inputStreamContentProvider, null);
+
+        multiPartProvider.close();
+        multiPartProvider.setListener(() -> System.out.println("on content"));
+
+        List<ByteBuffer> list = new ArrayList<>();
+        for (ByteBuffer buf : multiPartProvider) {
+            list.add(buf);
+        }
+        String value = BufferUtils.toString(list);
+        Assert.assertThat(value.length(), greaterThan(0));
+        System.out.println(multiPartProvider.getLength());
+        Assert.assertThat(multiPartProvider.getLength(), lessThan(0L));
+    }

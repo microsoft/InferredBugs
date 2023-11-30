@@ -1,0 +1,18 @@
+    public int launch() throws Throwable {
+        int returnCode = -1;
+        Thread t = Thread.currentThread();
+        String currentThreadName = t.getName();
+        t.setName("Executing "+ env.displayName());
+        before();
+        try {
+            // so that test code has all the access to the system
+            ACL.impersonate(ACL.SYSTEM);
+            Class<?> c = bootstrap.hasClass(RUNNER_CLASS_NAME)? Class.forName(RUNNER_CLASS_NAME) : getRunnerClassFromJar();
+            returnCode = (int)c.getMethod("run", Bootstrap.class).invoke(c.newInstance(), bootstrap);
+        } finally {
+            after();
+            t.setName(currentThreadName);
+        }
+
+        return returnCode;
+    }

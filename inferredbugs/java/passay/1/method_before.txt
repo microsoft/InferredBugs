@@ -1,0 +1,29 @@
+  protected void initialize(final int cachePercent)
+    throws IOException
+  {
+    final long fileBytes = file.length();
+    final long cacheSize = (fileBytes / 100) * cachePercent;
+    final long cacheModulus = cacheSize == 0 ? fileBytes : cacheSize > fileBytes ? 1 : fileBytes / cacheSize;
+
+    if (cache == null) {
+      throw new IllegalStateException("Cannot initialize after close has been called.");
+    }
+
+    FileWord a;
+    FileWord b = null;
+    synchronized (cache) {
+      position = 0;
+      seek(0);
+      cache.clear();
+      while ((a = nextWord()) != null) {
+        if (b != null && comparator.compare(a.word, b.word) < 0) {
+          throw new IllegalArgumentException("File is not sorted correctly for this comparator");
+        }
+        b = a;
+        if (cacheSize > 0 && size % cacheModulus == 0) {
+          cache.put(size, a.offset);
+        }
+        size++;
+      }
+    }
+  }

@@ -1,0 +1,31 @@
+    @Test
+    public void     testNamespace() throws Exception
+    {
+        final String namespace = "TestNamespace";
+        
+        CuratorFrameworkFactory.Builder      builder = CuratorFrameworkFactory.builder();
+        CuratorFramework client = builder.connectString(server.getConnectString()).retryPolicy(new RetryOneTime(1)).namespace(namespace).build();
+        client.start();
+        try
+        {
+            String      actualPath = client.create().forPath("/test");
+            Assert.assertEquals(actualPath, "/test");
+            Assert.assertNotNull(client.getZookeeperClient().getZooKeeper().exists("/" + namespace + "/test", false));
+            Assert.assertNull(client.getZookeeperClient().getZooKeeper().exists("/test", false));
+
+            actualPath = client.nonNamespaceView().create().forPath("/non");
+            Assert.assertEquals(actualPath, "/non");
+            Assert.assertNotNull(client.getZookeeperClient().getZooKeeper().exists("/non", false));
+
+            client.create().forPath("/test/child", "hey".getBytes());
+            byte[]      bytes = client.getData().forPath("/test/child");
+            Assert.assertEquals(bytes, "hey".getBytes());
+
+            bytes = client.nonNamespaceView().getData().forPath("/" + namespace + "/test/child");
+            Assert.assertEquals(bytes, "hey".getBytes());
+        }
+        finally
+        {
+            client.close();
+        }
+    }

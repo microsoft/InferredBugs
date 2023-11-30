@@ -1,0 +1,57 @@
+ public void onCommitSuccess(TransactionXid xid) {
+		CompensableLogger compensableLogger = this.beanFactory.getCompensableLogger();
+
+		if (this.transactionContext.isCompensating()) {
+			if (this.positive == null) {
+				// ignore
+			} else if (this.positive) {
+				this.archive.setConfirmed(true);
+
+				logger.info("{}| confirm: identifier= {}, resourceKey= {}, resourceXid= {}.",
+						ByteUtils.byteArrayToString(transactionContext.getXid().getGlobalTransactionId()),
+						ByteUtils.byteArrayToString(this.archive.getIdentifier().getGlobalTransactionId()),
+						this.archive.getCompensableResourceKey(), this.archive.getCompensableXid());
+			} else {
+				this.archive.setCancelled(true);
+
+				logger.info("{}| cancel: identifier= {}, resourceKey= {}, resourceXid= {}.",
+						ByteUtils.byteArrayToString(transactionContext.getXid().getGlobalTransactionId()),
+						ByteUtils.byteArrayToString(this.archive.getIdentifier().getGlobalTransactionId()),
+						this.archive.getCompensableResourceKey(), this.archive.getCompensableXid());
+			}
+			compensableLogger.updateCompensable(this.archive);
+		} else if (this.transactionContext.isCoordinator() && this.transactionContext.isPropagated() == false
+				&& this.transactionContext.getPropagationLevel() == 0) {
+			for (Iterator<CompensableArchive> itr = this.currentArchiveList.iterator(); itr.hasNext();) {
+				CompensableArchive compensableArchive = itr.next();
+				itr.remove(); // remove
+				compensableArchive.setTried(true);
+				// compensableLogger.updateCompensable(compensableArchive);
+
+				logger.info("{}| try: identifier= {}, resourceKey= {}, resourceXid= {}.",
+						ByteUtils.byteArrayToString(transactionContext.getXid().getGlobalTransactionId()),
+						ByteUtils.byteArrayToString(compensableArchive.getIdentifier().getGlobalTransactionId()),
+						compensableArchive.getTransactionResourceKey(), compensableArchive.getTransactionXid());
+			}
+
+			TransactionArchive transactionArchive = this.getTransactionArchive();
+			transactionArchive.setCompensableStatus(Status.STATUS_COMMITTING);
+			compensableLogger.updateTransaction(transactionArchive);
+
+			logger.info("{}| try completed.",
+					ByteUtils.byteArrayToString(transactionContext.getXid().getGlobalTransactionId()));
+		} else {
+			for (Iterator<CompensableArchive> itr = this.currentArchiveList.iterator(); itr.hasNext();) {
+				CompensableArchive compensableArchive = itr.next();
+				itr.remove(); // remove
+				compensableArchive.setTried(true);
+				compensableLogger.updateCompensable(compensableArchive);
+
+				logger.info("{}| try: identifier= {}, resourceKey= {}, resourceXid= {}.",
+						ByteUtils.byteArrayToString(transactionContext.getXid().getGlobalTransactionId()),
+						ByteUtils.byteArrayToString(compensableArchive.getIdentifier().getGlobalTransactionId()),
+						compensableArchive.getTransactionResourceKey(), compensableArchive.getTransactionXid());
+			}
+		}
+
+	}

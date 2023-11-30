@@ -1,0 +1,23 @@
+        [Fact]
+        public void ASearchWillStillOrderByRelevence()
+        {
+            InitializeContext();
+            LuceneIndexerOptions options = new LuceneIndexerOptions()
+            {
+                Path = "lucene"
+            };
+            var memoryCache = new MemoryCache(new MemoryCacheOptions());
+            var directory = FSDirectory.Open(options.Path);
+            JieBaAnalyzer analyzer = new JieBaAnalyzer(TokenizerMode.Search);
+            SearchEngine<TestDbContext> searchProvider = new SearchEngine<TestDbContext>(_context, directory, analyzer, memoryCache);
+            searchProvider.CreateIndex();
+            SearchOptions searchOptions = new SearchOptions("Jeremy Burns", "FirstName,Surname");
+
+            var results = searchProvider.Search<User>(searchOptions);
+            var first = results.Results.First();
+
+            Assert.Equal("Jeremy", first.FirstName);
+            Assert.Equal("Burns", first.Surname);
+
+            searchProvider.DeleteIndex();
+        }

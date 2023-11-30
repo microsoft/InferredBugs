@@ -1,0 +1,38 @@
+    public ManagerResponse sendAction(ManagerAction action, long timeout)
+            throws IOException, TimeoutException, IllegalArgumentException,
+            IllegalStateException
+    {
+        long start;
+        long timeSpent;
+        ResponseHandlerResult result;
+        ManagerResponseHandler callbackHandler;
+
+        result = new ResponseHandlerResult();
+        callbackHandler = new DefaultResponseHandler(result, Thread
+                .currentThread());
+
+        sendAction(action, callbackHandler);
+
+        start = System.currentTimeMillis();
+        timeSpent = 0;
+        while (result.getResponse() == null)
+        {
+            try
+            {
+                Thread.sleep(timeout - timeSpent);
+            }
+            catch (InterruptedException ex)
+            {
+            }
+
+            // still no response and timed out?
+            timeSpent = System.currentTimeMillis() - start;
+            if (result.getResponse() == null && timeSpent > timeout)
+            {
+                throw new TimeoutException("Timeout waiting for response to "
+                        + action.getAction());
+            }
+        }
+
+        return result.getResponse();
+    }

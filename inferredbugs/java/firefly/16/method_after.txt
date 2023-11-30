@@ -1,0 +1,29 @@
+ @Test
+	public void testResponseParse2() throws Exception {
+		ByteBuffer buffer = BufferUtils
+				.toBuffer("HTTP/1.1 204 No-Content\015\012" + "Header: value\015\012" + "\015\012"
+
+						+ "HTTP/1.1 200 Correct\015\012" + "Content-Length: 10\015\012"
+						+ "Content-Type: text/plain\015\012" + "\015\012" + "0123456789\015\012");
+
+		HttpParser.ResponseHandler handler = new Handler();
+		HttpParser parser = new HttpParser(handler);
+		parser.parseNext(buffer);
+		assertEquals("HTTP/1.1", _methodOrVersion);
+		assertEquals("204", _uriOrStatus);
+		assertEquals("No-Content", _versionOrReason);
+		assertTrue(_headerCompleted);
+		assertTrue(_messageCompleted);
+
+		parser.reset();
+		init();
+
+		parser.parseNext(buffer);
+		parser.atEOF();
+		assertEquals("HTTP/1.1", _methodOrVersion);
+		assertEquals("200", _uriOrStatus);
+		assertEquals("Correct", _versionOrReason);
+		assertEquals(_content.length(), 10);
+		assertTrue(_headerCompleted);
+		assertTrue(_messageCompleted);
+	}

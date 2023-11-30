@@ -1,0 +1,95 @@
+    @SuppressWarnings("unchecked")
+    public void exec() throws IOException {
+        final Path temp = Paths.get("./s3farm").normalize();
+        if (!temp.toFile().mkdir()) {
+            throw new IllegalStateException(
+                String.format(
+                    "Failed to mkdir \"%s\"", temp
+                )
+            );
+        }
+        Logger.info(this, "Farm is ready to start");
+        final ShutdownFarm.Hook shutdown = new ShutdownFarm.Hook();
+        final AtomicInteger count = new AtomicInteger();
+        final int threads = Runtime.getRuntime().availableProcessors();
+        final ClaimGuts cgts = new ClaimGuts();
+        try (
+            final S3Farm origin = new S3Farm(new ExtBucket().value(), temp);
+            final Farm farm = new ShutdownFarm(
+                new ClaimsFarm(
+                    new SmartFarm(
+                        origin,
+                        new PgLocks(
+                            new ExtDataSource(new PropsFarm(origin)).value()
+                        )
+                    ),
+                    cgts
+                ),
+                shutdown
+            );
+            final SlackRadar radar = new SlackRadar(farm);
+            final ClaimsRoutine claims = new ClaimsRoutine(
+                farm,
+                new AsyncProc(
+                    threads,
+                    new MessageMonitorProc(
+                        farm,
+                        new ExpiryProc(
+                            new SentryProc(
+                                farm,
+                                new FootprintProc(
+                                    farm,
+                                    new CountingProc(
+                                        new BrigadeProc(farm),
+                                        count
+                                    )
+                                )
+                            )
+                        ),
+                        shutdown
+                    ),
+                    cgts,
+                    shutdown
+                ),
+                () -> count.intValue() < threads
+            )
+        ) {
+            new ExtMongobee(farm).apply();
+            claims.start(shutdown);
+            new AsyncFunc<>(
+                input -> {
+                    new ExtTelegram(farm).value();
+                }
+            ).exec(null);
+            new AsyncFunc<>(
+                input -> {
+                    radar.refresh();
+                }
+            ).exec(null);
+            new GithubRoutine(farm).start();
+            new Pings(farm).start();
+            new FtCli(
+                new TkApp(
+                    farm,
+                    new FkRegex("/alias", new TkAlias(farm)),
+                    new FkRegex("/slack", new TkSlack(farm, radar)),
+                    new FkRegex("/viber", new TkViber(farm)),
+                    new FkRegex(
+                        "/ghook",
+                        new TkMethods(
+                            new TkSentry(farm, new TkGithub(farm)),
+                            HttpMethod.POST
+                        )
+                    ),
+                    new FkRegex(
+                        "/glhook",
+                        new TkMethods(
+                            new TkSentry(farm, new TkGitlab()),
+                            HttpMethod.POST
+                        )
+                    )
+                ),
+                this.arguments
+            ).start(Exit.NEVER);
+        }
+    }

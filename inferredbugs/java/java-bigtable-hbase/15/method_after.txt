@@ -1,0 +1,27 @@
+  public void awaitCompletion() throws InterruptedException {
+    boolean performedWarning = false;
+
+    lock.lock();
+    try {
+      while (!isFlushed()) {
+        flushedCondition.await(finishWaitMillis, TimeUnit.MILLISECONDS);
+
+        long now = clock.nanoTime();
+        if (now >= noSuccessCheckDeadlineNanos) {
+          // There are unusual cases where an RPC could be completed, but we don't clean up
+          // the state and the locks.  Try to clean up if there is a timeout.
+          for (RetryHandler retryHandler : outstandingRetries.values()) {
+            retryHandler.performRetryIfStale();
+          }
+          logNoSuccessWarning(now);
+          resetNoSuccessWarningDeadline();
+          performedWarning = true;
+        }
+      }
+      if (performedWarning) {
+        LOG.info("awaitCompletion() completed");
+      }
+    } finally {
+      lock.unlock();
+    }
+  }

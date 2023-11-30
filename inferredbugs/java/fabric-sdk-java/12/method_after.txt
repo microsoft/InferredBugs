@@ -1,0 +1,170 @@
+    private Channel reconstructChannel(String name, HFClient client, SampleOrg sampleOrg) throws Exception {
+        out("Reconstructing %s channel", name);
+
+        client.setUserContext(sampleOrg.getPeerAdmin());
+
+        Channel newChannel;
+
+        if (BAR_CHANNEL_NAME.equals(name)) { // bar channel was stored in samplestore in End2endIT testcase.
+
+            /**
+             *  sampleStore.getChannel uses {@link HFClient#deSerializeChannel(byte[])}
+             */
+            newChannel = sampleStore.getChannel(client, name);
+
+            if (!IS_FABRIC_V10) {
+                // Make sure there is one of each type peer at the very least. see End2end for how peers were constructed.
+                assertFalse(newChannel.getPeers(EnumSet.of(PeerRole.EVENT_SOURCE)).isEmpty());
+                assertFalse(newChannel.getPeers(PeerRole.NO_EVENT_SOURCE).isEmpty());
+
+            }
+            assertEquals(2, newChannel.getEventHubs().size());
+            out("Retrieved channel %s from sample store.", name);
+
+        } else {
+            // foo channel do manual reconstruction.
+
+            Properties clientTLSProperties = new Properties();
+
+            final String clientPEMTLSCertificate = sampleStore.getClientPEMTLSCertificate(sampleOrg);
+            if (clientPEMTLSCertificate != null) {
+                clientTLSProperties.put("clientCertBytes", clientPEMTLSCertificate.getBytes(UTF_8));
+            }
+            final String clientPEMTLSKey = sampleStore.getClientPEMTLSKey(sampleOrg);
+
+            if (clientPEMTLSKey != null) {
+                clientTLSProperties.put("clientKeyBytes", clientPEMTLSKey.getBytes(UTF_8));
+            }
+
+            newChannel = client.newChannel(name);
+
+            for (String ordererName : sampleOrg.getOrdererNames()) {
+                Properties ordererProperties = (Properties) clientTLSProperties.clone();
+                ordererProperties.putAll(testConfig.getOrdererProperties(ordererName));
+                newChannel.addOrderer(client.newOrderer(ordererName, sampleOrg.getOrdererLocation(ordererName),
+                        ordererProperties));
+            }
+
+            boolean everyOther = false;
+
+            for (String peerName : sampleOrg.getPeerNames()) {
+                String peerLocation = sampleOrg.getPeerLocation(peerName);
+                Properties peerProperties = testConfig.getPeerProperties(peerName);
+                peerProperties.putAll(clientTLSProperties);
+                Peer peer = client.newPeer(peerName, peerLocation, peerProperties);
+                final PeerOptions peerEventingOptions = // we have two peers on one use block on other use filtered
+                        everyOther ?
+                                createPeerOptions().registerEventsForBlocks() :
+                                createPeerOptions().registerEventsForFilteredBlocks();
+
+                newChannel.addPeer(peer, IS_FABRIC_V10 ?
+                        createPeerOptions().setPeerRoles(PeerRole.NO_EVENT_SOURCE) : peerEventingOptions);
+
+                everyOther = !everyOther;
+            }
+
+            //For testing mix it up. For v1.1 use just peer eventing service for foo channel.
+            if (IS_FABRIC_V10) {
+                //Should have no peers with event sources.
+                assertTrue(newChannel.getPeers(EnumSet.of(PeerRole.EVENT_SOURCE)).isEmpty());
+                //Should have two peers with all roles but event source.
+                assertEquals(2, newChannel.getPeers(PeerRole.NO_EVENT_SOURCE).size());
+                for (String eventHubName : sampleOrg.getEventHubNames()) {
+                    Properties eventhubProperties = (Properties) clientTLSProperties.clone();
+                    eventhubProperties.putAll(testConfig.getEventHubProperties(eventHubName));
+                    EventHub eventHub = client.newEventHub(eventHubName, sampleOrg.getEventHubLocation(eventHubName),
+                            eventhubProperties);
+                    newChannel.addEventHub(eventHub);
+                }
+            } else {
+                //Peers should have all roles. Do some sanity checks that they do.
+
+                //Should have two peers with event sources.
+                assertEquals(2, newChannel.getPeers(EnumSet.of(PeerRole.EVENT_SOURCE)).size());
+                //Check some other roles too..
+                assertEquals(2, newChannel.getPeers(EnumSet.of(PeerRole.CHAINCODE_QUERY, PeerRole.LEDGER_QUERY)).size());
+                assertEquals(2, newChannel.getPeers(PeerRole.ALL).size());  //really same as newChannel.getPeers()
+            }
+
+            assertEquals(IS_FABRIC_V10 ? sampleOrg.getEventHubNames().size() : 0, newChannel.getEventHubs().size());
+        }
+
+        //Just some sanity check tests
+        assertTrue(newChannel == client.getChannel(name));
+        assertTrue(client == TestUtils.getField(newChannel, "client"));
+        assertEquals(name, newChannel.getName());
+        assertEquals(2, newChannel.getPeers().size());
+        assertEquals(1, newChannel.getOrderers().size());
+        assertFalse(newChannel.isShutdown());
+        assertFalse(newChannel.isInitialized());
+        byte[] serializedChannelBytes = newChannel.serializeChannel();
+
+        //Just checks if channel can be serialized and deserialized .. otherwise this is just a waste :)
+        // Get channel back.
+
+        newChannel.shutdown(true);
+        newChannel = client.deSerializeChannel(serializedChannelBytes);
+
+        assertEquals(2, newChannel.getPeers().size());
+
+        assertEquals(1, newChannel.getOrderers().size());
+
+        assertNotNull(client.getChannel(name));
+        assertEquals(newChannel, client.getChannel(name));
+        assertFalse(newChannel.isInitialized());
+        assertFalse(newChannel.isShutdown());
+        newChannel.initialize();
+        assertTrue(newChannel.isInitialized());
+        assertFalse(newChannel.isShutdown());
+
+        //Begin tests with de-serialized channel.
+
+        //Query the actual peer for which channels it belongs to and check it belongs to this channel
+        for (Peer peer : newChannel.getPeers()) {
+            Set<String> channels = client.queryChannels(peer);
+            if (!channels.contains(name)) {
+                throw new AssertionError(format("Peer %s does not appear to belong to channel %s", peer.getName(), name));
+            }
+        }
+
+        //Just see if we can get channelConfiguration. Not required for the rest of scenario but should work.
+        final byte[] channelConfigurationBytes = newChannel.getChannelConfigurationBytes();
+        Configtx.Config channelConfig = Configtx.Config.parseFrom(channelConfigurationBytes);
+
+        assertNotNull(channelConfig);
+
+        Configtx.ConfigGroup channelGroup = channelConfig.getChannelGroup();
+
+        assertNotNull(channelGroup);
+
+        Map<String, Configtx.ConfigGroup> groupsMap = channelGroup.getGroupsMap();
+
+        assertNotNull(groupsMap.get("Orderer"));
+
+        assertNotNull(groupsMap.get("Application"));
+
+        //Before return lets see if we have the chaincode on the peers that we expect from End2endIT
+        //And if they were instantiated too.
+
+        for (Peer peer : newChannel.getPeers()) {
+
+            if (!checkInstalledChaincode(client, peer, CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_VERSION)) {
+                throw new AssertionError(format("Peer %s is missing chaincode name: %s, path:%s, version: %s",
+                        peer.getName(), CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_PATH));
+            }
+
+            if (!checkInstantiatedChaincode(newChannel, peer, CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_VERSION)) {
+
+                throw new AssertionError(format("Peer %s is missing instantiated chaincode name: %s, path:%s, version: %s",
+                        peer.getName(), CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_PATH));
+            }
+
+        }
+
+        assertTrue(newChannel.isInitialized());
+        assertFalse(newChannel.isShutdown());
+
+        out("Finished reconstructing channel %s.", name);
+
+        return newChannel;
+    }

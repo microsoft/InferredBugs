@@ -1,0 +1,22 @@
+    @Override
+    public void stop() {
+        try {
+            this.lock.writeLock().lock();
+            this.stop = true;
+            this.torrentFileProvider.unRegisterListener(this);
+            this.thread.interrupt();
+            try {
+                this.thread.join();
+            } catch (final InterruptedException ignored) {
+            }
+            this.delayQueue.drainAll().stream()
+                    .filter(req -> req.getEvent() != RequestEvent.STARTED)
+                    .map(AnnounceRequest::getAnnouncer)
+                    .map(AnnounceRequest::createStop)
+                    .forEach(this.announcerExecutor::execute);
+
+            this.announcerExecutor.awaitForRunningTasks();
+        } finally {
+            this.lock.writeLock().unlock();
+        }
+    }

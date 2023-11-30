@@ -1,0 +1,75 @@
+    private PhotometricInterpreter getPhotometricInterpreter(
+            final TiffDirectory directory, final int photometricInterpretation,
+            final int bitsPerPixel, final int bitsPerSample[], final int predictor,
+            final int samplesPerPixel, final int width, final int height)
+            throws ImageReadException {
+        switch (photometricInterpretation) {
+        case 0:
+        case 1:
+            final boolean invert = photometricInterpretation == 0;
+
+            return new PhotometricInterpreterBiLevel(bitsPerPixel,
+                    samplesPerPixel, bitsPerSample, predictor, width, height,
+                    invert);
+        case 3: // Palette
+        {
+            final int colorMap[] = directory.findField(
+                    TiffTagConstants.TIFF_TAG_COLOR_MAP, true)
+                    .getIntArrayValue();
+
+            final int expected_colormap_size = 3 * (1 << bitsPerPixel);
+
+            if (colorMap.length != expected_colormap_size) {
+                throw new ImageReadException("Tiff: fColorMap.length ("
+                        + colorMap.length + ")!=expected_colormap_size ("
+                        + expected_colormap_size + ")");
+            }
+
+            return new PhotometricInterpreterPalette(samplesPerPixel,
+                    bitsPerSample, predictor, width, height, colorMap);
+        }
+        case 2: // RGB
+            return new PhotometricInterpreterRgb(samplesPerPixel,
+                    bitsPerSample, predictor, width, height);
+        case 5: // CMYK
+            return new PhotometricInterpreterCmyk(samplesPerPixel,
+                    bitsPerSample, predictor, width, height);
+        case 6: //
+        {
+            final double yCbCrCoefficients[] = directory.findField(
+                    TiffTagConstants.TIFF_TAG_YCBCR_COEFFICIENTS, true)
+                    .getDoubleArrayValue();
+
+            final int yCbCrPositioning[] = directory.findField(
+                    TiffTagConstants.TIFF_TAG_YCBCR_POSITIONING, true)
+                    .getIntArrayValue();
+            final int yCbCrSubSampling[] = directory.findField(
+                    TiffTagConstants.TIFF_TAG_YCBCR_SUB_SAMPLING, true)
+                    .getIntArrayValue();
+
+            final double referenceBlackWhite[] = directory.findField(
+                    TiffTagConstants.TIFF_TAG_REFERENCE_BLACK_WHITE, true)
+                    .getDoubleArrayValue();
+
+            return new PhotometricInterpreterYCbCr(yCbCrCoefficients,
+                    yCbCrPositioning, yCbCrSubSampling, referenceBlackWhite,
+                    samplesPerPixel, bitsPerSample, predictor, width, height);
+        }
+
+        case 8:
+            return new PhotometricInterpreterCieLab(samplesPerPixel,
+                    bitsPerSample, predictor, width, height);
+
+        case 32844:
+        case 32845: {
+            final boolean yonly = (photometricInterpretation == 32844);
+            return new PhotometricInterpreterLogLuv(samplesPerPixel,
+                    bitsPerSample, predictor, width, height, yonly);
+        }
+
+        default:
+            throw new ImageReadException(
+                    "TIFF: Unknown fPhotometricInterpretation: "
+                            + photometricInterpretation);
+        }
+    }

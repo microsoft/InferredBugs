@@ -1,0 +1,72 @@
+    private ResponseEntity<String> mina(IPageData pd, JSONObject paramIn, JSONObject paramOut, String userId, List<OwnerAppUserDto> ownerAppUserDtos) {
+
+        ResponseEntity<String> responseEntity = null;
+        //查询微信信息
+        pd = PageData.newInstance().builder(userId, "", "", pd.getReqData(),
+                "", "", "", "",
+                pd.getAppId());
+        responseEntity = this.callCenterService(restTemplate, pd, "",
+                ServiceConstant.SERVICE_API_URL + "/api/smallWeChat.listSmallWeChats?appId="
+                        + paramIn.getString("appId") + "&page=1&row=1", HttpMethod.GET);
+
+        if (responseEntity.getStatusCode() != HttpStatus.OK) {
+            return responseEntity;
+        }
+        JSONObject smallWechatObj = JSONObject.parseObject(responseEntity.getBody().toString());
+        JSONArray smallWeChats = smallWechatObj.getJSONArray("smallWeChats");
+        String appId = wechatAuthProperties.getAppId();
+        String secret = wechatAuthProperties.getSecret();
+        if (smallWeChats.size() > 0) {
+            appId = smallWeChats.getJSONObject(0).getString("appId");
+            secret = smallWeChats.getJSONObject(0).getString("appSecret");
+        }
+
+        String code = paramIn.getString("code");
+        String urlString = "?appid={appId}&secret={secret}&js_code={code}&grant_type={grantType}";
+        String response = outRestTemplate.getForObject(
+                wechatAuthProperties.getSessionHost() + urlString, String.class,
+                appId,
+                secret,
+                code,
+                wechatAuthProperties.getGrantType());
+
+        logger.debug("wechatAuthProperties:" + JSONObject.toJSONString(wechatAuthProperties));
+
+        logger.debug("微信返回报文：" + response);
+
+        //Assert.jsonObjectHaveKey(response, "errcode", "返回报文中未包含 错误编码，接口出错");
+        JSONObject responseObj = JSONObject.parseObject(response);
+
+        if (responseObj.containsKey("errcode") && !"0".equals(responseObj.getString("errcode"))) {
+            throw new IllegalArgumentException("微信验证失败，可能是code失效" + responseObj);
+        }
+
+        String openId = responseObj.getString("openid");
+
+        OwnerAppUserDto ownerAppUserDto = judgeCurrentOwnerBind(ownerAppUserDtos, OwnerAppUserDto.APP_TYPE_WECHAT_MINA);
+
+        //说明 当前的openId 就是最新的
+        if (ownerAppUserDto != null && openId.equals(ownerAppUserDto.getOpenId())) {
+            return new ResponseEntity<>(paramOut.toJSONString(), HttpStatus.OK);
+        }
+
+        OwnerAppUserDto tmpOwnerAppUserDto = new OwnerAppUserDto();
+        tmpOwnerAppUserDto.setOpenId(openId);
+        tmpOwnerAppUserDto.setAppType(OwnerAppUserDto.APP_TYPE_WECHAT_MINA);
+        if (ownerAppUserDto != null) {
+            tmpOwnerAppUserDto.setAppUserId(ownerAppUserDto.getAppUserId());
+            tmpOwnerAppUserDto.setCommunityId(ownerAppUserDto.getCommunityId());
+        } else {
+            tmpOwnerAppUserDto.setOldAppUserId(ownerAppUserDtos.get(0).getAppUserId());
+            tmpOwnerAppUserDto.setAppUserId("-1");
+            tmpOwnerAppUserDto.setCommunityId(ownerAppUserDtos.get(0).getCommunityId());
+        }
+        //查询微信信息
+        pd = PageData.newInstance().builder(userId, "", "", pd.getReqData(),
+                "", "", "", "",
+                pd.getAppId());
+
+        super.postForApi(pd, tmpOwnerAppUserDto, ServiceCodeConstant.REFRESH_APP_USER_BINDING_OWNER_OPEN_ID,
+                OwnerAppUserDto.class);
+        return new ResponseEntity<>(paramOut.toJSONString(), HttpStatus.OK);
+    }

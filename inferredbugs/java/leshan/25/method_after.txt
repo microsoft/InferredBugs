@@ -1,0 +1,42 @@
+    @Override
+    protected BootstrapWriteResponse doWrite(ServerIdentity identity, BootstrapWriteRequest request) {
+        LwM2mPath path = request.getPath();
+
+        // Manage Object case
+        if (path.isObject()) {
+            for (LwM2mObjectInstance instanceNode : ((LwM2mObject) request.getNode()).getInstances().values()) {
+                LwM2mInstanceEnabler instanceEnabler = instances.get(instanceNode.getId());
+                if (instanceEnabler == null) {
+                    doCreate(identity, new CreateRequest(path.getObjectId(), instanceNode));
+                } else {
+                    doWrite(identity, new WriteRequest(Mode.REPLACE, path.getObjectId(), instanceEnabler.getId(),
+                            instanceNode.getResources().values()));
+                }
+            }
+            return BootstrapWriteResponse.success();
+        }
+
+        // Manage Instance case
+        if (path.isObjectInstance()) {
+            LwM2mObjectInstance instanceNode = (LwM2mObjectInstance) request.getNode();
+            LwM2mInstanceEnabler instanceEnabler = instances.get(path.getObjectInstanceId());
+            if (instanceEnabler == null) {
+                doCreate(identity, new CreateRequest(path.getObjectId(), instanceNode));
+            } else {
+                doWrite(identity, new WriteRequest(Mode.REPLACE, request.getContentFormat(), path.getObjectId(),
+                        path.getObjectInstanceId(), instanceNode.getResources().values()));
+            }
+            return BootstrapWriteResponse.success();
+        }
+
+        // Manage resource case
+        LwM2mResource resource = (LwM2mResource) request.getNode();
+        LwM2mInstanceEnabler instanceEnabler = instances.get(path.getObjectInstanceId());
+        if (instanceEnabler == null) {
+            doCreate(identity, new CreateRequest(path.getObjectId(),
+                    new LwM2mObjectInstance(path.getObjectInstanceId(), resource)));
+        } else {
+            instanceEnabler.write(identity, path.getResourceId(), resource);
+        }
+        return BootstrapWriteResponse.success();
+    }

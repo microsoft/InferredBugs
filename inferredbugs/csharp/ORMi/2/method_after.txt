@@ -1,0 +1,23 @@
+        public static dynamic ExecuteMethod(object obj, dynamic parameters)
+        {
+            WindowsImpersonationContext impersonatedUser = WindowsIdentity.GetCurrent().Impersonate();
+
+            var frame = new StackTrace().GetFrames().Skip(2).First(x => x.GetMethod().DeclaringType.Namespace != "System.Dynamic");
+
+            string methodName = frame.GetMethod().Name;
+
+            ManagementClass genericClass = new ManagementClass(TypeHelper.GetNamespace(obj), TypeHelper.GetClassName(obj), null);
+
+            ManagementObject instance = TypeHelper.GetManagementObject(genericClass, obj);
+
+            ManagementBaseObject inParams = genericClass.GetMethodParameters(methodName);
+
+            foreach (PropertyInfo p in parameters.GetType().GetProperties())
+            {
+                inParams[p.Name] = p.GetValue(parameters);
+            }
+
+            ManagementBaseObject result = instance.InvokeMethod(methodName, inParams, null);
+
+            return TypeHelper.LoadDynamicObject(result);
+        }

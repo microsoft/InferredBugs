@@ -1,0 +1,37 @@
+    @Test
+    public void testDefaultFormat() throws IOException {
+        final String code = ""
+                + "a,b#\n"           // 1)
+                + "\"\n\",\" \",#\n"   // 2)
+                + "#,\"\"\n"         // 3)
+                + "# Final comment\n"// 4)
+                ;
+        final String[][] res = {
+                {"a", "b#"},
+                {"\n", " ", "#"},
+                {"#", ""},
+                {"# Final comment"}
+        };
+
+        CSVFormat format = CSVFormat.DEFAULT;
+        assertFalse(format.isCommentingEnabled());
+
+        CSVParser parser = CSVParser.parse(code, format);
+        List<CSVRecord> records = parser.getRecords();
+        assertTrue(records.size() > 0);
+
+        Utils.compare("Failed to parse without comments", res, records);
+
+        final String[][] res_comments = {
+                {"a", "b#"},
+                {"\n", " ", "#"},
+        };
+
+        format = CSVFormat.DEFAULT.withCommentStart('#');
+        parser.close();
+        parser = CSVParser.parse(code, format);
+        records = parser.getRecords();
+
+        Utils.compare("Failed to parse with comments", res_comments, records);
+        parser.close();
+    }

@@ -1,0 +1,48 @@
+    private void rfToSwaggerConverter(String projectId) {
+	Swagger swagger = new SwaggerParser().read("http://petstore.swagger.io/v2/swagger.json");
+
+	Project project = projectController.findById(null, projectId);
+	String projectNodeRefId = project.getProjectRef().getId();
+	
+	TreeNode projectNode = nodeController.getProjectTree(projectNodeRefId);
+	
+	swagger = new Swagger();
+	
+	//TODO : set host and basepath for swagger
+	//swagger.setHost(host);
+	//swagger.setBasePath(basePath);
+	
+	Info info = new Info();
+	info.setTitle(projectNode.getName());
+	info.setDescription(projectNode.getDescription());
+	swagger.setInfo(info);
+	
+	Map<String, Path> paths = new HashMap<>();
+	Path path = null;
+	String pathKey = null;
+	String method = null;
+	Operation op = null;
+	String operationId = null;
+	String summary = null;
+	List<TreeNode> children = projectNode.getChildren();
+	for (int i = 0; i < children.size(); i++) {
+	    TreeNode childNode = children.get(i);
+	    path = new Path();
+	    
+	    op = new Operation();
+	    operationId = childNode.getName();
+	    summary = childNode.getDescription();
+	    op.setOperationId(operationId);
+	    op.setSummary(summary);
+	    method = childNode.getMethod().toLowerCase();
+	    path.set(method, op);
+	    //TODO : pathKey is the relative url (for example /workspaces) from the api url
+	    pathKey = null;
+	    paths.put(pathKey, path);
+	}
+	
+	swagger.setPaths(paths);
+
+	JsonNode jsonNode = Json.mapper().convertValue(swagger, JsonNode.class);
+	System.out.println(jsonNode.toString());
+    }

@@ -1,0 +1,94 @@
+    @Override
+    public Object configure(Object c) throws Exception {
+
+        Map config = c instanceof Map ? (Map) c : Collections.EMPTY_MAP;
+
+        final Constructor constructor = getDataBoundConstructor(target);
+        if (constructor == null) {
+            throw new IllegalStateException(target.getName() + " is missing a @DataBoundConstructor");
+        }
+
+        final Parameter[] parameters = constructor.getParameters();
+        final String[] names = ClassDescriptor.loadParameterNames(constructor);
+        Object[] args = new Object[names.length];
+
+        if (parameters.length > 0) {
+            // Many jenkins components haven't been migrated to @DataBoundSetter vs @NotNull constructor parameters
+            // as a result it might be valid to reference a describable without parameters
+
+            for (int i = 0; i < names.length; i++) {
+                final Object value = config.remove(names[i]);
+                if (value == null && parameters[i].getAnnotation(Nonnull.class) != null) {
+                    throw new IllegalArgumentException(names[i] + " is required to configure " + target);
+                }
+                final Class t = parameters[i].getType();
+                if (value != null) {
+                    if (Collection.class.isAssignableFrom(t)) {
+                        if (!(value instanceof List)) {
+                            throw new IllegalArgumentException(names[i] + " should be a list");
+                        }
+                        final Type pt = parameters[i].getParameterizedType();
+                        final Configurator lookup = Configurator.lookup(pt);
+
+                        final ArrayList<Object> list = new ArrayList<>();
+                        for (Object o : (List) value) {
+                            list.add(lookup.configure(o));
+                        }
+                        args[i] = list;
+
+                    } else {
+                        final Type pt = parameters[i].getParameterizedType();
+                        final Type k = pt != null ? pt : t;
+                        final Configurator configurator = Configurator.lookup(k);
+                        if (configurator == null) throw new IllegalStateException("No configurator implementation to manage "+k);
+                        args[i] = configurator.configure(value);
+                    }
+                    System.out.println("Setting " + target + "." + names[i] + " = " + value);
+                } else if (t.isPrimitive()) {
+                    args[i] = Defaults.defaultValue(t);
+                }
+            }
+        }
+
+        final Object object;
+        try {
+            object = constructor.newInstance(args);
+        } catch (IllegalArgumentException ex) {
+             List<String> argumentTypes = new ArrayList<>(args.length);
+             for (Object arg : args) {
+                argumentTypes.add(arg != null ? arg.getClass().getName() : "null");
+             }
+             throw new IOException("Failed to construct instance of " + target +
+                    ". Constructor: " + constructor.toString() +
+                    ". Arguments: " + argumentTypes, ex);
+        }
+
+        final Set<Attribute> attributes = describe();
+
+        for (Attribute attribute : attributes) {
+            final String name = attribute.getName();
+            final Configurator lookup = Configurator.lookup(attribute.getType());
+            if (config.containsKey(name)) {
+                final Object yaml = config.get(name);
+                Object value;
+                if (attribute.isMultiple()) {
+                    List l = new ArrayList<>();
+                    for (Object o : (List) yaml) {
+                        l.add(lookup.configure(o));
+                    }
+                    value = l;
+                } else {
+                    value = lookup.configure(config.get(name));
+                }
+                attribute.setValue(object, value);
+            }
+        }
+
+        for (Method method : target.getMethods()) {
+            if (method.getParameterCount() == 0 && method.getAnnotation(PostConstruct.class) != null) {
+                method.invoke(object, null);
+            }
+        }
+
+        return object;
+    }

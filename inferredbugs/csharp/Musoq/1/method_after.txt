@@ -1,0 +1,28 @@
+        public void Visit(QueryNode node)
+        {
+            var orderBy = node.OrderBy != null ? Nodes.Pop() as OrderByNode : null;
+            var take = node.Take != null ? Nodes.Pop() as TakeNode : null;
+            var skip = node.Skip != null ? Nodes.Pop() as SkipNode : null;
+            var select = Nodes.Pop() as SelectNode;
+            var groupBy = node.GroupBy != null ? Nodes.Pop() as GroupByNode : null;
+            var where = node.Where != null ? Nodes.Pop() as WhereNode : null;
+            var from = Nodes.Pop() as FromNode;
+
+            if (groupBy == null && _refreshMethods.Count > 0)
+            {
+                groupBy = new GroupByNode(
+                    new[] { new FieldNode(new IntegerNode("1"), 0, string.Empty) }, null);
+            }
+
+            _currentScope.ScopeSymbolTable.AddSymbol(from.Alias.ToRefreshMethodsSymbolName(),
+                new RefreshMethodsSymbol(_refreshMethods));
+            _refreshMethods.Clear();
+
+            if (_currentScope.ScopeSymbolTable.SymbolIsOfType<TableSymbol>(string.Empty))
+                _currentScope.ScopeSymbolTable.MoveSymbol(string.Empty, from.Alias);
+
+            Methods.Push(from.Alias);
+            Nodes.Push(new QueryNode(select, from, where, groupBy, orderBy, skip, take));
+
+            _schemaFromArgs.Clear();
+        }

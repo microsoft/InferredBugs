@@ -1,0 +1,18 @@
+ @Test
+	public void whenWritingKeePassFileShouldBeAbleToReadItAgain() throws IOException {
+		// Read decrypted and write again
+		FileInputStream fileInputStream = new FileInputStream("target/test-classes/testDatabase_decrypted.xml");
+		KeePassDatabaseXmlParser parser = new KeePassDatabaseXmlParser();
+		KeePassFile keePassFile = parser.fromXml(fileInputStream);
+
+		ByteArrayOutputStream outputStream = parser.toXml(keePassFile);
+		OutputStream fileOutputStream = new FileOutputStream("target/test-classes/testDatabase_decrypted2.xml");
+		outputStream.writeTo(fileOutputStream);
+
+		// Read written file
+		FileInputStream writtenInputStream = new FileInputStream("target/test-classes/testDatabase_decrypted2.xml");
+		KeePassFile writtenKeePassFile = parser.fromXml(writtenInputStream);
+		new ProtectedValueProcessor().processProtectedValues(new DecryptionStrategy(Salsa20.createInstance(protectedStreamKey)), writtenKeePassFile);
+
+		Assert.assertEquals("Password", writtenKeePassFile.getEntryByTitle("Sample Entry").getPassword());
+	}

@@ -1,0 +1,34 @@
+    public boolean addBlockHashResponse(String nodeId, BlockHashResponse response) {
+        if (this.nodeIdList == null || !this.nodeIdList.contains(nodeId)) {
+            return false;
+        }
+        if (!requesting) {
+            return false;
+        }
+        if (response.getBestHeight() == 0 && NulsContext.getInstance().getBestHeight() > 0) {
+            hashesMap.remove(nodeId);
+            nodeIdList.remove(nodeId);
+            return false;
+        }
+        if (hashesMap.get(nodeId) == null) {
+            hashesMap.put(nodeId, response);
+        } else {
+            BlockHashResponse instance = hashesMap.get(nodeId);
+            instance.merge(response);
+            hashesMap.put(nodeId, instance);
+        }
+        if (response.getHeightList().get(response.getHeightList().size() - 1) < end) {
+            return true;
+        }
+        String key = response.getBestHash().getDigestHex();
+        List<String> nodes = calcMap.get(key);
+        if (null == nodes) {
+            nodes = new ArrayList<>();
+        }
+        if (!nodes.contains(nodeId)) {
+            nodes.add(nodeId);
+        }
+        calcMap.put(key, nodes);
+        calc();
+        return true;
+    }

@@ -1,0 +1,42 @@
+    public boolean sendMessage(GelfMessage message) {
+
+        if (isShutdown()) {
+            return false;
+        }
+
+        IOException exception = null;
+
+        for (int i = 0; i < deliveryAttempts; i++) {
+            try {
+
+                // (re)-connect if necessary
+                if (!isConnected()) {
+                    synchronized (ioLock) {
+                        connect();
+                    }
+                }
+                ByteBuffer buffer;
+                if (INITIAL_BUFFER_SIZE == 0) {
+                    buffer = message.toTCPBuffer();
+                } else {
+                    buffer = GelfBuffers.toTCPBuffer(message, writeBuffers);
+                }
+
+                synchronized (ioLock) {
+                    write(buffer);
+                }
+
+                return true;
+            } catch (IOException e) {
+                Closer.close(channel());
+                exception = e;
+            }
+        }
+
+        if (exception != null) {
+            reportError(exception.getMessage(),
+                    new IOException("Cannot send data to " + getHost() + ":" + getPort(), exception));
+        }
+
+        return false;
+    }

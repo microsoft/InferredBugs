@@ -1,0 +1,55 @@
+    private static Object getValue(final V8Array array, final int index, final V8Map<Object> cache) {
+        int valueType = array.getType(index);
+        switch (valueType) {
+            case V8Value.INTEGER:
+                return array.getInteger(index);
+            case V8Value.DOUBLE:
+                return array.getDouble(index);
+            case V8Value.BOOLEAN:
+                return array.getBoolean(index);
+            case V8Value.STRING:
+                return array.getString(index);
+            case V8Value.V8_FUNCTION:
+                return IGNORE;
+            case V8Value.V8_ARRAY_BUFFER:
+                V8ArrayBuffer buffer = (V8ArrayBuffer) array.get(index);
+                try {
+                    return buffer.getBackingStore();
+                } finally {
+                    buffer.release();
+                }
+            case V8Value.V8_TYPED_ARRAY:
+                V8Array typedArray = array.getArray(index);
+                try {
+                    return toByteBuffer(typedArray);
+                } finally {
+                    if (typedArray instanceof V8Array) {
+                        typedArray.release();
+                    }
+                }
+            case V8Value.V8_ARRAY:
+                V8Array arrayValue = array.getArray(index);
+                try {
+                    return toList(arrayValue, cache);
+                } finally {
+                    if (arrayValue instanceof V8Array) {
+                        arrayValue.release();
+                    }
+                }
+            case V8Value.V8_OBJECT:
+                V8Object objectValue = array.getObject(index);
+                try {
+                    return toMap(objectValue, cache);
+                } finally {
+                    if (objectValue instanceof V8Object) {
+                        objectValue.release();
+                    }
+                }
+            case V8Value.NULL:
+                return null;
+            case V8Value.UNDEFINED:
+                return V8.getUndefined();
+            default:
+                throw new IllegalStateException("Cannot find type for index: " + index);
+        }
+    }

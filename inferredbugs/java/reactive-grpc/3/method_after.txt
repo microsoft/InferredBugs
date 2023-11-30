@@ -1,0 +1,21 @@
+    @Test
+    public void bidiBackpressure() throws InterruptedException {
+        RxNumbersGrpc.RxNumbersStub stub = RxNumbersGrpc.newRxStub(channel);
+
+        Flowable<NumberProto.Number> rxRequest = Flowable
+                .fromIterable(IntStream.range(0, NUMBER_OF_STREAM_ELEMENTS)::iterator)
+                .doOnNext(i -> System.out.println(i + " --> "))
+                .doOnNext(i -> updateNumberOfWaits(clientLastValueTime, clientNbOfWaits))
+                .map(BackpressureIntegrationTest::protoNum);
+
+        TestSubscriber<NumberProto.Number> rxResponse = stub.twoWayPressure(rxRequest)
+                .doOnNext(n -> System.out.println(n.getNumber(0) + "  <--"))
+                .doOnNext(n -> waitIfValuesAreEqual(n.getNumber(0), 3))
+                .test();
+
+        rxResponse.awaitTerminalEvent(5, TimeUnit.SECONDS);
+        rxResponse.assertComplete().assertValueCount(NUMBER_OF_STREAM_ELEMENTS);
+
+        assertThat(clientNbOfWaits.get()).isEqualTo(1);
+        assertThat(serverNumberOfWaits.get()).isEqualTo(1);
+    }

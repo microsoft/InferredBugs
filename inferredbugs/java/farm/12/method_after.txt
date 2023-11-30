@@ -1,0 +1,54 @@
+    public String pay(final Project project,
+        final String login, final Cash amount,
+        final String reason) throws IOException {
+        final People people = new People(this.farm).bootstrap();
+        final String wallet = people.wallet(login);
+        if (wallet.isEmpty()) {
+            throw new SoftException(
+                new Par(
+                    "@%s doesn't have payment method configured, we can't pay"
+                ).say(login)
+            );
+        }
+        final String method = people.bank(login);
+        if (!this.banks.containsKey(method)) {
+            throw new SoftException(
+                new Par(
+                    "@%s has an unsupported payment method \"%s\""
+                ).say(login, method)
+            );
+        }
+        final Bank bank = this.banks.get(method);
+        final Cash commission = bank.fee(amount);
+        final String pid = bank.pay(
+            wallet, amount, new Par.ToText(reason).toString()
+        );
+        new Ledger(project).bootstrap().add(
+            new Ledger.Transaction(
+                amount.add(commission),
+                "liabilities", method,
+                "assets", "cash",
+                String.format(
+                    "%s (amount:%s, commission:%s, PID:%s)",
+                    new Par.ToText(reason).toString(),
+                    amount, commission, pid
+                )
+            ),
+            new Ledger.Transaction(
+                commission,
+                "expenses", "jobs",
+                "liabilities", method,
+                String.format(
+                    "%s (commission)",
+                    new Par.ToText(reason).toString()
+                )
+            ),
+            new Ledger.Transaction(
+                amount,
+                "expenses", "jobs",
+                "liabilities", String.format("@%s", login),
+                reason
+            )
+        );
+        return pid;
+    }

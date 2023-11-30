@@ -1,0 +1,23 @@
+  @Procedure(mode = Mode.READ)
+  @Description(
+      "Parses RDF and streams each triple as a record with <S,P,O> along with datatype and "
+          + "language tag for Literal values. No writing to the DB.")
+  public Stream<StreamedStatement> streamRDF(@Name("url") String url, @Name("format") String format,
+      @Name(value = "params", defaultValue = "{}") Map<String, Object> props) {
+    Preconditions.checkArgument(
+        Arrays.stream(availableParsers).anyMatch(x -> x.getName().equals(format)),
+        "Input format not supported");
+    final boolean verifyUriSyntax = (props.containsKey("verifyUriSyntax") ? (Boolean) props
+        .get("verifyUriSyntax") : true);
+
+    StatementStreamer statementStreamer = new StatementStreamer(new RDFParserConfig(props));
+    try {
+      parseRDF(getInputStream(url, props), url, format, statementStreamer);
+    } catch (IOException | RDFHandlerException | QueryExecutionException | RDFParseException | RDFImportPreRequisitesNotMet e) {
+      e.printStackTrace();
+      statementStreamer.setErrorMsg(e.getMessage());
+    }
+    return statementStreamer.getStatements().stream();
+
+
+  }

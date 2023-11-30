@@ -1,0 +1,20 @@
+  @Override
+  public void cleanup() throws DBException {
+    if (asyncExecutor != null) {
+      try {
+        asyncExecutor.flush();
+      } catch (IOException e) {
+        throw new DBException(e);
+      }
+    }
+    synchronized (threadCount) {
+      --threadCount;
+      if (threadCount <= 0) {
+        try {
+          session.close();
+        } catch (IOException e) {
+          throw new DBException(e);
+        }
+      }
+    }
+  }

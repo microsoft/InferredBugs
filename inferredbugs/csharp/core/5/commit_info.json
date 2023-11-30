@@ -1,0 +1,441 @@
+{
+    "hash": "4443b478751430521783cadf046348f6beaea6b2",
+    "message": "Use protobuf stable and reuse header object.",
+    "file_num_lines": 170,
+    "diff_parsed": {
+        "added": [
+            [
+                61,
+                "        private readonly PrimitiveBlock _block = new PrimitiveBlock();"
+            ],
+            [
+                62,
+                "        private readonly BlobHeader _header = new BlobHeader();"
+            ],
+            [
+                63,
+                ""
+            ],
+            [
+                71,
+                "            _block.primitivegroup?.Clear();"
+            ],
+            [
+                72,
+                "            _block.stringtable?.s.Clear();"
+            ],
+            [
+                76,
+                "            var notFoundBut = true;"
+            ],
+            [
+                80,
+                "                if (!Serializer.TryReadLengthPrefix(_stream, PrefixStyle.Fixed32BigEndian, out var length)) continue;"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                82,
+                "                // TODO: remove some of the v1 specific code."
+            ],
+            [
+                83,
+                "                // TODO: this means also to use the built-in capped streams."
+            ],
+            [
+                85,
+                "                // code borrowed from: http://stackoverflow.com/questions/4663298/protobuf-net-deserialize-open-street-maps"
+            ],
+            [
+                87,
+                "                // I'm just being lazy and re-using something \"close enough\" here"
+            ],
+            [
+                88,
+                "                // note that v2 has a big-endian option, but Fixed32 assumes little-endian - we"
+            ],
+            [
+                89,
+                "                // actually need the other way around (network byte order):"
+            ],
+            [
+                90,
+                "                // length = IntLittleEndianToBigEndian((uint)length);"
+            ],
+            [
+                92,
+                ""
+            ],
+            [
+                93,
+                "                // again, v2 has capped-streams built in, but I'm deliberately"
+            ],
+            [
+                94,
+                "                // limiting myself to v1 features"
+            ],
+            [
+                95,
+                "                BlobHeader header;"
+            ],
+            [
+                96,
+                "                using (var tmp = new LimitedStream(_stream, length))"
+            ],
+            [
+                97,
+                "                {"
+            ],
+            [
+                98,
+                "                    header = _runtimeTypeModel.Deserialize(tmp, _header, _blockHeaderType) as BlobHeader;"
+            ],
+            [
+                99,
+                "                }"
+            ],
+            [
+                100,
+                "                Blob blob;"
+            ],
+            [
+                101,
+                "                using (var tmp = new LimitedStream(_stream, header.datasize))"
+            ],
+            [
+                102,
+                "                {"
+            ],
+            [
+                103,
+                "                    blob = _runtimeTypeModel.Deserialize(tmp, null, _blobType) as Blob;"
+            ],
+            [
+                104,
+                "                }"
+            ],
+            [
+                106,
+                "                // construct the source stream, compressed or not."
+            ],
+            [
+                107,
+                "                Stream sourceStream = null;"
+            ],
+            [
+                108,
+                "                if (blob.zlib_data == null)"
+            ],
+            [
+                109,
+                "                { // use a regular uncompressed stream."
+            ],
+            [
+                110,
+                "                    sourceStream = new MemoryStream(blob.raw);"
+            ],
+            [
+                111,
+                "                }"
+            ],
+            [
+                112,
+                "                else"
+            ],
+            [
+                113,
+                "                { // construct a compressed stream."
+            ],
+            [
+                114,
+                "                    var ms = new MemoryStream(blob.zlib_data);"
+            ],
+            [
+                115,
+                "                    sourceStream = new ZLibStreamWrapper(ms);"
+            ],
+            [
+                116,
+                "                }"
+            ],
+            [
+                118,
+                "                // use the stream to read the block."
+            ],
+            [
+                119,
+                "                using (sourceStream)"
+            ],
+            [
+                120,
+                "                {"
+            ],
+            [
+                121,
+                "                    if (header.type == Encoder.OSMHeader)"
+            ],
+            [
+                123,
+                "                        _runtimeTypeModel.Deserialize(sourceStream, null, _headerBlockType);"
+            ],
+            [
+                124,
+                "                        notFoundBut = true;"
+            ],
+            [
+                125,
+                "                    }"
+            ],
+            [
+                127,
+                "                    if (header.type == Encoder.OSMData)"
+            ],
+            [
+                128,
+                "                    {"
+            ],
+            [
+                129,
+                "                        block = _runtimeTypeModel.Deserialize(sourceStream, _block, _primitiveBlockType) as PrimitiveBlock;"
+            ]
+        ],
+        "deleted": [
+            [
+                61,
+                "        /// <summary>"
+            ],
+            [
+                62,
+                "        /// Holds a block object that can be reused."
+            ],
+            [
+                63,
+                "        /// </summary>"
+            ],
+            [
+                64,
+                "        private PrimitiveBlock _block = new PrimitiveBlock();"
+            ],
+            [
+                65,
+                ""
+            ],
+            [
+                73,
+                "            if (_block.primitivegroup != null)"
+            ],
+            [
+                74,
+                "            {"
+            ],
+            [
+                75,
+                "                _block.primitivegroup.Clear();"
+            ],
+            [
+                76,
+                "            }"
+            ],
+            [
+                77,
+                "            if (_block.stringtable != null)"
+            ],
+            [
+                78,
+                "            {"
+            ],
+            [
+                79,
+                "                _block.stringtable.s.Clear();"
+            ],
+            [
+                80,
+                "            }"
+            ],
+            [
+                84,
+                "            int length;"
+            ],
+            [
+                85,
+                "            bool notFoundBut = true;"
+            ],
+            [
+                89,
+                "                if (Serializer.TryReadLengthPrefix(_stream, PrefixStyle.Fixed32BigEndian, out length))"
+            ],
+            [
+                90,
+                "                {"
+            ],
+            [
+                91,
+                "                    // TODO: remove some of the v1 specific code."
+            ],
+            [
+                92,
+                "                    // TODO: this means also to use the built-in capped streams."
+            ],
+            [
+                94,
+                "                    // code borrowed from: http://stackoverflow.com/questions/4663298/protobuf-net-deserialize-open-street-maps"
+            ],
+            [
+                96,
+                "                    // I'm just being lazy and re-using something \"close enough\" here"
+            ],
+            [
+                97,
+                "                    // note that v2 has a big-endian option, but Fixed32 assumes little-endian - we"
+            ],
+            [
+                98,
+                "                    // actually need the other way around (network byte order):"
+            ],
+            [
+                99,
+                "                    // length = IntLittleEndianToBigEndian((uint)length);"
+            ],
+            [
+                101,
+                "                    BlobHeader header;"
+            ],
+            [
+                102,
+                "                    // again, v2 has capped-streams built in, but I'm deliberately"
+            ],
+            [
+                103,
+                "                    // limiting myself to v1 features"
+            ],
+            [
+                104,
+                "                    using (var tmp = new LimitedStream(_stream, length))"
+            ],
+            [
+                105,
+                "                    {"
+            ],
+            [
+                106,
+                "                        header = _runtimeTypeModel.Deserialize(tmp, null, _blockHeaderType) as BlobHeader;"
+            ],
+            [
+                107,
+                "                    }"
+            ],
+            [
+                108,
+                "                    Blob blob;"
+            ],
+            [
+                109,
+                "                    using (var tmp = new LimitedStream(_stream, header.datasize))"
+            ],
+            [
+                110,
+                "                    {"
+            ],
+            [
+                111,
+                "                        blob = _runtimeTypeModel.Deserialize(tmp, null, _blobType) as Blob;"
+            ],
+            [
+                112,
+                "                    }"
+            ],
+            [
+                114,
+                "                    // construct the source stream, compressed or not."
+            ],
+            [
+                115,
+                "                    Stream sourceStream = null;"
+            ],
+            [
+                116,
+                "                    if (blob.zlib_data == null)"
+            ],
+            [
+                117,
+                "                    { // use a regular uncompressed stream."
+            ],
+            [
+                118,
+                "                        sourceStream = new MemoryStream(blob.raw);"
+            ],
+            [
+                119,
+                "                    }"
+            ],
+            [
+                120,
+                "                    else"
+            ],
+            [
+                121,
+                "                    { // construct a compressed stream."
+            ],
+            [
+                122,
+                "                        var ms = new MemoryStream(blob.zlib_data);"
+            ],
+            [
+                123,
+                "                        sourceStream = new ZLibStreamWrapper(ms);"
+            ],
+            [
+                124,
+                "                    }"
+            ],
+            [
+                126,
+                "                    // use the stream to read the block."
+            ],
+            [
+                127,
+                "                    using (sourceStream)"
+            ],
+            [
+                129,
+                "                        if (header.type == Encoder.OSMHeader)"
+            ],
+            [
+                130,
+                "                        {"
+            ],
+            [
+                131,
+                "                            _runtimeTypeModel.Deserialize(sourceStream, null, _headerBlockType);"
+            ],
+            [
+                132,
+                "                            notFoundBut = true;"
+            ],
+            [
+                133,
+                "                        }"
+            ],
+            [
+                135,
+                "                        if (header.type == Encoder.OSMData)"
+            ],
+            [
+                136,
+                "                        {"
+            ],
+            [
+                137,
+                "                            block = _runtimeTypeModel.Deserialize<PrimitiveBlock>(sourceStream, _block, _primitiveBlockType);"
+            ],
+            [
+                138,
+                "                        }"
+            ]
+        ]
+    },
+    "num_lines_added": 49,
+    "num_lines_removed": 58
+}

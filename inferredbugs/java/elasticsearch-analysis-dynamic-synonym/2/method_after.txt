@@ -1,0 +1,22 @@
+ @Override
+	public SynonymMap reloadSynonymMap() {
+		try {
+			logger.info("start reload remote synonym from {}.", location);
+			Reader rulesReader = getReader();
+			SynonymMap.Builder parser = null;
+
+			if ("wordnet".equalsIgnoreCase(format)) {
+				parser = new WordnetSynonymParser(true, expand, analyzer);
+				((WordnetSynonymParser) parser).parse(rulesReader);
+			} else {
+				parser = new SolrSynonymParser(true, expand, analyzer);
+				((SolrSynonymParser) parser).parse(rulesReader);
+			}
+			return parser.build();
+		} catch (Exception e) {
+			logger.error("reload remote synonym {} error!", e, location);
+			throw new ElasticsearchIllegalArgumentException(
+					"could not reload remote synonyms file to build synonyms",
+					e);
+		}
+	}

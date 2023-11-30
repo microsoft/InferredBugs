@@ -1,0 +1,77 @@
+    void reArrangeBlocks() {
+        if (concurrentMapManager.isMaster()) {
+            List<MemberImpl> lsMembers = concurrentMapManager.lsMembers;
+            // make sue that all blocks are actually created
+            for (int i = 0; i < BLOCK_COUNT; i++) {
+                Block block = blocks[i];
+                if (block == null) {
+                    concurrentMapManager.getOrCreateBlock(i);
+                }
+            }
+            List<Block> lsBlocksToRedistribute = new ArrayList<Block>();
+            Map<Address, Integer> addressBlocks = new HashMap<Address, Integer>();
+            int storageEnabledMemberCount = 0;
+            for (MemberImpl member : lsMembers) {
+                if (!member.isSuperClient()) {
+                    addressBlocks.put(member.getAddress(), 0);
+                    storageEnabledMemberCount++;
+                }
+            }
+            if (storageEnabledMemberCount == 0) {
+                return;
+            }
+            int aveBlockOwnCount = BLOCK_COUNT / (storageEnabledMemberCount);
+            for (Block block : blocks) {
+                if (block.getOwner() == null) {
+                    lsBlocksToRedistribute.add(new Block(block));
+                } else {
+                    if (!block.isMigrating()) {
+                        Integer countInt = addressBlocks.get(block.getOwner());
+                        int count = (countInt == null) ? 0 : countInt;
+                        if (count >= aveBlockOwnCount) {
+                            lsBlocksToRedistribute.add(new Block(block));
+                        } else {
+                            count++;
+                            addressBlocks.put(block.getOwner(), count);
+                        }
+                    }
+                }
+            }
+            Set<Address> allAddress = addressBlocks.keySet();
+            lsBlocksToMigrate.clear();
+            setNewMembers:
+            for (Address address : allAddress) {
+                Integer countInt = addressBlocks.get(address);
+                int count = (countInt == null) ? 0 : countInt;
+                while (count < aveBlockOwnCount) {
+                    if (lsBlocksToRedistribute.size() > 0) {
+                        Block blockToMigrate = lsBlocksToRedistribute.remove(0);
+                        if (blockToMigrate.getOwner() == null) {
+                            blockToMigrate.setOwner(address);
+                        } else {
+                            blockToMigrate.setMigrationAddress(address);
+                            if (blockToMigrate.getOwner().equals(blockToMigrate.getMigrationAddress())) {
+                                blockToMigrate.setMigrationAddress(null);
+                            }
+                        }
+                        lsBlocksToMigrate.add(blockToMigrate);
+                        count++;
+                    } else {
+                        break setNewMembers;
+                    }
+                }
+            }
+            int addressIndex = 0;
+            final Address[] addresses = addressBlocks.keySet().toArray(new Address[]{});
+            final int addressLength = addresses.length;
+            for (int i = 0; i < BLOCK_COUNT; i++) {
+                Block block = blocks[i];
+                if (block.getOwner() == null) {
+                    block = new Block(block);
+                    int index = addressIndex++ % addressLength;
+                    block.setOwner(addresses[index]);
+                    lsBlocksToRedistribute.add(block);
+                }
+            }
+        }
+    }

@@ -1,0 +1,29 @@
+        public static IServiceCollection AddCustomizedServices(this IServiceCollection services, IConfiguration configuration)
+        {
+            //添加默认缓存组件
+            services.AddMemoryCache();
+            //添加Redis缓存组件
+            services.AddSingleton(typeof(ICacheService), new RedisCacheService(configuration.GetSection("Cache").Get<RedisCacheOptions>()));
+            //添加阿里云组件
+            services.AddSingleton(typeof(IAliyunSmsSend),new SmsSend(new AliyunOptions() { 
+                AccessKeyId=configuration.GetSection("Aliyun:AccessKeyId").Value,
+                AccessKeySecret= configuration.GetSection("Aliyun:AccessKeySecret").Value
+            }, configuration.GetSection("Aliyun:Sms").Get<SmsOptions>()));
+            //添加腾讯相关组件
+            services.AddSingleton(typeof(ITencentCaptcha), new TencentCaptcha(configuration.GetSection("Tencent:Captcha").Get<CaptchaOptions>()));
+            //添加邮件发送服务组件
+            services.AddSingleton(typeof(IEMailService),new EMailService(configuration.GetSection("Email").Get<EMailOptions>()));
+            //添加又拍云文件服务组件
+            services.AddSingleton(typeof(IUPyunService), new UPyunService(configuration.GetSection("UPyun").Get<UPyunOptions>()));
+            //添加消息队列(RabbitMQ)组件
+            services.AddSingleton(typeof(IRabbitMQService), new RabbitMQService(configuration.GetSection("RabbitMQ").Get<RabbitMQOptions>()));
+            //每个模块的注入处理
+            var sp = services.BuildServiceProvider();
+            var moduleInitializers = sp.GetServices<IModuleInitializer>();
+            foreach (var moduleInitializer in moduleInitializers)
+            {
+                moduleInitializer.ConfigureServices(services);
+            }
+            ServiceContext.RegisterServices(services);
+            return services;
+        }

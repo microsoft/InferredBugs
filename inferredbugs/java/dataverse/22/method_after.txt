@@ -1,0 +1,247 @@
+    public String indexDataset(Dataset dataset) {
+        logger.info("indexing dataset " + dataset.getId());
+        /**
+         * @todo should we use solrDocIdentifierDataset or
+         * IndexableObject.IndexableTypes.DATASET.getName() + "_" ?
+         */
+//        String solrIdPublished = solrDocIdentifierDataset + dataset.getId();
+        String solrIdPublished = determinePublishedDatasetSolrDocId(dataset);
+        String solrIdDraftDataset = IndexableObject.IndexableTypes.DATASET.getName() + "_" + dataset.getId() + IndexableDataset.DatasetState.WORKING_COPY.getSuffix();
+//        String solrIdDeaccessioned = IndexableObject.IndexableTypes.DATASET.getName() + "_" + dataset.getId() + IndexableDataset.DatasetState.DEACCESSIONED.getSuffix();
+        String solrIdDeaccessioned = determineDeaccesionedDatasetId(dataset);
+        StringBuilder debug = new StringBuilder();
+        debug.append("\ndebug:\n");
+        int numReleasedVersions = 0;
+        List<DatasetVersion> versions = dataset.getVersions();
+        for (DatasetVersion datasetVersion : versions) {
+            Long versionDatabaseId = datasetVersion.getId();
+            String versionTitle = datasetVersion.getTitle();
+            String semanticVersion = datasetVersion.getSemanticVersion();
+            DatasetVersion.VersionState versionState = datasetVersion.getVersionState();
+            if (versionState.equals(DatasetVersion.VersionState.RELEASED)) {
+                /**
+                 * @todo for performance, should just query this rather than
+                 * iterating. Would need a new SQL query/method
+                 */
+                numReleasedVersions += 1;
+            }
+            debug.append("version found with database id " + versionDatabaseId + "\n");
+            debug.append("- title: " + versionTitle + "\n");
+            debug.append("- semanticVersion-VersionState: " + semanticVersion + "-" + versionState + "\n");
+            List<FileMetadata> fileMetadatas = datasetVersion.getFileMetadatas();
+            List<String> fileInfo = new ArrayList<>();
+            for (FileMetadata fileMetadata : fileMetadatas) {
+                fileInfo.add(fileMetadata.getDataFile().getId() + ":" + fileMetadata.getLabel());
+            }
+            int numFiles = 0;
+            if (fileMetadatas != null) {
+                numFiles = fileMetadatas.size();
+            }
+            debug.append("- files: " + numFiles + " " + fileInfo.toString() + "\n");
+        }
+        DatasetVersion latestVersion = dataset.getLatestVersion();
+        String latestVersionStateString = latestVersion.getVersionState().name();
+        DatasetVersion.VersionState latestVersionState = latestVersion.getVersionState();
+        DatasetVersion releasedVersion = dataset.getReleasedVersion();
+        if (releasedVersion != null) {
+            if (releasedVersion.getVersionState().equals(DatasetVersion.VersionState.DEACCESSIONED)) {
+                DatasetVersion lookupAttempt2 = releasedVersion.getMostRecentlyReleasedVersion();
+                String message = "WARNING: called dataset.getReleasedVersion() but version returned was deaccessioned (database id "
+                        + releasedVersion.getId()
+                        + "). (releasedVersion.getMostRecentlyReleasedVersion() returns database id "
+                        + lookupAttempt2.getId() + " so that method may be better?). Look out for strange indexing results.";
+                logger.severe(message);
+                debug.append(message);
+            }
+        }
+        Map<DatasetVersion.VersionState, Boolean> desiredCards = new LinkedHashMap<>();
+        /**
+         * @todo refactor all of this below and have a single method that takes
+         * the map of desired cards (which correspond to Solr documents) as one
+         * of the arguments and does all the operations necessary to achieve the
+         * desired state.
+         */
+        StringBuilder results = new StringBuilder();
+        if (numReleasedVersions == 0) {
+            results.append("No published version, nothing will be indexed as ")
+                    .append(solrIdPublished).append("\n");
+            if (latestVersionState.equals(DatasetVersion.VersionState.DRAFT)) {
+
+                desiredCards.put(DatasetVersion.VersionState.DRAFT, true);
+                IndexableDataset indexableDraftVersion = new IndexableDataset(latestVersion);
+                String indexDraftResult = addOrUpdateDataset(indexableDraftVersion);
+                results.append("The latest version is a working copy (latestVersionState: ")
+                        .append(latestVersionStateString).append(") and indexing was attempted for ")
+                        .append(solrIdDraftDataset).append(" (limited discoverability). Result: ")
+                        .append(indexDraftResult).append("\n");
+
+                desiredCards.put(DatasetVersion.VersionState.DEACCESSIONED, false);
+                String deleteDeaccessionedResult = removeDeaccessioned(dataset);
+                results.append("Draft exists, no need for deaccessioned version. Deletion attempted for ")
+                        .append(solrIdDeaccessioned).append(" (and files). Result: ").append(deleteDeaccessionedResult);
+
+                desiredCards.put(DatasetVersion.VersionState.RELEASED, false);
+                /**
+                 * @todo delete published?
+                 */
+                /**
+                 * Desired state for existence of cards: {DRAFT=true,
+                 * DEACCESSIONED=false, RELEASED=false}
+                 *
+                 * No published version, nothing will be indexed as dataset_17
+                 *
+                 * The latest version is a working copy (latestVersionState:
+                 * DRAFT) and indexing was attempted for dataset_17_draft
+                 * (limited discoverability). Result: indexed dataset 17 as
+                 * dataset_17_draft. filesIndexed: [datafile_18_draft]
+                 *
+                 * Draft exists, no need for deaccessioned version. Deletion
+                 * attempted for dataset_17_deaccessioned (and files). Result:
+                 * Attempted to delete dataset_17_deaccessioned from Solr index.
+                 * updateReponse was:
+                 * {responseHeader={status=0,QTime=0}}Attempted to delete
+                 * datafile_18_deaccessioned from Solr index. updateReponse was:
+                 * {responseHeader={status=0,QTime=0}}
+                 */
+                String result = getDesiredCardState(desiredCards) + results.toString() + debug.toString();
+                logger.info(result);
+                return result;
+            } else if (latestVersionState.equals(DatasetVersion.VersionState.DEACCESSIONED)) {
+
+                desiredCards.put(DatasetVersion.VersionState.DEACCESSIONED, true);
+                IndexableDataset indexableDeaccessionedVersion = new IndexableDataset(latestVersion);
+                String indexDeaccessionedVersionResult = addOrUpdateDataset(indexableDeaccessionedVersion);
+                results.append("No draft version. Attempting to index as deaccessioned. Result: ").append(indexDeaccessionedVersionResult).append("\n");
+
+                desiredCards.put(DatasetVersion.VersionState.RELEASED, false);
+                String deletePublishedResults = removePublished(dataset);
+                results.append("No published version. Attempting to delete traces of published version from index. Result: ").append(deletePublishedResults);
+
+                desiredCards.put(DatasetVersion.VersionState.DRAFT, false);
+                /**
+                 * @todo delete drafts?
+                 */
+                /**
+                 * Desired state for existence of cards: {DEACCESSIONED=true,
+                 * RELEASED=false, DRAFT=false}
+                 *
+                 * No published version, nothing will be indexed as dataset_17
+                 *
+                 * No draft version. Attempting to index as deaccessioned.
+                 * Result: indexed dataset 17 as dataset_17_deaccessioned.
+                 * filesIndexed: []
+                 *
+                 * No published version. Attempting to delete traces of
+                 * published version from index. Result: Attempted to delete
+                 * dataset_17 from Solr index. updateReponse was:
+                 * {responseHeader={status=0,QTime=1}}Attempted to delete
+                 * datafile_18 from Solr index. updateReponse was:
+                 * {responseHeader={status=0,QTime=0}}
+                 */
+                String result = getDesiredCardState(desiredCards) + results.toString() + debug.toString();
+                logger.info(result);
+                return result;
+            } else {
+                return "No-op. Unexpected condition reached: No released version and latest version is neither draft nor deaccesioned";
+            }
+        } else if (numReleasedVersions > 0) {
+            results.append("Released versions found: ").append(numReleasedVersions)
+                    .append(". Will attempt to index as ").append(solrIdPublished).append(" (discoverable by anonymous)\n");
+            if (latestVersionState.equals(DatasetVersion.VersionState.RELEASED)
+                    || latestVersionState.equals(DatasetVersion.VersionState.DEACCESSIONED)) {
+
+                desiredCards.put(DatasetVersion.VersionState.RELEASED, true);
+                IndexableDataset indexableReleasedVersion = new IndexableDataset(releasedVersion);
+                String indexReleasedVersionResult = addOrUpdateDataset(indexableReleasedVersion);
+                results.append("Attempted to index " + solrIdPublished).append(". Result: ").append(indexReleasedVersionResult).append("\n");
+
+                desiredCards.put(DatasetVersion.VersionState.DRAFT, false);
+                List<String> solrDocIdsForDraftFilesToDelete = findSolrDocIdsForDraftFilesToDelete(dataset);
+                String deleteDraftDatasetVersionResult = removeSolrDocFromIndex(solrIdDraftDataset);
+                StringBuilder deleteDraftFilesResults = new StringBuilder();
+                for (String doomed : solrDocIdsForDraftFilesToDelete) {
+                    String result = removeSolrDocFromIndex(doomed);
+                    deleteDraftFilesResults.append(result);
+                }
+                results.append("The latest version is published. Attempting to delete drafts. Result: ")
+                        .append(deleteDraftDatasetVersionResult).append(deleteDraftFilesResults).append("\n");
+
+                desiredCards.put(DatasetVersion.VersionState.DEACCESSIONED, false);
+                String deleteDeaccessionedResult = removeDeaccessioned(dataset);
+                results.append("No need for deaccessioned version. Deletion attempted for ")
+                        .append(solrIdDeaccessioned).append(". Result: ").append(deleteDeaccessionedResult);
+                /**
+                 * Desired state for existence of cards: {RELEASED=true,
+                 * DRAFT=false, DEACCESSIONED=false}
+                 *
+                 * Released versions found: 1. Will attempt to index as
+                 * dataset_17 (discoverable by anonymous)
+                 *
+                 * Attempted to index dataset_17. Result: indexed dataset 17 as
+                 * dataset_17. filesIndexed: [datafile_18]
+                 *
+                 * The latest version is published. Attempting to delete drafts.
+                 * Result: Attempted to delete dataset_17_draft from Solr index.
+                 * updateReponse was: {responseHeader={status=0,QTime=1}}
+                 *
+                 * No need for deaccessioned version. Deletion attempted for
+                 * dataset_17_deaccessioned. Result: Attempted to delete
+                 * dataset_17_deaccessioned from Solr index. updateReponse was:
+                 * {responseHeader={status=0,QTime=1}}Attempted to delete
+                 * datafile_18_deaccessioned from Solr index. updateReponse was:
+                 * {responseHeader={status=0,QTime=0}}
+                 */
+                String result = getDesiredCardState(desiredCards) + results.toString() + debug.toString();
+                logger.info(result);
+                return result;
+            } else if (latestVersionState.equals(DatasetVersion.VersionState.DRAFT)) {
+
+                IndexableDataset indexableDraftVersion = new IndexableDataset(latestVersion);
+                desiredCards.put(DatasetVersion.VersionState.DRAFT, true);
+                String indexDraftResult = addOrUpdateDataset(indexableDraftVersion);
+                results.append("The latest version is a working copy (latestVersionState: ")
+                        .append(latestVersionStateString).append(") and will be indexed as ")
+                        .append(solrIdDraftDataset).append(" (limited visibility). Result: ").append(indexDraftResult).append("\n");
+
+                desiredCards.put(DatasetVersion.VersionState.RELEASED, true);
+                IndexableDataset indexableReleasedVersion = new IndexableDataset(releasedVersion);
+                String indexReleasedVersionResult = addOrUpdateDataset(indexableReleasedVersion);
+                results.append("There is a published version we will attempt to index. Result: ").append(indexReleasedVersionResult).append("\n");
+
+                desiredCards.put(DatasetVersion.VersionState.DEACCESSIONED, false);
+                String deleteDeaccessionedResult = removeDeaccessioned(dataset);
+                results.append("No need for deaccessioned version. Deletion attempted for ")
+                        .append(solrIdDeaccessioned).append(". Result: ").append(deleteDeaccessionedResult);
+                /**
+                 * Desired state for existence of cards: {DRAFT=true,
+                 * RELEASED=true, DEACCESSIONED=false}
+                 *
+                 * Released versions found: 1. Will attempt to index as
+                 * dataset_17 (discoverable by anonymous)
+                 *
+                 * The latest version is a working copy (latestVersionState:
+                 * DRAFT) and will be indexed as dataset_17_draft (limited
+                 * visibility). Result: indexed dataset 17 as dataset_17_draft.
+                 * filesIndexed: [datafile_18_draft]
+                 *
+                 * There is a published version we will attempt to index.
+                 * Result: indexed dataset 17 as dataset_17. filesIndexed:
+                 * [datafile_18]
+                 *
+                 * No need for deaccessioned version. Deletion attempted for
+                 * dataset_17_deaccessioned. Result: Attempted to delete
+                 * dataset_17_deaccessioned from Solr index. updateReponse was:
+                 * {responseHeader={status=0,QTime=1}}Attempted to delete
+                 * datafile_18_deaccessioned from Solr index. updateReponse was:
+                 * {responseHeader={status=0,QTime=0}}
+                 */
+                String result = getDesiredCardState(desiredCards) + results.toString() + debug.toString();
+                logger.info(result);
+                return result;
+            } else {
+                return "No-op. Unexpected condition reached: There is at least one published version but the latest version is neither published nor draft";
+            }
+        } else {
+            return "No-op. Unexpected condition reached: Negative number of released versions? Count was: " + numReleasedVersions;
+        }
+    }

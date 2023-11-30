@@ -1,0 +1,30 @@
+    @Override
+    @CacheEvict(value={"metaCaches","metaCache"},allEntries=true,beforeInvocation=true)
+    public void saveMeta(String type, String name, Integer mid) {
+        if (StringUtils.isNotBlank(type) && StringUtils.isNotBlank(name)){
+            MetaCond metaCond = new MetaCond();
+            metaCond.setName(name);
+            metaCond.setType(type);
+            List<MetaDomain> metas = metaDao.getMetasByCond(metaCond);
+            if (null == metas || metas.size() == 0){
+                MetaDomain metaDomain = new MetaDomain();
+                metaDomain.setName(name);
+                if (null != mid){
+                    MetaDomain meta = metaDao.getMetaById(mid);
+                    if (null != meta)
+                        metaDomain.setMid(mid);
+
+                    metaDao.updateMeta(metaDomain);
+                    //更新原有的文章分类
+                    contentService.updateCategory(meta.getName(), name);
+                } else {
+                    metaDomain.setType(type);
+                    metaDao.addMeta(metaDomain);
+                }
+            } else {
+                throw BusinessException.withErrorCode(ErrorConstant.Meta.META_IS_EXIST);
+
+            }
+
+        }
+    }

@@ -1,0 +1,15 @@
+    @Override
+    public long countEntitiesOfType(Class<?> entity) {
+        ClassInfo classInfo = session.metaData().classInfo(entity.getName());
+        if (classInfo == null) {
+            return 0;
+        }
+
+        RowModelQuery countStatement = new AggregateStatements().countNodesLabelledWith(classInfo.labels());
+        Transaction tx = session.ensureTransaction();
+
+        try (Neo4jResponse<RowModel> response = session.requestHandler().execute(countStatement, tx)) {
+            RowModel queryResult = response.next();
+            return queryResult == null ? 0 : ((Number) queryResult.getValues()[0]).longValue();
+        }
+    }

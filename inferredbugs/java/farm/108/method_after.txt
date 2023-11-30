@@ -1,0 +1,70 @@
+    @SuppressWarnings("unchecked")
+    public void exec() throws IOException {
+        Logger.info(this, "Farm is ready to start");
+        final ShutdownFarm.Hook shutdown = new ShutdownFarm.Hook();
+        final ClaimGuts cgts = new ClaimGuts();
+        final TestLocks locks = new TestLocks();
+        try (
+            final MessageSink farm = new MessageSink(
+                new ShutdownFarm(
+                    new ClaimsFarm(
+                        new TempFiles.Farm(
+                            new SmartFarm(
+                                new S3Farm(new ExtBucket().value(), locks),
+                                locks
+                            )
+                        ),
+                        cgts
+                    ),
+                    shutdown
+                ),
+                shutdown
+            );
+            final SlackRadar radar = new SlackRadar(farm);
+            final ClaimsRoutine claims = new ClaimsRoutine(farm)
+        ) {
+            new ExtMongobee(farm).apply();
+            farm.start(claims.messages());
+            cgts.add(claims.messages());
+            claims.start(shutdown);
+            new AsyncFunc<>(
+                input -> {
+                    new ExtTelegram(farm).value();
+                }
+            ).exec(null);
+            new AsyncFunc<>(
+                input -> {
+                    radar.refresh();
+                }
+            ).exec(null);
+            new GithubRoutine(farm).start();
+            new Pings(farm).start();
+            new FtCli(
+                new TkApp(
+                    farm,
+                    new FkRegex("/alias", new TkAlias(farm)),
+                    new FkRegex("/slack", new TkSlack(farm, radar)),
+                    new FkRegex("/viber", new TkViber(farm)),
+                    new FkRegex(
+                        "/ghook",
+                        new TkMethods(
+                            new TkSentry(farm, new TkGithub(farm)),
+                            HttpMethod.POST
+                        )
+                    ),
+                    new FkRegex(
+                        "/glhook",
+                        new TkMethods(
+                            new TkSentry(farm, new TkGitlab()),
+                            HttpMethod.POST
+                        )
+                    ),
+                    new FkRegex(
+                        "/zcallback",
+                        new TkZoldCallback(farm)
+                    )
+                ),
+                this.arguments
+            ).start(Exit.NEVER);
+        }
+    }

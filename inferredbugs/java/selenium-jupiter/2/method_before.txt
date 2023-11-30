@@ -1,0 +1,33 @@
+    @SuppressWarnings("unchecked")
+    private DriverHandler getDriverHandler(ExtensionContext extensionContext,
+            Parameter parameter, Class<?> type, Integer index,
+            Class<?> constructorClass, boolean isRemote)
+            throws InstantiationException, IllegalAccessException,
+            InvocationTargetException, NoSuchMethodException {
+        DriverHandler driverHandler;
+        String contextId = extensionContext.getUniqueId();
+        if (isRemote && !browserListMap.isEmpty()) {
+            List<Browser> browserListFromContextId = (List<Browser>) getValueFromContextId(
+                    browserListMap, contextId);
+            driverHandler = (DriverHandler) constructorClass
+                    .getDeclaredConstructor(Parameter.class,
+                            ExtensionContext.class, Browser.class)
+                    .newInstance(parameter, extensionContext,
+                            browserListFromContextId.get(index));
+
+        } else if (constructorClass.equals(OtherDriverHandler.class)
+                && !browserListMap.isEmpty()) {
+            driverHandler = (DriverHandler) constructorClass
+                    .getDeclaredConstructor(Parameter.class,
+                            ExtensionContext.class, Class.class)
+                    .newInstance(parameter, extensionContext, type);
+
+        } else {
+            driverHandler = (DriverHandler) constructorClass
+                    .getDeclaredConstructor(Parameter.class,
+                            ExtensionContext.class)
+                    .newInstance(parameter, extensionContext);
+
+        }
+        return driverHandler;
+    }

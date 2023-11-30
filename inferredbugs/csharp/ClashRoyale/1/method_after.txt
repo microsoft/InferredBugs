@@ -1,0 +1,34 @@
+        public void Add(SessionContext ctx, long sessionId)
+        {
+            lock (_syncObject)
+            {
+                if (!ContainsKey(sessionId))
+                {
+                    var session = new Session
+                    {
+                        Id = sessionId
+                    };
+
+                    session.Add(ctx);
+                    ctx.Session = session;
+
+                    Add(sessionId, session);
+                }
+                else
+                {
+                    var session = Get(sessionId);
+
+                    if (session.Count < 2)
+                    {
+                        session.Add(ctx);
+                        ctx.Session = session;
+                    }
+                    else
+                    {
+                        // since the tcp server can be restarted and the id resets
+                        Remove(sessionId);
+                        Add(ctx, sessionId);
+                    }
+                }
+            }
+        }

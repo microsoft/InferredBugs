@@ -1,0 +1,40 @@
+    private List<MappedProperty> getMappedProperties(ExecutableElement method, Map<String, Mapping> mappings) {
+        Element returnTypeElement = typeUtils.asElement( method.getReturnType() );
+        Element parameterElement = typeUtils.asElement( method.getParameters().get( 0 ).asType() );
+
+        List<MappedProperty> properties = new ArrayList<MappedProperty>();
+        List<ExecutableElement> sourceGetters = Filters.getterMethodsIn( parameterElement.getEnclosedElements() );
+        List<ExecutableElement> targetSetters = Filters.setterMethodsIn( returnTypeElement.getEnclosedElements() );
+
+        reportErrorIfMappedPropertiesDontExist( method, mappings, sourceGetters, targetSetters );
+
+        for ( ExecutableElement getterMethod : sourceGetters ) {
+            String sourcePropertyName = Executables.getPropertyName( getterMethod );
+            Mapping mapping = mappings.get( sourcePropertyName );
+
+            for ( ExecutableElement setterMethod : targetSetters ) {
+                String targetPropertyName = Executables.getPropertyName( setterMethod );
+
+                if ( targetPropertyName.equals( mapping != null ? mapping.getTargetName() : sourcePropertyName ) ) {
+                    properties.add(
+                        new MappedProperty(
+                            sourcePropertyName,
+                            getterMethod.getSimpleName().toString(),
+                            Executables.getCorrespondingSetterMethod( parameterElement, getterMethod )
+                                .getSimpleName()
+                                .toString(),
+                            retrieveReturnType( getterMethod ),
+                            mapping != null ? mapping.getTargetName() : targetPropertyName,
+                            Executables.getCorrespondingGetterMethod( returnTypeElement, setterMethod )
+                                .getSimpleName()
+                                .toString(),
+                            setterMethod.getSimpleName().toString(),
+                            retrieveParameter( setterMethod ).getType()
+                        )
+                    );
+                }
+            }
+        }
+
+        return properties;
+    }

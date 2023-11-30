@@ -1,0 +1,49 @@
+  private Node aliasAndInlineArguments(
+      Node fnTemplateRoot, LinkedHashMap<String, Node> argMap,
+      Set<String> namesToAlias) {
+
+    if (namesToAlias == null || namesToAlias.isEmpty()) {
+      // There are no names to alias, just inline the arguments directly.
+      Node result = FunctionArgumentInjector.inject(
+          fnTemplateRoot, null, argMap);
+      Preconditions.checkState(result == fnTemplateRoot);
+      return result;
+    } else {
+      // Create local alias of names that can not be safely
+      // used directly.
+
+      // An arg map that will be updated to contain the
+      // safe aliases.
+      Map<String, Node> newArgMap = Maps.newHashMap(argMap);
+
+      // Declare the alias in the same order as they
+      // are declared.
+      List<Node> newVars = Lists.newLinkedList();
+      // NOTE: argMap is a linked map so we get the parameters in the
+      // order that they were declared.
+      for (Entry<String, Node> entry : argMap.entrySet()) {
+        String name = entry.getKey();
+        if (namesToAlias.contains(name)) {
+          Node newValue = entry.getValue().cloneTree();
+          Node newNode = NodeUtil.newVarNode(name, newValue)
+              .copyInformationFromForTree(newValue);
+          newVars.add(0, newNode);
+          // Remove the parameter from the list to replace.
+          newArgMap.remove(name);
+        }
+      }
+
+      // Inline the arguments.
+      Node result = FunctionArgumentInjector.inject(
+          fnTemplateRoot, null, newArgMap);
+      Preconditions.checkState(result == fnTemplateRoot);
+
+      // Now that the names have been replaced, add the new aliases for
+      // the old names.
+      for (Node n : newVars) {
+        fnTemplateRoot.addChildToFront(n);
+      }
+
+      return result;
+    }
+  }

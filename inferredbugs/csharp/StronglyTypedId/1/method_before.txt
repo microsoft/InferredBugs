@@ -1,0 +1,26 @@
+        [Fact]
+        public void WhenEfCoreValueConverterUsesValueConverter()
+        {
+            var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+
+            var options = new DbContextOptionsBuilder<TestDbContext>()
+                .UseSqlite(connection)
+                .Options;
+
+            var original = new TestEntity { Id = Guid.NewGuid(), Name = new EfCoreStringId("some name") };
+            using (var context = new TestDbContext(options))
+            {
+                context.Database.EnsureCreated();
+                context.Entities.Add(original);
+                context.SaveChanges();
+            }
+
+            using (var context = new TestDbContext(options))
+            {
+                var all = context.Entities.ToList();
+                var retrieved = Assert.Single(all);
+                Assert.Equal(original.Id, retrieved.Id);
+                Assert.Equal(original.Name, retrieved.Name);
+            }
+        }

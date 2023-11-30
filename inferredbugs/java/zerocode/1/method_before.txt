@@ -1,0 +1,79 @@
+    @Override
+    public boolean runSteps(FlowSpec scenario, FlowStepStatusNotifier flowStepStatusNotifier) {
+
+        ScenarioExecutionState scenarioExecutionState = new ScenarioExecutionState();
+
+        for(Step thisStep : scenario.getSteps()){
+            // Another way to get the String
+            // String requestJson = objectMapper.valueToTree(thisStep.getRequest()).toString();
+
+            final String requestJsonAsString = thisStep.getRequest().toString();
+            LOGGER.info(String.format("\n###RAW: Journey:%s, Step:%s", scenario.getFlowName(), thisStep.getName()));
+
+            StepExecutionState stepExecutionState = new StepExecutionState();
+            stepExecutionState.addStep(thisStep.getName());
+
+            String resolvedRequestJson = jsonTestProcesor.resolveRequestJson(
+                    requestJsonAsString,
+                    scenarioExecutionState.getResolvedScenarioState()
+            );
+            stepExecutionState.addRequest(resolvedRequestJson);
+
+            String executionResult;
+            try{
+                String serviceName = thisStep.getUrl();
+                String operationName = thisStep.getOperation();
+
+                // REST call execution
+                Boolean isRESTCall = false;
+                if( serviceName != null && serviceName.contains("/")) {
+                    isRESTCall = true;
+                }
+                if(isRESTCall) {
+                    serviceName = getFullyQualifiedRestUrl(serviceName);
+                    executionResult = serviceExecutor.executeRESTService(serviceName, operationName, resolvedRequestJson);
+                }
+                else {
+                    executionResult = serviceExecutor.executeJavaService(serviceName, operationName, resolvedRequestJson);
+                }
+
+                stepExecutionState.addResponse(executionResult);
+                scenarioExecutionState.addStepState(stepExecutionState.getResolvedStep());
+
+                // Handle assertion section
+                String resolvedAssertionJson = jsonTestProcesor.resolveRequestJson(
+                        thisStep.getAssertions().toString(),
+                        scenarioExecutionState.getResolvedScenarioState()
+                );
+
+                LOGGER.info("\n---------> Assertion: <----------\n"
+                        + prettyPrintJson(resolvedAssertionJson));
+
+                // TODO: Collect the assertion result into this list, say field by field
+                List<JsonAsserter> asserters = jsonTestProcesor.createAssertersFrom(resolvedAssertionJson);
+                List<AssertionReport> failureResults = new ArrayList<>(); //<-- write code
+
+                // TODO: During this step: if assertion failed
+                if (!failureResults.isEmpty()) {
+                    return flowStepStatusNotifier.notifyFlowStepAssertionFailed(scenario.getFlowName(), thisStep.getName(), failureResults);
+                }
+
+                // TODO: Otherwise test passed
+                //return flowStepStatusNotifier.notifyFlowStepExecutionPassed(scenario.getFlowName(), thisStep.getName());
+
+            } catch(Exception ex){
+                // During this step: if any exception occurred
+                return flowStepStatusNotifier.notifyFlowStepExecutionException(
+                        scenario.getFlowName(),
+                        thisStep.getName(),
+                        new RuntimeException("Smart Step execution failed. Details:" + ex)
+                );
+            }
+        }
+
+        /*
+         *  There were no steps to execute and the framework will display the test status as Green than Red.
+         *  Red symbolises failure, but nothing has failed here.
+         */
+        return true;
+    }

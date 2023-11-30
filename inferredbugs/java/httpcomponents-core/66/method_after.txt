@@ -1,0 +1,33 @@
+    @Test
+    public void testInputBufferOperations() throws IOException {
+        ReadableByteChannel channel = new ReadableByteChannelMock(
+                new String[] {"stuff;", "more stuff"}, "US-ASCII");
+
+        ContentDecoder decoder = new ContentDecoderMock(channel);
+
+        SimpleInputBuffer buffer = new SimpleInputBuffer(4, new DirectByteBufferAllocator());
+        int count = buffer.consumeContent(decoder);
+        Assert.assertEquals(16, count);
+        Assert.assertTrue(decoder.isCompleted());
+
+        byte[] b1 = new byte[5];
+
+        int len = buffer.read(b1);
+        Assert.assertEquals("stuff", EncodingUtils.getAsciiString(b1, 0, len));
+
+        int c = buffer.read();
+        Assert.assertEquals(';', c);
+
+        byte[] b2 = new byte[1024];
+
+        len = buffer.read(b2);
+        Assert.assertEquals("more stuff", EncodingUtils.getAsciiString(b2, 0, len));
+
+        Assert.assertEquals(-1, buffer.read());
+        Assert.assertEquals(-1, buffer.read(b2));
+        Assert.assertEquals(-1, buffer.read(b2, 0, b2.length));
+        Assert.assertTrue(buffer.isEndOfStream());
+
+        buffer.reset();
+        Assert.assertFalse(buffer.isEndOfStream());
+    }

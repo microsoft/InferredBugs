@@ -1,0 +1,51 @@
+    @Override
+    public void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) {
+        try {
+            if (msg instanceof RpcMessage) {
+                RpcMessage rpcMessage = (RpcMessage) msg;
+
+                int fullLength = 13;
+                int headLength = 0;
+
+                // count head
+                byte[] headBytes = null;
+                Map<String, String> headMap = rpcMessage.getHeadMap();
+                if (headMap != null && !headMap.isEmpty()) {
+                    headBytes = HeadMapSerializer.getInstance().encode(headMap);
+                    headLength = headBytes.length;
+                    fullLength += headLength;
+                }
+
+                byte[] bodyBytes = null;
+                byte messageType = rpcMessage.getMessageType();
+                if (messageType != ProtocolConstants.MSGTYPE_HEARTBEAT_REQUEST
+                        && messageType != ProtocolConstants.MSGTYPE_HEARTBEAT_RESPONSE) {
+                    // heartbeat has no body
+                    Codec codec = CodecFactory.getCodec(rpcMessage.getCodec());
+                    bodyBytes = codec.encode(rpcMessage.getBody());
+                    fullLength += bodyBytes.length;
+                }
+
+                out.writeBytes(ProtocolConstants.MAGIC_CODE_BYTES);
+                out.writeByte(ProtocolConstants.VERSION);
+                out.writeInt(fullLength);
+                out.writeShort(headLength);
+                out.writeByte(messageType);
+                out.writeByte(rpcMessage.getCodec());
+                out.writeByte(rpcMessage.getCompressor());
+                out.writeInt(rpcMessage.getId());
+
+                if (headBytes != null) {
+                    out.writeBytes(headBytes);
+                }
+
+                if (bodyBytes != null) {
+                    out.writeBytes(bodyBytes);
+                }
+            } else {
+                throw new UnsupportedOperationException("Not support this class:" + msg.getClass());
+            }
+        } catch (Throwable e) {
+            LOGGER.error("Encode request error!", e);
+        } 
+    }

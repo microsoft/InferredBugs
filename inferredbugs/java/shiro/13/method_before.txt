@@ -1,0 +1,39 @@
+    public void send( AuthenticationEvent event ) {
+        if ( listeners != null && !listeners.isEmpty() ) {
+            synchronized ( listeners ) {
+                for ( AuthenticationEventListener ael : listeners ) {
+                    if ( event instanceof SuccessfulAuthenticationEvent) {
+                        ael.accountAuthenticated( event );
+                    } else if ( event instanceof UnlockedAccountEvent) {
+                        ael.accountUnlocked( event );
+                    } else if ( event instanceof LogoutEvent) {
+                        ael.accountLoggedOut( event );
+                    } else if ( event instanceof FailedAuthenticationEvent) {
+                        FailedAuthenticationEvent failedEvent = (FailedAuthenticationEvent)event;
+                        AuthenticationException cause = failedEvent.getCause();
+
+                        if ( cause != null && ( cause instanceof LockedAccountException ) ) {
+                            ael.accountLocked( event );
+                        } else {
+                            ael.authenticationFailed( event );
+                        }
+                    } else {
+                        String msg = "Received argument of type [" + event.getClass() + "].  This " +
+                                     "implementation can only send event instances of types " +
+                                     SuccessfulAuthenticationEvent.class.getName() + ", " +
+                                     FailedAuthenticationEvent.class.getName() + ", " +
+                                     UnlockedAccountEvent.class.getName() + ", or " +
+                                     LogoutEvent.class.getName();
+                        throw new IllegalArgumentException( msg );
+                    }
+                }
+            }
+        } else {
+            if ( log.isWarnEnabled() ) {
+                String msg = "internal listeners collection is null.  No " +
+                             "AuthenticationEventListeners will be notified of event [" +
+                             event + "]";
+                log.warn( msg );
+            }
+        }
+    }

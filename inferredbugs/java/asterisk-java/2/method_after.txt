@@ -1,0 +1,89 @@
+    public ResponseEvents sendEventGeneratingAction(
+            EventGeneratingAction action, long timeout) throws IOException,
+            EventTimeoutException, IllegalArgumentException,
+            IllegalStateException
+    {
+        ResponseEventsImpl responseEvents;
+        ResponseEventHandler responseEventHandler;
+        String internalActionId;
+
+        if (action == null)
+        {
+            throw new IllegalArgumentException(
+                    "Unable to send action: action is null.");
+        }
+        else if (action.getActionCompleteEventClass() == null)
+        {
+            throw new IllegalArgumentException(
+                    "Unable to send action: actionCompleteEventClass is null.");
+        }
+        else if (!ResponseEvent.class.isAssignableFrom(action
+                .getActionCompleteEventClass()))
+        {
+            throw new IllegalArgumentException(
+                    "Unable to send action: actionCompleteEventClass is not a ResponseEvent.");
+        }
+
+        if (socket == null)
+        {
+            throw new IllegalStateException("Unable to send "
+                    + action.getAction() + " action: not connected.");
+        }
+
+        responseEvents = new ResponseEventsImpl();
+        responseEventHandler = new ResponseEventHandler(responseEvents, action
+                .getActionCompleteEventClass());
+
+        internalActionId = createInternalActionId();
+
+        // register response handler...
+        synchronized (this.responseHandlers)
+        {
+            this.responseHandlers.put(internalActionId, responseEventHandler);
+        }
+
+        // ...and event handler.
+        synchronized (this.responseEventHandlers)
+        {
+            this.responseEventHandlers.put(internalActionId,
+                    responseEventHandler);
+        }
+
+        synchronized (responseEvents)
+        {
+            writer.sendAction(action, internalActionId);
+            try
+            {
+                responseEvents.wait(timeout);
+            }
+            catch (InterruptedException ex)
+            {
+                //TODO fix logging
+                System.err.println("Interrupted");
+            }
+        }
+
+        // still no response or not all events received and timed out?
+        if ((responseEvents.getResponse() == null || !responseEvents
+                .isComplete()))
+        {
+            // clean up
+            synchronized (this.responseEventHandlers)
+            {
+                this.responseEventHandlers.remove(internalActionId);
+            }
+
+            throw new EventTimeoutException(
+                    "Timeout waiting for response or response events to "
+                            + action.getAction(), responseEvents);
+        }
+
+        // remove the event handler (note: the response handler is removed
+        // automatically when the response is received)
+        synchronized (this.responseEventHandlers)
+        {
+            this.responseEventHandlers.remove(internalActionId);
+        }
+
+        return responseEvents;
+    }

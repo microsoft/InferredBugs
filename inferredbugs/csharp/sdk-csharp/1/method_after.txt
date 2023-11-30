@@ -1,0 +1,34 @@
+        public static Message<string, byte[]> ToKafkaMessage(this CloudEvent cloudEvent, ContentMode contentMode, CloudEventFormatter formatter)
+        {
+            // TODO: Is this appropriate? Why can't we transport a CloudEvent without data in Kafka?
+            if (cloudEvent.Data == null)
+            {
+                throw new ArgumentNullException(nameof(cloudEvent.Data));
+            }
+            var headers = MapHeaders(cloudEvent, formatter);
+            string key = (string) cloudEvent[Partitioning.PartitionKeyAttribute];
+            byte[] value;
+            string contentTypeHeaderValue;
+
+            if (contentMode == ContentMode.Structured)
+            {
+                value = formatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
+                // TODO: What about the non-media type parts?
+                contentTypeHeaderValue = contentType.MediaType;
+            }
+            else
+            {
+                value = formatter.EncodeBinaryModeEventData(cloudEvent);
+                contentTypeHeaderValue = cloudEvent.DataContentType;
+            }
+            if (contentTypeHeaderValue is object)
+            {
+                headers.Add(KafkaContentTypeAttributeName, Encoding.UTF8.GetBytes(contentTypeHeaderValue));
+            }
+            return new Message<string, byte[]>
+            {
+                Headers = headers,
+                Value = value,
+                Key = key
+            };
+        }

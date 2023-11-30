@@ -1,0 +1,39 @@
+    void close() throws IOException {
+        isClosing = true;
+
+        try {
+            if(!compactionManager.stopCompactionThread())
+                setIOErrorFlag();
+        } catch (IOException e) {
+            logger.error("Error while stopping compaction thread. Setting IOError flag", e);
+            setIOErrorFlag();
+        }
+
+        if (options.isCleanUpInMemoryIndexOnClose())
+            inMemoryIndex.close();
+
+        if (currentWriteFile != null) {
+            currentWriteFile.flushToDisk();
+            currentWriteFile.getIndexFile().flushToDisk();
+            currentWriteFile.close();
+        }
+        if (currentTombstoneFile != null) {
+            currentTombstoneFile.flushToDisk();
+            currentTombstoneFile.close();
+        }
+
+        for (HaloDBFile file : readFileMap.values()) {
+            file.close();
+        }
+
+        DBMetaData metaData = new DBMetaData(dbDirectory);
+        metaData.loadFromFileIfExists();
+        metaData.setOpen(false);
+        metaData.storeToFile();
+
+        dbDirectory.close();
+
+        if (dbLock != null) {
+            dbLock.close();
+        }
+    }

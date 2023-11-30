@@ -1,0 +1,37 @@
+  private IndexIterator getFuzzy(final byte[] tok, final int e) {
+    int[][] ft = null;
+    byte[] to;
+
+    int i = 0;
+    final int is = li.readBytes(0, 1L)[0];
+    int ts = li.readBytes(1L, 2L)[0];
+
+    int dif = Math.abs(tok.length - ts);
+    while (i < is && dif > e) {
+      i++;
+      ts = li.readBytes(1L + i * 5L, 1L + i * 5L + 1L)[0];
+      dif = Math.abs(tok.length - ts);
+    }
+    if (i == is) return null;
+
+    int p;
+    int pe;
+    while (i < is && dif <= e) {
+      p = li.readInt(1L + i * 5L + 1L);
+      pe = li.readInt(1L + (i + 1) * 5L + 1L);
+
+      while(p < pe) {
+        to = ti.readBytes(p, p + ts);
+        if (calcEQ(to, 0, tok, e)) {
+          // read data
+          ft = FTTrie.calculateFTOr(ft,
+              finish(getData(getPointerOnData(p, ts), getDataSize(p, ts))));
+        }
+        p += ts + 4L  + 5L;
+     }
+      i++;
+      ts = li.readBytes(1L + i * 5L, 1L + i * 5L + 1L)[0];
+      dif = Math.abs(tok.length - ts);
+    }
+    return new IndexArrayIterator(ft, true);
+  }

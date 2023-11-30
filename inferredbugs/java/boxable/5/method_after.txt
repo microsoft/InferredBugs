@@ -1,0 +1,96 @@
+    @Test
+    public void SampleTest2() throws IOException, COSVisitorException {
+
+        //Set margins
+        float margin = 10;
+
+        List<String[]> facts = getFacts();
+
+        //A list of bookmarks of all the tables
+        List<PDOutlineItem> bookmarks = new ArrayList<PDOutlineItem>();
+
+        //Initialize Document
+        PDDocument doc = new PDDocument();
+        PDPage page = addNewPage(doc);
+
+        //Initialize table
+        float tableWidth = page.findMediaBox().getWidth()-(2*margin);
+        float yStartNewPage = page.findMediaBox().getHeight() - (2 * margin);
+        boolean drawContent = true;
+        boolean drawLines = true;
+        float yStart = yStartNewPage;
+        float bottomMargin = 70;
+        BaseTable table = new BaseTable(yStart,yStartNewPage,bottomMargin,tableWidth, margin, doc, page, drawLines, drawContent);
+        
+
+        //Create Header row
+        Row headerRow = table.createRow(15f);
+        Cell cell = headerRow.createCell(100,"Awesome Facts About Belgium");
+        cell.setFont(PDType1Font.HELVETICA_BOLD);
+        cell.setFillColor(Color.BLACK);cell.setTextColor(Color.WHITE);
+
+        table.setHeader(headerRow);
+
+        //Create 2 column row
+        Row row = table.createRow(15f);
+        cell = row.createCell(75,"Source:");
+        cell.setFont(PDType1Font.HELVETICA);
+        
+        cell = row.createCell(25,"http://www.factsofbelgium.com/");
+        cell.setFont(PDType1Font.HELVETICA_OBLIQUE);
+
+        //Create Fact header row
+        Row factHeaderrow = table.createRow(15f);
+        cell = factHeaderrow.createCell((100/3) * 2 ,"Fact");
+        cell.setFont(PDType1Font.HELVETICA);
+        cell.setFontSize(6);
+        cell.setFillColor(Color.LIGHT_GRAY);
+
+        cell = factHeaderrow.createCell((100/3),"Tags");
+        cell.setFillColor(Color.LIGHT_GRAY);
+        cell.setFont(PDType1Font.HELVETICA_OBLIQUE);cell.setFontSize(6);
+
+        //Add multiple rows with random facts about Belgium
+        int bookmarkid = 0;
+        for(String[] fact : facts) {
+
+            row = table.createRow(10f);
+            cell = row.createCell((100/3)*2 ,fact[0]+ " " + fact[0]+ " " + fact[0]);
+            cell.setFont(PDType1Font.HELVETICA);cell.setFontSize(6);
+
+            //Create a bookmark for each record
+            PDOutlineItem outlineItem = new PDOutlineItem();
+            outlineItem.setTitle((++bookmarkid ) + ") " + fact[0]);
+            row.setBookmark( outlineItem);
+
+            for(int i = 1; i< fact.length; i++) {
+                cell = row.createCell((100/9) ,fact[i]);
+                cell.setFont(PDType1Font.HELVETICA_OBLIQUE);cell.setFontSize(6);
+            
+                //Set colors
+                if(fact[i].contains("beer"))cell.setFillColor(Color.yellow);
+                if(fact[i].contains("champion"))cell.setTextColor(Color.GREEN);
+
+            }
+        }
+        table.draw();
+
+        //Get all bookmarks of previous table
+        bookmarks.addAll(table.getBookmarks());
+
+        //Create document outline
+        PDDocumentOutline outline =  new PDDocumentOutline();
+
+        for(PDOutlineItem bm : bookmarks) {
+            outline.appendChild(bm);
+        }
+
+        doc.getDocumentCatalog().setDocumentOutline(outline);
+
+        //Save the document
+        File file = new File("target/BoxableSample2.pdf");
+        Files.createParentDirs(file);
+        doc.save(file);
+        doc.close();
+
+    }

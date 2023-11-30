@@ -1,0 +1,75 @@
+    protected void incomingCheckReceived(TransportAddress remoteAddress,
+                                         TransportAddress localAddress,
+                                         long             priority,
+                                         String           remoteUFrag,
+                                         String           localUFrag,
+                                         boolean          useCandidate)
+    {
+        if (isOver())
+        {
+            //means we already completed ICE and are happily running media
+            //the only reason we are called is most probably because the remote
+            //party is still sending Binding Requests our way and making sure we
+            //are still alive.
+            return;
+        }
+
+        String ufrag = null;
+        LocalCandidate localCandidate = null;
+
+        localCandidate = findLocalCandidate(localAddress);
+
+        if (localCandidate == null)
+        {
+            logger.info("No localAddress for this incoming checks: " +
+                    localAddress);
+            return;
+        }
+
+        Component parentComponent = localCandidate.getParentComponent();
+        RemoteCandidate remoteCandidate = null;
+
+        remoteCandidate = new RemoteCandidate(
+                remoteAddress,
+                parentComponent,
+                CandidateType.PEER_REFLEXIVE_CANDIDATE,
+                foundationsRegistry.obtainFoundationForPeerReflexiveCandidate(),
+                priority,
+                // We can not know the related candidate of a remote peer
+                // reflexive candidate. We must set it to "null".
+                null,
+                ufrag);
+
+        CandidatePair triggeredPair
+            = createCandidatePair(localCandidate, remoteCandidate);
+
+        logger.fine("set use-candidate " + useCandidate + " for pair " +
+            triggeredPair.toShortString());
+        if (useCandidate)
+        {
+            triggeredPair.setUseCandidateReceived();
+        }
+
+        synchronized(startLock)
+        {
+            if (isStarted())
+            {
+                //we are started, which means we have the remote candidates
+                //so it's now safe to go and see whether this is a new PR cand.
+                if (triggeredPair.getParentComponent().getSelectedPair() == null)
+                {
+                    logger.info("Received check from "
+                        + triggeredPair.toShortString() + " triggered a check. "
+                        + "Local ufrag " + getLocalUfrag());
+                }
+                triggerCheck(triggeredPair);
+            }
+            else
+            {
+                logger.fine("Receive STUN checks before our ICE has started");
+                //we are not started yet so we'd better wait until we get the
+                //remote candidates in case we are holding to a new PR one.
+                this.preDiscoveredPairsQueue.add(triggeredPair);
+            }
+        }
+    }

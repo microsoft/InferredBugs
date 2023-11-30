@@ -1,0 +1,116 @@
+    public static void parse(String[] args) {
+        if(instance!=null)
+            return;
+
+        try {
+            if (args.length != 1) {
+                System.err.println("USAGE: configFile");
+                System.exit(2);
+            }
+            File zooCfgFile = new File(args[0]);
+            if (!zooCfgFile.exists()) {
+                LOG.error(zooCfgFile.toString() + " file is missing");
+                System.exit(2);
+            }
+            Properties cfg = new Properties();
+            cfg.load(new FileInputStream(zooCfgFile));
+            ArrayList<QuorumServer> servers = new ArrayList<QuorumServer>();
+            String dataDir = null;
+            String dataLogDir = null;
+            int clientPort = 0;
+            int tickTime = 0;
+            int initLimit = 0;
+            int syncLimit = 0;
+            int electionAlg = 3;
+            int electionPort = 2182;
+            for (Entry<Object, Object> entry : cfg.entrySet()) {
+                String key = entry.getKey().toString();
+                String value = entry.getValue().toString();
+                if (key.equals("dataDir")) {
+                    dataDir = value;
+                } else if (key.equals("dataLogDir")) {
+                    dataLogDir = value;
+                } else if (key.equals("clientPort")) {
+                    clientPort = Integer.parseInt(value);
+                } else if (key.equals("tickTime")) {
+                    tickTime = Integer.parseInt(value);
+                } else if (key.equals("initLimit")) {
+                    initLimit = Integer.parseInt(value);
+                } else if (key.equals("syncLimit")) {
+                    syncLimit = Integer.parseInt(value);
+                } else if (key.equals("electionAlg")) {
+                    electionAlg = Integer.parseInt(value);
+                } else if (key.equals("electionPort")) {
+                    electionPort = Integer.parseInt(value);
+                } else if (key.startsWith("server.")) {
+                    int dot = key.indexOf('.');
+                    long sid = Long.parseLong(key.substring(dot + 1));
+                    String parts[] = value.split(":");
+                    if (parts.length != 2) {
+                        LOG.error(value
+                                + " does not have the form host:port");
+                    }
+                    InetSocketAddress addr = new InetSocketAddress(parts[0],
+                            Integer.parseInt(parts[1]));
+                    servers.add(new QuorumServer(sid, addr));
+                } else {
+                    System.setProperty("zookeeper." + key, value);
+                }
+            }
+            if (dataDir == null) {
+                LOG.error("dataDir is not set");
+                System.exit(2);
+            }
+            if (dataLogDir == null) {
+                dataLogDir = dataDir;
+            } else {
+                if (!new File(dataLogDir).isDirectory()) {
+                    LOG.error("dataLogDir " + dataLogDir+ " is missing.");
+                    System.exit(2);
+                }
+            }
+            if (clientPort == 0) {
+                LOG.error("clientPort is not set");
+                System.exit(2);
+            }
+            if (tickTime == 0) {
+                LOG.error("tickTime is not set");
+                System.exit(2);
+            }
+            if (servers.size() > 1 && initLimit == 0) {
+                LOG.error("initLimit is not set");
+                System.exit(2);
+            }
+            if (servers.size() > 1 && syncLimit == 0) {
+                LOG.error("syncLimit is not set");
+                System.exit(2);
+            }
+            QuorumPeerConfig conf = new QuorumPeerConfig(clientPort, dataDir,
+                    dataLogDir);
+            conf.tickTime = tickTime;
+            conf.initLimit = initLimit;
+            conf.syncLimit = syncLimit;
+            conf.electionAlg = electionAlg;
+            conf.electionPort = electionPort;
+            conf.servers = servers;
+            if (servers.size() > 1) {
+                File myIdFile = new File(dataDir, "myid");
+                if (!myIdFile.exists()) {
+                    LOG.error(myIdFile.toString() + " file is missing");
+                    System.exit(2);
+                }
+                BufferedReader br = new BufferedReader(new FileReader(myIdFile));
+                String myIdString = br.readLine();
+                try {
+                    conf.serverId = Long.parseLong(myIdString);
+                } catch (NumberFormatException e) {
+                    LOG.error(myIdString + " is not a number");
+                    System.exit(2);
+                }
+            }
+            instance=conf;
+        } catch (Exception e) {
+            LOG.error("FIXMSG",e);
+            System.exit(2);
+        }
+    }

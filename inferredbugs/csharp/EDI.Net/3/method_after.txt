@@ -1,0 +1,87 @@
+        private static void SerializeStructure(EdiWriter writer, Stack<EdiStructure> stack, EdiPathComparer structuralComparer = null) {
+            structuralComparer = structuralComparer ?? new EdiPathComparer(writer.Grammar);
+            var structure = stack.Peek();
+            var properies = structure.GetOrderedProperties(structuralComparer);
+            foreach (var property in properies) {
+                var value = property.Info.GetValue(structure.Instance);
+                if (property.ValueInfo != null) {
+                    var path = (EdiPath)writer.Path;
+                    var propertyPath = property.PathInfo.PathInternal;
+                    var container = stack.Skip(1).FirstOrDefault();
+                    if (propertyPath.Segment.IsWildcard) {
+                        if (container.Descriptor.Path.HasValue && !container.Descriptor.Path.Value.Segment.IsWildcard) {
+                            propertyPath = new EdiPath(container.Descriptor.Path.Value.Segment, propertyPath.Element, propertyPath.Component);
+                        }
+                    }
+                    if (propertyPath.Element.IsWildcard) {
+                        propertyPath = new EdiPath(propertyPath.Segment, new EdiPathFragment(structure.Index.ToString()), propertyPath.Component);
+                    }
+                    if (path.Segment != propertyPath.Segment ||
+                        structuralComparer.Compare(path, propertyPath) > 0) {
+                        writer.WriteSegmentName(propertyPath.Segment);
+                        path = (EdiPath)writer.Path;
+                    }
+                    // the following loop handles the write of unmapped preceding elements/components to the one being writen 
+                    // so that path progression stays intact even though we do not have all properties present on the model.
+
+                    while (structuralComparer.Compare(path, propertyPath) < 0) {
+                        if (!path.Element.Equals(propertyPath.Element)) {
+                            if (path.ElementIndex == 0 && writer.WriteState != WriteState.Component && writer.WriteState != WriteState.Element)
+                                writer.WriteToken(EdiToken.Null);
+                            else
+                                writer.WriteToken(EdiToken.ElementStart);
+                        } else if (!path.Component.Equals(propertyPath.Component)) {
+                            if (path.ComponentIndex == 0 && writer.WriteState != WriteState.Component)
+                                writer.WriteToken(EdiToken.Null);
+                            else
+                                writer.WriteToken(EdiToken.ComponentStart);
+                        }
+                        path = (EdiPath)writer.Path;
+                    }
+                    // handle auto generated values.
+                    if (property.AutoGenerationInfo != null) {
+                        // do stuff.
+                        // there should be plenty of things to work with inside the EdiWriter itself. 
+                        // We are already keeping keeping track of current position with an index.
+                        // But it may need to track more stuff in order for this to happen.
+                    }
+                    writer.WriteValue(value, property.ValueInfo.Picture, property.ValueInfo.Format);
+                } else {
+                    // this is somekind of structure. Group/Message/Segment/SegmentGroup/Element
+                    // is it a collection of some kind?
+                    var container = property.Attributes.InferStructure();
+                    if (property.Info.PropertyType.IsCollectionType()) {
+                        var itemType = default(Type);
+                        var collection = (value ?? new object[0]) as IList;
+                        if (property.Info.PropertyType.IsArray) {
+                            itemType = property.Info.PropertyType.GetElementType();
+                        } else {
+                            itemType = property.Info.PropertyType.GetGenericArguments().First();
+                        }
+                        for (var i = 0; i < collection.Count; i++) {
+                            var item = collection[i];
+                            if (stack.Count == 0) {
+                                throw new EdiException($"Serialization stack empty while in the middle of proccessing a collection of {itemType.Name}");
+                            }
+                            while (stack.Peek().StructureType >= container) {
+                                var previous = stack.Pop();
+                            }
+                            stack.Push(new EdiStructure(container, stack.Peek(), property, item, i, null));
+                            SerializeStructure(writer, stack, structuralComparer);
+                        }
+                    } else {
+                        // or a simple Container.
+                        if (stack.Count == 0) {
+                            throw new EdiException($"Serialization stack empty while in the middle of proccessing a collection of {property.Info.PropertyType.Name}");
+                        }
+                        while (stack.Peek().StructureType >= container) {
+                            var previous = stack.Pop();
+                        }
+                        if (value == null)
+                            continue;
+                        stack.Push(new EdiStructure(container, stack.Peek(), property, value));
+                        SerializeStructure(writer, stack, structuralComparer);
+                    }
+                }
+            }
+        }

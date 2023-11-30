@@ -1,0 +1,26 @@
+    public static void main(final String[] args) throws Exception {
+        final CommandLineArguments cla = parseCommandLine(args, TcpSocketServer.class, new CommandLineArguments());
+        if (cla.isHelp()) {
+            return;
+        }
+        if (cla.getConfigLocation() != null) {
+            ConfigurationFactory.setConfigurationFactory(new ServerConfigurationFactory(cla.getConfigLocation()));
+        }
+        final TcpSocketServer<ObjectInputStream> socketServer = TcpSocketServer
+                .createSerializedSocketServer(cla.getPort(), cla.getBacklog(), cla.getLocalBindAddress());
+        final Thread serverThread = new Log4jThread(socketServer);
+        serverThread.start();
+        if (cla.isInteractive()) {
+            final Charset enc = Charset.defaultCharset();
+            final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, enc));
+            while (true) {
+                final String line = reader.readLine();
+                if (line == null || line.equalsIgnoreCase("Quit") || line.equalsIgnoreCase("Stop")
+                        || line.equalsIgnoreCase("Exit")) {
+                    socketServer.shutdown();
+                    serverThread.join();
+                    break;
+                }
+            }
+        }
+    }

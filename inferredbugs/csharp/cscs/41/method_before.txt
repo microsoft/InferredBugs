@@ -1,0 +1,42 @@
+        protected override Variable Evaluate(ParsingScript script)
+        {
+            script.CurrentAssign = m_name;
+            Variable varValue = Utils.GetItem(script);
+
+            // First try processing as an object (with a dot notation):
+            Variable result = ProcessObject(script, varValue);
+            if (result != null)
+            {
+                return result;
+            }
+
+            // Check if the variable to be set has the form of x[a][b]...,
+            // meaning that this is an array element.
+            List<Variable> arrayIndices = Utils.GetArrayIndices(script, m_name, (string name) => { m_name = name; });
+
+            if (arrayIndices.Count == 0)
+            {
+                ParserFunction.AddGlobalOrLocalVariable(m_name, new GetVarFunction(varValue));
+                Variable retVar = varValue.DeepClone();
+                retVar.CurrentAssign = m_name;
+                return retVar;
+                //return varValue.DeepClone();
+            }
+
+            Variable array;
+
+            ParserFunction pf = ParserFunction.GetFunction(m_name, script);
+            if (pf != null)
+            {
+                array = pf.GetValue(script);
+            }
+            else
+            {
+                array = new Variable();
+            }
+
+            ExtendArray(array, arrayIndices, 0, varValue);
+
+            ParserFunction.AddGlobalOrLocalVariable(m_name, new GetVarFunction(array));
+            return array;
+        }

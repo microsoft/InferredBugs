@@ -1,0 +1,54 @@
+    @EventHandler
+    public void onJoin(PlayerJoinEvent e) {
+        Player player = e.getPlayer();
+        User user = User.get(player);
+
+        if (user == null) {
+            user = User.create(player);
+        } else {
+            if (! user.getName().equals(player.getName())) {
+                user.setName(player.getName());
+            }
+        }
+
+        user.updateReference(player);
+        PluginConfiguration config = FunnyGuilds.getInstance().getPluginConfiguration();
+
+        if (config.playerListEnable && ! AbstractTablist.hasTablist(player)) {
+            AbstractTablist.createTablist(config.playerList, config.playerListHeader, config.playerListFooter, config.playerListPing, player);
+        }
+
+        UserCache cache = user.getCache();
+
+        if (cache.getScoreboard() == null) {
+            cache.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+        }
+
+        if (cache.getIndividualPrefix() == null && config.guildTagEnabled) {
+            IndividualPrefix prefix = new IndividualPrefix(user);
+            prefix.initialize();
+
+            cache.setIndividualPrefix(prefix);
+        }
+
+        ConcurrencyManager concurrencyManager = FunnyGuilds.getInstance().getConcurrencyManager();
+        concurrencyManager.postRequests(
+                new PrefixGlobalUpdatePlayer(player),
+                new DummyGlobalUpdateUserRequest(user),
+                new RankUpdateUserRequest(user)
+        );
+
+        this.plugin.getServer().getScheduler().runTaskLaterAsynchronously(this.plugin, () -> {
+            PacketExtension.registerPlayer(player);
+            FunnyGuildsVersion.isNewAvailable(player, false);
+
+            Region region = RegionUtils.getAt(player.getLocation());
+            if (region == null || region.getGuild() == null) {
+                return;
+            }
+            
+            if (config.createEntityType != null) {
+                GuildEntityHelper.spawnGuildHeart(region.getGuild(), player);
+            }
+        }, 30L);
+    }

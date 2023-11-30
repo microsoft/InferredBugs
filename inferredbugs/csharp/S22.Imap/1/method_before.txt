@@ -1,0 +1,30 @@
+  private string Authenticate(string tag, string username, string password,
+			string mechanism) {
+			SaslMechanism m = SaslFactory.Create(mechanism);
+			m.Properties.Add("Username", username);
+			m.Properties.Add("Password", password);
+			// OAuth and OAuth2 use access tokens.
+			m.Properties.Add("AccessToken", password);
+			string response = SendCommandGetResponse(tag + "AUTHENTICATE " + m.Name);
+			// If we get a BAD or NO response, the mechanism is not supported.
+			if (response.StartsWith(tag + "BAD") || response.StartsWith(tag + "NO")) {
+				throw new NotSupportedException("The requested authentication " +
+					"mechanism is not supported by the server.");
+			}
+			while (!m.IsCompleted) {
+				// Annoyingly, Gmail OAUTH2 issues an untagged capability response during
+				// the SASL authentication process. As per spec this is illegal, but we
+				// should still deal with it.
+				while (response.StartsWith("*"))
+					response = GetResponse();
+				// Stop if the server response starts with our tag.
+				if (response.StartsWith(tag))
+					break;
+				// Strip off continuation request '+'-character and possible whitespace.
+				string challenge = Regex.Replace(response, @"^\+\s?", String.Empty);
+				// Compute and send off the challenge-response.
+				response = m.GetResponse(challenge);
+				response = SendCommandGetResponse(response);
+			}
+			return response;
+		}

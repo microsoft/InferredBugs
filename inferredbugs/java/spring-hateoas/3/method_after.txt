@@ -1,0 +1,19 @@
+ @GetMapping("/employees/{id}")
+	public Mono<EntityModel<Employee>> findOne(@PathVariable Integer id) {
+
+		WebFluxEmployeeController controller = methodOn(WebFluxEmployeeController.class);
+
+		Mono<Link> selfLink = linkTo(controller.findOne(id)).withSelfRel() //
+				.andAffordance(controller.updateEmployee(null, id)) //
+				.andAffordance(controller.partiallyUpdateEmployee(null, id)) //
+				.toMono();
+
+		Mono<Link> employeesLink = linkTo(controller.all()).withRel("employees") //
+				.toMono();
+
+		return selfLink.zipWith(employeesLink) //
+				.map(function((left, right) -> Links.of(left, right))) //
+				.map(links -> {
+					return new EntityModel<>(EMPLOYEES.get(id), links);
+				});
+	}

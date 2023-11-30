@@ -1,0 +1,30 @@
+    void cancel(boolean waitForResponse)
+    {
+        // XXX The cancelled field is initialized to false and then the one and
+        // only write access to it is here to set it to true. The rest of the
+        // code just checks whether it has become true. Consequently, there
+        // shouldn't be a problem if the set is outside a synchronized block.
+        // However, it being outside a synchronized block will decrease the risk
+        // of deadlocks.
+        cancelled = true;
+
+        if(!waitForResponse)
+        {
+            // Try to interrupt #waitFor(long) if possible. But don't risk a
+            // deadlock. It is not a problem if it is not possible to interrupt
+            // #waitFor(long) here because it will complete in finite time and
+            // this StunClientTransaction will eventually notice that it has
+            // been cancelled.
+            if (lock.tryLock())
+            {
+                try
+                {
+                    lockCondition.signal();
+                }
+                finally
+                {
+                    lock.unlock();
+                }
+            }
+        }
+    }

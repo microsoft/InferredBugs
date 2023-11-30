@@ -1,0 +1,21 @@
+        protected override void AppendCrossJoin(DbExpression dbExpression)
+        {
+            var lambdaExp = dbExpression.Expressions[1] as LambdaExpression;
+            Type type = lambdaExp.Parameters[1].Type;
+            var typeRuntime = TypeRuntimeInfoCache.GetRuntimeInfo(type);
+            bool withNoLock = !typeRuntime.IsTemporary && _isNoLock && !string.IsNullOrEmpty(_withNoLock);
+
+            _builder.Append(' ');
+            _builder.AppendTable(typeRuntime.TableSchema, typeRuntime.TableName, typeRuntime.IsTemporary);
+
+            string alias = _ag.GetAlias(lambdaExp.Parameters[1]);
+            _builder.Append(' ');
+            _builder.Append(alias);
+            _builder.Append(' ');
+
+            if (withNoLock)
+            {
+                _builder.Append(_withNoLock);
+                _builder.Append(' ');
+            }
+        }

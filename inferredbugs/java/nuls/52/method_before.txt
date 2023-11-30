@@ -1,0 +1,14 @@
+    private void rollbackAppraval(Block block) {
+        if (null == block) {
+            Log.warn("the block is null!");
+            return;
+        }
+        this.rollbackTxList(block.getTxs(), 0, block.getTxs().size());
+        PackingRoundManager.getValidateInstance().calc(this.getBlock(block.getHeader().getPreHash().getDigestHex()));
+        List<String> hashList = this.bifurcateProcessor.getHashList(block.getHeader().getHeight() - 1);
+        if (hashList.size() > 1) {
+            Block preBlock = confirmingBlockCacheManager.getBlock(block.getHeader().getPreHash().getDigestHex());
+            context.setBestBlock(preBlock);
+            this.rollbackAppraval(preBlock);
+        }
+    }

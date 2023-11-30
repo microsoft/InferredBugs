@@ -1,0 +1,29 @@
+    @Override
+    protected boolean processEvent(WatchedEvent event) {
+        boolean foundEvent = false;
+        if (event.getPath().startsWith(MASTER_JOB_STATE_PATH) &&
+                (event.getType() == EventType.NodeChildrenChanged)) {
+            if (LOG.isInfoEnabled()) {
+                LOG.info("processEvent: Job state changed, checking " +
+                         "to see if it needs to restart");
+            }
+            JSONObject jsonObj = getJobState();
+            try {
+                if ((State.valueOf(jsonObj.getString(JSONOBJ_STATE_KEY)) ==
+                        State.START_SUPERSTEP) &&
+                        jsonObj.getLong(JSONOBJ_APPLICATION_ATTEMPT_KEY) !=
+                        getApplicationAttempt() &&
+                        getSuperstep() > 0) {
+                    LOG.fatal("processEvent: Worker will restart " +
+                              "from command - " + jsonObj.toString());
+                    System.exit(-1);
+                }
+            } catch (JSONException e) {
+                throw new RuntimeException(
+                    "processEvent: Couldn't properly get job state from " +
+                    jsonObj.toString());
+            }
+            return true;
+        }
+        return foundEvent;
+    }

@@ -1,0 +1,53 @@
+        protected override bool EvaluateTokenCore(JsonToken token, object? value, int depth)
+        {
+            if (!TryGetSchemaScopeBySchema(If!, token, value, depth, out SchemaScope? ifScope))
+            {
+                RaiseCircularDependencyError(ErrorType.None);
+                return true;
+            }
+
+            if (ifScope.IsValid)
+            {
+                ConditionalContext.TrackEvaluatedSchema(ifScope.Schema);
+
+                if (Then != null)
+                {
+                    if (!TryGetSchemaScopeBySchema(Then, token, value, depth, out SchemaScope? thenScope))
+                    {
+                        RaiseCircularDependencyError(ErrorType.Then);
+                        return true;
+                    }
+
+                    if (!thenScope.IsValid)
+                    {
+                        RaiseError($"JSON does not match schema from 'then'.", ErrorType.Then, Then, null, thenScope.GetValidationErrors());
+                    }
+                    else
+                    {
+                        ConditionalContext.TrackEvaluatedSchema(thenScope.Schema);
+                    }
+                }
+            }
+            else
+            {
+                if (Else != null)
+                {
+                    if (!TryGetSchemaScopeBySchema(Else, token, value, depth, out SchemaScope? elseScope))
+                    {
+                        RaiseCircularDependencyError(ErrorType.Else);
+                        return true;
+                    }
+
+                    if (!elseScope.IsValid)
+                    {
+                        RaiseError($"JSON does not match schema from 'else'.", ErrorType.Else, Else, null, elseScope.GetValidationErrors());
+                    }
+                    else
+                    {
+                        ConditionalContext.TrackEvaluatedSchema(elseScope.Schema);
+                    }
+                }
+            }
+
+            return true;
+        }

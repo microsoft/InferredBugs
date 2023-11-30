@@ -1,0 +1,27 @@
+    @Test
+    void shouldSaveNewCert() throws Throwable
+    {
+        // Given
+        int newPort = 200;
+        BoltServerAddress address = new BoltServerAddress( knownServerIp, newPort );
+        Logger logger = mock(Logger.class);
+        TrustOnFirstUseTrustManager manager = new TrustOnFirstUseTrustManager( address, knownCertsFile, logger );
+
+        String fingerprint = fingerprint( knownCertificate );
+
+        // When
+        manager.checkServerTrusted( new X509Certificate[]{knownCertificate}, null );
+
+        // Then no exception should've been thrown, and we should've logged that we now trust this certificate
+        verify( logger ).info( "Adding %s as known and trusted certificate for %s.", fingerprint, "1.2.3.4:200" );
+
+        // And the file should contain the right info
+        try ( Scanner reader = new Scanner( knownCertsFile ) )
+        {
+            String line1 = nextLine( reader );
+            assertEquals( knownServer + " " + fingerprint, line1 );
+            assertTrue( reader.hasNextLine() );
+            String line2 = nextLine( reader );
+            assertEquals( knownServerIp + ":" + newPort + " " + fingerprint, line2 );
+        }
+    }

@@ -1,0 +1,1869 @@
+{
+    "hash": "3b937e49b564f593511bc92ee929cb2945d77d3b",
+    "message": "Split the main work methods into smaller parts and remove redundant code",
+    "file_num_lines": 397,
+    "diff_parsed": {
+        "added": [
+            [
+                63,
+                "            if (await GetOrHeadIndicatesResourceStillValid(httpContext))"
+            ],
+            [
+                64,
+                "            {"
+            ],
+            [
+                65,
+                "                return;"
+            ],
+            [
+                66,
+                "            }"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                68,
+                "            if (await PutOrPostIndicatesResourceHasChanged(httpContext))"
+            ],
+            [
+                69,
+                "            {"
+            ],
+            [
+                70,
+                "                return;"
+            ],
+            [
+                71,
+                "            }"
+            ],
+            [
+                72,
+                ""
+            ],
+            [
+                73,
+                "            await HandleResponse(httpContext);"
+            ],
+            [
+                74,
+                "        }"
+            ],
+            [
+                76,
+                "        private async Task<bool> GetOrHeadIndicatesResourceStillValid(HttpContext httpContext)"
+            ],
+            [
+                77,
+                "        {"
+            ],
+            [
+                78,
+                "            // GET & If-None-Match / IfModifiedSince:"
+            ],
+            [
+                79,
+                "            // returns 304 when the resource hasn't been modified"
+            ],
+            [
+                80,
+                "            if (await ConditionalGetOrHeadIsValid(httpContext))"
+            ],
+            [
+                87,
+                "                return true;"
+            ],
+            [
+                90,
+                "            _logger.LogInformation(\"Don't generate 304 - Not Modified.  Continue.\");"
+            ],
+            [
+                91,
+                "            return false;"
+            ],
+            [
+                92,
+                "        }"
+            ],
+            [
+                93,
+                ""
+            ],
+            [
+                94,
+                "        private async Task<bool> PutOrPostIndicatesResourceHasChanged(HttpContext httpContext)"
+            ],
+            [
+                95,
+                "        {"
+            ],
+            [
+                100,
+                "            if (!(await ConditionalPutOrPatchIsValid(httpContext)))"
+            ],
+            [
+                107,
+                "                return true;"
+            ],
+            [
+                110,
+                "            _logger.LogInformation(\"Don't generate 412 - Precondition Failed.  Continue.\");"
+            ],
+            [
+                111,
+                "            return false;"
+            ],
+            [
+                112,
+                "        }"
+            ],
+            [
+                113,
+                ""
+            ],
+            [
+                114,
+                "        private async Task HandleResponse(HttpContext httpContext)"
+            ],
+            [
+                115,
+                "        {"
+            ],
+            [
+                164,
+                "        private async Task<bool> ConditionalGetOrHeadIsValid(HttpContext httpContext)"
+            ],
+            [
+                206,
+                "            // return the combined result of all validators."
+            ],
+            [
+                207,
+                "            return CheckIfNoneMatchIsValid(httpContext, validationValue) &&"
+            ],
+            [
+                208,
+                "                   CheckIfModifiedSinceIsValid(httpContext, validationValue);"
+            ],
+            [
+                209,
+                "        }"
+            ],
+            [
+                210,
+                ""
+            ],
+            [
+                211,
+                "        private bool CheckIfNoneMatchIsValid(HttpContext httpContext, ValidationValue validationValue)"
+            ],
+            [
+                212,
+                "        {"
+            ],
+            [
+                213,
+                "            if (!httpContext.Request.Headers.Keys.Contains(HeaderNames.IfNoneMatch))"
+            ],
+            [
+                215,
+                "                // if there is no IfNoneMatch header, the tag precondition is valid."
+            ],
+            [
+                216,
+                "                _logger.LogInformation(\"No If-None-Match header, don't check ETag.\");"
+            ],
+            [
+                217,
+                "                return true;"
+            ],
+            [
+                218,
+                "            }"
+            ],
+            [
+                220,
+                "            _logger.LogInformation(\"Checking If-None-Match.\");"
+            ],
+            [
+                221,
+                "            var ifNoneMatchHeaderValue = httpContext.Request.Headers[HeaderNames.IfNoneMatch].ToString().Trim();"
+            ],
+            [
+                222,
+                "            _logger.LogInformation($\"Checking If-None-Match: {ifNoneMatchHeaderValue}.\");"
+            ],
+            [
+                224,
+                "            // if the value is *, the check is valid."
+            ],
+            [
+                225,
+                "            if (ifNoneMatchHeaderValue == \"*\")"
+            ],
+            [
+                226,
+                "            {"
+            ],
+            [
+                227,
+                "                return true;"
+            ],
+            [
+                229,
+                ""
+            ],
+            [
+                230,
+                "            var eTagsFromIfNoneMatchHeader = ifNoneMatchHeaderValue.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries);"
+            ],
+            [
+                231,
+                ""
+            ],
+            [
+                232,
+                "            // check the ETag.  If one of the ETags matches, we're good to"
+            ],
+            [
+                233,
+                "            // go and can return a 304 Not Modified."
+            ],
+            [
+                234,
+                "            // For conditional GET/HEAD, we use weak comparison."
+            ],
+            [
+                235,
+                "            if (eTagsFromIfNoneMatchHeader.Any(eTag => ETagsMatch(validationValue.ETag, eTag.Trim(), false)))"
+            ],
+            [
+                237,
+                "                _logger.LogInformation($\"ETag valid: {validationValue.ETag}.\");"
+            ],
+            [
+                238,
+                "                return true;"
+            ],
+            [
+                241,
+                "            // if there is an IfNoneMatch header, but none of the eTags match, we don't take the"
+            ],
+            [
+                242,
+                "            // If-Modified-Since headers into account."
+            ],
+            [
+                243,
+                "            //"
+            ],
+            [
+                244,
+                "            // cfr: \"If none of the entity tags match, then the server MAY perform the requested method as if the"
+            ],
+            [
+                245,
+                "            // If-None-Match header field did not exist, but MUST also ignore any If-Modified-Since header field(s)"
+            ],
+            [
+                246,
+                "            // in the request. That is, if no entity tags match, then the server MUST NOT return a 304(Not Modified) response.\""
+            ],
+            [
+                247,
+                ""
+            ],
+            [
+                248,
+                "            _logger.LogInformation(\"Not valid. No match found for ETag.\");"
+            ],
+            [
+                249,
+                "            return false;"
+            ],
+            [
+                250,
+                "        }"
+            ],
+            [
+                251,
+                ""
+            ],
+            [
+                252,
+                "        private bool CheckIfModifiedSinceIsValid(HttpContext httpContext, ValidationValue validationValue)"
+            ],
+            [
+                253,
+                "        {"
+            ],
+            [
+                257,
+                "                // we can return a 304 Not Modified (If there's also a matching ETag)."
+            ],
+            [
+                264,
+                "                if (DateTimeOffset.TryParseExact("
+            ],
+            [
+                265,
+                "                    ifModifiedSinceValue,"
+            ],
+            [
+                266,
+                "                    \"r\","
+            ],
+            [
+                267,
+                "                    CultureInfo.InvariantCulture.DateTimeFormat,"
+            ],
+            [
+                268,
+                "                    DateTimeStyles.AdjustToUniversal,"
+            ],
+            [
+                271,
+                "                    return validationValue.LastModified.CompareTo(parsedIfModifiedSince) < 0;"
+            ],
+            [
+                273,
+                ""
+            ],
+            [
+                274,
+                "                // can only check if we can parse it. Invalid values must be ignored."
+            ],
+            [
+                275,
+                "                _logger.LogInformation(\"Cannot parse If-Modified-Since value as date, header is ignored.\");"
+            ],
+            [
+                276,
+                "                return true;"
+            ],
+            [
+                279,
+                "            // if there is no IfModifiedSince header, the check is valid."
+            ],
+            [
+                280,
+                "            _logger.LogInformation(\"No If-Modified-Since header.\");"
+            ],
+            [
+                281,
+                "            return true;"
+            ],
+            [
+                284,
+                "        private async Task<bool> ConditionalPutOrPatchIsValid(HttpContext httpContext)"
+            ],
+            [
+                329,
+                "            // return the combined result of all validators."
+            ],
+            [
+                330,
+                "            return CheckIfMatchIsValid(httpContext, validationValue) &&"
+            ],
+            [
+                331,
+                "                   CheckIfUnmodifiedSinceIsValid(httpContext, validationValue);"
+            ],
+            [
+                332,
+                "        }"
+            ],
+            [
+                333,
+                ""
+            ],
+            [
+                334,
+                "        private bool CheckIfMatchIsValid(HttpContext httpContext, ValidationValue validationValue)"
+            ],
+            [
+                335,
+                "        {"
+            ],
+            [
+                336,
+                "            if (!httpContext.Request.Headers.Keys.Contains(HeaderNames.IfMatch))"
+            ],
+            [
+                338,
+                "                // if there is no IfMatch header, the tag precondition is valid."
+            ],
+            [
+                339,
+                "                _logger.LogInformation(\"No If-Match header, don't check ETag.\");"
+            ],
+            [
+                340,
+                "                return true;"
+            ],
+            [
+                341,
+                "            }"
+            ],
+            [
+                343,
+                "            _logger.LogInformation(\"Checking If-Match.\");"
+            ],
+            [
+                344,
+                "            var ifMatchHeaderValue = httpContext.Request.Headers[HeaderNames.IfMatch].ToString().Trim();"
+            ],
+            [
+                345,
+                "            _logger.LogInformation($\"Checking If-Match: {ifMatchHeaderValue}.\");"
+            ],
+            [
+                346,
+                ""
+            ],
+            [
+                347,
+                "            // if the value is *, the check is valid."
+            ],
+            [
+                348,
+                "            if (ifMatchHeaderValue == \"*\")"
+            ],
+            [
+                349,
+                "            {"
+            ],
+            [
+                350,
+                "                return true;"
+            ],
+            [
+                352,
+                ""
+            ],
+            [
+                353,
+                "            // otherwise, check the actual ETag(s)"
+            ],
+            [
+                354,
+                "            var eTagsFromIfMatchHeader = ifMatchHeaderValue.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries);"
+            ],
+            [
+                355,
+                ""
+            ],
+            [
+                356,
+                "            // check the ETag.  If one of the ETags matches, the"
+            ],
+            [
+                357,
+                "            // ETag precondition is valid."
+            ],
+            [
+                358,
+                ""
+            ],
+            [
+                359,
+                "            // for concurrency checks, we use the strong"
+            ],
+            [
+                360,
+                "            // comparison function."
+            ],
+            [
+                361,
+                "            if (eTagsFromIfMatchHeader.Any(eTag => ETagsMatch(validationValue.ETag, eTag.Trim(), true)))"
+            ],
+            [
+                363,
+                "                _logger.LogInformation($\"ETag valid: {validationValue.ETag}.\");"
+            ],
+            [
+                364,
+                "                return true;"
+            ],
+            [
+                371,
+                "            _logger.LogInformation(\"Not valid. No match found for ETag.\");"
+            ],
+            [
+                372,
+                "            return false;"
+            ],
+            [
+                373,
+                "        }"
+            ],
+            [
+                374,
+                ""
+            ],
+            [
+                375,
+                "        private bool CheckIfUnmodifiedSinceIsValid(HttpContext httpContext, ValidationValue validationValue)"
+            ],
+            [
+                376,
+                "        {"
+            ],
+            [
+                386,
+                "                if (DateTimeOffset.TryParseExact("
+            ],
+            [
+                387,
+                "                    ifUnModifiedSinceValue,"
+            ],
+            [
+                388,
+                "                    \"r\","
+            ],
+            [
+                389,
+                "                    CultureInfo.InvariantCulture.DateTimeFormat,"
+            ],
+            [
+                390,
+                "                    DateTimeStyles.AdjustToUniversal,"
+            ],
+            [
+                395,
+                "                    return  validationValue.LastModified.CompareTo(parsedIfUnModifiedSince) < 0;"
+            ],
+            [
+                397,
+                ""
+            ],
+            [
+                398,
+                "                // can only check if we can parse it. Invalid values must be ignored."
+            ],
+            [
+                399,
+                "                _logger.LogInformation(\"Cannot parse If-Unmodified-Since value as date, header is ignored.\");"
+            ],
+            [
+                400,
+                "                return true;"
+            ],
+            [
+                403,
+                "            // if there is no IfUnmodifiedSince header, the check is valid."
+            ],
+            [
+                404,
+                "            _logger.LogInformation(\"No If-Unmodified-Since header.\");"
+            ],
+            [
+                405,
+                "            return true;"
+            ],
+            [
+                408,
+                "        private async Task Generate304NotModifiedResponse(HttpContext httpContext)"
+            ],
+            [
+                410,
+                "            _logger.LogInformation(\"Generating 304 - Not Modified.\");"
+            ],
+            [
+                411,
+                "            httpContext.Response.StatusCode = StatusCodes.Status304NotModified;"
+            ],
+            [
+                412,
+                "            await GenerateResponseFromStore(httpContext);"
+            ],
+            [
+                413,
+                "        }"
+            ],
+            [
+                415,
+                "        private async Task Generate412PreconditionFailedResponse(HttpContext httpContext)"
+            ],
+            [
+                416,
+                "        {"
+            ],
+            [
+                417,
+                "            _logger.LogInformation(\"Generating 412 - Precondition Failed.\");"
+            ],
+            [
+                418,
+                "            httpContext.Response.StatusCode = StatusCodes.Status412PreconditionFailed;"
+            ],
+            [
+                419,
+                "            await GenerateResponseFromStore(httpContext);"
+            ],
+            [
+                420,
+                "        }"
+            ],
+            [
+                422,
+                "        private async Task GenerateResponseFromStore(HttpContext httpContext)"
+            ],
+            [
+                423,
+                "        {"
+            ],
+            [
+                424,
+                "            var headers = httpContext.Response.Headers;"
+            ],
+            [
+                426,
+                "            // set the ETag & Last-Modified date."
+            ],
+            [
+                427,
+                "            // remove any other ETag and Last-Modified headers (could be set"
+            ],
+            [
+                428,
+                "            // by other pieces of code)"
+            ],
+            [
+                429,
+                "            headers.Remove(HeaderNames.ETag);"
+            ],
+            [
+                430,
+                "            headers.Remove(HeaderNames.LastModified);"
+            ],
+            [
+                432,
+                "            // generate key"
+            ],
+            [
+                433,
+                "            var requestKey = GenerateRequestKey(httpContext.Request);"
+            ],
+            [
+                435,
+                "            // set LastModified"
+            ],
+            [
+                436,
+                "            // r = RFC1123 pattern (https://msdn.microsoft.com/en-us/library/az4se3k1(v=vs.110).aspx)"
+            ],
+            [
+                437,
+                "            var lastModified = DateTimeOffset.UtcNow;"
+            ],
+            [
+                438,
+                "            headers[HeaderNames.LastModified] = lastModified.ToString(\"r\", CultureInfo.InvariantCulture);"
+            ],
+            [
+                439,
+                ""
+            ],
+            [
+                440,
+                "            ETag eTag = null;"
+            ],
+            [
+                441,
+                "            // take ETag value from the store (if it's found)"
+            ],
+            [
+                442,
+                "            var savedResponse = await _store.GetAsync(requestKey);"
+            ],
+            [
+                443,
+                "            if (savedResponse?.ETag != null)"
+            ],
+            [
+                444,
+                "            {"
+            ],
+            [
+                445,
+                "                eTag = new ETag(savedResponse.ETag.ETagType, savedResponse.ETag.Value);"
+            ],
+            [
+                446,
+                "                headers[HeaderNames.ETag] = savedResponse.ETag.Value;"
+            ],
+            [
+                449,
+                "            // store (overwrite)"
+            ],
+            [
+                450,
+                "            await _store.SetAsync(requestKey, new ValidationValue(eTag, lastModified));"
+            ],
+            [
+                451,
+                "            var logInformation = string.Empty;"
+            ],
+            [
+                452,
+                "            if (eTag != null)"
+            ],
+            [
+                453,
+                "            {"
+            ],
+            [
+                454,
+                "                logInformation = $\"ETag: {eTag.ETagType.ToString()}, {eTag.Value}, \";"
+            ],
+            [
+                455,
+                "            }"
+            ],
+            [
+                457,
+                "            logInformation += $\"Last-Modified: {lastModified.ToString(\"r\", CultureInfo.InvariantCulture)}.\";"
+            ],
+            [
+                458,
+                "            _logger.LogInformation($\"Generation done. {logInformation}\");"
+            ],
+            [
+                526,
+                "            // set the ETag and LastModified header"
+            ],
+            [
+                570,
+                "            var expiresValue = DateTimeOffset"
+            ],
+            [
+                571,
+                "                .UtcNow"
+            ],
+            [
+                578,
+                "                CultureInfo.InvariantCulture,"
+            ],
+            [
+                579,
+                "                \"{0},max-age={1}{2}{3}{4}{5}{6}{7}{8}\","
+            ],
+            [
+                580,
+                "                _expirationModelOptions.CacheLocation.ToString().ToLowerInvariant(),"
+            ],
+            [
+                581,
+                "                _expirationModelOptions.MaxAge,"
+            ],
+            [
+                582,
+                "                _expirationModelOptions.SharedMaxAge == null ? null : \",s-maxage=\","
+            ],
+            [
+                583,
+                "                _expirationModelOptions.SharedMaxAge,"
+            ],
+            [
+                584,
+                "                _expirationModelOptions.AddNoStoreDirective ? \",no-store\" : null,"
+            ],
+            [
+                585,
+                "                _expirationModelOptions.AddNoTransformDirective ? \",no-transform\" : null,"
+            ],
+            [
+                586,
+                "                _validationModelOptions.AddNoCache ? \",no-cache\" : null,"
+            ],
+            [
+                587,
+                "                _validationModelOptions.AddMustRevalidate ? \",must-revalidate\" : null,"
+            ],
+            [
+                588,
+                "                _validationModelOptions.AddProxyRevalidate ? \",proxy-revalidate\" : null);"
+            ],
+            [
+                605,
+                "                requestHeaderValues = request"
+            ],
+            [
+                606,
+                "                    .Headers"
+            ],
+            [
+                607,
+                "                    .SelectMany(h => h.Value)"
+            ],
+            [
+                608,
+                "                    .ToList();"
+            ],
+            [
+                612,
+                "                requestHeaderValues = request"
+            ],
+            [
+                613,
+                "                    .Headers"
+            ],
+            [
+                615,
+                "                    .SelectMany(h => h.Value)"
+            ],
+            [
+                616,
+                "                    .ToList();"
+            ],
+            [
+                629,
+                "        private static bool ETagsMatch(ETag eTag, string eTagToCompare, bool useStrongComparisonFunction)"
+            ],
+            [
+                630,
+                "        {"
+            ],
+            [
+                631,
+                "            // for If-None-Match (cache) checks, weak comparison should be used."
+            ],
+            [
+                632,
+                "            // for If-Match (concurrency) check, strong comparison should be used."
+            ],
+            [
+                633,
+                ""
+            ],
+            [
+                634,
+                "            //The example below shows the results for a set of entity-tag pairs and"
+            ],
+            [
+                635,
+                "            //both the weak and strong comparison function results:"
+            ],
+            [
+                636,
+                ""
+            ],
+            [
+                637,
+                "            //+--------+--------+-------------------+-----------------+"
+            ],
+            [
+                638,
+                "            //| ETag 1 | ETag 2 | Strong Comparison | Weak Comparison |"
+            ],
+            [
+                639,
+                "            //+--------+--------+-------------------+-----------------+"
+            ],
+            [
+                640,
+                "            //| W/\"1\"  | W/\"1\"  | no match          | match           |"
+            ],
+            [
+                641,
+                "            //| W/\"1\"  | W/\"2\"  | no match          | no match        |"
+            ],
+            [
+                642,
+                "            //| W/\"1\"  | \"1\"    | no match          | match           |"
+            ],
+            [
+                643,
+                "            //| \"1\"    | \"1\"    | match             | match           |"
+            ],
+            [
+                644,
+                "            //+--------+--------+-------------------+-----------------+"
+            ],
+            [
+                645,
+                ""
+            ],
+            [
+                646,
+                "            if (useStrongComparisonFunction)"
+            ],
+            [
+                647,
+                "            {"
+            ],
+            [
+                648,
+                "                // to match, both eTags must be strong & be an exact match."
+            ],
+            [
+                649,
+                ""
+            ],
+            [
+                650,
+                "                var eTagToCompareIsStrong = !eTagToCompare.StartsWith(\"W/\");"
+            ],
+            [
+                651,
+                ""
+            ],
+            [
+                652,
+                "                return eTagToCompareIsStrong &&"
+            ],
+            [
+                653,
+                "                       eTag.ETagType == ETagType.Strong &&"
+            ],
+            [
+                654,
+                "                       string.Equals(eTag.Value, eTagToCompare, StringComparison.OrdinalIgnoreCase);"
+            ],
+            [
+                655,
+                "            }"
+            ],
+            [
+                656,
+                ""
+            ],
+            [
+                657,
+                "            // for weak comparison, we only compare the parts of the eTags after the \"W/\""
+            ],
+            [
+                658,
+                "            var firstValueToCompare = eTag.ETagType == ETagType.Weak ? eTag.Value.Substring(2) : eTag.Value;"
+            ],
+            [
+                659,
+                "            var secondValueToCompare = eTagToCompare.StartsWith(\"W/\") ? eTagToCompare.Substring(2) : eTagToCompare;"
+            ],
+            [
+                660,
+                ""
+            ],
+            [
+                661,
+                "            return string.Equals(firstValueToCompare, secondValueToCompare, StringComparison.OrdinalIgnoreCase);"
+            ],
+            [
+                662,
+                "        }"
+            ],
+            [
+                663,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                64,
+                "            // GET & If-None-Match / IfModifiedSince: returns 304 when the resource hasn't"
+            ],
+            [
+                65,
+                "            // been modified"
+            ],
+            [
+                66,
+                "            if (await ConditionalGETorHEADIsValid(httpContext))"
+            ],
+            [
+                73,
+                "                return;"
+            ],
+            [
+                74,
+                "            }"
+            ],
+            [
+                75,
+                "            else"
+            ],
+            [
+                76,
+                "            {"
+            ],
+            [
+                77,
+                "                _logger.LogInformation(\"Don't generate 304 - Not Modified.  Continue.\");"
+            ],
+            [
+                84,
+                "            if (!(await ConditionalPUTorPATCHIsValid(httpContext)))"
+            ],
+            [
+                91,
+                "                return;"
+            ],
+            [
+                92,
+                "            }"
+            ],
+            [
+                93,
+                "            else"
+            ],
+            [
+                94,
+                "            {"
+            ],
+            [
+                95,
+                "                _logger.LogInformation(\"Don't generate 412 - Precondition Failed.  Continue.\");"
+            ],
+            [
+                105,
+                ""
+            ],
+            [
+                147,
+                "        private async Task Generate412PreconditionFailedResponse(HttpContext httpContext)"
+            ],
+            [
+                148,
+                "        {"
+            ],
+            [
+                149,
+                "            _logger.LogInformation(\"Generating 412 - Precondition Failed.\");"
+            ],
+            [
+                150,
+                "            httpContext.Response.StatusCode = StatusCodes.Status412PreconditionFailed;"
+            ],
+            [
+                151,
+                "            await GenerateResponseFromStore(httpContext);"
+            ],
+            [
+                152,
+                "        }"
+            ],
+            [
+                153,
+                ""
+            ],
+            [
+                154,
+                "        private async Task Generate304NotModifiedResponse(HttpContext httpContext)"
+            ],
+            [
+                155,
+                "        {"
+            ],
+            [
+                156,
+                "            _logger.LogInformation(\"Generating 304 - Not Modified.\");"
+            ],
+            [
+                157,
+                "            httpContext.Response.StatusCode = StatusCodes.Status304NotModified;"
+            ],
+            [
+                158,
+                "            await GenerateResponseFromStore(httpContext);"
+            ],
+            [
+                159,
+                "        }"
+            ],
+            [
+                160,
+                ""
+            ],
+            [
+                161,
+                "        private async Task GenerateResponseFromStore(HttpContext httpContext)"
+            ],
+            [
+                162,
+                "        {"
+            ],
+            [
+                163,
+                "            var headers = httpContext.Response.Headers;"
+            ],
+            [
+                164,
+                ""
+            ],
+            [
+                165,
+                "            // set the ETag & Last-Modified date."
+            ],
+            [
+                166,
+                "            // remove any other ETag and Last-Modified headers (could be set"
+            ],
+            [
+                167,
+                "            // by other pieces of code)"
+            ],
+            [
+                168,
+                "            headers.Remove(HeaderNames.ETag);"
+            ],
+            [
+                169,
+                "            headers.Remove(HeaderNames.LastModified);"
+            ],
+            [
+                170,
+                ""
+            ],
+            [
+                171,
+                "            // generate key"
+            ],
+            [
+                172,
+                "            var requestKey = GenerateRequestKey(httpContext.Request);"
+            ],
+            [
+                173,
+                ""
+            ],
+            [
+                174,
+                "            // set LastModified"
+            ],
+            [
+                175,
+                "            var lastModified = DateTimeOffset.UtcNow;"
+            ],
+            [
+                176,
+                "            // r = RFC1123 pattern (https://msdn.microsoft.com/en-us/library/az4se3k1(v=vs.110).aspx)"
+            ],
+            [
+                177,
+                "            headers[HeaderNames.LastModified] = lastModified.ToString(\"r\", CultureInfo.InvariantCulture);"
+            ],
+            [
+                178,
+                ""
+            ],
+            [
+                179,
+                "            ETag eTag = null;"
+            ],
+            [
+                180,
+                "            // take ETag value from the store (if it's found)"
+            ],
+            [
+                181,
+                "            var savedResponse = await _store.GetAsync(requestKey);"
+            ],
+            [
+                182,
+                "            if (savedResponse?.ETag != null)"
+            ],
+            [
+                183,
+                "            {"
+            ],
+            [
+                184,
+                "                eTag = new ETag(savedResponse.ETag.ETagType, savedResponse.ETag.Value);"
+            ],
+            [
+                185,
+                "                // set ETag"
+            ],
+            [
+                186,
+                "                headers[HeaderNames.ETag] = savedResponse.ETag.Value;"
+            ],
+            [
+                187,
+                "            }"
+            ],
+            [
+                188,
+                ""
+            ],
+            [
+                189,
+                "            // store (overwrite)"
+            ],
+            [
+                190,
+                "            await _store.SetAsync(requestKey, new ValidationValue(eTag, lastModified));"
+            ],
+            [
+                191,
+                "            var logInformation = string.Empty;"
+            ],
+            [
+                192,
+                "            if (eTag != null)"
+            ],
+            [
+                193,
+                "            {"
+            ],
+            [
+                194,
+                "                logInformation = $\"ETag: {eTag.ETagType.ToString()}, {eTag.Value}, \";"
+            ],
+            [
+                195,
+                "            }"
+            ],
+            [
+                196,
+                "            logInformation += $\"Last-Modified: {lastModified.ToString(\"r\", CultureInfo.InvariantCulture)}.\";"
+            ],
+            [
+                197,
+                "            _logger.LogInformation($\"Generation done. {logInformation}\");"
+            ],
+            [
+                198,
+                "        }"
+            ],
+            [
+                199,
+                ""
+            ],
+            [
+                200,
+                "        private async Task<bool> ConditionalGETorHEADIsValid(HttpContext httpContext)"
+            ],
+            [
+                241,
+                "            var eTagIsValid = false;"
+            ],
+            [
+                242,
+                "            bool ifModifiedSinceIsValid;"
+            ],
+            [
+                243,
+                ""
+            ],
+            [
+                245,
+                "            if (httpContext.Request.Headers.Keys.Contains(HeaderNames.IfNoneMatch))"
+            ],
+            [
+                247,
+                "                _logger.LogInformation(\"Checking If-None-Match.\");"
+            ],
+            [
+                249,
+                "                var ifNoneMatchHeaderValue = httpContext.Request.Headers[HeaderNames.IfNoneMatch].ToString().Trim();"
+            ],
+            [
+                250,
+                "                _logger.LogInformation($\"Checking If-None-Match: {ifNoneMatchHeaderValue}.\");"
+            ],
+            [
+                252,
+                "                // if the value is *, the check is valid."
+            ],
+            [
+                253,
+                "                if (ifNoneMatchHeaderValue == \"*\")"
+            ],
+            [
+                254,
+                "                {"
+            ],
+            [
+                255,
+                "                    eTagIsValid = true;"
+            ],
+            [
+                256,
+                "                }"
+            ],
+            [
+                257,
+                "                else"
+            ],
+            [
+                258,
+                "                {"
+            ],
+            [
+                259,
+                "                    var eTagsFromIfNoneMatchHeader = ifNoneMatchHeaderValue"
+            ],
+            [
+                260,
+                "                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);"
+            ],
+            [
+                261,
+                ""
+            ],
+            [
+                262,
+                "                    // check the ETag.  If one of the ETags matches, we're good to"
+            ],
+            [
+                263,
+                "                    // go and can return a 304 Not Modified."
+            ],
+            [
+                264,
+                "                    // For conditional GET/HEAD, we use weak comparison."
+            ],
+            [
+                265,
+                "                    if (eTagsFromIfNoneMatchHeader.Any(eTag => ETagsMatch(validationValue.ETag, eTag.Trim(), false)))"
+            ],
+            [
+                266,
+                "                    {"
+            ],
+            [
+                267,
+                "                        eTagIsValid = true;"
+            ],
+            [
+                268,
+                "                        _logger.LogInformation($\"ETag valid: {validationValue.ETag}.\");"
+            ],
+            [
+                269,
+                "                    }"
+            ],
+            [
+                270,
+                ""
+            ],
+            [
+                271,
+                "                    // if there is an IfNoneMatch header, but none of the eTags match, we don't take the"
+            ],
+            [
+                272,
+                "                    // If-Modified-Since headers into account."
+            ],
+            [
+                273,
+                "                    //"
+            ],
+            [
+                274,
+                "                    // cfr: \"If none of the entity tags match, then the server MAY perform the requested method as if the"
+            ],
+            [
+                275,
+                "                    // If-None-Match header field did not exist, but MUST also ignore any If-Modified-Since header field(s)"
+            ],
+            [
+                276,
+                "                    // in the request. That is, if no entity tags match, then the server MUST NOT return a 304(Not Modified) response.\""
+            ],
+            [
+                277,
+                "                    if (!eTagIsValid)"
+            ],
+            [
+                278,
+                "                    {"
+            ],
+            [
+                279,
+                "                        _logger.LogInformation(\"Not valid. No match found for ETag.\");"
+            ],
+            [
+                280,
+                "                        return false;"
+            ],
+            [
+                281,
+                "                    }"
+            ],
+            [
+                282,
+                "                }"
+            ],
+            [
+                284,
+                "            else"
+            ],
+            [
+                286,
+                "                _logger.LogInformation(\"No If-None-Match header, don't check ETag.\");"
+            ],
+            [
+                287,
+                "                eTagIsValid = true;"
+            ],
+            [
+                293,
+                "                // we can return a 304 Not Modified (IF there's also a matching ETag)."
+            ],
+            [
+                300,
+                "                if (DateTimeOffset.TryParseExact(ifModifiedSinceValue, \"r\","
+            ],
+            [
+                301,
+                "                    CultureInfo.InvariantCulture.DateTimeFormat, DateTimeStyles.AdjustToUniversal,"
+            ],
+            [
+                304,
+                "                    // can only check if we can parse it."
+            ],
+            [
+                305,
+                "                    ifModifiedSinceIsValid = validationValue.LastModified.CompareTo(parsedIfModifiedSince) < 0;"
+            ],
+            [
+                306,
+                "                }"
+            ],
+            [
+                307,
+                "                else"
+            ],
+            [
+                308,
+                "                {"
+            ],
+            [
+                309,
+                "                    ifModifiedSinceIsValid = true;"
+            ],
+            [
+                310,
+                "                    _logger.LogInformation(\"Cannot parse If-Modified-Since value as date, header is ignored.\");"
+            ],
+            [
+                312,
+                "            }"
+            ],
+            [
+                313,
+                "            else"
+            ],
+            [
+                314,
+                "            {"
+            ],
+            [
+                315,
+                "                _logger.LogInformation(\"No If-Modified-Since header.\");"
+            ],
+            [
+                316,
+                "                ifModifiedSinceIsValid = true;"
+            ],
+            [
+                319,
+                "            return eTagIsValid && ifModifiedSinceIsValid;"
+            ],
+            [
+                322,
+                "        private async Task<bool> ConditionalPUTorPATCHIsValid(HttpContext httpContext)"
+            ],
+            [
+                366,
+                "            var eTagIsValid = false;"
+            ],
+            [
+                367,
+                "            bool ifUnModifiedSinceIsValid;"
+            ],
+            [
+                368,
+                ""
+            ],
+            [
+                370,
+                "            if (httpContext.Request.Headers.Keys.Contains(HeaderNames.IfMatch))"
+            ],
+            [
+                372,
+                "                var ifMatchHeaderValue = httpContext.Request.Headers[HeaderNames.IfMatch].ToString().Trim();"
+            ],
+            [
+                373,
+                "                _logger.LogInformation($\"Checking If-Match: {ifMatchHeaderValue}.\");"
+            ],
+            [
+                375,
+                "                // if the value is *, the check is valid."
+            ],
+            [
+                376,
+                "                if (ifMatchHeaderValue == \"*\")"
+            ],
+            [
+                377,
+                "                {"
+            ],
+            [
+                378,
+                "                    eTagIsValid = true;"
+            ],
+            [
+                379,
+                "                }"
+            ],
+            [
+                380,
+                "                else"
+            ],
+            [
+                381,
+                "                {"
+            ],
+            [
+                382,
+                "                    // otherwise, check the actual ETag(s)"
+            ],
+            [
+                383,
+                "                    var eTagsFromIfMatchHeader = ifMatchHeaderValue"
+            ],
+            [
+                384,
+                "                            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);"
+            ],
+            [
+                385,
+                ""
+            ],
+            [
+                386,
+                "                    // check the ETag.  If one of the ETags matches, the"
+            ],
+            [
+                387,
+                "                    // ETag precondition is valid."
+            ],
+            [
+                388,
+                ""
+            ],
+            [
+                389,
+                "                    // for concurrency checks, we use the strong"
+            ],
+            [
+                390,
+                "                    // comparison function."
+            ],
+            [
+                391,
+                "                    if (eTagsFromIfMatchHeader.Any(eTag => ETagsMatch(validationValue.ETag, eTag.Trim(), true)))"
+            ],
+            [
+                392,
+                "                    {"
+            ],
+            [
+                393,
+                "                        _logger.LogInformation($\"ETag valid: {validationValue.ETag}.\");"
+            ],
+            [
+                394,
+                "                        eTagIsValid = true;"
+            ],
+            [
+                395,
+                "                    }"
+            ],
+            [
+                396,
+                "                }"
+            ],
+            [
+                398,
+                "            else"
+            ],
+            [
+                400,
+                "                _logger.LogInformation(\"No If-Match header, don't check ETag.\");"
+            ],
+            [
+                401,
+                "                // if there is no IfMatch header, the tag precondition is valid."
+            ],
+            [
+                402,
+                "                eTagIsValid = true;"
+            ],
+            [
+                408,
+                "            if (!eTagIsValid)"
+            ],
+            [
+                409,
+                "            {"
+            ],
+            [
+                410,
+                "                _logger.LogInformation(\"Not valid. No match found for ETag.\");"
+            ],
+            [
+                411,
+                "                return false;"
+            ],
+            [
+                412,
+                "            }"
+            ],
+            [
+                423,
+                "                if (DateTimeOffset.TryParseExact(ifUnModifiedSinceValue, \"r\","
+            ],
+            [
+                424,
+                "                    CultureInfo.InvariantCulture.DateTimeFormat, DateTimeStyles.AdjustToUniversal,"
+            ],
+            [
+                429,
+                "                    ifUnModifiedSinceIsValid = validationValue.LastModified.CompareTo(parsedIfUnModifiedSince) < 0;"
+            ],
+            [
+                430,
+                "                }"
+            ],
+            [
+                431,
+                "                else"
+            ],
+            [
+                432,
+                "                {"
+            ],
+            [
+                433,
+                "                    // can only check if we can parse it.  Invalid values must"
+            ],
+            [
+                434,
+                "                    // be ignored."
+            ],
+            [
+                435,
+                "                    ifUnModifiedSinceIsValid = true;"
+            ],
+            [
+                436,
+                "                    _logger.LogInformation(\"Cannot parse If-Unmodified-Since value as date, header is ignored.\");"
+            ],
+            [
+                438,
+                "            }"
+            ],
+            [
+                439,
+                "            else"
+            ],
+            [
+                440,
+                "            {"
+            ],
+            [
+                441,
+                "                _logger.LogInformation(\"No If-Unmodified-Since header.\");"
+            ],
+            [
+                442,
+                "                // if there is no IfUnmodifiedSince header, the check is valid."
+            ],
+            [
+                443,
+                "                ifUnModifiedSinceIsValid = true;"
+            ],
+            [
+                446,
+                "            // return the combined result of all validators."
+            ],
+            [
+                447,
+                "            return ifUnModifiedSinceIsValid && eTagIsValid;"
+            ],
+            [
+                450,
+                "        private static bool ETagsMatch(ETag eTag, string eTagToCompare, bool useStrongComparisonFunction)"
+            ],
+            [
+                452,
+                "            // for If-None-Match (cache) checks, weak comparison should be used."
+            ],
+            [
+                453,
+                "            // for If-Match (concurrency) check, strong comparison should be used."
+            ],
+            [
+                455,
+                "            //The example below shows the results for a set of entity-tag pairs and"
+            ],
+            [
+                456,
+                "            //both the weak and strong comparison function results:"
+            ],
+            [
+                458,
+                "            //+--------+--------+-------------------+-----------------+"
+            ],
+            [
+                459,
+                "            //| ETag 1 | ETag 2 | Strong Comparison | Weak Comparison |"
+            ],
+            [
+                460,
+                "            //+--------+--------+-------------------+-----------------+"
+            ],
+            [
+                461,
+                "            //| W/\"1\"  | W/\"1\"  | no match          | match           |"
+            ],
+            [
+                462,
+                "            //| W/\"1\"  | W/\"2\"  | no match          | no match        |"
+            ],
+            [
+                463,
+                "            //| W/\"1\"  | \"1\"    | no match          | match           |"
+            ],
+            [
+                464,
+                "            //| \"1\"    | \"1\"    | match             | match           |"
+            ],
+            [
+                465,
+                "            //+--------+--------+-------------------+-----------------+"
+            ],
+            [
+                467,
+                "            if (useStrongComparisonFunction)"
+            ],
+            [
+                468,
+                "            {"
+            ],
+            [
+                469,
+                "                // to match, both eTags must be strong & be an exact match."
+            ],
+            [
+                471,
+                "                var eTagToCompareIsStrong = !eTagToCompare.StartsWith(\"W/\");"
+            ],
+            [
+                473,
+                "                return eTagToCompareIsStrong &&"
+            ],
+            [
+                474,
+                "                       eTag.ETagType == ETagType.Strong &&"
+            ],
+            [
+                475,
+                "                       string.Equals(eTag.Value, eTagToCompare, StringComparison.OrdinalIgnoreCase);"
+            ],
+            [
+                478,
+                "            // for weak comparison, we only compare the parts of the eTags after the \"W/\""
+            ],
+            [
+                479,
+                "            var firstValueToCompare = eTag.ETagType == ETagType.Weak ? eTag.Value.Substring(2) : eTag.Value;"
+            ],
+            [
+                480,
+                "            var secondValueToCompare = eTagToCompare.StartsWith(\"W/\") ? eTagToCompare.Substring(2) : eTagToCompare;"
+            ],
+            [
+                482,
+                "            return string.Equals(firstValueToCompare, secondValueToCompare, StringComparison.OrdinalIgnoreCase);"
+            ],
+            [
+                508,
+                ""
+            ],
+            [
+                551,
+                "            // set the ETag header"
+            ],
+            [
+                553,
+                "            // set the LastModified header"
+            ],
+            [
+                557,
+                ""
+            ],
+            [
+                597,
+                "            var expiresValue = DateTimeOffset.UtcNow"
+            ],
+            [
+                604,
+                "                   CultureInfo.InvariantCulture,"
+            ],
+            [
+                605,
+                "                   \"{0},max-age={1}{2}{3}{4}{5}{6}{7}{8}\","
+            ],
+            [
+                606,
+                "                   _expirationModelOptions.CacheLocation.ToString().ToLowerInvariant(),"
+            ],
+            [
+                607,
+                "                   _expirationModelOptions.MaxAge,"
+            ],
+            [
+                608,
+                "                   _expirationModelOptions.SharedMaxAge == null ? null : \",s-maxage=\","
+            ],
+            [
+                609,
+                "                   _expirationModelOptions.SharedMaxAge,"
+            ],
+            [
+                610,
+                "                   _expirationModelOptions.AddNoStoreDirective ? \",no-store\" : null,"
+            ],
+            [
+                611,
+                "                   _expirationModelOptions.AddNoTransformDirective ? \",no-transform\" : null,"
+            ],
+            [
+                612,
+                "                   _validationModelOptions.AddNoCache ? \",no-cache\" : null,"
+            ],
+            [
+                613,
+                "                   _validationModelOptions.AddMustRevalidate ? \",must-revalidate\" : null,"
+            ],
+            [
+                614,
+                "                   _validationModelOptions.AddProxyRevalidate ? \",proxy-revalidate\" : null);"
+            ],
+            [
+                631,
+                "                requestHeaderValues = request.Headers.SelectMany(h => h.Value).ToList();"
+            ],
+            [
+                635,
+                "                requestHeaderValues = request.Headers"
+            ],
+            [
+                637,
+                "                    .SelectMany(h => h.Value).ToList();"
+            ]
+        ]
+    },
+    "num_lines_added": 239,
+    "num_lines_removed": 225
+}

@@ -1,0 +1,16 @@
+    protected Optional<String> getDriverVersionFromProperties(String key) {
+        boolean online = config().getVersionsPropertiesOnlineFirst();
+        String onlineMessage = online ? ONLINE : LOCAL;
+        log.debug("Getting driver version for {} from {} versions.properties",
+                key, onlineMessage);
+        String value = getVersionFromProperties(online).getProperty(key);
+        if (value == null) {
+            String notOnlineMessage = online ? LOCAL : ONLINE;
+            log.debug(
+                    "Driver for {} not found in {} properties (using {} version)",
+                    key, onlineMessage, notOnlineMessage);
+            versionsProperties = null;
+            value = getVersionFromProperties(!online).getProperty(key);
+        }
+        return value == null ? empty() : Optional.of(value);
+    }

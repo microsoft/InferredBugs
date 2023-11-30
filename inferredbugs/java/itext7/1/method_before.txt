@@ -1,0 +1,41 @@
+    protected int writeXRefTable() throws IOException, PdfException {
+        int strtxref = currentPos;
+        if (fullCompression) {
+            PdfStream stream = new PdfStream(pdfDocument);
+            stream.put(PdfName.Type, PdfName.XRef);
+            stream.put(PdfName.Size, new PdfNumber(pdfDocument.getIndirects().size() + 1));
+            stream.put(PdfName.W, new PdfArray(new ArrayList<PdfObject>() {{
+                add(new PdfNumber(1));
+                add(new PdfNumber(4));
+                add(new PdfNumber(2));
+            }}));
+            stream.put(PdfName.Info, pdfDocument.trailer.getDocumentInfo());
+            stream.put(PdfName.Root, pdfDocument.trailer.getCatalog());
+            stream.getOutputStream().write(0);
+            stream.getOutputStream().write(intToBytes(0));
+            stream.getOutputStream().write(shortToBytes(0xFFFF));
+            for (PdfIndirectReference indirect : pdfDocument.getIndirects()) {
+                PdfObject refersTo = indirect.getRefersTo();
+                if (refersTo.getObjectStream() != null) {
+                    stream.getOutputStream().write(2);
+                    stream.getOutputStream().write(intToBytes(refersTo.getObjectStream().getIndirectReference().getObjNr()));
+                    stream.getOutputStream().write(shortToBytes(refersTo.getOffset()));
+                } else {
+                    stream.getOutputStream().write(1);
+                    stream.getOutputStream().write(intToBytes(refersTo.getOffset()));
+                    stream.getOutputStream().write(shortToBytes(0));
+                }
+            }
+            stream.flush();
+        } else {
+            writeString("xref\n").
+                    writeString("0 ").
+                    writeInteger(pdfDocument.getIndirects().size() + 1).
+                    writeString("\n0000000000 65535 f \n");
+            for (PdfIndirectReference indirect : pdfDocument.getIndirects()) {
+                writeString(objectOffsetFormatter.format(indirect.getRefersTo().getOffset())).
+                        writeString(" 00000 n \n");
+            }
+        }
+        return strtxref;
+    }

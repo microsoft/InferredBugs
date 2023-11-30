@@ -1,0 +1,45 @@
+    boolean replaceEntry(long hash, long oldHashEntryAdr, long newHashEntryAdr, long bytes)
+    {
+        LongArrayList derefList = null;
+
+        lock.lock();
+        try
+        {
+            long prevEntryAdr = 0L;
+            for (long hashEntryAdr = table.getFirst(hash);
+                 hashEntryAdr != 0L;
+                 prevEntryAdr = hashEntryAdr, hashEntryAdr = HashEntries.getNext(hashEntryAdr))
+            {
+                if (hashEntryAdr != oldHashEntryAdr)
+                    continue;
+
+                // remove existing entry
+
+                replaceInternal(oldHashEntryAdr, prevEntryAdr, newHashEntryAdr);
+
+                while (freeCapacity < bytes)
+                {
+                    long eldestHashAdr = removeEldest();
+                    if (eldestHashAdr == 0L)
+                    {
+                        return false;
+                    }
+                    if (derefList == null)
+                        derefList = new LongArrayList();
+                    derefList.add(eldestHashAdr);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+        finally
+        {
+            lock.unlock();
+
+            if (derefList != null)
+                for (int i = 0; i < derefList.size(); i++)
+                    HashEntries.dereference(derefList.getLong(i));
+        }
+    }

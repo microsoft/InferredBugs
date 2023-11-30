@@ -1,0 +1,477 @@
+{
+    "hash": "1599f5552bbca70f5f53fdc17e76222a8114c2c9",
+    "message": "add download package feature to keep all states of download and continue if needed",
+    "file_num_lines": 231,
+    "diff_parsed": {
+        "added": [
+            [
+                18,
+                "            Package = new DownloadPackage()"
+            ],
+            [
+                19,
+                "            {"
+            ],
+            [
+                20,
+                "                Options = options ?? new DownloadConfiguration()"
+            ],
+            [
+                21,
+                "            };"
+            ],
+            [
+                23,
+                "            ServicePointManager.Expect100Continue = false; // accept the request for POST, PUT and PATCH verbs"
+            ],
+            [
+                29,
+                ""
+            ],
+            [
+                45,
+                "        public async Task<DownloadPackage> DownloadFileAsync(DownloadPackage package)"
+            ],
+            [
+                46,
+                "        {"
+            ],
+            [
+                47,
+                "            IsBusy = true;"
+            ],
+            [
+                48,
+                "            Package = package;"
+            ],
+            [
+                49,
+                ""
+            ],
+            [
+                50,
+                "            if (Package.TotalFileSize <= 0)"
+            ],
+            [
+                51,
+                "                throw new InvalidDataException(\"File size is invalid!\");"
+            ],
+            [
+                52,
+                ""
+            ],
+            [
+                53,
+                "            if (File.Exists(Package.FileName))"
+            ],
+            [
+                54,
+                "                File.Delete(Package.FileName);"
+            ],
+            [
+                56,
+                "            await StartDownload();"
+            ],
+            [
+                57,
+                ""
+            ],
+            [
+                58,
+                "            return Package;"
+            ],
+            [
+                59,
+                "        }"
+            ],
+            [
+                60,
+                "        public async Task<DownloadPackage> DownloadFileAsync(string address, string fileName)"
+            ],
+            [
+                64,
+                "            Package.FileName = fileName;"
+            ],
+            [
+                65,
+                "            Package.Address = new Uri(address);"
+            ],
+            [
+                66,
+                "            Package.TotalFileSize = GetFileSize(Package.Address);"
+            ],
+            [
+                67,
+                ""
+            ],
+            [
+                68,
+                "            if (Package.TotalFileSize <= 0)"
+            ],
+            [
+                71,
+                "            var neededParts = (int)Math.Ceiling((double)Package.TotalFileSize / int.MaxValue); // for files as larger than 2GB"
+            ],
+            [
+                74,
+                "            var parts = Package.Options.ChunkCount < neededParts ? neededParts : Package.Options.ChunkCount;"
+            ],
+            [
+                76,
+                "            Package.Chunks = ChunkFile(Package.TotalFileSize, parts);"
+            ],
+            [
+                78,
+                "            if (File.Exists(Package.FileName))"
+            ],
+            [
+                79,
+                "                File.Delete(Package.FileName);"
+            ],
+            [
+                81,
+                "            await StartDownload();"
+            ],
+            [
+                82,
+                ""
+            ],
+            [
+                83,
+                "            return Package;"
+            ],
+            [
+                93,
+                "            Package.FileName = null;"
+            ],
+            [
+                94,
+                "            Package.TotalFileSize = 0;"
+            ],
+            [
+                95,
+                "            Package.BytesReceived = 0;"
+            ],
+            [
+                96,
+                "            Package.Chunks = null;"
+            ],
+            [
+                124,
+                "            var chunks = new Chunk[parts];"
+            ],
+            [
+                127,
+                "                chunks[chunk] ="
+            ],
+            [
+                128,
+                "                    (chunk == parts - 1)"
+            ],
+            [
+                133,
+                "            return chunks;"
+            ],
+            [
+                135,
+                "        protected async Task StartDownload()"
+            ],
+            [
+                138,
+                "            foreach (var chunk in Package.Chunks)"
+            ],
+            [
+                140,
+                "                if (Package.Options.ParallelDownload)"
+            ],
+            [
+                142,
+                "                    var task = DownloadChunk(Package.Address, chunk, Cts.Token);"
+            ],
+            [
+                147,
+                "                    await DownloadChunk(Package.Address, chunk, Cts.Token);"
+            ],
+            [
+                151,
+                "            if (Package.Options.ParallelDownload) // is parallel"
+            ],
+            [
+                155,
+                "            await MergeChunks(Package.Chunks);"
+            ],
+            [
+                186,
+                "                                using (var cts = new CancellationTokenSource(Package.Options.Timeout))"
+            ],
+            [
+                189,
+                "                                        bytesToReceiveCount > Package.Options.BufferBlockSize"
+            ],
+            [
+                190,
+                "                                            ? Package.Options.BufferBlockSize"
+            ],
+            [
+                193,
+                "                                    Package.BytesReceived += readSize;"
+            ],
+            [
+                198,
+                "                                        Package.TotalFileSize, Package.BytesReceived, DownloadSpeed));"
+            ],
+            [
+                213,
+                "                                      chunk.FailoverCount++ <= Package.Options.MaxTryAgainOnFailover) // when the host forcibly closed the connection."
+            ],
+            [
+                215,
+                "                await Task.Delay(Package.Options.Timeout, token);"
+            ],
+            [
+                221,
+                "                                     chunk.FailoverCount++ <= Package.Options.MaxTryAgainOnFailover &&"
+            ],
+            [
+                227,
+                "                Package.Options.Timeout += chunk.CanContinue() ? 0 : 500;"
+            ],
+            [
+                229,
+                "                await Task.Delay(Package.Options.Timeout, token);"
+            ],
+            [
+                243,
+                "            var directory = Path.GetDirectoryName(Package.FileName);"
+            ],
+            [
+                250,
+                "            using (var destinationStream = new FileStream(Package.FileName, FileMode.Append, FileAccess.Write))"
+            ],
+            [
+                274,
+                "            var bytesDiff = Package.BytesReceived - BytesReceivedCheckPoint;"
+            ],
+            [
+                277,
+                "            BytesReceivedCheckPoint = Package.BytesReceived;"
+            ]
+        ],
+        "deleted": [
+            [
+                2,
+                "using System.Collections.Concurrent;"
+            ],
+            [
+                19,
+                "            Package = new DownloadPackage();"
+            ],
+            [
+                20,
+                "            Options = options ?? new DownloadConfiguration();"
+            ],
+            [
+                22,
+                "            ServicePointManager.Expect100Continue = false;"
+            ],
+            [
+                27,
+                "            DownloadedChunks = new ConcurrentDictionary<long, Chunk>();"
+            ],
+            [
+                31,
+                "        // ReSharper disable once InconsistentNaming"
+            ],
+            [
+                32,
+                "        protected long _bytesReceived;"
+            ],
+            [
+                35,
+                "        protected ConcurrentDictionary<long, Chunk> DownloadedChunks { get; set; }"
+            ],
+            [
+                41,
+                "        public string FileName { get; set; }"
+            ],
+            [
+                42,
+                "        public long BytesReceived => _bytesReceived;"
+            ],
+            [
+                43,
+                "        public long TotalFileSize { get; set; }"
+            ],
+            [
+                46,
+                "        public DownloadConfiguration Options { get; set; }"
+            ],
+            [
+                52,
+                "        public async Task DownloadFileAsync(string address, string fileName)"
+            ],
+            [
+                54,
+                "            FileName = fileName;"
+            ],
+            [
+                56,
+                "            var uri = new Uri(address);"
+            ],
+            [
+                57,
+                "            TotalFileSize = GetFileSize(uri);"
+            ],
+            [
+                59,
+                "            if (TotalFileSize <= 0)"
+            ],
+            [
+                62,
+                "            var neededParts = (int)Math.Ceiling((double)TotalFileSize / int.MaxValue); // for files as larger than 2GB"
+            ],
+            [
+                65,
+                "            var parts = Options.ChunkCount < neededParts ? neededParts : Options.ChunkCount;"
+            ],
+            [
+                67,
+                "            var chunks = ChunkFile(TotalFileSize, parts);"
+            ],
+            [
+                69,
+                "            if (File.Exists(fileName))"
+            ],
+            [
+                70,
+                "                File.Delete(fileName);"
+            ],
+            [
+                72,
+                "            await StartDownload(uri, chunks);"
+            ],
+            [
+                82,
+                "            FileName = null;"
+            ],
+            [
+                83,
+                "            TotalFileSize = 0;"
+            ],
+            [
+                84,
+                "            _bytesReceived = 0;"
+            ],
+            [
+                85,
+                "            DownloadedChunks.Clear();"
+            ],
+            [
+                115,
+                "                var range ="
+            ],
+            [
+                116,
+                "                    (chunk == parts - 1)"
+            ],
+            [
+                119,
+                ""
+            ],
+            [
+                120,
+                "                DownloadedChunks.TryAdd(range.Id, range);"
+            ],
+            [
+                123,
+                "            return DownloadedChunks.Values.ToArray();"
+            ],
+            [
+                125,
+                "        protected async Task StartDownload(Uri address, Chunk[] chunks)"
+            ],
+            [
+                128,
+                "            foreach (var chunk in chunks)"
+            ],
+            [
+                130,
+                "                if (Options.ParallelDownload)"
+            ],
+            [
+                132,
+                "                    var task = DownloadChunk(address, chunk, Cts.Token);"
+            ],
+            [
+                137,
+                "                    await DownloadChunk(address, chunk, Cts.Token);"
+            ],
+            [
+                141,
+                "            if (Options.ParallelDownload) // is parallel"
+            ],
+            [
+                145,
+                "            await MergeChunks(chunks);"
+            ],
+            [
+                176,
+                "                                using (var cts = new CancellationTokenSource(Options.Timeout))"
+            ],
+            [
+                179,
+                "                                        bytesToReceiveCount > Options.BufferBlockSize"
+            ],
+            [
+                180,
+                "                                            ? Options.BufferBlockSize"
+            ],
+            [
+                183,
+                "                                    Interlocked.Add(ref _bytesReceived, readSize);"
+            ],
+            [
+                188,
+                "                                        TotalFileSize, BytesReceived, DownloadSpeed));"
+            ],
+            [
+                203,
+                "                                      chunk.FailoverCount++ <= Options.MaxTryAgainOnFailover) // when the host forcibly closed the connection."
+            ],
+            [
+                205,
+                "                await Task.Delay(Options.Timeout, token);"
+            ],
+            [
+                211,
+                "                                     chunk.FailoverCount++ <= Options.MaxTryAgainOnFailover &&"
+            ],
+            [
+                217,
+                "                Options.Timeout += chunk.CanContinue() ? 0 : 500;"
+            ],
+            [
+                219,
+                "                await Task.Delay(Options.Timeout, token);"
+            ],
+            [
+                233,
+                "            var directory = Path.GetDirectoryName(FileName);"
+            ],
+            [
+                240,
+                "            using (var destinationStream = new FileStream(FileName, FileMode.Append, FileAccess.Write))"
+            ],
+            [
+                264,
+                "            var bytesDiff = BytesReceived - BytesReceivedCheckPoint;"
+            ],
+            [
+                267,
+                "            BytesReceivedCheckPoint = BytesReceived;"
+            ]
+        ]
+    },
+    "num_lines_added": 63,
+    "num_lines_removed": 53
+}

@@ -1,0 +1,27 @@
+    protected void justify(float width) {
+        float ratio = .5f;
+        float freeWidth = occupiedArea.getBBox().getX() + width -
+                getLastChildRenderer().getOccupiedArea().getBBox().getX() - getLastChildRenderer().getOccupiedArea().getBBox().getWidth();
+        int numberOfSpaces = getNumberOfSpaces();
+        int lineLength = length();
+        float baseFactor = freeWidth / (ratio * numberOfSpaces + lineLength - 1);
+        float wordSpacing = ratio * baseFactor;
+        float characterSpacing = baseFactor;
+
+        float lastRightPos = occupiedArea.getBBox().getX();
+        for (IRenderer child : childRenderers) {
+            float childX = child.getOccupiedArea().getBBox().getX();
+            child.move(lastRightPos - childX, 0);
+            childX = lastRightPos;
+            if (child instanceof TextRenderer) {
+                float childHSCale = child.getProperty(Property.HORIZONTAL_SCALING);
+                child.setProperty(Property.CHARACTER_SPACING, characterSpacing / childHSCale);
+                child.setProperty(Property.WORD_SPACING, wordSpacing / childHSCale);
+                child.getOccupiedArea().getBBox().setWidth(child.getOccupiedArea().getBBox().getWidth() +
+                        characterSpacing * ((TextRenderer) child).length() + wordSpacing * ((TextRenderer) child).getNumberOfSpaces());
+            }
+            lastRightPos = childX + child.getOccupiedArea().getBBox().getWidth();
+        }
+
+        getOccupiedArea().getBBox().setWidth(width);
+    }

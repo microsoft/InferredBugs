@@ -1,0 +1,28 @@
+        [Fact]
+        public void Item_falls_when_moved_to_a_hole()
+        {
+            //arrange
+            var map = MapTestDataBuilder.Build(100, 105, 100, 105, 7, 8, addGround: true);
+            var player = PlayerTestDataBuilder.Build();
+
+            var item = ItemTestData.CreateWeaponItem(1);
+
+            var hole = new Ground(new ItemType(), new Location(100,100,7));
+            hole.Metadata.Attributes.SetAttribute(ItemAttribute.FloorChange, "down");
+
+            var sourceTile = (IDynamicTile)map[101, 100, 7];
+            var destinationTile =  (IDynamicTile)map[100, 100, 7];
+            var undergroundTile = (IDynamicTile)map[100, 100, 8];
+            
+            destinationTile.ReplaceGround(hole);
+            
+            sourceTile.AddItem(item);
+
+            //act
+            player.MoveItem(sourceTile, destinationTile, item, 1, 0, 0);
+
+            //assert
+            sourceTile.TopItemOnStack.Should().NotBe(item);
+            destinationTile.TopItemOnStack.Should().NotBe(item);
+            undergroundTile.TopItemOnStack.Should().Be(item);
+        }

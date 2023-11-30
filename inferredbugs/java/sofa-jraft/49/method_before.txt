@@ -1,0 +1,17 @@
+    @Test
+    public void testOnRpcReturnedRpcError() {
+        final Replicator r = getReplicator();
+        assertNull(r.getBlockTimer());
+        final RpcRequests.AppendEntriesRequest request = createEmptyEntriesRequest();
+        final RpcRequests.AppendEntriesResponse response = RpcRequests.AppendEntriesResponse.newBuilder() //
+            .setSuccess(false) //
+            .setLastLogIndex(12) //
+            .setTerm(2) //
+            .build();
+        this.id.unlock();
+
+        Replicator.onRpcReturned(this.id, Replicator.RequestType.AppendEntries, new Status(-1, "test error"), request,
+            response, 0, 0, Utils.monotonicMs());
+        assertEquals(r.statInfo.runningState, Replicator.RunningState.BLOCKING);
+        assertNotNull(r.getBlockTimer());
+    }

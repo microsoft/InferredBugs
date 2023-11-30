@@ -1,0 +1,449 @@
+{
+    "hash": "492ca0c35bd266bfadc1c92b7eeb05fad4f35f3d",
+    "message": "Further changes moving over to Dictionary collection",
+    "file_num_lines": 385,
+    "diff_parsed": {
+        "added": [
+            [
+                25,
+                "/*MC001"
+            ],
+            [
+                37,
+                "*/"
+            ],
+            [
+                44,
+                "/*MC001"
+            ],
+            [
+                70,
+                "*/"
+            ],
+            [
+                121,
+                "\t\t\t\tforeach (var item in translation.Items.Values)"
+            ],
+            [
+                252,
+                "\t\t\tvar items = new ConcurrentDictionary<string, TranslateItem>();"
+            ],
+            [
+                299,
+                "\t\t\t\t\t\tTranslateItem item = ParseBody(fs, line);"
+            ],
+            [
+                300,
+                ""
+            ],
+            [
+                301,
+                "                        if (item != null) {"
+            ],
+            [
+                302,
+                "                           //"
+            ],
+            [
+                303,
+                "\t\t\t\t\t        item.TranslatorComments = translatorComments;"
+            ],
+            [
+                304,
+                "\t\t\t\t\t        item.ExtractedComments = extractedComments;"
+            ],
+            [
+                305,
+                "\t\t\t\t\t        item.Flags = flags;"
+            ],
+            [
+                306,
+                "\t\t\t\t\t        item.References = references;"
+            ],
+            [
+                307,
+                "                           //"
+            ],
+            [
+                308,
+                "                            items.AddOrUpdate("
+            ],
+            [
+                309,
+                "                                item.Id,"
+            ],
+            [
+                310,
+                "                                // Add routine."
+            ],
+            [
+                311,
+                "                                k => {"
+            ],
+            [
+                312,
+                "\t\t\t                        return item;"
+            ],
+            [
+                313,
+                "                                },"
+            ],
+            [
+                314,
+                "                                // Update routine."
+            ],
+            [
+                315,
+                "                                (k, v) => {"
+            ],
+            [
+                316,
+                "                                    v.References = v.References.Append(item.References);"
+            ],
+            [
+                317,
+                "                                    v.ExtractedComments = v.ExtractedComments.Append(item.References);"
+            ],
+            [
+                318,
+                "                                    v.TranslatorComments = v.TranslatorComments.Append(item.References);"
+            ],
+            [
+                319,
+                "                                    v.Flags = v.Flags.Append(item.References);"
+            ],
+            [
+                320,
+                "                                    return v;"
+            ],
+            [
+                321,
+                "                                });"
+            ],
+            [
+                322,
+                "                        }"
+            ],
+            [
+                347,
+                "\t\tprivate TranslateItem ParseBody(TextReader fs, string line)"
+            ],
+            [
+                349,
+                "\t\t\tif (string.IsNullOrEmpty(line)) {"
+            ],
+            [
+                350,
+                "                return null; }"
+            ],
+            [
+                351,
+                ""
+            ],
+            [
+                352,
+                "            TranslateItem message = new TranslateItem();"
+            ],
+            [
+                353,
+                "\t\t\tStringBuilder sb = new StringBuilder();"
+            ],
+            [
+                354,
+                ""
+            ],
+            [
+                355,
+                "\t\t\tline = RemoveCommentIfHistorical(line); //so that we read in removed historical records too"
+            ],
+            [
+                356,
+                "\t\t\tif (line.StartsWith(\"msgid\"))"
+            ],
+            [
+                358,
+                "\t\t\t\tvar msgid = Unquote(line);"
+            ],
+            [
+                359,
+                "\t\t\t\tsb.Append(msgid);"
+            ],
+            [
+                361,
+                "\t\t\t\twhile ((line = fs.ReadLine()) != null)"
+            ],
+            [
+                363,
+                "\t\t\t\t\tline = RemoveCommentIfHistorical(line);"
+            ],
+            [
+                364,
+                "\t\t\t\t\tif (!line.StartsWith(\"msgstr\") && (msgid = Unquote(line)) != null)"
+            ],
+            [
+                366,
+                "\t\t\t\t\t\tsb.Append(msgid);"
+            ],
+            [
+                367,
+                "\t\t\t\t\t}"
+            ],
+            [
+                368,
+                "\t\t\t\t\telse"
+            ],
+            [
+                369,
+                "\t\t\t\t\t{"
+            ],
+            [
+                370,
+                "\t\t\t\t\t\tbreak;"
+            ],
+            [
+                374,
+                "\t\t\t\tmessage.Id = Unescape(sb.ToString());"
+            ],
+            [
+                375,
+                "\t\t\t}"
+            ],
+            [
+                377,
+                "\t\t\tsb.Clear();"
+            ],
+            [
+                378,
+                "\t\t\tline = RemoveCommentIfHistorical(line);"
+            ],
+            [
+                379,
+                "\t\t\tif (!string.IsNullOrEmpty(line) && line.StartsWith(\"msgstr\"))"
+            ],
+            [
+                380,
+                "\t\t\t{"
+            ],
+            [
+                381,
+                "\t\t\t\tvar msgstr = Unquote(line);"
+            ],
+            [
+                382,
+                "\t\t\t\tsb.Append(msgstr);"
+            ],
+            [
+                384,
+                "\t\t\t\twhile ((line = fs.ReadLine()) != null && (msgstr = Unquote(line)) != null)"
+            ],
+            [
+                385,
+                "\t\t\t\t{"
+            ],
+            [
+                386,
+                "\t\t\t\t\tline = RemoveCommentIfHistorical(line);"
+            ],
+            [
+                387,
+                "\t\t\t\t\tsb.Append(msgstr);"
+            ],
+            [
+                389,
+                ""
+            ],
+            [
+                390,
+                "\t\t\t\tmessage.Message = Unescape(sb.ToString());"
+            ],
+            [
+                392,
+                "            return message;"
+            ]
+        ],
+        "deleted": [
+            [
+                117,
+                "\t\t\t\tforeach (var item in translation.Items)"
+            ],
+            [
+                248,
+                "\t\t\tList<TranslateItem> items = new List<TranslateItem>();"
+            ],
+            [
+                249,
+                "\t\t\tTranslateItem item = new TranslateItem();"
+            ],
+            [
+                261,
+                "\t\t\t\t\titem = new TranslateItem();"
+            ],
+            [
+                262,
+                ""
+            ],
+            [
+                263,
+                ""
+            ],
+            [
+                297,
+                "\t\t\t\t\titem.TranslatorComments = translatorComments;"
+            ],
+            [
+                298,
+                "\t\t\t\t\titem.ExtractedComments = extractedComments;"
+            ],
+            [
+                299,
+                "\t\t\t\t\titem.Flags = flags;"
+            ],
+            [
+                300,
+                "\t\t\t\t\titem.References = references;"
+            ],
+            [
+                301,
+                ""
+            ],
+            [
+                304,
+                "\t\t\t\t\t\tParseBody(fs, line, item);"
+            ],
+            [
+                305,
+                "\t\t\t\t\t\titems.Add(item);"
+            ],
+            [
+                330,
+                "\t\tprivate void ParseBody(TextReader fs, string line, TranslateItem message)"
+            ],
+            [
+                332,
+                "\t\t\tif (!string.IsNullOrEmpty(line))"
+            ],
+            [
+                334,
+                "\t\t\t\tStringBuilder sb = new StringBuilder();"
+            ],
+            [
+                336,
+                "\t\t\t\tline = RemoveCommentIfHistorical(line); //so that we read in removed historical records too"
+            ],
+            [
+                337,
+                "\t\t\t\tif (line.StartsWith(\"msgid\"))"
+            ],
+            [
+                339,
+                "\t\t\t\t\tvar msgid = Unquote(line);"
+            ],
+            [
+                340,
+                "\t\t\t\t\tsb.Append(msgid);"
+            ],
+            [
+                341,
+                ""
+            ],
+            [
+                342,
+                "\t\t\t\t\twhile ((line = fs.ReadLine()) != null)"
+            ],
+            [
+                344,
+                "\t\t\t\t\t\tline = RemoveCommentIfHistorical(line);"
+            ],
+            [
+                345,
+                "\t\t\t\t\t\tif (!line.StartsWith(\"msgstr\") && (msgid = Unquote(line)) != null)"
+            ],
+            [
+                346,
+                "\t\t\t\t\t\t{"
+            ],
+            [
+                347,
+                "\t\t\t\t\t\t\tsb.Append(msgid);"
+            ],
+            [
+                348,
+                "\t\t\t\t\t\t}"
+            ],
+            [
+                349,
+                "\t\t\t\t\t\telse"
+            ],
+            [
+                350,
+                "\t\t\t\t\t\t{"
+            ],
+            [
+                351,
+                "\t\t\t\t\t\t\tbreak;"
+            ],
+            [
+                352,
+                "\t\t\t\t\t\t}"
+            ],
+            [
+                354,
+                ""
+            ],
+            [
+                355,
+                "\t\t\t\t\tmessage.Id = Unescape(sb.ToString());"
+            ],
+            [
+                358,
+                "\t\t\t\tsb.Clear();"
+            ],
+            [
+                359,
+                "\t\t\t\tline = RemoveCommentIfHistorical(line);"
+            ],
+            [
+                360,
+                "\t\t\t\tif (!string.IsNullOrEmpty(line) && line.StartsWith(\"msgstr\"))"
+            ],
+            [
+                361,
+                "\t\t\t\t{"
+            ],
+            [
+                362,
+                "\t\t\t\t\tvar msgstr = Unquote(line);"
+            ],
+            [
+                363,
+                "\t\t\t\t\tsb.Append(msgstr);"
+            ],
+            [
+                365,
+                "\t\t\t\t\twhile ((line = fs.ReadLine()) != null && (msgstr = Unquote(line)) != null)"
+            ],
+            [
+                366,
+                "\t\t\t\t\t{"
+            ],
+            [
+                367,
+                "\t\t\t\t\t\tline = RemoveCommentIfHistorical(line);"
+            ],
+            [
+                368,
+                "\t\t\t\t\t\tsb.Append(msgstr);"
+            ],
+            [
+                369,
+                "\t\t\t\t\t}"
+            ],
+            [
+                371,
+                "\t\t\t\t\tmessage.Message = Unescape(sb.ToString());"
+            ]
+        ]
+    },
+    "num_lines_added": 64,
+    "num_lines_removed": 45
+}

@@ -1,0 +1,133 @@
+  public static synchronized RunTime get(Type typ, String[] clArgs) {
+    if (runTime == null) {
+      runTime = new RunTime();
+
+      if (null != clArgs) {
+        int debugLevel = checkArgs(clArgs, typ);
+        if (Type.IDE.equals(typ)) {
+          if(debugLevel == -1) {
+            Debug.on(3);
+            Debug.log(3, "RunTime: option -d detected --- log goes to SikulixLog.txt");
+            Debug.setLogFile("");
+            Settings.LogTime = true;
+            System.setProperty("sikuli.console", "false");
+          } else if (debugLevel == 999) {
+            runTime.runningScripts = true;
+          }
+        }
+      }
+      if (Type.API.equals(typ)) {
+        Debug.init();
+      }
+
+//<editor-fold defaultstate="collapsed" desc="versions">
+      String vJava = System.getProperty("java.runtime.version");
+      String vVM = System.getProperty("java.vm.version");
+      String vClass = System.getProperty("java.class.version");
+      String vSysArch = System.getProperty("sikuli.arch");
+      if (null != vSysArch) {
+        vSysArch = System.getProperty("os.arch");
+      }      
+      if (vSysArch != null && vSysArch.contains("32")) {
+        runTime.javaArch = 32;
+      }
+      try {
+        runTime.javaVersion = Integer.parseInt(vJava.substring(2, 3));
+        runTime.javaShow = String.format("java %d-%d version %s vm %s class %s arch %s",
+                runTime.javaVersion, runTime.javaArch, vJava, vVM, vClass, vSysArch);
+      } catch (Exception ex) {
+        runTime.log(-1, "Java version not detected (using 7): %s", vJava);
+        runTime.javaVersion = 7;
+        runTime.javaShow = String.format("java ?7?-%d version %s vm %s class %s arch %s",
+                runTime.javaArch, vJava, vVM, vClass, vSysArch);
+        runTime.logp(runTime.javaShow);
+        runTime.dumpSysProps();
+      }
+
+      if (Debug.getDebugLevel() > runTime.minLvl) {
+        runTime.dumpSysProps();
+      }
+
+      runTime.osVersion = runTime.osVersionSysProp;
+      String os = runTime.osNameSysProp.toLowerCase();
+      if (os.startsWith("windows")) {
+        runTime.runningOn = theSystem.WIN;
+        runTime.sysName = "windows";
+        runTime.osName = "Windows";
+        runTime.runningWindows = true;
+      } else if (os.startsWith("mac")) {
+        runTime.runningOn = theSystem.MAC;
+        runTime.sysName = "mac";
+        runTime.osName = "Mac OSX";
+        runTime.runningMac = true;
+      } else if (os.startsWith("linux")) {
+        runTime.runningOn = theSystem.LUX;
+        runTime.sysName = "linux";
+        runTime.osName = "Linux";
+        runTime.runningLinux = true;
+      } else {
+        runTime.terminate(-1, "running on not supported System: %s (%s)", os, runTime.osVersion);
+      }
+//</editor-fold>
+
+      debugLevelSaved = Debug.getDebugLevel();
+      debugLogfileSaved = Debug.logfile;
+
+      String aFolder = System.getProperty("user.home");
+      if (aFolder == null || aFolder.isEmpty() || !(runTime.fUserDir = new File(aFolder)).exists()) {
+        runTime.terminate(-1, "JavaSystemProperty::user.home not valid");
+      }
+
+      aFolder = System.getProperty("user.dir");
+      if (aFolder == null || aFolder.isEmpty() || !(runTime.fWorkDir = new File(aFolder)).exists()) {
+        runTime.terminate(-1, "JavaSystemProperty::user.dir not valid");
+      }
+
+      File fDebug = new File(runTime.fUserDir, "SikulixDebug.txt");
+      if (fDebug.exists()) {
+        if (Debug.getDebugLevel() == 0) {
+          Debug.setDebugLevel(3);
+        }
+        Debug.setLogFile(fDebug.getAbsolutePath());
+        if (Type.IDE.equals(typ)) {
+          System.setProperty("sikuli.console", "false");
+        }
+        runTime.logp("auto-debugging with level %d into:\n%s", Debug.getDebugLevel(), fDebug);
+      }
+
+      runTime.fTestFolder = new File(runTime.fUserDir, "SikulixTest");
+      runTime.fTestFile = new File(runTime.fTestFolder, "SikulixTest.txt");
+
+      runTime.loadOptions(typ);
+      int dl = runTime.getOptionNumber("debug.level");
+      if (dl > 0 && Debug.getDebugLevel() < 2) {
+        Debug.setDebugLevel(dl);
+      }
+      if (Debug.getDebugLevel() > 1) {
+        runTime.dumpOptions();
+      }
+
+      if (Type.SETUP.equals(typ)) {
+        Debug.setDebugLevel(3);
+      }
+
+      Settings.init(); // force Settings initialization
+      runTime.initSikulixOptions();
+
+      runTime.init(typ);
+      if (Type.IDE.equals(typ)) {
+        runTime.initIDEbefore();
+        runTime.initAPI();
+        runTime.initIDEafter();
+      } else {
+        runTime.initAPI();
+        if (Type.SETUP.equals(typ)) {
+          runTime.initSetup();
+        }
+      }
+    }
+    if (testingWinApp && !runTime.runningWindows) {
+      runTime.terminate(1, "***** for testing winapp: not running on Windows");
+    }
+    return runTime;
+  }

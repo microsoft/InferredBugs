@@ -1,0 +1,35 @@
+        public Task<SqlConnection> OpenConnectionForKeyAsync<TKey>(
+            TKey key,
+            string connectionString,
+            SqlCredential secureCredential,
+            ConnectionOptions options)
+        {
+            ExceptionUtils.DisallowNullArgument(connectionString, "connectionString");
+
+            Debug.Assert(this.StoreShardMap.KeyType != ShardKeyType.None);
+
+            using (ActivityIdScope activityIdScope = new ActivityIdScope(Guid.NewGuid()))
+            {
+                IShardMapper<TKey> mapper = this.GetMapper<TKey>();
+
+                if (mapper == null)
+                {
+                    throw new ArgumentException(
+                        StringUtils.FormatInvariant(
+                            Errors._ShardMap_OpenConnectionForKey_KeyTypeNotSupported,
+                            typeof(TKey),
+                            this.StoreShardMap.Name,
+                            ShardKey.TypeFromShardKeyType(this.StoreShardMap.KeyType)),
+                            "key");
+                }
+
+                Debug.Assert(mapper != null);
+
+                return mapper.OpenConnectionForKeyAsync(
+                    key,
+                    new SqlConnectionInfo(
+                        connectionString,
+                        secureCredential),
+                    options);
+            }
+        }

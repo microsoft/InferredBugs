@@ -1,0 +1,38 @@
+  private Node tryOptimizeSwitch(Node n) {
+    Preconditions.checkState(n.getType() == Token.SWITCH);
+
+    Node defaultCase = findDefaultCase(n);
+    if (defaultCase != null && isUselessCase(defaultCase)) {
+      NodeUtil.redeclareVarsInsideBranch(defaultCase);
+      n.removeChild(defaultCase);
+      reportCodeChange();
+      defaultCase = null;
+    }
+
+    // Removing cases when there exists a default case is not safe.
+    // TODO(johnlenz): Allow this if the same code is executed.
+    if (defaultCase == null) {
+      Node next = null;
+      // The first child is the switch conditions skip it.
+      for (Node c = n.getFirstChild().getNext(); c != null; c = next) {
+        next = c.getNext();
+        if (!mayHaveSideEffects(c.getFirstChild()) && isUselessCase(c)) {
+          NodeUtil.redeclareVarsInsideBranch(c);
+          n.removeChild(c);
+          reportCodeChange();
+        }
+      }
+    }
+
+    if (n.hasOneChild()) {
+      Node condition = n.removeFirstChild();
+      Node parent = n.getParent();
+      Node replacement = new Node(Token.EXPR_RESULT, condition)
+                            .copyInformationFrom(n);
+      parent.replaceChild(n, replacement);
+      reportCodeChange();
+      return replacement;
+    }
+
+    return null;
+  }

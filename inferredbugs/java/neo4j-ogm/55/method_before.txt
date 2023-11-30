@@ -1,0 +1,22 @@
+    public Long nativeId(Object entity) {
+        ClassInfo classInfo = metaData.classInfo(entity);
+        generateIdIfNecessary(entity, classInfo);
+
+        if (classInfo.hasIdentityField()) {
+            return EntityUtils.identity(entity, metaData);
+        } else {
+            FieldInfo fieldInfo = classInfo.primaryIndexField();
+            Object primaryId = fieldInfo.readProperty(entity);
+
+            if (primaryId == null) {
+                throw new MappingException("Field with primary id is null for entity " + entity);
+            }
+            LabelPrimaryId key = new LabelPrimaryId(classInfo, primaryId);
+            Long graphId = primaryIdToNativeId.get(key);
+            if (graphId == null) {
+                graphId = EntityUtils.nextRef();
+                primaryIdToNativeId.put(key, graphId);
+            }
+            return graphId;
+        }
+    }

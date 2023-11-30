@@ -1,0 +1,38 @@
+    public void run() throws Exception {
+        TChannel tchannel = new TChannel.Builder("ping-client").build();
+
+        Req<Ping> req = new Req<Ping>(
+                "ping",
+                new HashMap<String, String>() {
+                    {
+                        put("some", "header");
+                    }
+                },
+                new Ping("{'key': 'ping?'}")
+        );
+
+        for (int i = 0; i < this.requests; i++) {
+            Promise<Res<Pong>> f = tchannel.makeRequest(
+                    this.host,
+                    this.port,
+                    "service",
+                    ArgScheme.JSON.getScheme(),
+                    Pong.class,
+                    req
+            );
+
+            f.addListener(new GenericFutureListener<Future<? super Res<Pong>>>() {
+                @Override
+                public void operationComplete(Future<? super Res<Pong>> future) throws Exception {
+                    if (future.isSuccess()) {
+                        Res<Pong> res = (Res<Pong>) future.get();
+                        System.out.println(res);
+                    }
+                }
+            });
+
+        }
+
+        tchannel.shutdown();
+
+    }

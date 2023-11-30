@@ -1,0 +1,137 @@
+    @Override
+    public void deleteContainer(String uri, AuthCredentials authCredentials, SwordConfiguration sc) throws SwordError, SwordServerException, SwordAuthException {
+//        swordConfiguration = (SwordConfigurationImpl) sc;
+        DataverseUser vdcUser = swordAuth.auth(authCredentials);
+        logger.fine("deleteContainer called with url: " + uri);
+        urlManager.processUrl(uri);
+        logger.fine("original url: " + urlManager.getOriginalUrl());
+        if (!"edit".equals(urlManager.getServlet())) {
+            throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "edit servlet expected, not " + urlManager.getServlet());
+        }
+        String targetType = urlManager.getTargetType();
+        if (!targetType.isEmpty()) {
+            logger.fine("operating on target type: " + urlManager.getTargetType());
+
+//            StudyServiceLocal studyService;
+            Context ctx;
+            try {
+                ctx = new InitialContext();
+//                studyService = (StudyServiceLocal) ctx.lookup("java:comp/env/studyService");
+            } catch (NamingException ex) {
+                logger.info("problem looking up studyService");
+                throw new SwordServerException("problem looking up studyService");
+            }
+
+            if ("dataverse".equals(targetType)) {
+                /**
+                 * @todo throw SWORD error recommending use of 4.0 "native" API
+                 * to delete dataverses
+                 */
+//                String dvAlias = urlManager.getTargetIdentifier();
+//                List<VDC> userVDCs = vdcService.getUserVDCs(vdcUser.getId());
+//                VDC dataverseToEmpty = vdcService.findByAlias(dvAlias);
+//                if (dataverseToEmpty != null) {
+//                    if ("Admin".equals(vdcUser.getNetworkRole().getName())) {
+//                        if (swordConfiguration.allowNetworkAdminDeleteAllStudies()) {
+//
+//                            /**
+//                             * @todo: this is the deleteContainer method...
+//                             * should move this to some sort of "emptyContainer"
+//                             * method
+//                             */
+//                            // curl --insecure -s -X DELETE https://sword:sword@localhost:8181/dvn/api/data-deposit/v1/swordv2/edit/dataverse/sword 
+//                            Collection<Study> studies = dataverseToEmpty.getOwnedStudies();
+//                            for (Study study : studies) {
+//                                logger.info("In dataverse " + dataverseToEmpty.getAlias() + " about to delete study id " + study.getId());
+//                                studyService.deleteStudy(study.getId());
+//                            }
+//                        } else {
+//                        throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "DELETE on a dataverse is not supported");
+//                        }
+
+//                    } else {
+//                        throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Role was " + vdcUser.getNetworkRole().getName() + " but admin required.");
+//                    }
+//                } else {
+//                    throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Couldn't find dataverse to delete from URL: " + uri);
+//                }
+            } else if ("study".equals(targetType)) {
+                String globalId = urlManager.getTargetIdentifier();
+                logger.info("globalId: " + globalId);
+                if (globalId != null) {
+                    Dataset study = null;
+                    try {
+
+                        /**
+                         * @todo don't hard code this, obviously. In DVN 3.x we
+                         * had a method for
+                         * studyService.getStudyByGlobalId(globalId)
+                         */
+//                        study = studyService.getStudyByGlobalId(globalId);
+                        long databaseIdForRoastingAtHomeDataset = 10;
+                        study = datasetService.find(databaseIdForRoastingAtHomeDataset);
+                    } catch (EJBException ex) {
+                        throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Could not find study based on global id (" + globalId + ") in URL: " + uri);
+                    }
+                    if (study != null) {
+                        Dataverse dvThatOwnsStudy = study.getOwner();
+                        if (swordAuth.hasAccessToModifyDataverse(vdcUser, dvThatOwnsStudy)) {
+                            DatasetVersion.VersionState studyState = study.getLatestVersion().getVersionState();
+                            if (studyState.equals(DatasetVersion.VersionState.DRAFT)) {
+                                /**
+                                 * @todo use getGlobalId when it's available
+                                 */
+                                logger.info("destroying working copy version of study " + study.getIdentifier());
+                                /**
+                                 * @todo in DVN 3.x we had a convenient
+                                 * destroyWorkingCopyVersion method but the
+                                 * DeleteDatasetCommand is pretty scary... what
+                                 * if a released study has a new draft version?
+                                 * What we need is a
+                                 * DeleteDatasetVersionCommand, I suppose...
+                                 */
+//                                studyService.destroyWorkingCopyVersion(study.getLatestVersion().getId());
+                                try {
+                                    engineSvc.submit(new DeleteDatasetCommand(study, vdcUser));
+                                    /**
+                                     * @todo re-index after deletion
+                                     * https://redmine.hmdc.harvard.edu/issues/3544#note-21
+                                     */
+                                    logger.info("dataset deleted");
+                                } catch (CommandExecutionException ex) {
+                                    // internal error
+                                    throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Can't delete dataset: " + ex.getMessage());
+                                } catch (CommandException ex) {
+                                    throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Can't delete dataset: " + ex.getMessage());
+                                }
+                                /**
+                                 * @todo think about how to handle non-drafts
+                                 */
+                            } else if (studyState.equals(DatasetVersion.VersionState.RELEASED)) {
+//                                logger.fine("deaccessioning latest version of study " + study.getGlobalId());
+//                                studyService.deaccessionStudy(study.getLatestVersion());
+                            } else if (studyState.equals(DatasetVersion.VersionState.DEACCESSIONED)) {
+//                                throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Lastest version of study " + study.getGlobalId() + " has already been deaccessioned.");
+                            } else if (studyState.equals(DatasetVersion.VersionState.ARCHIVED)) {
+//                                throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Lastest version of study " + study.getGlobalId() + " has been archived and can not be deleted or deaccessioned.");
+                            } else if (studyState.equals(DatasetVersion.VersionState.IN_REVIEW)) {
+//                                throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Lastest version of study " + study.getGlobalId() + " is in review and can not be deleted or deaccessioned.");
+                            } else {
+//                                throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Operation not valid for study " + study.getGlobalId() + " in state " + studyState);
+                            }
+                        } else {
+                            throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "User " + vdcUser.getUserName() + " is not authorized to modify " + dvThatOwnsStudy.getAlias());
+                        }
+                    } else {
+                        throw new SwordError(404);
+                    }
+                } else {
+                    throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Could not find study to delete from URL: " + uri);
+                }
+            } else {
+                throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "Unsupported delete target in URL:" + uri);
+            }
+        } else {
+            throw new SwordError(UriRegistry.ERROR_BAD_REQUEST, "No target for deletion specified");
+        }
+    }

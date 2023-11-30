@@ -1,0 +1,31 @@
+  @Test
+  public void testSystemCatalogWALEntryFilter() throws Exception {
+
+    //now create WAL.Entry objects that refer to cells in those view rows in System.Catalog
+
+    Get tenantGet = getGet(catalogTable, TENANT_BYTES, TENANT_VIEW_NAME);
+    Get nonTenantGet = getGet(catalogTable, DEFAULT_TENANT_BYTES, NONTENANT_VIEW_NAME);
+
+    WAL.Entry nonTenantEntry = getEntry(systemCatalogTableName, nonTenantGet);
+    WAL.Entry tenantEntry = getEntry(systemCatalogTableName, tenantGet);
+
+    //verify that the tenant view WAL.Entry passes the filter and the non-tenant view does not
+    SystemCatalogWALEntryFilter filter = new SystemCatalogWALEntryFilter();
+    Assert.assertNull(filter.filter(nonTenantEntry));
+    WAL.Entry filteredTenantEntry = filter.filter(tenantEntry);
+    Assert.assertNotNull("Tenant view was filtered when it shouldn't be!", filteredTenantEntry);
+    Assert.assertEquals(tenantEntry.getEdit().size(),
+        filter.filter(tenantEntry).getEdit().size());
+
+    //now check that a WAL.Entry with cells from both a tenant and a non-tenant
+    //catalog row only allow the tenant cells through
+    WALEdit comboEdit = new WALEdit();
+    comboEdit.getCells().addAll(nonTenantEntry.getEdit().getCells());
+    comboEdit.getCells().addAll(tenantEntry.getEdit().getCells());
+    WAL.Entry comboEntry = new WAL.Entry(walKey, comboEdit);
+
+    Assert.assertEquals(tenantEntry.getEdit().size() + nonTenantEntry.getEdit().size()
+        , comboEntry.getEdit().size());
+    Assert.assertEquals(tenantEntry.getEdit().size(),
+        filter.filter(comboEntry).getEdit().size());
+  }

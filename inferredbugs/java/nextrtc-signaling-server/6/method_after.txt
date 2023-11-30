@@ -1,0 +1,17 @@
+    private void send(InternalMessage message, int retry) {
+        if (message.getSignal() != Signal.PING) {
+            log.debug("Outgoing: " + message.transformToExternalMessage());
+        }
+        if (message.getSignal() == Signal.ERROR) {
+            tryToSendErrorMessage(message);
+            return;
+        }
+        Member destination = message.getTo();
+        if (destination == null || !destination.getSession().isOpen()) {
+            log.warn("Destination member is not set or session is closed! Message will not be send: " + message.transformToExternalMessage());
+            return;
+        }
+        members.findBy(destination.getId()).ifPresent(member ->
+                lockAndRun(message, member, retry)
+        );
+    }

@@ -1,0 +1,28 @@
+  private InputStream locateStreamFromJar(final String uri, final File jarPath)
+      throws IOException {
+    LOG.debug("\t\tLocating stream from jar");
+    String classPath = FilenameUtils.getPath(uri);
+    final String wildcard = FilenameUtils.getName(uri);
+
+    if (classPath.startsWith(ClasspathUriLocator.PREFIX)) {
+      classPath = StringUtils.substringAfter(classPath, ClasspathUriLocator.PREFIX);
+    }
+
+    final JarFile file = open(jarPath);
+    final List<JarEntry> jarEntryList = Collections.list(file.entries());
+    final List<JarEntry> filteredJarEntryList = new ArrayList<JarEntry>();
+    for (final JarEntry entry : jarEntryList) {
+      final boolean isSupportedEntry = entry.getName().startsWith(classPath) && accept(entry, wildcard);
+      if (isSupportedEntry) {
+        filteredJarEntryList.add(entry);
+      }
+    }
+    final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    for (final JarEntry entry : filteredJarEntryList) {
+        final InputStream is = file.getInputStream(entry);
+        IOUtils.copy(is, out);
+        is.close();
+    }
+    return new BufferedInputStream(new ByteArrayInputStream(out.toByteArray()));
+  }

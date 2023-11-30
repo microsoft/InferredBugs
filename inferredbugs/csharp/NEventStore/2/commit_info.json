@@ -1,0 +1,88 @@
+{
+    "hash": "d97b2a89a8bf307f84679f41503b2223afa579e0",
+    "message": "Added behavior and tests to make getting a stream from a snapshot forward is easier and significantly safer.\n\nThe previous commits with the new model had a fundamental issue whereby a user could query for all events and revisions after a snapshot and not find any.  This would cause the stream to be empty.  As a result, the empty stream wouldn't be able to determine what revision or commit sequence it was.  This made committing the stream impossible.  The fix was to expose an additional API method so that callers that had previously retrieved a snapshot could get everything from the revision of the snapshot forward.  This would enable the stream to have just enough information to know its revision and commit sequence.",
+    "file_num_lines": 88,
+    "diff_parsed": {
+        "added": [
+            [
+                5,
+                "\tusing System.Linq;"
+            ],
+            [
+                28,
+                "\t\t\treturn this.OpenStream(streamId, minRevision, maxRevision, commits);"
+            ],
+            [
+                29,
+                "\t\t}"
+            ],
+            [
+                30,
+                "\t\tpublic virtual IEventStream OpenStream(Snapshot snapshot, int maxRevision)"
+            ],
+            [
+                31,
+                "\t\t{"
+            ],
+            [
+                32,
+                "\t\t\t// we query from the revision of the snapshot forward because we are guaranteed to get"
+            ],
+            [
+                33,
+                "\t\t\t// a commit.  If we queried beyond the snapshot (snapshot.StreamRevision + 1), we cannot be"
+            ],
+            [
+                34,
+                "\t\t\t// sure that there's anything out there.  This would result in an empty string that had"
+            ],
+            [
+                35,
+                "\t\t\t// a CommitSequence and StreamRevision of 0 which could never be properly persisted."
+            ],
+            [
+                36,
+                "\t\t\tvar streamId = snapshot.StreamId;"
+            ],
+            [
+                37,
+                "\t\t\tvar minRevision = snapshot.StreamRevision;"
+            ],
+            [
+                38,
+                ""
+            ],
+            [
+                39,
+                "\t\t\tvar commits = this.persistence.GetFrom(streamId, minRevision, maxRevision);"
+            ],
+            [
+                40,
+                "\t\t\treturn this.OpenStream(streamId, minRevision + 1, maxRevision, commits)"
+            ],
+            [
+                41,
+                "\t\t\t\t?? new OptimisticEventStream("
+            ],
+            [
+                42,
+                "\t\t\t\t\tstreamId, this.persistence, minRevision, commits.First().CommitSequence);"
+            ],
+            [
+                43,
+                "\t\t}"
+            ],
+            [
+                44,
+                "\t\tprivate IEventStream OpenStream(Guid streamId, int minRevision, int maxRevision, IEnumerable<Commit> commits)"
+            ],
+            [
+                45,
+                "\t\t{"
+            ]
+        ],
+        "deleted": []
+    },
+    "num_lines_added": 19,
+    "num_lines_removed": 0
+}

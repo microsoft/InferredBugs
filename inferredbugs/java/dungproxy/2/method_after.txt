@@ -1,0 +1,28 @@
+    public void refresh() {
+        if (testUrls.size() == 0) {
+            return;// 数据还没有进来,不refresh
+        }
+        int expectedThreadNumber = expectedRefreshTaskNumber();
+        if (refreshTaskNumber.get() > expectedThreadNumber) {
+            // logger.info("当前刷新线程数:{} 大于调度线程数:{} 取消本次IP资源刷新任务", refreshTaskNumber.get(), expectedThreadNumber);
+            return;
+        }
+
+        if (refreshTaskNumber.incrementAndGet() <= expectedThreadNumber) {
+            Thread thread = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        logger.info("IP资源刷新开始,当前刷新线程数量:{}...", refreshTaskNumber.get());
+                        doRefresh();
+                        logger.info("IP资源刷新结束...");
+                    } finally {
+                        refreshTaskNumber.decrementAndGet();
+                    }
+                }
+
+            };
+            thread.setDaemon(true);
+            thread.start();
+        }
+    }

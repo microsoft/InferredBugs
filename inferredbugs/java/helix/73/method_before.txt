@@ -1,0 +1,65 @@
+  void createClient() throws Exception {
+    PathBasedZkSerializer zkSerializer =
+        ChainedPathZkSerializer.builder(new ZNRecordSerializer()).build();
+
+    HelixZkClient.ZkConnectionConfig connectionConfig = new HelixZkClient.ZkConnectionConfig(_zkAddress);
+    connectionConfig.setSessionTimeout(_sessionTimeout);
+    HelixZkClient.ZkClientConfig clientConfig = new HelixZkClient.ZkClientConfig();
+    clientConfig
+        .setZkSerializer(zkSerializer)
+        .setConnectInitTimeout(_connectionInitTimeout)
+        .setMonitorType(_instanceType.name())
+        .setMonitorKey(_clusterName)
+        .setMonitorInstanceName(_instanceName)
+        .setMonitorRootPathOnly(!_instanceType.equals(InstanceType.CONTROLLER) && !_instanceType
+            .equals(InstanceType.CONTROLLER_PARTICIPANT));
+
+    HelixZkClient newClient;
+    switch (_instanceType) {
+    case ADMINISTRATOR:
+      newClient = SharedZkClientFactory.getInstance().buildZkClient(connectionConfig, clientConfig);
+      break;
+    default:
+      newClient = DedicatedZkClientFactory
+          .getInstance().buildZkClient(connectionConfig, clientConfig);
+      break;
+    }
+
+    synchronized (this) {
+      if (_zkclient != null) {
+        _zkclient.close();
+      }
+      _zkclient = newClient;
+
+      _baseDataAccessor = createBaseDataAccessor();
+
+      _dataAccessor = new ZKHelixDataAccessor(_clusterName, _instanceType, _baseDataAccessor);
+      _configAccessor = new ConfigAccessor(_zkclient);
+
+      if (_instanceType == InstanceType.CONTROLLER
+          || _instanceType == InstanceType.CONTROLLER_PARTICIPANT) {
+        addBuiltInStateModelDefinitions();
+      }
+    }
+
+    // subscribe to state change
+    _zkclient.subscribeStateChanges(this);
+    int retryCount = 0;
+    while (retryCount < 3) {
+      try {
+        _zkclient.waitUntilConnected(_connectionInitTimeout, TimeUnit.MILLISECONDS);
+        handleStateChanged(KeeperState.SyncConnected);
+        handleNewSession();
+        break;
+      } catch (HelixException e) {
+        LOG.error("fail to createClient.", e);
+        throw e;
+      } catch (Exception e) {
+        retryCount++;
+        LOG.error("fail to createClient. retry " + retryCount, e);
+        if (retryCount == 3) {
+          throw e;
+        }
+      }
+    }
+  }

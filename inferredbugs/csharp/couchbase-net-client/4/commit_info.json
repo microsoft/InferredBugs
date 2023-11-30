@@ -1,0 +1,413 @@
+{
+    "hash": "4b1fea2be4d6b11370485c5888ae3c42ef4a77ed",
+    "message": "NCBC-410: Subclass KeyMapper for VBucket and Ketama based Key mapping",
+    "file_num_lines": 202,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "using System.IO;"
+            ],
+            [
+                4,
+                "using System.Linq;"
+            ],
+            [
+                5,
+                "using System.Net;"
+            ],
+            [
+                11,
+                "using Couchbase.IO;"
+            ],
+            [
+                12,
+                "using Couchbase.Utils;"
+            ],
+            [
+                13,
+                "using Newtonsoft.Json;"
+            ],
+            [
+                23,
+                "        private readonly Func<IConnectionPool, IOStrategy> _ioStrategyFactory;"
+            ],
+            [
+                24,
+                "        private readonly Func<PoolConfiguration, IPEndPoint, IConnectionPool> _connectionPoolFactory;"
+            ],
+            [
+                36,
+                "        public HttpStreamingProvider(ClientConfiguration clientConfig,"
+            ],
+            [
+                37,
+                "            Func<IConnectionPool, IOStrategy> ioStrategyFactory,"
+            ],
+            [
+                38,
+                "            Func<PoolConfiguration, IPEndPoint, IConnectionPool> connectionPoolFactory)"
+            ],
+            [
+                39,
+                "        {"
+            ],
+            [
+                40,
+                "            _clientConfig = clientConfig;"
+            ],
+            [
+                41,
+                "            _ioStrategyFactory = ioStrategyFactory;"
+            ],
+            [
+                42,
+                "            _connectionPoolFactory = connectionPoolFactory;"
+            ],
+            [
+                43,
+                "        }"
+            ],
+            [
+                44,
+                ""
+            ],
+            [
+                47,
+                "            IConfigInfo configInfo;"
+            ],
+            [
+                48,
+                "            if (!_configs.TryGetValue(bucketName, out configInfo))"
+            ],
+            [
+                49,
+                "            {"
+            ],
+            [
+                50,
+                "                throw new ConfigNotFoundException(bucketName);"
+            ],
+            [
+                51,
+                "            }"
+            ],
+            [
+                52,
+                "            return configInfo;"
+            ],
+            [
+                57,
+                "            var bucketConfig = _serverConfig.Buckets.Find(x => x.Name == bucketName);"
+            ],
+            [
+                58,
+                "            if (bucketConfig == null)"
+            ],
+            [
+                59,
+                "            {"
+            ],
+            [
+                60,
+                "                throw new BucketNotFoundException(bucketName);"
+            ],
+            [
+                61,
+                "            }"
+            ],
+            [
+                62,
+                ""
+            ],
+            [
+                63,
+                "            IConfigInfo configInfo = null;"
+            ],
+            [
+                64,
+                "            var nodes = bucketConfig.Nodes.ToList();"
+            ],
+            [
+                65,
+                "            while (nodes.Any())"
+            ],
+            [
+                66,
+                "            {"
+            ],
+            [
+                67,
+                "                try"
+            ],
+            [
+                68,
+                "                {"
+            ],
+            [
+                69,
+                "                    nodes.Shuffle();"
+            ],
+            [
+                70,
+                "                    var node = nodes.First();"
+            ],
+            [
+                71,
+                "                    nodes.Remove(node);"
+            ],
+            [
+                72,
+                ""
+            ],
+            [
+                73,
+                "                    IBucketConfig newConfig;"
+            ],
+            [
+                74,
+                "                    var uri = bucketConfig.GetTerseUri(node);"
+            ],
+            [
+                75,
+                "                    using (var webClient = new WebClient())"
+            ],
+            [
+                76,
+                "                    {"
+            ],
+            [
+                77,
+                "                        var body = webClient.DownloadString(uri);"
+            ],
+            [
+                78,
+                "                        newConfig = JsonConvert.DeserializeObject<BucketConfig>(body);"
+            ],
+            [
+                79,
+                "                    }"
+            ],
+            [
+                80,
+                ""
+            ],
+            [
+                81,
+                "                    configInfo = CreateConfigInfo(newConfig);"
+            ],
+            [
+                82,
+                "                   _configs[bucketName] = configInfo;"
+            ],
+            [
+                83,
+                "                    break;"
+            ],
+            [
+                84,
+                ""
+            ],
+            [
+                85,
+                "                }"
+            ],
+            [
+                86,
+                "                catch (WebException e)"
+            ],
+            [
+                87,
+                "                {"
+            ],
+            [
+                88,
+                "                    Log.Error(e);"
+            ],
+            [
+                89,
+                "                }"
+            ],
+            [
+                90,
+                "                catch (IOException e)"
+            ],
+            [
+                91,
+                "                {"
+            ],
+            [
+                92,
+                "                    Log.Error(e);"
+            ],
+            [
+                93,
+                "                }"
+            ],
+            [
+                94,
+                "            }"
+            ],
+            [
+                95,
+                ""
+            ],
+            [
+                96,
+                "            if (configInfo == null)"
+            ],
+            [
+                97,
+                "            {"
+            ],
+            [
+                98,
+                "                throw new BucketNotFoundException();"
+            ],
+            [
+                99,
+                "            }"
+            ],
+            [
+                100,
+                "            return configInfo;"
+            ],
+            [
+                131,
+                ""
+            ],
+            [
+                155,
+                "                if (configInfo.BucketConfig.Equals(bucketConfig))"
+            ],
+            [
+                157,
+                "                    SignalCountdownEvent();"
+            ],
+            [
+                158,
+                "                    return;"
+            ],
+            [
+                159,
+                "                }"
+            ],
+            [
+                160,
+                "                configInfo = CreateConfigInfo(bucketConfig);"
+            ],
+            [
+                164,
+                "                configInfo = CreateConfigInfo(bucketConfig);"
+            ],
+            [
+                175,
+                "            SignalCountdownEvent();"
+            ],
+            [
+                176,
+                "        }"
+            ],
+            [
+                177,
+                ""
+            ],
+            [
+                178,
+                "        void SignalCountdownEvent()"
+            ],
+            [
+                179,
+                "        {"
+            ],
+            [
+                186,
+                "        IConfigInfo CreateConfigInfo(IBucketConfig bucketConfig)"
+            ],
+            [
+                187,
+                "        {"
+            ],
+            [
+                188,
+                "            IConfigInfo configInfo = new ConfigContext(bucketConfig,"
+            ],
+            [
+                189,
+                "                    _clientConfig,"
+            ],
+            [
+                190,
+                "                    _ioStrategyFactory,"
+            ],
+            [
+                191,
+                "                    _connectionPoolFactory);"
+            ],
+            [
+                192,
+                ""
+            ],
+            [
+                193,
+                "            return configInfo;"
+            ],
+            [
+                194,
+                "        }"
+            ],
+            [
+                195,
+                ""
+            ]
+        ],
+        "deleted": [
+            [
+                30,
+                "            throw new NotImplementedException();"
+            ],
+            [
+                35,
+                "            throw new NotImplementedException();"
+            ],
+            [
+                66,
+                ""
+            ],
+            [
+                90,
+                "                if (configInfo.BucketConfig.Equals(bucketConfig)) return;"
+            ],
+            [
+                91,
+                "                configInfo = new DefaultConfig(_clientConfig, _serverConfig)"
+            ],
+            [
+                93,
+                "                    BucketConfig = bucketConfig"
+            ],
+            [
+                94,
+                "                };"
+            ],
+            [
+                98,
+                "                configInfo = new DefaultConfig(_clientConfig, _serverConfig)"
+            ],
+            [
+                99,
+                "                {"
+            ],
+            [
+                100,
+                "                    BucketConfig = bucketConfig"
+            ],
+            [
+                101,
+                "                };"
+            ]
+        ]
+    },
+    "num_lines_added": 89,
+    "num_lines_removed": 11
+}

@@ -1,0 +1,21 @@
+    public void clear() {
+        Map toDestroy = new HashMap();
+        synchronized (this) {
+            for (Iterator it = _poolMap.keySet().iterator(); it.hasNext();) {
+                Object key = it.next();
+                ObjectQueue pool = (ObjectQueue)_poolMap.get(key);
+                // Copy objects to new list so pool.queue can be cleared inside
+                // the sync
+                List objects = new ArrayList();
+                objects.addAll(pool.queue);
+                toDestroy.put(key, objects);
+                it.remove();
+                _poolList.remove(key);
+                _totalIdle = _totalIdle - pool.queue.size();
+                _totalInternalProcessing =
+                    _totalInternalProcessing + pool.queue.size();
+                pool.queue.clear();
+            }
+        }
+        destroy(toDestroy, _factory);
+    }

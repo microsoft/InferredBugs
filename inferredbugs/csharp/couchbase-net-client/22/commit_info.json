@@ -1,0 +1,589 @@
+{
+    "hash": "ecfa2826297e1a8e285c41e803c45485297b53dc",
+    "message": "NCBC-558: Add Thread Synchronization to ClusterManager and Provider classes\n\nChange-Id: I80344f07d54e41eb6cc02b25d0d7896d5054187f\nReviewed-on: http://review.couchbase.org/39761\nReviewed-by: Brett Lawson <brett19@gmail.com>\nTested-by: Jeffry Morris <jeffrymorris@gmail.com>",
+    "file_num_lines": 242,
+    "diff_parsed": {
+        "added": [
+            [
+                36,
+                "        private static readonly object SyncObject = new object();"
+            ],
+            [
+                37,
+                "        private volatile bool _disposed;"
+            ],
+            [
+                110,
+                "           _configProviders.Add(new HttpStreamingProvider(_clientConfig,"
+            ],
+            [
+                125,
+                "            lock (SyncObject)"
+            ],
+            [
+                127,
+                "                var provider = _configProviders.FirstOrDefault(x => x is CarrierPublicationProvider);"
+            ],
+            [
+                128,
+                "                if (provider != null)"
+            ],
+            [
+                130,
+                "                    var carrierPublicationProvider = provider as CarrierPublicationProvider;"
+            ],
+            [
+                131,
+                "                    if (carrierPublicationProvider != null)"
+            ],
+            [
+                132,
+                "                    {"
+            ],
+            [
+                133,
+                "                        carrierPublicationProvider.UpdateConfig(bucketConfig);"
+            ],
+            [
+                134,
+                "                    }"
+            ],
+            [
+                146,
+                "            lock (SyncObject)"
+            ],
+            [
+                148,
+                "                var success = false;"
+            ],
+            [
+                149,
+                "                IBucket bucket = null;"
+            ],
+            [
+                150,
+                "                foreach (var provider in _configProviders)"
+            ],
+            [
+                152,
+                "                    try"
+            ],
+            [
+                154,
+                "                        Log.DebugFormat(\"Trying to boostrap with {0}.\", provider);"
+            ],
+            [
+                155,
+                "                        var config = provider.GetConfig(bucketName, password);"
+            ],
+            [
+                156,
+                "                        switch (config.NodeLocator)"
+            ],
+            [
+                157,
+                "                        {"
+            ],
+            [
+                158,
+                "                            case NodeLocatorEnum.VBucket:"
+            ],
+            [
+                159,
+                "                                bucket = new CouchbaseBucket(this, bucketName, _converter, _serializer);"
+            ],
+            [
+                160,
+                "                                bucket.AddRef();"
+            ],
+            [
+                161,
+                "                                break;"
+            ],
+            [
+                163,
+                "                            case NodeLocatorEnum.Ketama:"
+            ],
+            [
+                164,
+                "                                bucket = new MemcachedBucket(this, bucketName, _converter, _serializer);"
+            ],
+            [
+                165,
+                "                                bucket.AddRef();"
+            ],
+            [
+                166,
+                "                                break;"
+            ],
+            [
+                168,
+                "                            default:"
+            ],
+            [
+                169,
+                "                                throw new ArgumentOutOfRangeException();"
+            ],
+            [
+                170,
+                "                        }"
+            ],
+            [
+                172,
+                "                        var configObserver = bucket as IConfigObserver;"
+            ],
+            [
+                173,
+                "                        if (provider.ObserverExists(configObserver))"
+            ],
+            [
+                174,
+                "                        {"
+            ],
+            [
+                175,
+                "                            Log.DebugFormat(\"Using existing bootstrap {0}.\", provider);"
+            ],
+            [
+                176,
+                "                            configObserver.NotifyConfigChanged(config);"
+            ],
+            [
+                177,
+                "                            success = true;"
+            ],
+            [
+                178,
+                "                            break;"
+            ],
+            [
+                179,
+                "                        }"
+            ],
+            [
+                180,
+                ""
+            ],
+            [
+                181,
+                "                        if (provider.RegisterObserver(configObserver) &&"
+            ],
+            [
+                182,
+                "                            _buckets.TryAdd(bucket.Name, bucket))"
+            ],
+            [
+                183,
+                "                        {"
+            ],
+            [
+                184,
+                "                            Log.DebugFormat(\"Successfully boostrap using {0}.\", provider);"
+            ],
+            [
+                185,
+                "                            configObserver.NotifyConfigChanged(config);"
+            ],
+            [
+                186,
+                "                            success = true;"
+            ],
+            [
+                187,
+                "                            break;"
+            ],
+            [
+                188,
+                "                        }"
+            ],
+            [
+                193,
+                "                    catch (BucketNotFoundException e)"
+            ],
+            [
+                195,
+                "                        Log.Warn(e);"
+            ],
+            [
+                196,
+                "                    }"
+            ],
+            [
+                197,
+                "                    catch (ConfigException e)"
+            ],
+            [
+                198,
+                "                    {"
+            ],
+            [
+                199,
+                "                        Log.Warn(e);"
+            ],
+            [
+                200,
+                "                    }"
+            ],
+            [
+                201,
+                "                    catch (AuthenticationException e)"
+            ],
+            [
+                202,
+                "                    {"
+            ],
+            [
+                203,
+                "                        Log.Warn(e);"
+            ],
+            [
+                207,
+                ""
+            ],
+            [
+                208,
+                "                if (!success)"
+            ],
+            [
+                210,
+                "                    throw new ConfigException(\"Could not bootstrap {0}. See log for details.\", bucketName);"
+            ],
+            [
+                212,
+                "                return bucket;"
+            ],
+            [
+                236,
+                "            lock (SyncObject)"
+            ],
+            [
+                238,
+                "                if (!_disposed)"
+            ],
+            [
+                240,
+                "                    if (disposing)"
+            ],
+            [
+                241,
+                "                    {"
+            ],
+            [
+                242,
+                "                        GC.SuppressFinalize(this);"
+            ],
+            [
+                243,
+                "                    }"
+            ],
+            [
+                244,
+                "                    foreach (var pair in _buckets)"
+            ],
+            [
+                245,
+                "                    {"
+            ],
+            [
+                246,
+                "                        DestroyBucket(pair.Value);"
+            ],
+            [
+                247,
+                "                    }"
+            ],
+            [
+                248,
+                "                    foreach (var configProvider in ConfigProviders)"
+            ],
+            [
+                249,
+                "                    {"
+            ],
+            [
+                250,
+                "                        configProvider.Dispose();"
+            ],
+            [
+                251,
+                "                    }"
+            ],
+            [
+                252,
+                "                    _disposed = true;"
+            ]
+        ],
+        "deleted": [
+            [
+                36,
+                "        private bool _disposed;"
+            ],
+            [
+                109,
+                "            _configProviders.Add(new HttpStreamingProvider(_clientConfig,"
+            ],
+            [
+                124,
+                "            var provider = _configProviders.FirstOrDefault(x => x is CarrierPublicationProvider);"
+            ],
+            [
+                125,
+                "            if (provider != null)"
+            ],
+            [
+                127,
+                "                var carrierPublicationProvider = provider as CarrierPublicationProvider;"
+            ],
+            [
+                128,
+                "                if (carrierPublicationProvider != null)"
+            ],
+            [
+                130,
+                "                    carrierPublicationProvider.UpdateConfig(bucketConfig);"
+            ],
+            [
+                142,
+                "            var success = false;"
+            ],
+            [
+                143,
+                "            IBucket bucket = null;"
+            ],
+            [
+                144,
+                "            foreach (var provider in _configProviders)"
+            ],
+            [
+                146,
+                "                try"
+            ],
+            [
+                148,
+                "                    Log.DebugFormat(\"Trying to boostrap with {0}.\", provider);"
+            ],
+            [
+                149,
+                "                    var config = provider.GetConfig(bucketName, password);"
+            ],
+            [
+                150,
+                "                    switch (config.NodeLocator)"
+            ],
+            [
+                152,
+                "                        case NodeLocatorEnum.VBucket:"
+            ],
+            [
+                153,
+                "                            bucket = new CouchbaseBucket(this, bucketName, _converter, _serializer);"
+            ],
+            [
+                154,
+                "                            bucket.AddRef();"
+            ],
+            [
+                155,
+                "                            break;"
+            ],
+            [
+                157,
+                "                        case NodeLocatorEnum.Ketama:"
+            ],
+            [
+                158,
+                "                            bucket = new MemcachedBucket(this, bucketName, _converter, _serializer);"
+            ],
+            [
+                159,
+                "                            bucket.AddRef();"
+            ],
+            [
+                160,
+                "                            break;"
+            ],
+            [
+                162,
+                "                        default:"
+            ],
+            [
+                163,
+                "                            throw new ArgumentOutOfRangeException();"
+            ],
+            [
+                164,
+                "                    }"
+            ],
+            [
+                166,
+                "                    var configObserver = bucket as IConfigObserver;"
+            ],
+            [
+                167,
+                "                    if (provider.ObserverExists(configObserver))"
+            ],
+            [
+                168,
+                "                    {"
+            ],
+            [
+                169,
+                "                        Log.DebugFormat(\"Using existing bootstrap {0}.\", provider);"
+            ],
+            [
+                174,
+                ""
+            ],
+            [
+                175,
+                "                    if (provider.RegisterObserver(configObserver) &&"
+            ],
+            [
+                176,
+                "                        _buckets.TryAdd(bucket.Name, bucket))"
+            ],
+            [
+                178,
+                "                        Log.DebugFormat(\"Successfully boostrap using {0}.\", provider);"
+            ],
+            [
+                179,
+                "                        configObserver.NotifyConfigChanged(config);"
+            ],
+            [
+                180,
+                "                        success = true;"
+            ],
+            [
+                183,
+                "                    configObserver.NotifyConfigChanged(config);"
+            ],
+            [
+                184,
+                "                    success = true;"
+            ],
+            [
+                185,
+                "                    break;"
+            ],
+            [
+                186,
+                "                }"
+            ],
+            [
+                187,
+                "                catch (BucketNotFoundException e)"
+            ],
+            [
+                188,
+                "                {"
+            ],
+            [
+                189,
+                "                    Log.Warn(e);"
+            ],
+            [
+                191,
+                "                catch (ConfigException e)"
+            ],
+            [
+                192,
+                "                {"
+            ],
+            [
+                193,
+                "                    Log.Warn(e);"
+            ],
+            [
+                194,
+                "                }"
+            ],
+            [
+                195,
+                "                catch (AuthenticationException e)"
+            ],
+            [
+                197,
+                "                    Log.Warn(e);"
+            ],
+            [
+                198,
+                "                    break;"
+            ],
+            [
+                201,
+                ""
+            ],
+            [
+                202,
+                "            if (!success)"
+            ],
+            [
+                203,
+                "            {"
+            ],
+            [
+                204,
+                "                throw new ConfigException(\"Could not bootstrap {0}. See log for details.\", bucketName);"
+            ],
+            [
+                205,
+                "            }"
+            ],
+            [
+                206,
+                "            return bucket;"
+            ],
+            [
+                229,
+                "            if (!_disposed)"
+            ],
+            [
+                231,
+                "                if (disposing)"
+            ],
+            [
+                232,
+                "                {"
+            ],
+            [
+                233,
+                "                    GC.SuppressFinalize(this);"
+            ],
+            [
+                234,
+                "                }"
+            ],
+            [
+                235,
+                "                foreach (var pair in _buckets)"
+            ],
+            [
+                237,
+                "                    DestroyBucket(pair.Value);"
+            ],
+            [
+                238,
+                "                }"
+            ],
+            [
+                239,
+                "                foreach (var configProvider in ConfigProviders)"
+            ],
+            [
+                240,
+                "                {"
+            ],
+            [
+                241,
+                "                    configProvider.Dispose();"
+            ],
+            [
+                243,
+                "                _disposed = true;"
+            ]
+        ]
+    },
+    "num_lines_added": 77,
+    "num_lines_removed": 67
+}

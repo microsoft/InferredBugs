@@ -1,0 +1,38 @@
+  public void testRetryForResultAndThrowable() {
+    // Given retry for null
+    exec = new AsyncExecution(callable, new RetryPolicy().retryWhen(null), scheduler, future, null);
+
+    // When / Then
+    assertFalse(exec.complete(null));
+    assertTrue(exec.retryFor(null, null));
+    exec.prepare();
+    assertTrue(exec.retryFor(1, new IllegalArgumentException()));
+    exec.prepare();
+    assertFalse(exec.retryFor(1, null));
+
+    // Then
+    assertEquals(exec.getExecutions(), 3);
+    assertTrue(exec.isComplete());
+    assertEquals(exec.getLastResult(), Integer.valueOf(1));
+    assertNull(exec.getLastFailure());
+    verifyScheduler(2);
+    verify(future).complete(1, null, true);
+
+    // Given 2 max retries
+    exec = new AsyncExecution(callable, new RetryPolicy().retryWhen(null).withMaxRetries(1), scheduler, future, null);
+
+    // When / Then
+    resetMocks();
+    assertFalse(exec.complete(null));
+    assertTrue(exec.retryFor(null, e));
+    exec.prepare();
+    assertFalse(exec.retryFor(null, e));
+
+    // Then
+    assertEquals(exec.getExecutions(), 2);
+    assertTrue(exec.isComplete());
+    assertNull(exec.getLastResult());
+    assertEquals(exec.getLastFailure(), e);
+    verifyScheduler(1);
+    verify(future).complete(null, e, false);
+  }

@@ -1,0 +1,51 @@
+    public static void main(String... ignored) throws IOException {
+        String basePath = TMP + "/ExampleCacheMain";
+        ChronicleTools.deleteOnExit(basePath);
+        CachePerfMain map = new CachePerfMain(basePath, 32);
+        long start = System.nanoTime();
+        buildkeylist(keys);
+
+        StringBuilder name = new StringBuilder();
+        StringBuilder surname = new StringBuilder();
+        Person person = new Person(name, surname, 0);
+        for (int i = 0; i < keys; i++) {
+            name.setLength(0);
+            name.append("name");
+            name.append(i);
+
+            surname.setLength(0);
+            surname.append("surname");
+            surname.append(i);
+
+            person.set_age(i % 100);
+
+            map.put(i, person);
+        }
+
+        long end = System.nanoTime();
+
+        System.out.printf("Took %.3f secs to add %,d entries%n",
+                (end - start) / 1e9, keys);
+
+        long duration;
+        for (int i = 0; i < 2; i++) {
+            duration = randomGet(keys, map);
+            System.out.printf(i
+                    + "th iter: Took %.3f secs to get seq %,d entries%n",
+                    duration / 1e9, keys);
+        }
+
+        System.out.println("before shuffle");
+        shufflelist();
+        System.out.println("after shuffle");
+
+        for (int i = 0; i < 2; i++) {
+            System.gc();
+            duration = randomGet(keys, map);
+            System.out.printf(i
+                    + "th iter: Took %.3f secs to get random %,d entries%n",
+                    duration / 1e9, keys);
+        }
+
+
+    }

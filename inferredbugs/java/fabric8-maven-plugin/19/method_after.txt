@@ -1,0 +1,23 @@
+    @Override
+    public void watch(List<ImageConfiguration> configs, Set<HasMetadata> resources, PlatformMode mode) throws Exception {
+        KubernetesClient kubernetes = getContext().getKubernetesClient();
+
+        PodLogService.PodLogServiceContext logContext = new PodLogService.PodLogServiceContext.Builder()
+                .log(log)
+                .newPodLog(getContext().getNewPodLogger())
+                .oldPodLog(getContext().getOldPodLogger())
+                .build();
+
+        new PodLogService(logContext).tailAppPodsLogs(kubernetes, getContext().getNamespace(), resources, false, null, true, null, false);
+
+        String url = getServiceExposeUrl(kubernetes, resources);
+        if (url == null) {
+            url = getPortForwardUrl(resources);
+        }
+
+        if (url != null) {
+            runRemoteSpringApplication(url);
+        } else {
+            throw new IllegalStateException("Unable to open a channel to the remote pod.");
+        }
+    }

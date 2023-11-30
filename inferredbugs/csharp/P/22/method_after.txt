@@ -1,0 +1,54 @@
+        public IReadOnlyList<CompiledFile> GenerateCode(ITranslationErrorHandler handler, ICompilerOutput log, string projectName,
+                                                        Scope globalScope)
+        {
+            // Manages job-specific state so that jobs can be parallelized
+            var context = new CompilationContext(projectName);
+
+            // Create header and source files.
+            var cHeader = new CompiledFile(context.HeaderFileName);
+            var cSource = new CompiledFile(context.SourceFileName);
+
+            // Write the header file
+            WriteGenericHeader(context, cHeader.Stream);
+
+            foreach (IPDecl decl in globalScope.AllDecls)
+            {
+                WriteForwardDeclaration(context, cHeader.Stream, decl);
+            }
+
+            WriteGenericFooter(context, cHeader.Stream);
+
+            // Write includes and common macros, if any
+            WriteSourcePrologue(context, cSource.Stream);
+
+            // Write the machine and function bodies into temporary buffer
+            var bodyWriter = new StringWriter();
+            foreach (IPDecl decl in globalScope.AllDecls)
+            {
+                WriteSourceDecl(context, decl, bodyWriter);
+            }
+
+            // Write all the type definitions and function implementation prototypes
+            cSource.Stream.WriteLine("// Type universe for program:");
+            foreach (PLanguageType type in context.UsedTypes)
+            {
+                WriteTypeDefinition(context, type, cSource.Stream);
+            }
+
+            cSource.Stream.WriteLine();
+
+            cSource.Stream.WriteLine("// Function implementation prototypes:");
+            foreach (Function function in AllMethods(globalScope))
+            {
+                string functionName = context.Names.GetNameForFunctionImpl(function);
+                cSource.Stream.WriteLine($"PRT_VALUE* {functionName}(PRT_MACHINEINST *context);");
+            }
+
+            cSource.Stream.WriteLine();
+
+            // Append all the function bodies and declaration structs (which have forward declarations in the header)
+            cSource.Stream.GetStringBuilder().Append(bodyWriter);
+
+            // All done! Return the compiled files.
+            return new List<CompiledFile> {cHeader, cSource};
+        }

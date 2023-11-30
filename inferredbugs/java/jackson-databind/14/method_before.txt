@@ -1,0 +1,24 @@
+    @Override
+    public String idFromValue(Object value)
+    {
+        Class<?> cls = _typeFactory.constructType(value.getClass()).getRawClass();
+        final String key = cls.getName();
+        String name;
+        synchronized (_typeToId) {
+            name = _typeToId.get(key);
+            if (name == null) {
+                // 24-Feb-2011, tatu: As per [JACKSON-498], may need to dynamically look up name
+                // can either throw an exception, or use default name...
+                if (_config.isAnnotationProcessingEnabled()) {
+                    BeanDescription beanDesc = _config.introspectClassAnnotations(cls);
+                    name = _config.getAnnotationIntrospector().findTypeName(beanDesc.getClassInfo());
+                }
+                if (name == null) {
+                    // And if still not found, let's choose default?
+                    name = _defaultTypeId(cls);
+                }
+                _typeToId.put(key, name);
+            }
+        }
+        return name;
+    }

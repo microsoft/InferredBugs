@@ -1,0 +1,30 @@
+ @Override
+	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+
+		if (msg instanceof FullHttpRequest) {
+			FullHttpRequest req = (FullHttpRequest) msg;
+			QueryStringDecoder queryDecoder = new QueryStringDecoder(req.getUri());
+			String resource = resources.get(queryDecoder.path());
+			if (resource != null) {
+				// create ok response
+				HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK);
+				// set content type
+				HttpHeaders.setHeader(res, HttpHeaders.Names.CONTENT_TYPE, "application/octet-stream");
+				// write header
+				ctx.write(res);
+				// create resource inputstream and check
+				InputStream is = getClass().getResourceAsStream(resource);
+				if (is == null) {
+					sendError(ctx, NOT_FOUND);
+					return;
+				}
+				// write the stream
+				ChannelFuture writeFuture = ctx.channel().write(new ChunkedStream(is));
+				// close the channel on finish
+				writeFuture.addListener(ChannelFutureListener.CLOSE);
+
+				return;
+			}
+		}
+		ctx.fireChannelRead(msg);
+	}

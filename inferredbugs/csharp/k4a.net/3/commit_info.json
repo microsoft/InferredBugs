@@ -1,0 +1,185 @@
+{
+    "hash": "50915eb243116456a7d4eda15bc47691e671d85b",
+    "message": "Logging configuring via process variables. Some improvements in objects lifetime management.",
+    "file_num_lines": 48,
+    "diff_parsed": {
+        "added": [
+            [
+                5,
+                "    public sealed class BodyFrame : IDisposablePlus, IReferenceDuplicatable<BodyFrame>"
+            ],
+            [
+                7,
+                "        private readonly ChildrenDisposer children = new ChildrenDisposer();"
+            ],
+            [
+                8,
+                "        private readonly NativeHandles.HandleWrapper<NativeHandles.BodyFrameHandle> handle;"
+            ],
+            [
+                11,
+                "        {"
+            ],
+            [
+                12,
+                "            this.handle = handle;"
+            ],
+            [
+                13,
+                "            this.handle.Disposed += Handle_Disposed;"
+            ],
+            [
+                14,
+                "        }"
+            ],
+            [
+                15,
+                ""
+            ],
+            [
+                16,
+                "        private void Handle_Disposed(object sender, EventArgs e)"
+            ],
+            [
+                17,
+                "        {"
+            ],
+            [
+                18,
+                "            handle.Disposed -= Handle_Disposed;"
+            ],
+            [
+                19,
+                "            Disposed?.Invoke(this, EventArgs.Empty);"
+            ],
+            [
+                20,
+                "        }"
+            ],
+            [
+                23,
+                "        {"
+            ],
+            [
+                24,
+                "            children.Dispose();"
+            ],
+            [
+                25,
+                "            handle.Dispose();"
+            ],
+            [
+                26,
+                "        }"
+            ],
+            [
+                27,
+                ""
+            ],
+            [
+                28,
+                "        public bool IsDisposed => handle.IsDisposed;"
+            ],
+            [
+                29,
+                ""
+            ],
+            [
+                30,
+                "        public event EventHandler Disposed;"
+            ],
+            [
+                33,
+                "            => new BodyFrame(handle.ValueNotDisposed.DuplicateReference());"
+            ],
+            [
+                34,
+                ""
+            ],
+            [
+                35,
+                "        public Microseconds64 Timestamp => NativeApi.FrameGetTimestamp(handle.ValueNotDisposed);"
+            ],
+            [
+                37,
+                "        public int BodyCount => Helpers.UIntPtrToInt32(NativeApi.FrameGetNumBodies(handle.ValueNotDisposed));"
+            ],
+            [
+                39,
+                "        public Sensor.Capture Capture => children.Register(Sensor.Capture.Create(NativeApi.FrameGetCapture(handle.ValueNotDisposed)));"
+            ],
+            [
+                41,
+                "        public const byte NotABodyIndexMapPixelValue = byte.MaxValue;"
+            ],
+            [
+                43,
+                "        public Sensor.Image BodyIndexMap => children.Register(Sensor.Image.Create(NativeApi.FrameGetBodyIndexMap(handle.ValueNotDisposed)));"
+            ],
+            [
+                49,
+                "            if (NativeApi.FrameGetBodySkeleton(handle.ValueNotDisposed, Helpers.Int32ToUIntPtr(bodyIndex), out skeleton) != NativeCallResults.Result.Succeeded)"
+            ],
+            [
+                57,
+                "            return NativeApi.FrameGetBodyId(handle.ValueNotDisposed, Helpers.Int32ToUIntPtr(bodyIndex));"
+            ]
+        ],
+        "deleted": [
+            [
+                5,
+                "    public sealed class BodyFrame : IDisposable, IReferenceDuplicatable<BodyFrame>"
+            ],
+            [
+                7,
+                "        private readonly NativeHandles.BodyFrameHandle handle;"
+            ],
+            [
+                10,
+                "            => this.handle = handle;"
+            ],
+            [
+                13,
+                "            => handle.Dispose();"
+            ],
+            [
+                16,
+                "            => new BodyFrame(handle.DuplicateReference());"
+            ],
+            [
+                18,
+                "        public Microseconds64 Timestamp => NativeApi.FrameGetTimestamp(handle);"
+            ],
+            [
+                20,
+                "        public int BodyCount => checked((int)NativeApi.FrameGetNumBodies(handle).ToUInt32());"
+            ],
+            [
+                22,
+                "        public Sensor.Capture Capture"
+            ],
+            [
+                23,
+                "            => Sensor.Capture.Create(NativeApi.FrameGetCapture(handle));"
+            ],
+            [
+                25,
+                "        public Sensor.Image BodyIndexMap"
+            ],
+            [
+                26,
+                "            => Sensor.Image.Create(NativeApi.FrameGetBodyIndexMap(handle));"
+            ],
+            [
+                32,
+                "            if (NativeApi.FrameGetBodySkeleton(handle, new UIntPtr(checked((uint)bodyIndex)), out skeleton) != NativeCallResults.Result.Succeeded)"
+            ],
+            [
+                40,
+                "            return NativeApi.FrameGetBodyId(handle, new UIntPtr(checked((uint)bodyIndex)));"
+            ]
+        ]
+    },
+    "num_lines_added": 30,
+    "num_lines_removed": 13
+}

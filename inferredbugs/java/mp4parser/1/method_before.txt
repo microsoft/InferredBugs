@@ -1,0 +1,22 @@
+    public void testRoundTrip_1(String resource) throws Exception {
+
+        File originalFile = File.createTempFile("pdcf", "original");
+        FileOutputStream fos = new FileOutputStream(originalFile);
+        byte[] content = read(getClass().getResourceAsStream(resource));
+        fos.write(content);
+        fos.close();
+
+        IsoFile isoFile = new IsoFile(InputStreamIsoBufferHelper.get(getClass().getResourceAsStream(resource), 20000));
+        isoFile.parse();
+        Walk.through(isoFile);
+        isoFile.parseMdats();
+//		isoFile.switchToAutomaticChunkOffsetBox();
+//		isoFile.getBoxes(MediaDataBox.class)[0].getSample(0).toString();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        isoFile.write(baos);
+
+        new FileOutputStream("/home/sannies/a").write(baos.toByteArray());
+
+        ArrayAssert.assertEquals(content, baos.toByteArray());
+
+    }

@@ -1,0 +1,65 @@
+    @Test
+    public void testPersistedLocalIndexedSink_001() throws Exception {
+        final int port = BASE_PORT + 201;
+        final String basePath = getIndexedTestPath();
+
+        final Chronicle chronicle = ChronicleQueueBuilder.indexed(basePath).build();
+
+        final Chronicle source = ChronicleQueueBuilder.source(chronicle)
+            .bindAddress("localhost", port)
+            .build();
+        final Chronicle sink = ChronicleQueueBuilder.sink(chronicle)
+            .sharedChronicle(true)
+            .connectAddress("localhost", port)
+            .build();
+
+        final CountDownLatch latch = new CountDownLatch(5);
+        final Random random = new Random();
+
+        final int items = 100;
+
+        try {
+            Thread appenderThread = new Thread() {
+                public void run() {
+                    try {
+                        final ExcerptAppender appender = source.createAppender();
+                        for (long i = 1; i <= items; i++) {
+                            if (latch.getCount() > 0) {
+                                latch.countDown();
+                            }
+
+                            appender.startExcerpt(8);
+                            appender.writeLong(i);
+                            appender.finish();
+
+                            sleep(10 + random.nextInt(80));
+                        }
+                        appender.close();
+                    } catch (Exception e) {
+                    }
+
+                }
+            };
+
+            appenderThread.start();
+            latch.await();
+
+            final ExcerptTailer tailer1 = sink.createTailer().toStart();
+            for (long i = 1; i <= items; i++) {
+                assertTrue(tailer1.nextIndex());
+                assertEquals(i - 1, tailer1.index());
+                assertEquals(i, tailer1.readLong());
+                tailer1.finish();
+            }
+
+            tailer1.close();
+
+            appenderThread.join();
+
+            sink.close();
+            sink.clear();
+        } finally {
+            source.close();
+            source.clear();
+        }
+    }

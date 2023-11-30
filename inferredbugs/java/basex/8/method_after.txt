@@ -1,0 +1,105 @@
+  private void drawTemperature(final Graphics g, final int level) {
+    // array with all rects of a level
+    //    System.out.print("RectCount: " + rectCount + " level " 
+    //    + level + " size :"
+    //        + parentList.size);
+    final RealRect[] tRect = new RealRect[rectCount];
+
+    final Data data = GUI.context.data();
+    final int size = parentList.size;
+    final HashMap<Integer, Double> temp = new HashMap<Integer, Double>();
+    double x = 0;
+    final int y = 1 * level * fontHeight * 2;
+    final double width = this.getSize().width - 1;
+    final double ratio = width / size;
+    final int minSpace = 35; // minimum Space for Tags
+    final boolean space = ratio > minSpace ? true : false;
+
+    int r = 0;
+
+    for(int i = 0; i < size; i++) {
+      final int pre = parentList.list[i];
+
+      if(pre == -1) {
+        x += ratio;
+        continue;
+      }
+      int nodeKind = data.kind(pre);
+
+      final int nodeSize = data.size(pre, nodeKind);
+
+      final double nodePercent = nodeSize / (double) sumNodeSizeInLine;
+      g.setColor(Color.black);
+
+      final int l = (int) ratio; //rectangle length
+      final int h = fontHeight; //rectangle height
+
+      g.drawRect((int) x, y, l, h);
+      tRect[r++] = new RealRect(pre, (int) x, y, (int) x + l, y + h);
+
+      int c = (int) Math.rint(255 * nodePercent * 40);
+      c = c > 255 ? 255 : c;
+      g.setColor(new Color(c, 0, 255 - c));
+      g.fillRect((int) x + 1, y + 1, l - 1, h - 1);
+
+      final double boxMiddle = x + ratio / 2f;
+
+      if(space) {
+        String s = "";
+
+        switch(nodeKind) {
+          case Data.ELEM:
+            s = Token.string(data.tag(pre));
+            g.setColor(Color.WHITE);
+            break;
+          case Data.COMM:
+            s = Token.string(data.text(pre));
+            g.setColor(Color.GREEN);
+            break;
+          case Data.PI:
+            s = Token.string(data.text(pre));
+            g.setColor(Color.PINK);
+            break;
+          case Data.DOC:
+            s = Token.string(data.text(pre));
+            g.setColor(Color.BLUE);
+            break;
+          default:
+            s = Token.string(data.text(pre));
+            g.setColor(Color.YELLOW);
+        }
+
+        Token.string(data.text(pre));
+        int textWidth = 0;
+
+        while((textWidth = BaseXLayout.width(g, s)) + 4 > ratio) {
+          s = s.substring(0, s.length() / 2).concat("?");
+        }
+
+        g.drawString(s, (int) boxMiddle - textWidth / 2, y + fontHeight - 2);
+      }
+
+      if(parentPos != null) {
+
+        final double parentMiddle = parentPos.get(data.parent(pre, nodeKind));
+
+        g.setColor(new Color(c, 0, 255 - c, 100));
+        g.drawLine((int) boxMiddle, y - 1, (int) parentMiddle, y - fontHeight
+            + 1);
+
+        //        final int line = Math.round(fontHeight / 4f);
+        //        g.drawLine((int) boxMiddle, y, (int) boxMiddle, y - line);
+        //        g.drawLine((int) boxMiddle, y - line, 
+        //        (int) parentMiddle, y - line);
+        //        g.drawLine((int) parentMiddle, y - line, (int) parentMiddle, y
+        //            - fontHeight);
+
+      }
+
+      if(nodeSize > 0) temp.put(pre, boxMiddle);
+
+      x += ratio;
+    }
+    rects.add(tRect);
+    parentPos = temp;
+  }

@@ -1,0 +1,36 @@
+    private static void EmitConstantExpression(FunctionScope scope, ConstantExpression expression)
+    {
+        var token = expression.Constant;
+        var instructions = scope.Method.Body.Instructions;
+        switch (token)
+        {
+            // TODO: Optimizations like Ldc_I4_0 for selected constants
+            case { Kind: CTokenType.IntLiteral }: 
+                {
+                    var instruction = Instruction.Create(OpCodes.Ldc_I4, int.Parse(token.Text));
+                    instructions.Add(instruction);
+                    break;
+                }
+            case { Kind: CTokenType.CharLiteral }:
+                {
+                    var charValue = UnescapeCharacter(token.Text);
+                    instructions.Add(Instruction.Create(OpCodes.Ldc_I4, (int)charValue));
+                    instructions.Add(Instruction.Create(OpCodes.Conv_U1));
+                    break;
+                }
+            case { Kind: CTokenType.Identifier, Text: var name } when scope.Variables.TryGetValue(name, out var var):
+                {
+                    var instruction = Instruction.Create(OpCodes.Ldloc, var);
+                    instructions.Add(instruction);
+                    break;
+                }
+            case { Kind: CTokenType.Identifier, Text: var name } when scope.Parameters.TryGetValue(name, out var par):
+                {
+                    var instruction = Instruction.Create(OpCodes.Ldarg, par);
+                    instructions.Add(instruction);
+                    break;
+                }
+            default:
+                throw new Exception($"Constant token not supported: {token.Kind} {token.Text}.");
+        };
+    }

@@ -1,0 +1,23 @@
+  @Test
+  public void testCreate() throws IOException {
+    Dataset dataset = repo.create("test1", testSchema);
+
+    Assert.assertTrue("Dataset data directory exists",
+        fileSystem.exists(new Path(testDirectory, "data/test1/data")));
+    Assert.assertTrue("Dataset metadata file exists",
+        fileSystem.exists(new Path(testDirectory, "data/test1/schema.avsc")));
+
+    Schema serializedSchema = new Schema.Parser().parse(new File(testDirectory
+        .toUri().getPath(), "data/test1/schema.avsc"));
+
+    Schema schema = dataset.getSchema();
+
+    Assert.assertEquals("Dataset schema matches what's serialized to disk",
+        schema, serializedSchema);
+
+    Assert.assertNotNull(schema);
+    Assert.assertTrue(schema.getType().equals(Type.RECORD));
+    Assert.assertNotNull(schema.getField("name"));
+    Assert.assertTrue(schema.getField("name").schema().getType()
+        .equals(Type.STRING));
+  }

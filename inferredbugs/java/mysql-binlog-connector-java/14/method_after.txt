@@ -1,0 +1,65 @@
+    public void connect() throws IOException {
+        if (!connectLock.tryLock()) {
+            throw new IllegalStateException("BinaryLogClient is already connected");
+        }
+        boolean notifyWhenDisconnected = false;
+        try {
+            try {
+                channel = openChannel();
+                GreetingPacket greetingPacket = receiveGreeting();
+                authenticate(greetingPacket);
+                connectionId = greetingPacket.getThreadId();
+                if (binlogFilename == null) {
+                    fetchBinlogFilenameAndPosition();
+                }
+                if (binlogPosition < 4) {
+                    if (logger.isLoggable(Level.WARNING)) {
+                        logger.warning("Binary log position adjusted from " + binlogPosition + " to " + 4);
+                    }
+                    binlogPosition = 4;
+                }
+                ChecksumType checksumType = fetchBinlogChecksum();
+                if (checksumType != ChecksumType.NONE) {
+                    confirmSupportOfChecksum(checksumType);
+                }
+                requestBinaryLogStream();
+            } catch (IOException e) {
+                disconnectChannel();
+                throw e;
+            }
+            connected = true;
+            notifyWhenDisconnected = true;
+            if (logger.isLoggable(Level.INFO)) {
+                String position;
+                synchronized (gtidSetAccessLock) {
+                    position = gtidSet != null ? gtidSet.toString() : binlogFilename + "/" + binlogPosition;
+                }
+                logger.info("Connected to " + hostname + ":" + port + " at " + position +
+                    " (" + (blocking ? "sid:" + serverId + ", " : "") + "cid:" + connectionId + ")");
+            }
+            synchronized (lifecycleListeners) {
+                for (LifecycleListener lifecycleListener : lifecycleListeners) {
+                    lifecycleListener.onConnect(this);
+                }
+            }
+            if (keepAlive && !isKeepAliveThreadRunning()) {
+                spawnKeepAliveThread();
+            }
+            ensureEventDataDeserializer(EventType.ROTATE, RotateEventDataDeserializer.class);
+            synchronized (gtidSetAccessLock) {
+                if (gtidSet != null) {
+                    ensureEventDataDeserializer(EventType.GTID, GtidEventDataDeserializer.class);
+                }
+            }
+            listenForEventPackets();
+        } finally {
+            connectLock.unlock();
+            if (notifyWhenDisconnected) {
+                synchronized (lifecycleListeners) {
+                    for (LifecycleListener lifecycleListener : lifecycleListeners) {
+                        lifecycleListener.onDisconnect(this);
+                    }
+                }
+            }
+        }
+    }

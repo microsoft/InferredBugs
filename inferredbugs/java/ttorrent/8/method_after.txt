@@ -1,0 +1,50 @@
+ private static String hashPieces(File source)
+		throws NoSuchAlgorithmException, InterruptedException, IOException {
+
+		ExecutorService executor = Executors.newFixedThreadPool(
+			getHashingThreadsCount());
+		List<Future<String>> results = new LinkedList<Future<String>>();
+		byte[] data = new byte[Torrent.PIECE_LENGTH];
+		int pieces = 0;
+		int read;
+
+		logger.info("Analyzing local data for {} with {} threads...",
+			source.getName(), getHashingThreadsCount());
+		long start = System.nanoTime();
+		InputStream is = new BufferedInputStream(new FileInputStream(source));
+		while ((read = is.read(data)) > 0) {
+			results.add(executor.submit(new CallableChunkHasher(data, read)));
+			pieces++;
+		}
+		is.close();
+
+		// Request orderly executor shutdown and wait for hashing tasks to
+		// complete.
+		executor.shutdown();
+		while (!executor.isTerminated()) {
+			Thread.sleep(10);
+		}
+		long elapsed = System.nanoTime() - start;
+
+		StringBuffer hashes = new StringBuffer();
+		try {
+			for (Future<String> chunk : results) {
+				hashes.append(chunk.get());
+			}
+		} catch (ExecutionException ee) {
+			throw new IOException("Error while hashing the torrent data!", ee);
+		}
+
+		int expectedPieces = new Double(Math.ceil((double)source.length() /
+			Torrent.PIECE_LENGTH)).intValue();
+		logger.info("Hashed {} ({} bytes) in {} pieces ({} expected) in {}ms.",
+			new Object[] {
+				source.getName(),
+				source.length(),
+				pieces,
+				expectedPieces,
+				String.format("%.1f", elapsed/1024.0/1024.0),
+			});
+
+		return hashes.toString();
+	}

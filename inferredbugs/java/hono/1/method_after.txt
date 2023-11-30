@@ -1,0 +1,18 @@
+    private void sendRegistrationData(final ProtonDelivery delivery, final Message msg) {
+        vertx.runOnContext(run -> {
+            final JsonObject registrationMsg = RegistrationConstants.getRegistrationMsg(msg);
+            vertx.eventBus().send(EVENT_BUS_ADDRESS_REGISTRATION_IN, registrationMsg,
+                    result -> {
+                        // TODO check for correct session here...?
+                        final String replyTo = msg.getReplyTo();
+                        if (replyTo != null) {
+                            final JsonObject message = (JsonObject) result.result().body();
+                            message.put(APP_PROPERTY_CORRELATION_ID, createCorrelationId(msg));
+                            vertx.eventBus().send(replyTo, message);
+                        } else {
+                            LOG.debug("No reply-to address provided, cannot send reply to client.");
+                        }
+                    });
+            ProtonHelper.accepted(delivery, true);
+        });
+    }

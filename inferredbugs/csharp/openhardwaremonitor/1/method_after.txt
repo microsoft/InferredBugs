@@ -1,0 +1,61 @@
+    public static void Open() {
+      // no implementation for unix systems
+      int p = (int)Environment.OSVersion.Platform;
+      if ((p == 4) || (p == 128))
+        return;  
+      
+      if (driver != null)
+        return;
+
+      // clear the current report
+      report.Length = 0;
+     
+      driver = new KernelDriver("WinRing0_1_2_0");
+      driver.Open();
+
+      if (!driver.IsOpen) {
+        // driver is not loaded, try to reinstall and open
+
+        driver.Delete();
+        fileName = GetTempFileName();
+        if (fileName != null && ExtractDriver(fileName)) {
+          if (driver.Install(fileName)) {
+            driver.Open();
+
+            if (!driver.IsOpen) {
+              driver.Delete();
+              report.AppendLine("Status: Opening driver failed");
+            }
+          } else {
+            report.AppendLine("Status: Installing driver \"" +
+              fileName + "\" failed" +
+              (File.Exists(fileName) ? " and file exists" : ""));
+            report.AppendLine();
+            report.Append("Exception: " + Marshal.GetExceptionForHR(
+              Marshal.GetHRForLastWin32Error()).Message);
+          }
+        } else {
+          report.AppendLine("Status: Extracting driver failed");
+        }
+
+        try {
+          // try to delte the driver file
+          if (File.Exists(fileName))
+            File.Delete(fileName);
+          fileName = null;
+        } catch (IOException) { } 
+          catch (UnauthorizedAccessException) { }
+      }
+
+      if (!driver.IsOpen) 
+        driver = null;
+
+      string mutexName = "Global\\Access_ISABUS.HTP.Method";
+      try {
+        isaBusMutex = new Mutex(false, mutexName);
+      } catch (UnauthorizedAccessException) {
+        try {
+          isaBusMutex = Mutex.OpenExisting(mutexName, MutexRights.Synchronize);
+        } catch { }
+      }
+    }

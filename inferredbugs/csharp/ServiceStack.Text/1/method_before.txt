@@ -1,0 +1,62 @@
+        public static void WriteIDictionary(TextWriter writer, object oMap)
+        {
+            WriteObjectDelegate writeKeyFn = null;
+            WriteObjectDelegate writeValueFn = null;
+
+            writer.Write(JsWriter.MapStartChar);
+            var encodeMapKey = false;
+
+            var map = (IDictionary)oMap;
+            var ranOnce = false;
+            foreach (var key in map.Keys)
+            {
+                var dictionaryValue = map[key];
+
+                var isNull = (dictionaryValue == null);
+                if (isNull && !Serializer.IncludeNullValues) continue;
+
+                if (writeKeyFn == null)
+                {
+                    var keyType = key.GetType();
+                    writeKeyFn = Serializer.GetWriteFn(keyType);
+                    encodeMapKey = Serializer.GetTypeInfo(keyType).EncodeMapKey;
+                }
+
+                if (writeValueFn == null)
+                    writeValueFn = Serializer.GetWriteFn(dictionaryValue.GetType());
+
+                JsWriter.WriteItemSeperatorIfRanOnce(writer, ref ranOnce);
+
+                JsState.WritingKeyCount++;
+                JsState.IsWritingValue = false;
+
+                if (encodeMapKey)
+                {
+                    JsState.IsWritingValue = true; //prevent ""null""
+                    writer.Write(JsWriter.QuoteChar);
+                    writeKeyFn(writer, key);
+                    writer.Write(JsWriter.QuoteChar);
+                }
+                else
+                {
+                    writeKeyFn(writer, key);
+                }
+
+                JsState.WritingKeyCount--;
+
+                writer.Write(JsWriter.MapKeySeperator);
+
+                if (isNull)
+                {
+                    writer.Write(JsonUtils.Null);
+                }
+                else
+                {
+                    JsState.IsWritingValue = true;
+                    writeValueFn(writer, dictionaryValue);
+                    JsState.IsWritingValue = false;
+                }
+            }
+
+            writer.Write(JsWriter.MapEndChar);
+        }

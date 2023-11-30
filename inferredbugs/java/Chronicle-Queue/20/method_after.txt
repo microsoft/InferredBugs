@@ -1,0 +1,71 @@
+    @Test
+    public void testReplication1() throws Exception {
+        final int RUNS = 100;
+
+        final String sourceBasePath = getVanillaTestPath("-source");
+        final String sinkBasePath = getVanillaTestPath("-sink");
+
+        final Chronicle source = ChronicleQueueBuilder.vanilla(sourceBasePath)
+            .source()
+            .bindAddress("localhost", BASE_PORT + 101)
+            .build();
+        final Chronicle sink = ChronicleQueueBuilder.vanilla(sinkBasePath)
+            .sink()
+            .connectAddress("localhost", BASE_PORT + 101)
+            .build();
+
+        try {
+
+            final Thread at = new Thread("th-appender") {
+                public void run() {
+                    try {
+                        final ExcerptAppender appender = source.createAppender();
+                        for (int i = 0; i < RUNS; i++) {
+                            appender.startExcerpt();
+                            long value = 1000000000 + i;
+                            appender.append(value).append(' ');
+                            appender.finish();
+                        }
+
+                        appender.close();
+                    } catch(Exception e) {
+                    }
+                }
+            };
+
+            final Thread tt = new Thread("th-tailer") {
+                public void run() {
+                    try {
+                        final ExcerptTailer tailer = sink.createTailer();
+                        for (int i = 0; i < RUNS; i++) {
+                            long value = 1000000000 + i;
+                            assertTrue(tailer.nextIndex());
+                            long val = tailer.parseLong();
+
+                            assertEquals("i: " + i, value, val);
+                            assertEquals("i: " + i, 0, tailer.remaining());
+                            tailer.finish();
+                        }
+
+                        tailer.close();
+                    } catch(Exception e) {
+                    }
+                }
+            };
+
+            at.start();
+            tt.start();
+
+            at.join();
+            tt.join();
+        } finally {
+            sink.close();
+            sink.clear();
+
+            source.close();
+            source.clear();
+
+            assertFalse(new File(sourceBasePath).exists());
+            assertFalse(new File(sinkBasePath).exists());
+        }
+    }

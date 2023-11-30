@@ -1,0 +1,49 @@
+    @Override
+    public final String get(final String path,
+                            final SlingHttpServletRequest request,
+                            final SlingHttpServletResponse response) {
+
+
+        if (!serveAuthenticatedFromCache && !isAnonymousRequest(request)) {
+            // For authenticated requests, don't return from cache
+            return ResourceDataUtil.getIncludeAsString(path, request, response);
+        }
+
+        final long start = System.currentTimeMillis();
+        CacheEntry cacheEntry = cache.get(path);
+        final boolean newEntry = cacheEntry == null;
+
+        if (newEntry || cacheEntry.isExpired(new Date())) {
+
+            // Cache Miss
+            final String data = ResourceDataUtil.getIncludeAsString(path, request, response);
+
+            if (newEntry) {
+                cacheEntry = new CacheEntry();
+            }
+
+            cacheEntry.setData(data);
+            cacheEntry.setExpiresIn(ttl);
+            cacheEntry.incrementMisses();
+
+            if (newEntry) {
+                // Add entry to cache
+                cache.put(path, cacheEntry);
+            }
+
+            log.info("Served cache MISS for [ {} ] in [ {} ] ms", path, System.currentTimeMillis() - start);
+
+            return data;
+        } else {
+            // Cache Hit
+
+            final String data = cacheEntry.getData();
+
+            cacheEntry.incrementHits();
+            cache.put(path, cacheEntry);
+
+            log.info("Served cache HIT for [ {} ] in [ {} ] ms", path, System.currentTimeMillis() - start);
+
+            return data;
+        }
+    }

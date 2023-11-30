@@ -1,0 +1,34 @@
+    public void testPublishDeleteShapeZip() throws FileNotFoundException, IOException {
+        if (!enabled()) {
+            return;
+        }
+//        Assume.assumeTrue(enabled);
+
+        String ns = "it.geosolutions";
+        String storeName = "resttestshp";
+        String layerName = "cities";
+
+        File zipFile = new ClassPathResource("testdata/resttestshp.zip").getFile();
+
+        // known state?
+        cleanupTestFT(layerName, ns, storeName);
+
+        // test insert
+        boolean published = publisher.publishShp(ns, storeName, layerName, zipFile);
+        assertTrue("publish() failed", published);
+        assertTrue(existsLayer(layerName));
+
+        RESTLayer layer = reader.getLayer(layerName);
+
+        LOGGER.info("Layer style is " + layer.getDefaultStyle());
+
+        //test delete
+        boolean ok = publisher.unpublishFeatureType(ns, storeName, layerName);
+        assertTrue("Unpublish() failed", ok);
+        assertFalse(existsLayer(layerName));
+
+        // remove also datastore
+        boolean dsRemoved = publisher.removeDatastore(ns, storeName);
+        assertTrue("removeDatastore() failed", dsRemoved);
+
+    }

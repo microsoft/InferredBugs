@@ -1,0 +1,25 @@
+  public boolean waitForKeeperState(KeeperState keeperState, long time, TimeUnit timeUnit)
+      throws ZkInterruptedException {
+    if (_zookeeperEventThread != null && Thread.currentThread() == _zookeeperEventThread) {
+      throw new IllegalArgumentException("Must not be done in the zookeeper event thread.");
+    }
+    Date timeout = new Date(System.currentTimeMillis() + timeUnit.toMillis(time));
+
+    LOG.debug("Waiting for keeper state " + keeperState);
+    acquireEventLock();
+    try {
+      boolean stillWaiting = true;
+      while (_currentState != keeperState) {
+        if (!stillWaiting) {
+          return false;
+        }
+        stillWaiting = getEventLock().getStateChangedCondition().awaitUntil(timeout);
+      }
+      LOG.debug("State is " + (_currentState == null ? "CLOSED" : _currentState));
+      return true;
+    } catch (InterruptedException e) {
+      throw new ZkInterruptedException(e);
+    } finally {
+      getEventLock().unlock();
+    }
+  }

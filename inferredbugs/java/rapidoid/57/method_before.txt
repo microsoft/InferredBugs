@@ -1,0 +1,20 @@
+ @Test(timeout = 30000)
+	public void testHikariPool() {
+
+		JdbcClient jdbc = JDBC.api();
+		jdbc.h2("hikari-test");
+		jdbc.pool(new HikariConnectionPool(jdbc));
+
+		jdbc.execute("create table abc (id int, name varchar)");
+		jdbc.execute("insert into abc values (?, ?)", 123, "xyz");
+
+		final Map<String, ?> expected = U.map("id", 123, "name", "xyz");
+
+		Msc.benchmarkMT(100, "select", 100000, () -> {
+			Map<String, Object> record = U.single(JDBC.query("select id, name from abc").all());
+			record = Msc.lowercase(record);
+			eq(record, expected);
+		});
+
+		isTrue(jdbc.pool() instanceof HikariConnectionPool);
+	}

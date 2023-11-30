@@ -1,0 +1,23 @@
+  [Fact]
+		public void StringTruncationTest()
+		{
+			var sb = new StringBuilder();
+
+			for (var i = 0; i < 1200; i++)
+			{
+				sb.Append('a');
+			}
+
+			var transaction = new Transaction(new TestAgentComponents(), sb.ToString(), "test") { Duration = 1, Result = "fail" };
+
+			var settings = new JsonSerializerSettings { ContractResolver = new StringTruncationValueResolver() };
+			var json = JsonConvert.SerializeObject(transaction, settings);
+			var deserializedTransaction = JsonConvert.DeserializeObject(json) as JObject;
+
+			Assert.NotNull(deserializedTransaction);
+
+			Assert.Equal(Consts.PropertyMaxLength, deserializedTransaction["name"]?.Value<string>()?.Length);
+			Assert.Equal("...", deserializedTransaction["name"].Value<string>().Substring(1021, 3));
+			Assert.Equal("test", deserializedTransaction["type"].Value<string>());
+			Assert.Equal("fail", deserializedTransaction["result"].Value<string>());
+		}

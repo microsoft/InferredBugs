@@ -1,0 +1,37 @@
+ private synchronized void loadResources() {
+		if (!isEmpty(resources)) {
+			return;
+		}
+
+		FacesContext context = FacesContext.getCurrentInstance();
+		resources = new LinkedHashSet<>();
+		contentLength = 0;
+		lastModified = 0;
+
+		for (ResourceIdentifier resourceIdentifier : resourceIdentifiers) {
+			Resource resource = createResource(context, resourceIdentifier.getLibrary(), resourceIdentifier.getName());
+
+			if (resource == null) {
+				if (logger.isLoggable(WARNING)) {
+					logger.log(WARNING, format(LOG_RESOURCE_NOT_FOUND, resourceIdentifier, id));
+				}
+
+				resources.clear();
+				return;
+			}
+
+			resources.add(resource);
+			URLConnection connection = openConnection(context, resource);
+
+			if (connection == null) {
+				return;
+			}
+
+			contentLength += connection.getContentLength();
+			long resourceLastModified = connection.getLastModified();
+
+			if (resourceLastModified > lastModified) {
+				lastModified = resourceLastModified;
+			}
+		}
+	}

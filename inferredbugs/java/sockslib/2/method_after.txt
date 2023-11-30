@@ -1,0 +1,32 @@
+  public static void main(String[] args) {
+
+    InputStream inputStream = null;
+    OutputStream outputStream = null;
+    Socket socket = null;
+    StringBuffer response = null;
+    int length = 0;
+    byte[] buffer = new byte[2048];
+
+    try {
+      SocksProxy proxy = new Socks5(new InetSocketAddress("localhost", 1080));
+      socket = new SocksSocket(proxy, new InetSocketAddress("whois.internic.net", 43));
+
+      inputStream = socket.getInputStream();
+      outputStream = socket.getOutputStream();
+      PrintWriter printWriter = new PrintWriter(outputStream);
+      printWriter.print("domain google.com\r\n"); // query google.com WHOIS.
+      printWriter.flush();
+
+      response = new StringBuffer();
+      while ((length = inputStream.read(buffer)) > 0) {
+        response.append(new String(buffer, 0, length));
+      }
+
+      System.out.println(response.toString());
+
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      ResourceUtil.close(inputStream, outputStream, socket);
+    }
+  }

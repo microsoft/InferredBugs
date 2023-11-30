@@ -1,0 +1,23 @@
+ private void savePropertyGroup(String fileName, String group, InputStream inputstream) throws IOException {
+		Reader reader = new InputStreamReader(inputstream, Charsets.UTF_8);
+		Properties properties = new Properties();
+		properties.load(reader);
+		if (!properties.isEmpty()) {
+			String authedNode = ZKPaths.makePath(nodeAuth.getAuthedNode(), versionMB.getSelectedVersion());
+			String groupPath = ZKPaths.makePath(authedNode, group);
+			boolean created = nodeService.createProperty(groupPath, null);
+			if (created) {
+				Map<String, String> map = Maps.fromProperties(properties);
+				for (Entry<String, String> entry : map.entrySet()) {
+					nodeService.createProperty(ZKPaths.makePath(groupPath, entry.getKey()), entry.getValue());
+				}
+				refreshGroup();
+				FacesContext.getCurrentInstance().addMessage(null, new FacesMessage("Succesful", fileName + " is uploaded."));
+			} else {
+				FacesContext.getCurrentInstance().addMessage(null,
+						new FacesMessage(FacesMessage.SEVERITY_ERROR, "Create group with file error.", fileName));
+			}
+		} else {
+			FacesContext.getCurrentInstance().addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR, "File is empty.", fileName));
+		}
+	}

@@ -1,0 +1,44 @@
+        [Theory]
+        [InlineData("Http1Binding")]
+        //[InlineData("Http2Binding")] //Fail
+        //[InlineData("Http3Binding")]
+        public void RequestReplyStreaming(string binding)
+        {
+            Startup.binding = binding;
+            IWebHost host = ServiceHelper.CreateWebHostBuilder<Startup>(_output).Build();
+            using (host)
+            {
+                host.Start();
+                System.ServiceModel.ChannelFactory<ClientContract.IStream> channelFactory = null;
+                switch (binding)
+                {
+                    case "Http1Binding":
+                        channelFactory = new System.ServiceModel.ChannelFactory<ClientContract.IStream>(ClientHelper.GetBufferedModHttp1Binding(),
+                      new System.ServiceModel.EndpointAddress(new Uri("http://localhost:8080/BasicWcfService1/RequestReplyTests.svc")));
+                        break;
+                    //case "Http2Binding":
+                    //    channelFactory = new System.ServiceModel.ChannelFactory<ClientContract.IStream>(ClientHelper.GetBufferedModHttp2Binding(),
+                    //  new System.ServiceModel.EndpointAddress(new Uri("http://localhost:8080/BasicWcfService2/RequestReplyTests.svc")));
+                    //    break;
+                    //case "Http3Binding":
+                    //    channelFactory = new System.ServiceModel.ChannelFactory<ClientContract.IStream>(ClientHelper.GetBufferedModHttp3Binding(),
+                    //  new System.ServiceModel.EndpointAddress(new Uri("http://localhost:8080/BasicWcfService3/RequestReplyTests.svc")));
+                    //    break;
+                    default:
+                        throw new Exception("Unknown binding");
+                }
+                IStream stream2 = channelFactory.CreateChannel();
+                long messageSize = 0;
+                long num2 = 20000;
+                MyStream input = new MyStream(messageSize);
+                Stream stream = stream2.Echo(input);
+                int num3 = 0;
+                byte[] buffer = new byte[5000];
+                int num4;
+                while ((num4 = stream.Read(buffer, 0, 370)) != 0)
+                {
+                    num3 = num4 + num3;
+                }
+                Assert.Equal(num2, (long)num3);
+            }
+        }

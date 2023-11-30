@@ -1,0 +1,60 @@
+        private void ParseDocument()
+        {
+            // This algorithm works by taking the current document string
+            // and using a regex to pull the first recognized substring beginning
+            // at character 0.  Once a substring has been matched, that substring
+            // is removed from the string and the loop starts over.
+            while (_remainingText.Length > 0)
+            {
+                // Try each of the patterns to find a match
+                Match firstMatch = null;
+                MarkdownPattern firstMatchedPattern = null;
+                foreach (MarkdownPattern markdownPattern in _markdownPatterns)
+                {
+                    Match regexMatch = null;
+                    if (markdownPattern.TryMatchString(_remainingText, out regexMatch))
+                    {
+                        if (firstMatch == null || firstMatch.Index > regexMatch.Index)
+                        {
+                            firstMatch = regexMatch;
+                            firstMatchedPattern = markdownPattern;
+                        }
+                    }
+                }
+
+                int newStartingPosition = -1;
+                if (firstMatch != null)
+                {
+                    // Gather all text before this point into a paragraph
+                    if (firstMatch.Index > 0)
+                    {
+                        this.StartParagraph();
+
+                        this.CreateNormalSpan(
+                            _remainingText.Substring(
+                                0,
+                                firstMatch.Index));
+                    }
+
+                    // Run the match action for the pattern
+                    firstMatchedPattern.MatchAction(firstMatch);
+
+                    // Execute the action for the match
+                    newStartingPosition = firstMatch.Index + firstMatch.Length;
+                }
+                else
+                {
+                    // If no match found, treat the rest of the text as a span
+                    this.CreateNormalSpan(_remainingText);
+                    newStartingPosition = _remainingText.Length;
+                }
+
+                // Trim the head of the string
+                _remainingText = 
+                    _remainingText.Substring(
+                        newStartingPosition);
+            }
+
+            // Finish any remaining paragraph
+            this.FinishParagraph();
+        }

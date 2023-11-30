@@ -1,0 +1,70 @@
+ private HttpClient getHttpClient(PrintStream logger) {
+		HttpClient client = null;
+        boolean ignoreUnverifiedSSL = ignoreUnverifiedSSLPeer;
+        String url = stashServerBaseUrl;
+        DescriptorImpl descriptor = getDescriptor();
+        if ("".equals(url) || url == null) {
+            url = descriptor.getStashRootUrl();
+        }
+        if (!ignoreUnverifiedSSL) {
+            ignoreUnverifiedSSL = descriptor.isIgnoreUnverifiedSsl();
+        }
+        if (url.startsWith("https") 
+                && ignoreUnverifiedSSL) {
+			// add unsafe trust manager to avoid thrown
+			// SSLPeerUnverifiedException
+			try {
+				HttpClientBuilder builder = HttpClientBuilder.create();
+				TrustStrategy easyStrategy = new TrustStrategy() {
+				    public boolean isTrusted(X509Certificate[] chain, String authType)
+				            throws CertificateException {
+				        return true;
+				    }
+				};
+
+				SSLContext sslContext = SSLContexts.custom()
+						.loadTrustMaterial(null, easyStrategy)
+						.useTLS().build();
+				SSLConnectionSocketFactory sslConnSocketFactory
+						= new SSLConnectionSocketFactory(sslContext,
+						SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+				builder.setSSLSocketFactory(sslConnSocketFactory);
+
+				Registry<ConnectionSocketFactory> registry
+						= RegistryBuilder.<ConnectionSocketFactory>create()
+							.register("https", sslConnSocketFactory)
+							.build();
+
+				HttpClientConnectionManager ccm
+						= new BasicHttpClientConnectionManager(registry);
+
+				builder.setConnectionManager(ccm);
+				client = builder.build();
+			} catch (NoSuchAlgorithmException nsae) {
+				logger.println("Couldn't establish SSL context:");
+				nsae.printStackTrace(logger);
+			} catch (KeyManagementException kme) {
+				logger.println("Couldn't initialize SSL context:");
+				kme.printStackTrace(logger);
+			} catch (KeyStoreException kse) {
+				logger.println("Couldn't initialize SSL context:");
+				kse.printStackTrace(logger);
+			} finally {
+				if (client == null) {
+					logger.println("Trying with safe trust manager, instead!");
+					client = HttpClientBuilder.create().build();
+				}
+			}
+		} else {
+			client = HttpClientBuilder.create().build();
+		}
+		
+		ProxyConfiguration proxy = Jenkins.getInstance().proxy;
+		if(proxy != null && !proxy.name.isEmpty() && !proxy.name.startsWith("http") && !isHostOnNoProxyList(proxy)){
+			SchemeRegistry schemeRegistry = client.getConnectionManager().getSchemeRegistry();
+			schemeRegistry.register(new Scheme("http", proxy.port, new PlainSocketFactory()));
+			client.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY, new HttpHost(proxy.name, proxy.port));
+		}
+		
+		return client;
+	}

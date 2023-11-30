@@ -1,0 +1,36 @@
+    @Test
+    public void testSegmentPages() throws TransformationException, AnalysisException, UnsupportedEncodingException {
+        Reader reader = new InputStreamReader(getResource("DocstrumPageSegmenter01.xml"), "UTF-8");
+        BxDocument inDoc = new BxDocument().setPages(new TrueVizToBxDocumentReader().read(reader));
+        new UnsegmentedPagesFlattener().process(inDoc);
+        
+        DocstrumSegmenter pageSegmenter = new DocstrumSegmenter();
+        
+        BxDocument outDoc = pageSegmenter.segmentDocument(inDoc);
+
+        // Check whether zones are correctly detected
+        assertEquals(1, outDoc.childrenCount());
+
+        // Check whether lines are correctly detected
+        assertEquals(3, outDoc.getFirstChild().childrenCount());
+        assertEquals(3, outDoc.getFirstChild().getChild(0).childrenCount());
+        assertEquals(16, outDoc.getFirstChild().getChild(1).childrenCount());
+        assertEquals(16, outDoc.getFirstChild().getChild(2).childrenCount());
+
+        assertEquals(24, outDoc.getFirstChild().getChild(1).getFirstChild().childrenCount());
+        assertEquals("A", outDoc.getFirstChild().getChild(1).getFirstChild().getFirstChild().toText());
+
+        for (BxZone zone : outDoc.getFirstChild()) {
+            for (BxLine line : zone) {
+                for (BxWord word : line) {
+                    for (BxChunk chunk : word) {
+                        assertContains(zone.getBounds(), chunk.getBounds());
+                    }
+                    assertContains(zone.getBounds(), word.getBounds());
+                }
+                assertContains(zone.getBounds(), line.getBounds());
+            }
+        }
+
+        assertNotNull(outDoc.getFirstChild().getBounds());
+    }

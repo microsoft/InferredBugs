@@ -1,0 +1,45 @@
+    @Test
+    public void testRestoredFromFileCommitRetry() throws Exception {
+        SessionHolder.init("file");
+        GlobalSession globalSession = new GlobalSession("demo-app", "my_test_tx_group", "test", 6000);
+
+        globalSession.addSessionLifecycleListener(SessionHolder.getRootSessionManager());
+        globalSession.begin();
+
+        BranchSession branchSession1 = SessionHelper.newBranchByGlobal(globalSession, BranchType.AT, RESOURCE_ID,
+            "ta:1", "xxx");
+        branchSession1.lock();
+        globalSession.addBranch(branchSession1);
+
+        LockManager lockManager = LockManagerFactory.get();
+
+        Assert.assertFalse(lockManager.isLockable(0L, RESOURCE_ID, "ta:1"));
+
+        globalSession.changeStatus(GlobalStatus.Committing);
+        globalSession.changeBranchStatus(branchSession1, BranchStatus.PhaseTwo_CommitFailed_Retryable);
+        globalSession.changeStatus(GlobalStatus.CommitRetrying);
+
+        lockManager.cleanAllLocks();
+
+        Assert.assertTrue(lockManager.isLockable(0L, RESOURCE_ID, "ta:1"));
+
+        // Re-init SessionHolder: restore sessions from file
+        SessionHolder.init("file");
+
+        long tid = globalSession.getTransactionId();
+        GlobalSession reloadSession = SessionHolder.findGlobalSession(tid);
+        Assert.assertEquals(reloadSession.getStatus(), GlobalStatus.CommitRetrying);
+
+        GlobalSession sessionInRetryCommittingQueue = SessionHolder.getRetryCommittingSessionManager()
+            .findGlobalSession(tid);
+        Assert.assertTrue(reloadSession == sessionInRetryCommittingQueue);
+        BranchSession reloadBranchSession = reloadSession.getBranch(branchSession1.getBranchId());
+        Assert.assertEquals(reloadBranchSession.getStatus(), BranchStatus.PhaseTwo_CommitFailed_Retryable);
+
+        // Lock is held by session in CommitRetrying status
+        Assert.assertFalse(lockManager.isLockable(0L, RESOURCE_ID, "ta:1"));
+
+        //clear
+        reloadSession.addSessionLifecycleListener(SessionHolder.getRootSessionManager());
+        reloadSession.end();
+    }

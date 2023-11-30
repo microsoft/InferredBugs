@@ -1,0 +1,39 @@
+    @Override
+    public void parse(@Nullable Tokens source, ParserData data) {
+        PandaScript script = data.getComponent(PandaComponents.PANDA_SCRIPT);
+        ModuleLoader registry = script.getModuleLoader();
+
+        Expression instance = null;
+        ClassPrototype prototype;
+
+        if (instanceSource != null) {
+            String surmiseClassName = instanceSource.asString();
+            prototype = registry.forClass(surmiseClassName).get();
+
+            if (prototype == null) {
+                instance = data.getComponent(PandaComponents.EXPRESSION).parse(data, instanceSource);
+                prototype = instance.getReturnType();
+            }
+        }
+        else {
+            prototype = data.getComponent(ClassPrototypeComponents.CLASS_PROTOTYPE);
+            instance = ThisExpressionCallback.asExpression(prototype);
+        }
+
+        ArgumentParser argumentParser = new ArgumentParser();
+        Expression[] arguments = argumentParser.parse(data, argumentsSource);
+        ClassPrototype[] parameterTypes = ExpressionUtils.toTypes(arguments);
+
+        String methodName = methodNameSource.asString();
+        PrototypeMethod prototypeMethod = prototype.getMethods().getMethod(methodName, parameterTypes);
+
+        if (prototypeMethod == null) {
+            throw new PandaParserFailure("Class " + prototype.getClassName() + " does not have method " + methodName, data, methodNameSource);
+        }
+
+        if (!voids && prototypeMethod.isVoid()) {
+            throw new PandaParserFailure("Method " + prototypeMethod.getMethodName() + " returns nothing", data, methodNameSource);
+        }
+
+        this.invoker = new MethodInvoker(prototypeMethod, instance, arguments);
+    }

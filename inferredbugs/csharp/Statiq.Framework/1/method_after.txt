@@ -1,0 +1,34 @@
+        IConfigurationSection IConfiguration.GetSection(string key)
+        {
+            key.ThrowIfNull(nameof(key));
+
+            string[] keys = key.Split(':');
+            object item = this;
+            for (int c = 0; c < keys.Length; c++)
+            {
+                if (item is null || item is string)
+                {
+                    return new SettingsConfigurationSection(this, keys[^1], key, default);
+                }
+                else if (item is IDictionary<string, object> dictionary || TypeHelper.TryConvert(item, out dictionary))
+                {
+                    if (!dictionary.TryGetValue(keys[c], out item))
+                    {
+                        return new SettingsConfigurationSection(this, keys[^1], key, default);
+                    }
+                }
+                else if (item is IList<object> list || (!(item is string) && item is IEnumerable && TypeHelper.TryConvert(item, out list)))
+                {
+                    if (!int.TryParse(keys[c], out int index) || index >= list.Count)
+                    {
+                        return new SettingsConfigurationSection(this, keys[^1], key, default);
+                    }
+                    item = list[index];
+                }
+                else
+                {
+                    return new SettingsConfigurationSection(this, keys[^1], key, default);
+                }
+            }
+            return new SettingsConfigurationSection(this, keys[^1], key, item);
+        }

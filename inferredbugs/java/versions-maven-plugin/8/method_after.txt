@@ -1,0 +1,171 @@
+    protected void renderDependencyDetailTable( Dependency dependency, ArtifactVersions details, boolean includeScope,
+                                                boolean includeClassifier, boolean includeType )
+    {
+        final String cellWidth = "80%";
+        final String headerWidth = "20%";
+        sink.table();
+        sink.tableRows( new int[]{Parser.JUSTIFY_RIGHT, Parser.JUSTIFY_LEFT}, false );
+        sink.tableRow();
+        sink.tableHeaderCell( headerWidth );
+        sink.text( getText( "report.status" ) );
+        sink.tableHeaderCell_();
+        sink.tableCell( cellWidth );
+        ArtifactVersion[] versions = details.getAllUpdates( UpdateScope.ANY );
+        if ( details.getOldestUpdate( UpdateScope.SUBINCREMENTAL ) != null )
+        {
+            renderWarningIcon();
+            sink.nonBreakingSpace();
+            sink.text( getText( "report.otherUpdatesAvailable" ) );
+        }
+        else if ( details.getOldestUpdate( UpdateScope.INCREMENTAL ) != null )
+        {
+            renderWarningIcon();
+            sink.nonBreakingSpace();
+            sink.text( getText( "report.incrementalUpdatesAvailable" ) );
+        }
+        else if ( details.getOldestUpdate( UpdateScope.MINOR ) != null )
+        {
+            renderWarningIcon();
+            sink.nonBreakingSpace();
+            sink.text( getText( "report.minorUpdatesAvailable" ) );
+        }
+        else if ( details.getOldestUpdate( UpdateScope.MAJOR ) != null )
+        {
+            renderWarningIcon();
+            sink.nonBreakingSpace();
+            sink.text( getText( "report.majorUpdatesAvailable" ) );
+        }
+        else
+        {
+            renderSuccessIcon();
+            sink.nonBreakingSpace();
+            sink.text( getText( "report.noUpdatesAvailable" ) );
+        }
+        sink.tableCell_();
+        sink.tableRow_();
+        sink.tableRow();
+        sink.tableHeaderCell( headerWidth );
+        sink.text( getText( "report.groupId" ) );
+        sink.tableHeaderCell_();
+        sink.tableCell( cellWidth );
+        sink.text( dependency.getGroupId() );
+        sink.tableCell_();
+        sink.tableRow_();
+        sink.tableRow();
+        sink.tableHeaderCell( headerWidth );
+        sink.text( getText( "report.artifactId" ) );
+        sink.tableHeaderCell_();
+        sink.tableCell( cellWidth );
+        sink.text( dependency.getArtifactId() );
+        sink.tableCell_();
+        sink.tableRow_();
+        sink.tableRow();
+        sink.tableHeaderCell( headerWidth );
+        sink.text( getText( "report.currentVersion" ) );
+        sink.tableHeaderCell_();
+        sink.tableCell( cellWidth );
+        sink.text( dependency.getVersion() );
+        sink.tableCell_();
+        sink.tableRow_();
+        if ( includeScope )
+        {
+            sink.tableRow();
+            sink.tableHeaderCell( headerWidth );
+            sink.text( getText( "report.scope" ) );
+            sink.tableHeaderCell_();
+            sink.tableCell( cellWidth );
+            sink.text( dependency.getScope() );
+            sink.tableCell_();
+            sink.tableRow_();
+        }
+        if ( includeClassifier )
+        {
+            sink.tableRow();
+            sink.tableHeaderCell( headerWidth );
+            sink.text( getText( "report.classifier" ) );
+            sink.tableHeaderCell_();
+            sink.tableCell( cellWidth );
+            sink.text( dependency.getClassifier() );
+            sink.tableCell_();
+            sink.tableRow_();
+        }
+        if ( includeType )
+        {
+            sink.tableRow();
+            sink.tableHeaderCell( headerWidth );
+            sink.text( getText( "report.type" ) );
+            sink.tableHeaderCell_();
+            sink.tableCell( cellWidth );
+            sink.text( dependency.getType() );
+            sink.tableCell_();
+            sink.tableRow_();
+        }
+        if ( versions != null && versions.length > 0 )
+        {
+            sink.tableRow();
+            sink.tableHeaderCell( headerWidth );
+            sink.text( getText( "report.updateVersions" ) );
+            sink.tableHeaderCell_();
+            sink.tableCell( cellWidth );
+            for ( int i = 0; i < versions.length; i++ )
+            {
+                if ( i > 0 )
+                {
+                    sink.lineBreak();
+                }
+                boolean bold = equals( versions[i], details.getOldestUpdate( UpdateScope.SUBINCREMENTAL ) )
+                    || equals( versions[i], details.getOldestUpdate( UpdateScope.INCREMENTAL ) )
+                    || equals( versions[i], details.getNewestUpdate( UpdateScope.INCREMENTAL ) )
+                    || equals( versions[i], details.getOldestUpdate( UpdateScope.MINOR ) )
+                    || equals( versions[i], details.getNewestUpdate( UpdateScope.MINOR ) )
+                    || equals( versions[i], details.getOldestUpdate( UpdateScope.MAJOR ) ) || equals( versions[i],
+                                                                                                      details.getNewestUpdate(
+                                                                                                          UpdateScope.MAJOR ) );
+                if ( bold )
+                {
+                    safeBold();
+                }
+                sink.text( versions[i].toString() );
+                if ( bold )
+                {
+                    safeBold_();
+                    sink.nonBreakingSpace();
+                    safeItalic();
+                    if ( equals( versions[i], details.getOldestUpdate( UpdateScope.SUBINCREMENTAL ) ) )
+                    {
+                        sink.text( getText( "report.nextVersion" ) );
+                    }
+                    else if ( equals( versions[i], details.getOldestUpdate( UpdateScope.INCREMENTAL ) ) )
+                    {
+                        sink.text( getText( "report.nextIncremental" ) );
+                    }
+                    else if ( equals( versions[i], details.getNewestUpdate( UpdateScope.INCREMENTAL ) ) )
+                    {
+                        sink.text( getText( "report.latestIncremental" ) );
+                    }
+                    else if ( equals( versions[i], details.getOldestUpdate( UpdateScope.MINOR ) ) )
+                    {
+                        sink.text( getText( "report.nextMinor" ) );
+                    }
+                    else if ( equals( versions[i], details.getNewestUpdate( UpdateScope.MINOR ) ) )
+                    {
+                        sink.text( getText( "report.latestMinor" ) );
+                    }
+                    else if ( equals( versions[i], details.getOldestUpdate( UpdateScope.MAJOR ) ) )
+                    {
+                        sink.text( getText( "report.nextMajor" ) );
+                    }
+                    else if ( equals( versions[i], details.getNewestUpdate( UpdateScope.MAJOR ) ) )
+                    {
+                        sink.text( getText( "report.latestMajor" ) );
+                    }
+
+                    safeItalic_();
+                }
+            }
+            sink.tableCell_();
+            sink.tableRow_();
+        }
+        sink.tableRows_();
+        sink.table_();
+    }

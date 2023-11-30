@@ -1,0 +1,40 @@
+    private void handleGcStart(XMLEventReader eventReader, StartElement startElement, GCEvent event) throws XMLStreamException {
+        event.setType(Type.lookup(getAttributeValue(startElement, "type")));
+        if (event.getExtendedType() == null) {
+            LOG.warning("could not determine type of event " + startElement.toString());
+            return;
+        }
+        
+        String currentElementName = "";
+        while (eventReader.hasNext() && !currentElementName.equals(GC_START)) {
+            
+            XMLEvent xmlEvent = eventReader.nextEvent();
+            if (xmlEvent.isStartElement()) {
+                StartElement startEl = xmlEvent.asStartElement();
+                if (startEl.getName().getLocalPart().equals("mem-info")) {
+                    setTotalAndPreUsed(event, startEl);
+                }
+                else if (startEl.getName().getLocalPart().equals("mem")) {
+                    switch (getAttributeValue(startEl, "type")) {
+                        case "nursery":
+                            GCEvent young = new GCEvent();
+                            young.setType(Type.lookup("nursery"));
+                            setTotalAndPreUsed(young, startEl);
+                            event.add(young);
+                            break;
+                        case "tenure":
+                            GCEvent tenured = new GCEvent();
+                            tenured.setType(Type.lookup("tenure"));
+                            setTotalAndPreUsed(tenured, startEl);
+                            event.add(tenured);
+                            break;
+                        // all other are ignored
+                    }
+                }
+            }
+            else if (xmlEvent.isEndElement()) {
+                EndElement endElement = xmlEvent.asEndElement();
+                currentElementName = endElement.getName().getLocalPart();
+            }
+        }
+    }

@@ -1,0 +1,22 @@
+ @Test
+	public void testSpliter() throws IOException {
+		SharedBufferPool sharedPool = new SharedBufferPool(1024 * 1024 * 100, 10240);
+		ReactorBufferPool reactBufferPool = new ReactorBufferPool(sharedPool, Thread.currentThread(), 1000);
+		ByteBufferArray bufArray = reactBufferPool.allocate();
+		bufArray.addNewBuffer();
+		int readBufferOffset = 0;
+		// @todo 构造符合MYSQL报文的数据包，进行测试
+
+		ByteArrayInputStream mysqlPackgsStream = createMysgqlPackages();
+		while (mysqlPackgsStream.available() > 0) {
+			ByteBuffer curBuf = bufArray.getLastByteBuffer();
+			if (!curBuf.hasRemaining()) {
+				curBuf = bufArray.addNewBuffer();
+			}
+			byte[] data = new byte[curBuf.remaining()];
+			int readed = mysqlPackgsStream.read(data);
+			curBuf.put(data, 0, readed);
+			readBufferOffset = CommonPackageUtil.parsePackages(bufArray, curBuf, readBufferOffset);
+		}
+		Assert.assertEquals(PACKAGES_COUNT, bufArray.getCurPacageIndex());
+	}

@@ -1,0 +1,35 @@
+    public void replyToStatus(String content, String replyTo) throws ArchivedGroupException {
+        Status originalStatus = statusRepository.findStatusById(replyTo);
+        Group group = null;
+        if (originalStatus.getGroupId() != null) {
+            group = groupService.getGroupById(originalStatus.getDomain(), originalStatus.getGroupId());
+
+            if (group.isArchivedGroup()) {
+               throw new ArchivedGroupException();
+            }
+        }
+        if (!originalStatus.getReplyTo().equals("")) {
+            // Original status is also a reply, replying to the real original status instead
+            Status realOriginalStatus = statusRepository.findStatusById(originalStatus.getDiscussionId());
+            Status replyStatus = createStatus(
+                    content,
+                    realOriginalStatus.getStatusPrivate(),
+                    group,
+                    realOriginalStatus.getStatusId(),
+                    originalStatus.getStatusId(),
+                    originalStatus.getUsername());
+
+            discussionRepository.addReplyToDiscussion(realOriginalStatus.getStatusId(), replyStatus.getStatusId());
+        } else {
+            // The original status of the discussion is the one we reply to
+            Status replyStatus =
+                    createStatus(content,
+                            originalStatus.getStatusPrivate(),
+                            group,
+                            replyTo,
+                            replyTo,
+                            originalStatus.getUsername());
+
+            discussionRepository.addReplyToDiscussion(originalStatus.getStatusId(), replyStatus.getStatusId());
+        }
+    }

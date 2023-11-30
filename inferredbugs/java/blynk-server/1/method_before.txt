@@ -1,0 +1,18 @@
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, GetTokenMessage message) throws Exception {
+        String dashBoardIdString = message.body;
+
+        Long dashBoardId;
+        try {
+            dashBoardId = Long.parseLong(dashBoardIdString);
+        } catch (NumberFormatException ex) {
+            log.error("Dash board id {} not valid.", dashBoardIdString);
+            ctx.writeAndFlush(produce(message.id, INVALID_COMMAND_FORMAT));
+            return;
+        }
+
+        User user = Session.findUserByChannel(ctx.channel());
+        String token = userRegistry.getToken(user, dashBoardId);
+
+        ctx.writeAndFlush(produce(message.id, message.command, token));
+    }

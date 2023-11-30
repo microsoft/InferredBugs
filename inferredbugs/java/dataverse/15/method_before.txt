@@ -1,0 +1,136 @@
+    public String save() {
+        dataset.setOwner(dataverseService.find(ownerId));
+        //TODO get real application-wide protocol/authority
+        dataset.setProtocol("doi");
+        dataset.setAuthority("10.5072/FK2");
+        dataset.setIdentifier("5555");
+        //TODO update title in page itself
+        if (replicationFor) {
+            updateTitle();
+        }
+
+        /*
+         * Save and/or ingest files, if there are any:
+         */
+        if (newFiles != null && newFiles.size() > 0) {
+            try {
+                if (dataset.getFileSystemDirectory() != null && !Files.exists(dataset.getFileSystemDirectory())) {
+                    /* Note that "createDirectories()" must be used - not 
+                     * "createDirectory()", to make sure all the parent 
+                     * directories that may not yet exist are created as well. 
+                     */
+
+                    Files.createDirectories(dataset.getFileSystemDirectory());
+                }
+            } catch (IOException dirEx) {
+                Logger.getLogger(DatasetPage.class.getName()).log(Level.SEVERE, "Failed to create study directory " + dataset.getFileSystemDirectory().toString());
+            }
+
+            if (dataset.getFileSystemDirectory() != null && Files.exists(dataset.getFileSystemDirectory())) {
+                for (DataFile dFile : newFiles) {
+                    String tempFileLocation = getFilesTempDirectory() + "/" + dFile.getFileSystemName();
+                    
+                    // These are all brand new files, so they should all have 
+                    // one filemetadata total. You do NOT want to use 
+                    // getLatestFilemetadata() here - because it relies on 
+                    // comparing the object IDs of the corresponding datasetversions...
+                    // Which may not have been persisted yet. 
+                    // -- L.A. 4.0 beta.
+                    FileMetadata fileMetadata = dFile.getFileMetadatas().get(0);
+                    String fileName = fileMetadata.getLabel(); 
+
+                    //boolean ingestedAsTabular = false;
+                    boolean metadataExtracted = false;
+
+                    datasetService.generateFileSystemName(dFile);
+
+                    if (ingestService.ingestableAsTabular(dFile)) {
+                        /*
+                         * Note that we don't try to ingest the file right away - 
+                         * instead we mark it as "scheduled for ingest", then at 
+                         * the end of the save process it will be queued for async. 
+                         * ingest in the background. In the meantime, the file 
+                         * will be ingested as a regular, non-tabular file, and 
+                         * appear as such to the user, until the ingest job is
+                         * finished with the Ingest Service.
+                         */
+                        dFile.SetIngestScheduled();
+                    } else if (ingestService.fileMetadataExtractable(dFile)) {
+
+                        try {
+                            dFile.setContentType("application/fits");
+                            metadataExtracted = ingestService.extractIndexableMetadata(tempFileLocation, dFile, editVersion);
+                        } catch (IOException mex) {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.SEVERE, "Caught exception trying to extract indexable metadata from file " + fileName, mex);
+                        }
+                        if (metadataExtracted) {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.INFO, "Successfully extracted indexable metadata from file " + fileName);
+                        } else {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.INFO, "Failed to extract indexable metadata from file " + fileName);
+                        }
+                    }
+
+                    // Try to save the file in its permanent location: 
+                    //if (!ingestedAsTabular) {
+                    try {
+
+                        Logger.getLogger(DatasetPage.class.getName()).log(Level.INFO, "Will attempt to save the file as: " + dFile.getFileSystemLocation().toString());
+                        Files.copy(new FileInputStream(new File(tempFileLocation)), dFile.getFileSystemLocation(), StandardCopyOption.REPLACE_EXISTING);
+
+                        MD5Checksum md5Checksum = new MD5Checksum();
+                        try {
+                            dFile.setmd5(md5Checksum.CalculateMD5(dFile.getFileSystemLocation().toString()));
+                        } catch (Exception md5ex) {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.WARNING, "Could not calculate MD5 signature for the new file " + fileName);
+                        }
+
+                    } catch (IOException ioex) {
+                        Logger.getLogger(DatasetPage.class.getName()).log(Level.WARNING, "Failed to save the file  " + dFile.getFileSystemLocation());
+                    }
+                    //}
+
+                    // Any necessary post-processing: 
+                    ingestService.performPostProcessingTasks(dFile);
+                }
+            }
+        }
+
+        Command<Dataset> cmd;
+        try {
+            if (editMode == EditMode.CREATE) {
+                cmd = new CreateDatasetCommand(dataset, session.getUser());
+            } else {
+                cmd = new UpdateDatasetCommand(dataset, session.getUser());
+            }
+            dataset = commandEngine.submit(cmd);
+        } catch (EJBException ex) {
+            StringBuilder error = new StringBuilder();
+            error.append(ex + " ");
+            error.append(ex.getMessage() + " ");
+            Throwable cause = ex;
+            while (cause.getCause() != null) {
+                cause = cause.getCause();
+                error.append(cause + " ");
+                error.append(cause.getMessage() + " ");
+            }
+            logger.info("Couldn't save dataset: " + error.toString());
+            FacesContext.getCurrentInstance().addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR, "Dataset Save Failed", " - " + error.toString()));
+            return null;
+        } catch (CommandException ex) {
+            FacesContext.getCurrentInstance().addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR, "Dataset Save Failed", " - " + ex.toString()));
+            Logger.getLogger(DatasetPage.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        newFiles.clear();
+        editMode = null;
+
+        // Queue the ingest jobs for asynchronous execution: 
+        for (DataFile dataFile : dataset.getFiles()) {
+            if (dataFile.isIngestScheduled()) {
+                dataFile.SetIngestInProgress();
+                Logger.getLogger(DatasetPage.class.getName()).log(Level.INFO, "Attempting to queue the file " + dataFile.getFileMetadata().getLabel() + " for ingest.");
+                ingestService.asyncIngestAsTabular(dataFile);
+            }
+        }
+
+        return "/dataset.xhtml?id=" + dataset.getId() + "&faces-redirect=true";
+    }

@@ -1,0 +1,59 @@
+    public boolean configureCoverage(final GSCoverageEncoder ce, final String wsname,
+            final String csname) {
+        final String cname = ce.getName();
+        if (cname == null) {
+            if (LOGGER.isErrorEnabled())
+                LOGGER.error("Unable to configure a coverage with no name try using GSCoverageEncoder.setName(String)");
+            return false;
+        }
+        // retrieve coverage name
+        GeoServerRESTReader reader;
+        try {
+            reader = new GeoServerRESTReader(restURL, gsuser, gspass);
+        } catch (MalformedURLException e) {
+            if (LOGGER.isErrorEnabled())
+                LOGGER.error(e.getLocalizedMessage(), e);
+            return false;
+        }
+        final RESTCoverageList covList = reader.getCoverages(wsname, csname);
+        if (covList.isEmpty()) {
+            if (LOGGER.isErrorEnabled())
+                LOGGER.error("No coverages found in new coveragestore " + csname);
+            return false;
+        }
+        final Iterator<NameLinkElem> it = covList.iterator();
+        boolean found = false;
+        while (it.hasNext()) {
+            NameLinkElem nameElem = it.next();
+            if (nameElem.getName().equals(cname)) {
+                found = true;
+                break;
+            }
+        }
+        // if no coverage to configure is found return false
+        if (!found) {
+            if (LOGGER.isErrorEnabled())
+                LOGGER.error("No coverages found in new coveragestore " + csname + " called "
+                        + cname);
+            return false;
+        }
+
+        // configure the selected coverage
+        final String url = restURL + "/rest/workspaces/" + wsname + "/coveragestores/" + csname
+                + "/coverages/" + cname + ".xml";
+
+        final String xmlBody = ce.toString();
+        final String sendResult = HTTPUtils.putXml(url, xmlBody, gsuser, gspass);
+        if (sendResult != null) {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Coverage successfully configured " + wsname + ":" + csname + ":"
+                        + cname);
+            }
+        } else {
+            if (LOGGER.isWarnEnabled())
+                LOGGER.warn("Error configuring coverage " + wsname + ":" + csname + ":" + cname
+                        + " (" + sendResult + ")");
+        }
+
+        return sendResult != null;
+    }

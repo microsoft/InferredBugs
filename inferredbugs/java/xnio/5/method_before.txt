@@ -1,0 +1,15 @@
+    public MulticastMessageChannel createUdpServer(final InetSocketAddress bindAddress, final ReadChannelThread readThread, final WriteChannelThread writeThread, final ChannelListener<? super MulticastMessageChannel> bindListener, final OptionMap optionMap) throws IOException {
+        if (optionMap.get(Options.MULTICAST, false)) {
+            return new BioMulticastUdpChannel(optionMap.get(Options.SEND_BUFFER, 8192), optionMap.get(Options.RECEIVE_BUFFER, 8192), new MulticastSocket());
+        } else {
+            final DatagramChannel channel = DatagramChannel.open();
+            channel.configureBlocking(false);
+            channel.socket().bind(bindAddress);
+            final NioUdpChannel udpChannel = new NioUdpChannel(this, channel);
+            udpChannel.setReadThread(readThread);
+            udpChannel.setWriteThread(writeThread);
+            //noinspection unchecked
+            ChannelListeners.invokeChannelListener(udpChannel, bindListener);
+            return udpChannel;
+        }
+    }

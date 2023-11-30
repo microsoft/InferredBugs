@@ -1,0 +1,71 @@
+     protected HeimdallRoute getMatchingHeimdallRoute(String requestURI, String method, RequestContext ctx) {
+
+          boolean auxMatch = false;
+          for (Entry<String, ZuulRoute> entry : routeLocator.getAtomicRoutes().get().entrySet()) {
+               if (Objeto.notBlank(entry.getKey())) {
+                    String pattern = entry.getKey();
+                    if (this.pathMatcher.match(pattern, requestURI)) {
+                          
+                         auxMatch = true;
+                         List<Operation> operations = operationRepository.findByEndPoint(pattern);
+                         Operation operation = null;
+                         if (Objeto.notBlank(operations)) {
+                              operation = operations.stream().filter(o -> method.equals(o.getMethod().name().toUpperCase())).findFirst().orElse(null);
+                         }
+
+                         if (Objeto.notBlank(operation)) {
+                              ZuulRoute zuulRoute = entry.getValue();
+
+                              String basePath = operation.getResource().getApi().getBasePath();
+                              requestURI = org.apache.commons.lang.StringUtils.removeStart(requestURI, basePath);
+                              ctx.put("pattern", org.apache.commons.lang.StringUtils.removeStart(pattern, basePath));
+                              
+                              List<Environment> environments = operation.getResource().getApi().getEnvironments();
+                              
+                              String location = null;
+                              if (Objeto.notBlank(environments)) {
+                                   
+                                   String host = ctx.getRequest().getHeader("Host");                                   
+                                   if (Objeto.isBlank(host)) {
+
+                                        host = ctx.getRequest().getHeader("host");
+                                   }
+                                   
+                                   Optional<Environment> environment = Optional.ofNullable(null);
+                                   if (Objeto.notBlank(host)) {
+                                        String tempHost = host;
+                                        environment = environments.stream().filter(e -> e.getInboundURL().toLowerCase().contains(tempHost.toLowerCase())).findFirst();                                        
+                                   } else {
+                                        environment = environments.stream().filter(e -> ctx.getRequest().getRequestURL().toString().toLowerCase().contains(e.getInboundURL().toLowerCase())).findFirst();
+                                   }
+                                   
+                                   if (environment.isPresent()) {
+                                        location = environment.get().getOutboundURL();
+                                        ctx.put("environmentVariables", environment.get().getVariables());
+                                   }
+                              }                              
+                              Route route = new Route(zuulRoute.getId(), requestURI, location, "", zuulRoute.getRetryable() != null ? zuulRoute.getRetryable() : false, zuulRoute.isCustomSensitiveHeaders() ? zuulRoute.getSensitiveHeaders() : null);
+
+                              TraceContextHolder traceContextHolder = TraceContextHolder.getInstance();
+                              
+                              traceContextHolder.getActualTrace().setApiId(operation.getResource().getApi().getId());
+                              traceContextHolder.getActualTrace().setApiName(operation.getResource().getApi().getName());
+                              traceContextHolder.getActualTrace().setResourceId(operation.getResource().getId());
+                              traceContextHolder.getActualTrace().setOperationId(operation.getId());
+                              traceContextHolder.getActualTrace().setPattern(operation.getPath());
+                              
+                              return new HeimdallRoute(pattern, route, false);
+                         } else {
+                              
+                              ctx.put(INTERRUPT, true);
+                         }
+                    }
+               }
+          }
+
+          if (auxMatch) {
+               return new HeimdallRoute().methodNotAllowed();
+          }
+
+          return null;
+     }

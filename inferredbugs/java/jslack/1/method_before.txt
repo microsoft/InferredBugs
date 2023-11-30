@@ -1,0 +1,32 @@
+    @Override
+    public Bot findBot(String enterpriseId, String teamId) {
+        AmazonS3 s3 = this.createS3Client();
+        String fullKey = getBotKey(enterpriseId, teamId);
+        if (isHistoricalDataEnabled()) {
+            fullKey = fullKey + "-latest";
+        }
+        if (s3.getObjectMetadata(bucketName, fullKey) == null && enterpriseId != null) {
+            String nonGridKey = getBotKey(null, teamId);
+            if (isHistoricalDataEnabled()) {
+                nonGridKey = nonGridKey + "-latest";
+            }
+            S3Object nonGridObject = s3.getObject(bucketName, nonGridKey);
+            if (nonGridObject != null) {
+                try {
+                    Bot bot = toBot(nonGridObject);
+                    bot.setEnterpriseId(enterpriseId); // the workspace seems to be in a Grid org now
+                    save(s3, fullKey, JsonOps.toJsonString(bot), "AWS S3 putObject result of Bot data - {}");
+                    return bot;
+                } catch (Exception e) {
+                    log.error("Failed to save a new Bot data for enterprise_id: {}, team_id: {}", enterpriseId, teamId);
+                }
+            }
+        }
+        S3Object s3Object = s3.getObject(bucketName, fullKey);
+        try {
+            return toBot(s3Object);
+        } catch (IOException e) {
+            log.error("Failed to load Bot data for enterprise_id: {}, team_id: {}", enterpriseId, teamId);
+            return null;
+        }
+    }

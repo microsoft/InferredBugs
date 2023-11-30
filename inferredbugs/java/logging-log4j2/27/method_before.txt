@@ -1,0 +1,59 @@
+    private void appendStructuredElements(final StringBuilder buffer, final LogEvent event) {
+        final Message message = event.getMessage();
+        final boolean isStructured = message instanceof StructuredDataMessage;
+
+        if (!isStructured && (fieldFormatters!= null && fieldFormatters.size() == 0) && !includeMDC) {
+            buffer.append("-");
+            return;
+        }
+
+        final Map<String, StructuredDataElement> sdElements = new HashMap<String, StructuredDataElement>();
+        final Map<String, String> contextMap = event.getContextMap();
+
+        if (mdcRequired != null) {
+            checkRequired(contextMap);
+        }
+
+        if (fieldFormatters != null) {
+            for (final Map.Entry<String, FieldFormatter> sdElement: fieldFormatters.entrySet()) {
+                final String sdId = sdElement.getKey();
+                final StructuredDataElement elem = sdElement.getValue().format(event);
+                sdElements.put(sdId, elem);
+            }
+        }
+
+        if (includeMDC && contextMap.size() > 0) {
+            if (sdElements.containsKey(mdcSDID.toString())) {
+                final StructuredDataElement union = sdElements.get(mdcSDID.toString());
+                union.union(contextMap);
+                sdElements.put(mdcSDID.toString(), union);
+            } else {
+                final StructuredDataElement formattedContextMap = new StructuredDataElement(contextMap, false);
+                sdElements.put(mdcSDID.toString(), formattedContextMap);
+            }
+        }
+
+        if (isStructured) {
+            final StructuredDataMessage data = (StructuredDataMessage) message;
+            final Map<String, String> map = data.getData();
+            final StructuredDataId id = data.getId();
+
+            if (sdElements.containsKey(id.toString())) {
+                final StructuredDataElement union = sdElements.get(id.toString());
+                union.union(map);
+                sdElements.put(id.toString(), union);
+            } else {
+                final StructuredDataElement formattedData = new StructuredDataElement(map, false);
+                sdElements.put(id.toString(), formattedData);
+            }
+        }
+
+        if (sdElements.size() == 0) {
+            buffer.append("-");
+            return;
+        }
+
+        for (final Map.Entry<String, StructuredDataElement> entry: sdElements.entrySet()) {
+            formatStructuredElement(entry.getKey(), mdcPrefix, entry.getValue(), buffer, checker);
+        }
+    }

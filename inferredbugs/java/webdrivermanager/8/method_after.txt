@@ -1,0 +1,63 @@
+ public static final synchronized void download(URL url, String version,
+			String export, List<String> driverName) throws IOException {
+		File targetFile = new File(getTarget(version, url));
+		File binary = null;
+
+		// Check if binary exists
+		boolean download = !targetFile.getParentFile().exists()
+				|| (targetFile.getParentFile().exists()
+						&& targetFile.getParentFile().list().length == 0)
+				|| WdmConfig.getBoolean("wdm.override");
+
+		if (!download) {
+			// Check if existing binary is valid
+			Collection<File> listFiles = FileUtils
+					.listFiles(targetFile.getParentFile(), null, true);
+			for (File file : listFiles) {
+				for (String s : driverName) {
+					if (file.getName().startsWith(s) && file.canExecute()) {
+						binary = file;
+						log.debug(
+								"Using binary driver previously downloaded {}",
+								binary);
+						download = false;
+						break;
+					} else {
+						download = true;
+					}
+				}
+				if (!download) {
+					break;
+				}
+			}
+		}
+
+		if (download) {
+			log.info("Downloading {} to {}", url, targetFile);
+			HttpURLConnection conn = getConnection(url);
+			int responseCode = conn.getResponseCode();
+			log.debug("Response HTTP {}", responseCode);
+			if (responseCode == HttpURLConnection.HTTP_MOVED_TEMP
+					|| responseCode == HttpURLConnection.HTTP_MOVED_PERM
+					|| responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
+				// HTTP Redirect
+				URL newUrl = new URL(conn.getHeaderField("Location"));
+				log.debug("Redirect to {}", newUrl);
+				conn = getConnection(newUrl);
+			}
+
+			FileUtils.copyInputStreamToFile(conn.getInputStream(), targetFile);
+
+			if (!export.contains("edge")) {
+				binary = extract(targetFile, export);
+				targetFile.delete();
+			} else {
+				binary = targetFile;
+			}
+
+		}
+		if (export != null) {
+			BrowserManager.exportDriver(export, binary.toString());
+		}
+
+	}

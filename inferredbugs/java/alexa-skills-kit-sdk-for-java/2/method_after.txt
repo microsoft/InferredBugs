@@ -1,0 +1,76 @@
+    private X509Certificate retrieveAndVerifyCertificateChain(
+            final String signingCertificateChainUrl) throws CertificateException {
+        for (int attempt = 0; attempt <= CERT_RETRIEVAL_RETRY_COUNT; attempt++) {
+            InputStream in = null;
+            try {
+                HttpURLConnection connection =
+                        proxy != null ? (HttpURLConnection)getAndVerifySigningCertificateChainUrl(signingCertificateChainUrl).openConnection(proxy)
+                                : (HttpURLConnection)getAndVerifySigningCertificateChainUrl(signingCertificateChainUrl).openConnection();
+
+                if (connection.getResponseCode() != 200) {
+                    if (waitForRetry(attempt)) {
+                        continue;
+                    } else {
+                        throw new CertificateException("Got a non-200 status code when retrieving certificate at URL: " + signingCertificateChainUrl);
+                    }
+                }
+
+                in = connection.getInputStream();
+                CertificateFactory certificateFactory =
+                        CertificateFactory.getInstance(ServletConstants.SIGNATURE_CERTIFICATE_TYPE);
+                @SuppressWarnings("unchecked")
+                Collection<X509Certificate> certificateChain =
+                        (Collection<X509Certificate>) certificateFactory.generateCertificates(in);
+                /*
+                 * check the before/after dates on the certificate date to confirm that it is valid on
+                 * the current date
+                 */
+                X509Certificate signingCertificate = certificateChain.iterator().next();
+                signingCertificate.checkValidity();
+
+                // check the certificate chain
+                TrustManagerFactory trustManagerFactory =
+                        TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                trustManagerFactory.init((KeyStore) null);
+
+                X509TrustManager x509TrustManager = null;
+                for (TrustManager trustManager : trustManagerFactory.getTrustManagers()) {
+                    if (trustManager instanceof X509TrustManager) {
+                        x509TrustManager = (X509TrustManager) trustManager;
+                    }
+                }
+
+                if (x509TrustManager == null) {
+                    throw new IllegalStateException(
+                            "No X509 TrustManager available. Unable to check certificate chain");
+                } else {
+                    x509TrustManager.checkServerTrusted(
+                            certificateChain.toArray(new X509Certificate[certificateChain.size()]),
+                            ServletConstants.SIGNATURE_TYPE);
+                }
+
+                /*
+                 * verify Echo API's hostname is specified as one of subject alternative names on the
+                 * signing certificate
+                 */
+                if (!subjectAlernativeNameListContainsEchoSdkDomainName(signingCertificate
+                        .getSubjectAlternativeNames())) {
+                    throw new CertificateException(
+                            "The provided certificate is not valid for the ASK SDK");
+                }
+
+                return signingCertificate;
+            } catch (IOException e) {
+                if (!waitForRetry(attempt)) {
+                    throw new CertificateException("Unable to retrieve certificate from URL: " + signingCertificateChainUrl, e);
+                }
+            } catch (Exception e) {
+                throw new CertificateException("Unable to verify certificate at URL: " + signingCertificateChainUrl, e);
+            } finally {
+                if (in != null) {
+                    IOUtils.closeQuietly(in);
+                }
+            }
+        }
+        throw new RuntimeException("Unable to retrieve signing certificate due to an unhandled exception");
+    }

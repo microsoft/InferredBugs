@@ -1,0 +1,17 @@
+    @Override
+    public Result<Integer> saveUnconfirmedTransaction(Transaction tx) {
+        saveLock.lock();
+        try {
+            ValidateResult result1 = tx.verify();
+            if (result1.isFailed()) {
+                return result1;
+            }
+            result1 = this.ledgerService.verifyCoinData(tx, this.getAllUnconfirmedTransaction().getData());
+            if (result1.isFailed()) {
+                return result1;
+            }
+            return saveTransaction(tx, TransactionInfo.UNCONFIRMED);
+        } finally {
+            saveLock.unlock();
+        }
+    }

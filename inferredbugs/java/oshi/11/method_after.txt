@@ -1,0 +1,79 @@
+    @Override
+    public double getCpuVoltage() {
+        // Initialize
+        double volts = 0d;
+        // If we couldn't get through normal WMI go directly to OHM
+        if (this.voltIdentifierStr != null) {
+            double[] vals = wmiGetValuesForKeys("/namespace:\\\\root\\OpenHardwareMonitor PATH Sensor",
+                    this.voltIdentifierStr, "Voltage", "Identifier,SensorType,Value");
+            if (vals.length > 0) {
+                // Return the first voltage reading
+                volts = vals[0];
+            }
+            return volts;
+        }
+        // This branch is used the first time and all subsequent times if
+        // successful (voltIdenifierStr == null)
+        // Try to get value
+        // Try to get value using initial or updated successful values
+        int decivolts = 0;
+        if (this.wmiVoltPath == null) {
+            this.wmiVoltPath = "CPU";
+            this.wmiVoltProperty = "CurrentVoltage";
+            decivolts = wmiGetValue(this.wmiVoltPath, this.wmiVoltProperty);
+            if (decivolts < 0) {
+                this.wmiVoltPath = "/namespace:\\\\root\\cimv2 PATH Win32_Processor";
+                decivolts = wmiGetValue(this.wmiVoltPath, this.wmiVoltProperty);
+            }
+            // If the eighth bit is set, bits 0-6 contain the voltage
+            // multiplied by 10. If the eighth bit is not set, then the bit
+            // setting in VoltageCaps represents the voltage value.
+            if ((decivolts & 0x80) == 0 && decivolts > 0) {
+                this.wmiVoltProperty = "VoltageCaps";
+                // really a bit setting, not decivolts, test later
+                decivolts = wmiGetValue(this.wmiVoltPath, this.wmiVoltProperty);
+            }
+        } else {
+            // We've successfully read a previous time, or failed both here and
+            // with OHM
+            decivolts = wmiGetValue(this.wmiVoltPath, this.wmiVoltProperty);
+        }
+        // Convert dV to V and return result
+        if (decivolts > 0) {
+            if (this.wmiVoltProperty.equals("VoltageCaps")) {
+                // decivolts are bits
+                if ((decivolts & 0x1) > 0) {
+                    volts = 5.0;
+                } else if ((decivolts & 0x2) > 0) {
+                    volts = 3.3;
+                } else if ((decivolts & 0x4) > 0) {
+                    volts = 2.9;
+                }
+            } else {
+                // Value from bits 0-6
+                volts = (decivolts & 0x7F) / 10d;
+            }
+        }
+        if (volts <= 0d) {
+            // Unable to get voltage via WMI. Future attempts will be
+            // attempted via Open Hardware Monitor WMI if successful
+            String[] voltIdentifiers = wmiGetStrValuesForKey("/namespace:\\\\root\\OpenHardwareMonitor PATH Hardware",
+                    "Voltage", "SensorType,Identifier");
+            // Look for identifier containing "cpu"
+            for (String id : voltIdentifiers) {
+                if (id.toLowerCase().contains("cpu")) {
+                    this.voltIdentifierStr = id;
+                    break;
+                }
+            }
+            // If none contain cpu just grab the first one
+            if (voltIdentifiers.length > 0) {
+                this.voltIdentifierStr = voltIdentifiers[0];
+            }
+            // If not null, recurse and get value via OHM
+            if (this.voltIdentifierStr != null) {
+                return getCpuVoltage();
+            }
+        }
+        return volts;
+    }

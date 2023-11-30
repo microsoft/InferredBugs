@@ -1,0 +1,15 @@
+    void destroy() {
+        final ThreadId savedId = this.id;
+        LOG.info("Replicator {} is going to quit", savedId);
+        this.id = null;
+        if (this.reader != null) {
+            Utils.closeQuietly(this.reader);
+            this.reader = null;
+        }
+        // Unregister replicator metric set
+        if (this.options.getNode().getNodeMetrics().getMetricRegistry() != null) {
+            this.options.getNode().getNodeMetrics().getMetricRegistry().remove(getReplicatorMetricName(this.options));
+        }
+        this.state = State.Destroyed;
+        savedId.unlockAndDestroy();
+    }

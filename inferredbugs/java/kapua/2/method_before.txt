@@ -1,0 +1,36 @@
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+
+        String authCode = req.getParameter("code");
+        
+        String uri = "http://localhost:9090/auth/realms/master/protocol/openid-connect/token";
+        URL url = new URL(uri);
+        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+
+        urlConnection.setRequestMethod("POST");
+
+        String urlParameters = "grant_type=authorization_code&code=" + authCode + "&client_id=console&redirect_uri=" + callbackUrl;
+        
+        // Send post request
+        urlConnection.setDoOutput(true);
+        DataOutputStream outputStream = new DataOutputStream(urlConnection.getOutputStream());
+        outputStream.writeBytes(urlParameters);
+        outputStream.flush();
+        outputStream.close();
+
+        int responseCode = urlConnection.getResponseCode();
+
+        BufferedReader inputReader = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
+
+        // parse result
+        JsonReader jsonReader = Json.createReader(inputReader);
+
+        // Parse json response
+        JsonObject jsonObject = jsonReader.readObject();
+        inputReader.close();
+
+        // Get and clean jwks_uri property
+        String accessToken = jsonObject.getString("access_token");
+        
+        resp.sendRedirect("http://localhost:8889/console.jsp?gwt.codesvr=127.0.0.1:9997&access_token=" + accessToken);
+    }

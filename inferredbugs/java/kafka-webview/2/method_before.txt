@@ -1,0 +1,42 @@
+    @RequestMapping(path = "/create", method = RequestMethod.GET)
+    public String createViewForm(final ViewForm viewForm, final Model model) {
+        // Setup breadcrumbs
+        if (!model.containsAttribute("BreadCrumbs")) {
+            setupBreadCrumbs(model, "Create", null);
+        }
+
+        // Retrieve all clusters
+        model.addAttribute("clusters", clusterRepository.findAllByOrderByNameAsc());
+
+        // Retrieve all message formats
+        model.addAttribute("defaultMessageFormats", messageFormatRepository.findByIsDefaultFormatOrderByNameAsc(true));
+        model.addAttribute("customMessageFormats", messageFormatRepository.findByIsDefaultFormatOrderByNameAsc(false));
+
+        // If we have a cluster Id
+        model.addAttribute("topics", new ArrayList<>());
+        model.addAttribute("partitions", new ArrayList<>());
+
+        // Retrieve all filters
+        model.addAttribute("filterList", filterRepository.findAllByOrderByNameAsc());
+        model.addAttribute("filterParameters", new HashMap<Long, Map<String, String>>());
+
+        if (viewForm.getClusterId() != null) {
+            // Lets load the topics now
+            // Retrieve cluster
+            final Cluster cluster = clusterRepository.findOne(viewForm.getClusterId());
+            if (cluster != null) {
+                try (final KafkaOperations operations = kafkaOperationsFactory.create(cluster, getLoggedInUserId())) {
+                    final TopicList topics = operations.getAvailableTopics();
+                    model.addAttribute("topics", topics.getTopics());
+
+                    // If we have a selected topic
+                    if (viewForm.getTopic() != null && !"!".equals(viewForm.getTopic())) {
+                        final TopicDetails topicDetails = operations.getTopicDetails(viewForm.getTopic());
+                        model.addAttribute("partitions", topicDetails.getPartitions());
+                    }
+                }
+            }
+        }
+
+        return "configuration/view/create";
+    }

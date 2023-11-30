@@ -1,0 +1,22 @@
+    @Test
+    public void testConnectTriesToReconnectOnFailedConnectAttempt(final TestContext ctx) {
+
+        // GIVEN a client that cannot connect to the server
+        // expect the connection factory to fail twice and succeed on third connect attempt
+        connectionFactory = new DisconnectHandlerProvidingConnectionFactory(con, 1, 2);
+        final HonoClientImpl client = new HonoClientImpl(vertx, connectionFactory);
+
+        // WHEN trying to connect
+        Async disconnectHandlerInvocation = ctx.async();
+        Async connectionEstablished = ctx.async();
+        client.connect(
+                new ProtonClientOptions().setReconnectAttempts(1),
+                ctx.asyncAssertSuccess(ok -> connectionEstablished.complete()),
+                failedCon -> disconnectHandlerInvocation.complete());
+
+        // THEN the client repeatedly tries to connect
+        connectionEstablished.await(4 * Constants.DEFAULT_RECONNECT_INTERVAL_MILLIS);
+        // and sets the disconnect handler provided as a param in the connect method invocation
+        connectionFactory.getDisconnectHandler().handle(con);
+        disconnectHandlerInvocation.await();
+    }

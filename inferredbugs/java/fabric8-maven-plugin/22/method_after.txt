@@ -1,0 +1,33 @@
+    private void createTemplateParameters(File outputDir, Template template, File templatesDir) throws MojoExecutionException {
+        JsonNodeFactory nodeFactory = JsonNodeFactory.instance;
+        ObjectNode values = nodeFactory.objectNode();
+        List<io.fabric8.openshift.api.model.Parameter> parameters = template.getParameters();
+        if (parameters == null || parameters.isEmpty()) {
+            return;
+        }
+        List<HelmParameter> helmParameters = new ArrayList<>();
+        for (io.fabric8.openshift.api.model.Parameter parameter : parameters) {
+            HelmParameter helmParameter = new HelmParameter(parameter);
+            helmParameter.addToValue(values);
+            helmParameters.add(helmParameter);
+        }
+        File outputChartFile = new File(outputDir, "values.yaml");
+        try {
+            saveYaml(values, outputChartFile);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to save chart values " + outputChartFile + ": " + e, e);
+        }
+
+        // now lets replace all the parameter expressions in each template
+        File[] files = templatesDir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile()) {
+                    String extension = Files.getExtension(file.getName()).toLowerCase();
+                    if (extension.equals("yaml") || extension.equals("yml")) {
+                        convertTemplateParameterExpressionsWithHelmExpressions(file, helmParameters);
+                    }
+                }
+            }
+        }
+    }

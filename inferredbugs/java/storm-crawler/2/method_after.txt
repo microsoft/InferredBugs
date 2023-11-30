@@ -1,0 +1,41 @@
+    @Override
+    public void execute(Tuple input) {
+
+        // triggered by the arrival of a tuple
+        // be it a tick or normal one
+        flushQueues();
+
+        if (isTickTuple(input)) {
+            _collector.ack(input);
+            return;
+        }
+
+        CountMetric metric = metricGauge.scope("activethreads");
+        metric.getValueAndReset();
+        metric.incrBy(this.activeThreads.get());
+
+        metric = metricGauge.scope("in queues");
+        metric.getValueAndReset();
+        metric.incrBy(this.fetchQueues.inQueues.get());
+
+        metric = metricGauge.scope("queues");
+        metric.getValueAndReset();
+        metric.incrBy(this.fetchQueues.queues.size());
+
+        LOG.info("[Fetcher #" + taskIndex + "] Threads : "
+                + this.activeThreads.get() + "\tqueues : "
+                + this.fetchQueues.queues.size() + "\tin_queues : "
+                + this.fetchQueues.inQueues.get());
+
+        String url = input.getStringByField("url");
+        // check whether this tuple has a url field
+        if (url == null) {
+            LOG.info("[Fetcher #" + taskIndex
+                    + "] Missing url field for tuple " + input);
+            // ignore silently
+            _collector.ack(input);
+            return;
+        }
+
+        fetchQueues.addFetchItem(input);
+    }

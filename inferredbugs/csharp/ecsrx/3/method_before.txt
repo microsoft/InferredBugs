@@ -1,0 +1,27 @@
+        [Fact]
+        public void should_include_entity_snapshot_on_creation()
+        {
+            var mockEventSystem = Substitute.For<IEventSystem>();
+            var accessorToken = new ObservableGroupToken(new Type[] { }, "default");
+
+            mockEventSystem.Receive<EntityAddedEvent>().Returns(Observable.Empty<EntityAddedEvent>());
+            mockEventSystem.Receive<EntityRemovedEvent>().Returns(Observable.Empty<EntityRemovedEvent>());
+            mockEventSystem.Receive<ComponentsAddedEvent>().Returns(Observable.Empty<ComponentsAddedEvent>());
+            mockEventSystem.Receive<ComponentsRemovedEvent>().Returns(Observable.Empty<ComponentsRemovedEvent>());
+            
+            var dummyEntitySnapshot = new List<IEntity>
+            {
+                new Entity(Guid.NewGuid(), mockEventSystem),
+                new Entity(Guid.NewGuid(), mockEventSystem),
+                new Entity(Guid.NewGuid(), mockEventSystem)
+            };
+
+            var cacheableGroupAccessor = new ObservableGroup(mockEventSystem, accessorToken, dummyEntitySnapshot);
+
+            Assert.Equal(3, cacheableGroupAccessor.CachedEntities.Count);
+            Assert.Equal(dummyEntitySnapshot[0], cacheableGroupAccessor.CachedEntities[dummyEntitySnapshot[0].Id]);
+            Assert.Equal(dummyEntitySnapshot[1], cacheableGroupAccessor.CachedEntities[dummyEntitySnapshot[1].Id]);
+            Assert.Equal(dummyEntitySnapshot[2], cacheableGroupAccessor.CachedEntities[dummyEntitySnapshot[2].Id]);
+
+            cacheableGroupAccessor.Dispose();
+        }

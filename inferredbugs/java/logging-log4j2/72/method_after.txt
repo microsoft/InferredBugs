@@ -1,0 +1,17 @@
+    @Test
+    public void testWrite_dataExceedingBufferSize() throws IOException {
+        final File file = File.createTempFile("log4j2", "test");
+        file.deleteOnExit();
+        try (final RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            final OutputStream os = NullOutputStream.NULL_OUTPUT_STREAM;
+            final RandomAccessFileManager manager = new RandomAccessFileManager(raf, file.getName(), os, false,
+                    RandomAccessFileManager.DEFAULT_BUFFER_SIZE, null, null);
+
+            final int size = RandomAccessFileManager.DEFAULT_BUFFER_SIZE * 3 + 1;
+            final byte[] data = new byte[size];
+            manager.write(data); // no exception
+            assertEquals(RandomAccessFileManager.DEFAULT_BUFFER_SIZE * 3, raf.length());
+
+            manager.flush();
+            assertEquals(size, raf.length()); // all data written to file now
+        }}

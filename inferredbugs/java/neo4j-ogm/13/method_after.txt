@@ -1,0 +1,21 @@
+    @Override
+    public <T> void delete(T object) {
+        if (object.getClass().isArray() || Iterable.class.isAssignableFrom(object.getClass())) {
+            deleteAll(object);
+        } else {
+            ClassInfo classInfo = session.metaData().classInfo(object);
+            if (classInfo != null) {
+                Field identityField = classInfo.getField(classInfo.identityField());
+                Long identity = (Long) FieldWriter.read(identityField, object);
+                if (identity != null) {
+                    Transaction tx = session.ensureTransaction();
+                    ParameterisedStatement request = getDeleteStatementsBasedOnType(object.getClass()).delete(identity);
+                    try (Neo4jResponse<String> response = session.requestHandler().execute(request, tx)) {
+                        session.context().clear(object);
+                    }
+                }
+            } else {
+                session.info(object.getClass().getName() + " is not an instance of a persistable class");
+            }
+        }
+    }

@@ -1,0 +1,21 @@
+        public void CreatePage()
+        {
+            var time = Stopwatch.StartNew();
+
+            foreach (var column in _dirty)
+            {
+                ColumnWriter serializer;
+
+                if (!_writers.TryGetValue(column.Key, out serializer))
+                {
+                    serializer = new ColumnWriter(CollectionId, column.Key, SessionFactory);
+                    _writers.Add(column.Key, serializer);
+                }
+
+                serializer.CreatePage(column.Value, _vectorStream, _postingsStream, _model);
+            };
+
+            this.Log(string.Format($"serialized {_dirty.Count} pages in {time.Elapsed}"));
+
+            _dirty.Clear();
+        }

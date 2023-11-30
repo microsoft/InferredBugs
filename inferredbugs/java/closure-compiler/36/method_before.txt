@@ -1,0 +1,123 @@
+  int processResults(Result result, List<JSModule> modules, B options)
+       throws FlagUsageException, IOException {
+    if (config.computePhaseOrdering) {
+      return 0;
+    }
+
+    if (config.printPassGraph) {
+      if (compiler.getRoot() == null) {
+        return 1;
+      } else {
+        jsOutput.append(
+            DotFormatter.toDot(compiler.getPassConfig().getPassGraph()));
+        jsOutput.append('\n');
+        return 0;
+      }
+    }
+
+    if (config.printAst) {
+      if (compiler.getRoot() == null) {
+        return 1;
+      } else {
+        ControlFlowGraph<Node> cfg = compiler.computeCFG();
+        DotFormatter.appendDot(
+            compiler.getRoot().getLastChild(), cfg, jsOutput);
+        jsOutput.append('\n');
+        return 0;
+      }
+    }
+
+    if (config.printTree) {
+      if (compiler.getRoot() == null) {
+        jsOutput.append("Code contains errors; no tree was generated.\n");
+        return 1;
+      } else {
+        compiler.getRoot().appendStringTree(jsOutput);
+        jsOutput.append("\n");
+        return 0;
+      }
+    }
+
+    rootRelativePathsMap = constructRootRelativePathsMap();
+
+    if (config.skipNormalOutputs) {
+      // Output the manifest and bundle files if requested.
+      outputManifest();
+      outputBundle();
+      return 0;
+    } else if (result.success) {
+      if (modules == null) {
+        writeOutput(
+            jsOutput, compiler, compiler.toSource(), config.outputWrapper,
+            OUTPUT_WRAPPER_MARKER);
+
+        // Output the source map if requested.
+        outputSourceMap(options, config.jsOutputFile);
+      } else {
+        parsedModuleWrappers = parseModuleWrappers(
+            config.moduleWrapper, modules);
+        maybeCreateDirsForPath(config.moduleOutputPathPrefix);
+
+        // If the source map path is in fact a pattern for each
+        // module, create a stream per-module. Otherwise, create
+        // a single source map.
+        Writer mapOut = null;
+
+        if (!shouldGenerateMapPerModule(options)) {
+          mapOut = fileNameToOutputWriter2(expandSourceMapPath(options, null));
+        }
+
+        for (JSModule m : modules) {
+          if (shouldGenerateMapPerModule(options)) {
+            mapOut = fileNameToOutputWriter2(expandSourceMapPath(options, m));
+          }
+
+          Writer writer =
+              fileNameToLegacyOutputWriter(getModuleOutputFileName(m));
+
+          if (options.sourceMapOutputPath != null) {
+            compiler.getSourceMap().reset();
+          }
+
+          writeModuleOutput(writer, m);
+
+          if (options.sourceMapOutputPath != null) {
+            compiler.getSourceMap().appendTo(mapOut, m.getName());
+          }
+
+          writer.close();
+
+          if (shouldGenerateMapPerModule(options) && mapOut != null) {
+            mapOut.close();
+            mapOut = null;
+          }
+        }
+
+        if (mapOut != null) {
+          mapOut.close();
+        }
+      }
+
+      // Output the externs if required.
+      if (options.externExportsPath != null) {
+        Writer eeOut =
+            openExternExportsStream(options, config.jsOutputFile);
+        eeOut.append(result.externExport);
+        eeOut.close();
+      }
+
+      // Output the variable and property name maps if requested.
+      outputNameMaps(options);
+
+      // Output the manifest and bundle files if requested.
+      outputManifest();
+      outputBundle();
+
+      if (options.tracer.isOn()) {
+        outputTracerReport();
+      }
+    }
+
+    // return 0 if no errors, the error count otherwise
+    return Math.min(result.errors.length, 0x7f);
+  }

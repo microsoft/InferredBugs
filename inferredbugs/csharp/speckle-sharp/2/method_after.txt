@@ -1,0 +1,39 @@
+    private void InitializeTables()
+    {
+
+      // NOTE: used for creating partioned object tables.
+      //string[] HexChars = new string[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f" };
+      //var cart = new List<string>();
+      //foreach (var str in HexChars)
+      //  foreach (var str2 in HexChars)
+      //    cart.Add(str + str2);
+
+      Connection = new SQLiteConnection(ConnectionString);
+      Connection.Open();
+      using (var command = new SQLiteCommand(Connection))
+      {
+        command.CommandText = @"
+            CREATE TABLE IF NOT EXISTS objects(
+              hash TEXT PRIMARY KEY,
+              content TEXT
+            ) WITHOUT ROWID;
+          ";
+        command.ExecuteNonQuery();
+      }
+
+      // Insert Optimisations
+
+      SQLiteCommand cmd;
+      cmd = new SQLiteCommand("PRAGMA journal_mode=MEMORY;", Connection);
+      cmd.ExecuteNonQuery();
+
+      // Note/Hack: This setting has the potential to corrupt the db.
+      //cmd = new SQLiteCommand("PRAGMA synchronous=OFF;", Connection);
+      //cmd.ExecuteNonQuery();
+
+      cmd = new SQLiteCommand("PRAGMA count_changes=OFF;", Connection);
+      cmd.ExecuteNonQuery();
+
+      cmd = new SQLiteCommand("PRAGMA temp_store=MEMORY;", Connection);
+      cmd.ExecuteNonQuery();
+    }

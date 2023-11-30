@@ -1,0 +1,38 @@
+  public void run() throws IOException, InterruptedException {
+    // Add shutdown hook
+    addShutdownHook();
+    // Initialize and process commands
+    setStateSynchronized(HostState.IDLE); // In case of exception, server will stop and state will be coherent.
+    // Wait for state to propagate
+    while (host.getState() != HostState.IDLE) {
+      LOG.info("Waiting for Host state " + HostState.IDLE + " to propagate.");
+      Thread.sleep(100);
+    }
+    processCommandOnStartup();
+    while (!stopping) {
+      try {
+        HostCommand command = commandQueue.poll(MAIN_THREAD_STEP_SLEEP_MS, TimeUnit.MILLISECONDS);
+        if (command != null) {
+          try {
+            processCommand(command, host.getState());
+          } catch (IOException e) {
+            LOG.error("Failed to process command: " + command, e);
+            break;
+          }
+        }
+      } catch (InterruptedException e) {
+        LOG.info("Interrupted in main loop. Exiting.", e);
+        break;
+      }
+    }
+    // Shuting down
+    LOG.info("Partition server main thread is stopping.");
+    // Stop serving data
+    stopServingData();
+    // Stop updating if necessary
+    stopUpdating();
+    // Signal OFFLINE
+    setStateSynchronized(HostState.OFFLINE); // In case of exception, server will stop and state will be coherent.
+    // Remove shutdown hook. We don't need it anymore as we just set the host state to OFFLINE
+    removeShutdownHook();
+  }

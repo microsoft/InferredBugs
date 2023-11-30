@@ -1,0 +1,69 @@
+        private void CreateAndOpen()
+        {
+            var connectionString = string.Empty;
+            var providerName = string.Empty;
+
+            #region 1. ExecuteFunc
+            if (_connectionFunc != null)
+            {
+                connectionString = _connectionFunc?.Invoke();
+            }
+            #endregion
+
+            #region 2. 配置文件 
+            else
+            {
+#if ASP_NET_CORE
+                #region 自编译Configuration
+                if (_configuration == null)
+                {
+                    _configuration = new ConfigurationBuilder()
+                        .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                        .AddJsonFile("appsettings.json")
+                        .Build();
+                }
+                #endregion
+
+                #region 从库转主库
+                var connectionKey = DataContextConfig.Default.Setting(_isMaster, _dbStoreKey);
+                connectionString = _configuration.GetConnectionString(connectionKey);
+                if (string.IsNullOrEmpty(connectionString) && !_isMaster)
+                {
+                    connectionKey = DataContextConfig.Default.Setting(true, _dbStoreKey);
+                    connectionString = _configuration.GetConnectionString(connectionKey);
+                }
+                #endregion
+#else
+                #region 从库转主库
+                var connectionKey = DataContextConfig.Default.Setting(_isMaster, _dbStoreKey);
+                var connectionSetting = ConfigurationManager.ConnectionStrings[connectionKey];
+                connectionString = connectionSetting?.ConnectionString;
+                providerName = connectionSetting?.ProviderName;
+                if (string.IsNullOrEmpty(connectionString) && !_isMaster)
+                {
+                    connectionKey = DataContextConfig.Default.Setting(true, _dbStoreKey);
+                    connectionSetting = ConfigurationManager.ConnectionStrings[connectionKey];
+                    connectionString = connectionSetting.ConnectionString;
+                    providerName = connectionSetting.ProviderName;
+                }
+                #endregion
+#endif
+            }
+            #endregion
+
+            #region 3. 创建连接
+            if (string.IsNullOrEmpty(connectionString))
+                throw new Exception($"连接字符串获取为空，请检查Repository是否指定了dbStoreKey以及检查配置文件是否存在");
+
+#if ASP_NET_CORE
+            connectionString = FixConnectionString(connectionString);
+            _dbFactory = GetFactory(_dbType);
+#else
+            _dbFactory = DbProviderFactories.GetFactory(providerName);
+#endif
+            _dbConnection = _dbFactory.CreateConnection();
+            _dbConnection.ConnectionString = connectionString;
+            if (_dbConnection.State != ConnectionState.Open)
+                _dbConnection.Open();
+            #endregion
+        }

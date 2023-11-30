@@ -1,0 +1,39 @@
+    public static Position PosAfterMoveWithRepetitionsSet(MCTSNode node, EncodedMove move)
+    {
+      //      MCTSNodeStructChild child = node.ChildAtIndexRef(childIndex);
+      //      Debug.Assert(!child.IsExpanded);
+
+      MGPosition posMG = node.Annotation.PosMG;
+      posMG.MakeMove(ConverterMGMoveEncodedMove.EncodedMoveToMGChessMove(move, in posMG));
+      Position pos = posMG.ToPosition;
+
+      if (node.IsRoot || node.Parent.IsRoot)
+      {
+        return pos; // TODO: what about prior positions in store?
+      }
+
+      //      ulong thisHash = pos.CalcZobristHash(PositionMiscInfo.HashMove50Mode.ValueBoolIfAbove98, true);
+
+      MCTSNode pred = node.Parent;
+      int repCount = 0;
+      int plyUpCount = 2;
+      int maxPlies = ParamsSearch.DrawByRepetitionLookbackPlies;
+      while (plyUpCount <= maxPlies)
+      {
+        //        if (pred.StructRef.ZobristHash == thisHash)
+        if (pred.InfoRef.Annotation.Pos.EqualAsRepetition(in pos))
+        {
+          //          Console.WriteLine("Found pred match " + pred.Depth + " " + repCount);
+          repCount++;
+        }
+        if (pred.IsRoot || pred.Parent.IsRoot)
+        {
+          break;
+        }
+        pred = pred.Parent.Parent;
+        plyUpCount += 2;
+      };
+
+      pos.MiscInfo.SetRepetitionCount(repCount);
+      return pos;
+    }

@@ -1,0 +1,28 @@
+    public File createDockerTarArchive(String imageName, MojoParameters params, BuildImageConfiguration buildConfig) throws MojoExecutionException {
+        AssemblyConfiguration assemblyConfig = buildConfig.getAssemblyConfiguration();
+        BuildDirs buildDirs = createBuildDirs(imageName, params);
+
+        try {
+            if (assemblyConfig != null &&
+                (assemblyConfig.getInline() != null ||
+                 assemblyConfig.getDescriptor() != null ||
+                 assemblyConfig.getDescriptorRef() != null)) {
+                createAssemblyArchive(assemblyConfig, params, buildDirs);
+            }
+
+            File extraDir = null;
+            String dockerFileDir = assemblyConfig != null ? assemblyConfig.getDockerFileDir() : null;
+            if (dockerFileDir != null) {
+                // Use specified docker directory which must include a Dockerfile.
+                extraDir = validateDockerDir(params, dockerFileDir);
+            } else {
+                // Create custom docker file in output dir
+                DockerFileBuilder builder = createDockerFileBuilder(buildConfig, assemblyConfig);
+                builder.write(buildDirs.getOutputDirectory());
+            }
+            return createTarball(buildDirs, extraDir, assemblyConfig.getMode());
+
+        } catch (IOException e) {
+            throw new MojoExecutionException(String.format("Cannot create Dockerfile in %s", buildDirs.getOutputDirectory()), e);
+        }
+    }

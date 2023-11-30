@@ -1,0 +1,27 @@
+ @ManagedOperation
+	public boolean rebind(String name) {
+		if (!this.beans.getBeanNames().contains(name)) {
+			return false;
+		}
+		if (this.applicationContext != null) {
+			try {
+				Object bean = this.applicationContext.getBean(name);
+				if (AopUtils.isAopProxy(bean)) {
+					bean = getTargetObject(bean);
+				}
+				this.applicationContext.getAutowireCapableBeanFactory().destroyBean(bean);
+				this.applicationContext.getAutowireCapableBeanFactory()
+						.initializeBean(bean, name);
+				return true;
+			}
+			catch (RuntimeException e) {
+				this.errors.put(name, e);
+				throw e;
+			}
+			catch (Exception e) {
+				this.errors.put(name, e);
+				throw new IllegalStateException("Cannot rebind to " + name, e);
+			}
+		}
+		return false;
+	}

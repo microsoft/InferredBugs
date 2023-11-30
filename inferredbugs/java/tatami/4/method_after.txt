@@ -1,0 +1,29 @@
+    @RequestMapping(value = "/rest/statuses/{statusId}",
+            method = RequestMethod.PATCH)
+    @ResponseBody
+    public StatusDTO updateStatusV3(@RequestBody ActionStatus action, @PathVariable("statusId") String statusId) {
+        try {
+            StatusDTO status = timelineService.getStatus(statusId);
+            if(action.isFavorite() != null && status.isFavorite() != action.isFavorite()){
+                if(action.isFavorite()){
+                    timelineService.addFavoriteStatus(statusId);
+                }
+                else {
+                    timelineService.removeFavoriteStatus(statusId);
+                }
+                status.setFavorite(action.isFavorite());
+            }
+            if(action.isShared() != null && action.isShared()){
+                timelineService.shareStatus(statusId);
+            }
+            if(action.isAnnounced() != null && action.isAnnounced()){
+                timelineService.announceStatus(statusId);
+            }
+            return status;
+        } catch (Exception e) {
+            if (log.isDebugEnabled()) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+    }

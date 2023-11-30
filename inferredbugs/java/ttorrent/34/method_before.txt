@@ -1,0 +1,32 @@
+  public void initAndRunWorker() throws IOException {
+    myServerSocketChannel = selector.provider().openServerSocketChannel();
+    myServerSocketChannel.configureBlocking(false);
+
+    for (int port = PORT_RANGE_START; port < PORT_RANGE_END; port++) {
+      try {
+        InetSocketAddress tryAddress = new InetSocketAddress(inetAddress, port);
+        myServerSocketChannel.socket().bind(tryAddress);
+        myServerSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+        this.myBindAddress = tryAddress;
+        break;
+      } catch (IOException e) {
+        //try next port
+        logger.debug("Could not bind to port {}, trying next port...", port);
+      }
+    }
+    if (this.myBindAddress == null) {
+      throw new IOException("No available port for the BitTorrent client!");
+    }
+    final String id = Client.BITTORRENT_ID_PREFIX + UUID.randomUUID().toString().split("-")[4];
+    byte[] idBytes = id.getBytes(Torrent.BYTE_ENCODING);
+    Peer self = new Peer(this.myBindAddress, ByteBuffer.wrap(idBytes));
+    peersStorageProvider.getPeersStorage().setSelf(self);
+    myWorkerFuture = myExecutorService.submit(this);// TODO: 11/22/17 move runnable part to separate class e.g. ConnectionWorker
+    logger.info("BitTorrent client [{}] started and " +
+                    "listening at {}:{}...",
+            new Object[]{
+                    self.getShortHexPeerId(),
+                    self.getIp(),
+                    self.getPort()
+            });
+  }

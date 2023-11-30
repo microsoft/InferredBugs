@@ -1,0 +1,61 @@
+        [Test]
+        public void Can_connect_to_Buffered_SslStream()
+        {
+            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+            {
+                SendTimeout = -1,
+                ReceiveTimeout = -1,
+            };
+
+            socket.Connect(Host, Port);
+
+            if (!socket.Connected)
+            {
+                socket.Close();
+                throw new Exception("Could not connect");
+            }
+
+            Stream networkStream = new NetworkStream(socket);
+
+            SslStream sslStream;
+
+            if (Env.IsMono)
+            {
+                //Mono doesn't support EncryptionPolicy
+                sslStream = new SslStream(networkStream,
+                    leaveInnerStreamOpen: false,
+                    userCertificateValidationCallback: RedisConfig.CertificateValidationCallback,
+                    userCertificateSelectionCallback: RedisConfig.CertificateSelectionCallback); 
+            }
+            else
+            {
+                var ctor = typeof(SslStream).GetConstructors()
+                    .First(x => x.GetParameters().Length == 5);
+
+                var policyType = AssemblyUtils.FindType("System.Net.Security.EncryptionPolicy");
+                var policyValue = Enum.Parse(policyType, "RequireEncryption");
+
+                sslStream = (SslStream)ctor.Invoke(new [] {
+                        networkStream,
+                        false,
+                        RedisConfig.CertificateValidationCallback,
+                        RedisConfig.CertificateSelectionCallback,
+                        policyValue,
+                    });
+
+                //sslStream = new SslStream(networkStream,
+                //    leaveInnerStreamOpen: false,
+                //    userCertificateValidationCallback: null,
+                //    userCertificateSelectionCallback: null,
+                //    encryptionPolicy: EncryptionPolicy.RequireEncryption);
+            }
+
+            sslStream.AuthenticateAsClient(Host);
+
+            if (!sslStream.IsEncrypted)
+                throw new Exception("Could not establish an encrypted connection to " + Host);
+
+            var bstream = new BufferedStream(sslStream, 16 * 1024);
+
+            SendAuth(bstream);
+        }

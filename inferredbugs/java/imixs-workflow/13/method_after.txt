@@ -1,0 +1,34 @@
+ public void removeDocument(String uniqueID) throws LuceneException {
+		IndexWriter awriter = null;
+		long ltime = System.currentTimeMillis();
+		try {
+			awriter = createIndexWriter();			
+			Term term = new Term("$uniqueid", uniqueID);
+			awriter.deleteDocuments(term);
+		} catch (CorruptIndexException e) {
+			throw new LuceneException(INVALID_INDEX, "Unable to remove workitem '" + uniqueID + "' from search index",
+					e);
+		} catch (LockObtainFailedException e) {
+			throw new LuceneException(INVALID_INDEX, "Unable to remove workitem '" + uniqueID + "' from search index",
+					e);
+		} catch (IOException e) {
+			throw new LuceneException(INVALID_INDEX, "Unable to remove workitem '" + uniqueID + "' from search index",
+					e);
+		}
+		finally {
+			// close writer!
+			if (awriter != null) {
+				logger.fine("lucene close IndexWriter...");
+				try {
+					awriter.close();
+				} catch (CorruptIndexException e) {
+					throw new LuceneException(INVALID_INDEX, "Unable to close lucene IndexWriter: ", e);
+				} catch (IOException e) {
+					throw new LuceneException(INVALID_INDEX, "Unable to close lucene IndexWriter: ", e);
+				}
+			}
+		}
+
+		logger.fine("lucene removeDocument in " + (System.currentTimeMillis() - ltime) + " ms");
+
+	}

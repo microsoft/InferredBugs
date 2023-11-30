@@ -1,0 +1,20 @@
+  @Test
+  public void testMutateRowPredicate() {
+    Predicate<MutateRowRequest> defaultPredicate = BigtableDataGrpcClient.IS_RETRYABLE_MUTATION;
+    createClient(true);
+    Predicate<MutateRowRequest> allowNoTimestampsPredicate =
+        predicates.get(BigtableServiceGrpc.METHOD_MUTATE_ROW.getFullMethodName());
+
+    assertFalse(defaultPredicate.apply(null));
+    assertTrue(allowNoTimestampsPredicate.apply(null));
+
+    MutateRowRequest noDataRequest = MutateRowRequest.getDefaultInstance();
+    assertTrue(defaultPredicate.apply(noDataRequest));
+    assertTrue(allowNoTimestampsPredicate.apply(noDataRequest));
+
+    MutateRowRequest requestWithCells = MutateRowRequest.newBuilder()
+        .addMutations(Mutation.newBuilder().setSetCell(SetCell.newBuilder().setTimestampMicros(-1)))
+        .build();
+    assertFalse(defaultPredicate.apply(requestWithCells));
+    assertTrue(allowNoTimestampsPredicate.apply(requestWithCells));
+  }

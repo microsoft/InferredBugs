@@ -1,0 +1,30 @@
+    @Override
+    public Object readFrom(Class<Object> type, Type genericType,
+                           Annotation[] annotations,
+                           MediaType mediaType,
+                           MultivaluedMap<String, String> httpHeaders,
+                           InputStream entityStream) throws IOException, WebApplicationException {
+        if (entityStream.markSupported()) {
+            entityStream.mark(1);
+            if (entityStream.read() == -1) {
+                throw new NoContentException(LocalizationMessages.ERROR_JSONB_EMPTYSTREAM());
+            }
+            entityStream.reset();
+        } else {
+            final PushbackInputStream buffer = new PushbackInputStream(entityStream);
+            final int firstByte = buffer.read();
+            if (firstByte == -1) {
+                throw new NoContentException(LocalizationMessages.ERROR_JSONB_EMPTYSTREAM());
+            }
+            buffer.unread(firstByte);
+            entityStream = buffer;
+        }
+
+        Jsonb jsonb = getJsonb(type);
+
+        try {
+            return jsonb.fromJson(entityStream, genericType);
+        } catch (JsonbException e) {
+            throw new ProcessingException(LocalizationMessages.ERROR_JSONB_DESERIALIZATION(), e);
+        }
+    }

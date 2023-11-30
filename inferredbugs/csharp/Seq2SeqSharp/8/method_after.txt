@@ -1,0 +1,66 @@
+        private bool CreateTrainableParameters(IModelMetaData mmd)
+        {
+            Logger.WriteLine($"Creating encoders and decoders...");
+            Seq2SeqModelMetaData modelMetaData = mmd as Seq2SeqModelMetaData;
+            RoundArray<int> raDeviceIds = new RoundArray<int>(DeviceIds);
+
+            int contextDim = 0;
+            if (modelMetaData.EncoderType == EncoderTypeEnums.BiLSTM)
+            {
+                m_encoder = new MultiProcessorNetworkWrapper<IEncoder>(
+                    new BiEncoder("BiLSTMEncoder", modelMetaData.HiddenDim, modelMetaData.SrcEmbeddingDim, modelMetaData.EncoderLayerDepth, raDeviceIds.GetNextItem(), isTrainable: m_isEncoderTrainable), DeviceIds);
+
+                contextDim = modelMetaData.HiddenDim * 2;
+            }
+            else
+            {
+                m_encoder = new MultiProcessorNetworkWrapper<IEncoder>(
+                    new TransformerEncoder("TransformerEncoder", modelMetaData.MultiHeadNum, modelMetaData.HiddenDim, modelMetaData.SrcEmbeddingDim, modelMetaData.EncoderLayerDepth, m_dropoutRatio, raDeviceIds.GetNextItem(), 
+                    isTrainable: m_isEncoderTrainable), DeviceIds);
+
+                contextDim = modelMetaData.HiddenDim;
+            }
+
+            if (modelMetaData.DecoderType == DecoderTypeEnums.AttentionLSTM)
+            {
+                m_decoder = new MultiProcessorNetworkWrapper<IDecoder>(
+                     new AttentionDecoder("AttnLSTMDecoder", modelMetaData.HiddenDim, modelMetaData.TgtEmbeddingDim, contextDim,
+                     modelMetaData.Vocab.TargetWordSize, m_dropoutRatio, modelMetaData.DecoderLayerDepth, raDeviceIds.GetNextItem(), modelMetaData.EnableCoverageModel, isTrainable: m_isDecoderTrainable), DeviceIds);
+            }
+            else
+            {
+                m_decoder = new MultiProcessorNetworkWrapper<IDecoder>(
+                    new TransformerDecoder("TransformerDecoder", modelMetaData.MultiHeadNum, modelMetaData.HiddenDim, modelMetaData.TgtEmbeddingDim, modelMetaData.Vocab.TargetWordSize, modelMetaData.DecoderLayerDepth, m_dropoutRatio, raDeviceIds.GetNextItem(),
+                    isTrainable: m_isDecoderTrainable), DeviceIds);
+            }
+
+            if (modelMetaData.EncoderType == EncoderTypeEnums.Transformer || modelMetaData.DecoderType == DecoderTypeEnums.Transformer)
+            {
+                m_posEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(PositionEmbedding.BuildPositionWeightTensor(Math.Max(m_maxSrcSntSize, m_maxTgtSntSize) + 2, contextDim, DeviceIds[0], "PosEmbedding", false), DeviceIds, true);
+            }
+            else
+            {
+                m_posEmbedding = null;
+            }
+
+            if (modelMetaData.SharedEmbeddings)
+            {
+                Logger.WriteLine($"Creating shared embeddings for both source side and target side. Shape = '({modelMetaData.Vocab.SourceWordSize} ,{modelMetaData.SrcEmbeddingDim})'");
+                m_sharedEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(new WeightTensor(new long[2] { modelMetaData.Vocab.SourceWordSize, modelMetaData.SrcEmbeddingDim }, raDeviceIds.GetNextItem(), normType: NormType.Uniform, fanOut: true, name: "SharedEmbeddings", isTrainable: m_isSrcEmbTrainable), DeviceIds);
+
+                m_srcEmbedding = null;
+                m_tgtEmbedding = null;
+            }
+            else
+            {
+                Logger.WriteLine($"Creating embeddings for source side. Shape = '({modelMetaData.Vocab.SourceWordSize} ,{modelMetaData.SrcEmbeddingDim})'");
+                m_srcEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(new WeightTensor(new long[2] { modelMetaData.Vocab.SourceWordSize, modelMetaData.SrcEmbeddingDim }, raDeviceIds.GetNextItem(), normType: NormType.Uniform, fanOut: true, name: "SrcEmbeddings", isTrainable: m_isSrcEmbTrainable), DeviceIds);
+
+                Logger.WriteLine($"Creating embeddings for target side. Shape = '({modelMetaData.Vocab.TargetWordSize} ,{modelMetaData.TgtEmbeddingDim})'");
+                m_tgtEmbedding = new MultiProcessorNetworkWrapper<IWeightTensor>(new WeightTensor(new long[2] { modelMetaData.Vocab.TargetWordSize, modelMetaData.TgtEmbeddingDim }, raDeviceIds.GetNextItem(), normType: NormType.Uniform, fanOut: true, name: "TgtEmbeddings", isTrainable: m_isTgtEmbTrainable), DeviceIds);
+
+                m_sharedEmbedding = null;
+            }
+
+            return true;
+        }

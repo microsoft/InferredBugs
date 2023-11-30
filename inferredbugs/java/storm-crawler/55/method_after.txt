@@ -1,0 +1,79 @@
+    @Override
+    protected void populateBuffer() {
+
+        if (queryDate == null) {
+            queryDate = new Date();
+            lastTimeResetToNOW = Instant.now();
+        }
+
+        String formattedLastDate = ISODateTimeFormat.dateTimeNoMillis().print(
+                queryDate.getTime());
+
+        LOG.info("{} Populating buffer with nextFetchDate <= {}", logIdprefix,
+                formattedLastDate);
+
+        QueryBuilder queryBuilder = QueryBuilders.rangeQuery("nextFetchDate")
+                .lte(formattedLastDate);
+
+        if (filterQuery != null) {
+            queryBuilder = boolQuery().must(queryBuilder).filter(
+                    QueryBuilders.queryStringQuery(filterQuery));
+        }
+
+        SearchRequest request = new SearchRequest(indexName).types(docType)
+                .searchType(SearchType.QUERY_THEN_FETCH);
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(queryBuilder);
+        sourceBuilder.from(0);
+        sourceBuilder.size(0);
+        sourceBuilder.explain(false);
+        sourceBuilder.trackTotalHits(false);
+
+        TermsAggregationBuilder aggregations = AggregationBuilders
+                .terms("partition").field(partitionField).size(maxBucketNum);
+
+        TopHitsAggregationBuilder tophits = AggregationBuilders.topHits("docs")
+                .size(maxURLsPerBucket).explain(false);
+        // sort within a bucket
+        if (StringUtils.isNotBlank(bucketSortField)) {
+            FieldSortBuilder sorter = SortBuilders.fieldSort(bucketSortField)
+                    .order(SortOrder.ASC);
+            tophits.sort(sorter);
+        }
+
+        aggregations.subAggregation(tophits);
+
+        // sort between buckets
+        if (StringUtils.isNotBlank(totalSortField)) {
+            MinAggregationBuilder minBuilder = AggregationBuilders.min(
+                    "top_hit").field(totalSortField);
+            aggregations.subAggregation(minBuilder);
+            aggregations.order(BucketOrder.aggregation("top_hit", true));
+        }
+
+        if (sample) {
+            DiversifiedAggregationBuilder sab = new DiversifiedAggregationBuilder(
+                    "sample");
+            sab.field(partitionField).maxDocsPerValue(maxURLsPerBucket);
+            sab.shardSize(maxURLsPerBucket * maxBucketNum);
+            sab.subAggregation(aggregations);
+            sourceBuilder.aggregation(sab);
+        } else {
+            sourceBuilder.aggregation(aggregations);
+        }
+
+        request.source(sourceBuilder);
+
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-preference.html
+        // _shards:2,3
+        if (shardID != -1) {
+            request.preference("_shards:" + shardID);
+        }
+
+        // dump query to log
+        LOG.debug("{} ES query {}", logIdprefix, request.toString());
+
+        isInQuery.set(true);
+        client.searchAsync(request, this);
+    }

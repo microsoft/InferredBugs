@@ -1,0 +1,68 @@
+    public void run() {
+        LOG.info("Running...");
+        long start = previous = System.currentTimeMillis();
+
+        byte messageCount = 0;
+        int sent = 0;
+
+        Thread reporter = new Thread() {
+                public void run() {
+                    try {
+                        while(true) {
+                            Thread.sleep(200);
+                            LOG.info("ms: {} req: {}", System.currentTimeMillis(), completedRequests.getAndSet(0));
+                        }
+                    } catch (InterruptedException ie) {
+                        LOG.info("Caught interrupted exception, going away");
+                    }
+                }
+            };
+        reporter.start();
+        long beforeSend = System.nanoTime();
+
+        while(!Thread.currentThread().isInterrupted() && sent < sendLimit) {
+            try {
+                sem.acquire();
+                if (sent == 10000) {
+                    long afterSend = System.nanoTime();
+                    long time = afterSend - beforeSend;
+                    LOG.info("Time to send first batch: {}s {}ns ",
+                             time/1000/1000/1000, time);
+                }
+            } catch (InterruptedException e) {
+                break;
+            }
+
+            final int index = getRandomLedger();
+            LedgerHandle h = lh[index];
+            if (h == null) {
+                LOG.error("Handle " + index + " is null!");
+            } else {
+                long nanoTime = System.nanoTime();
+                lh[index].asyncAddEntry(bytes, this, new Context(sent, nanoTime));
+                counter.incrementAndGet();
+            }
+            sent++;
+        }
+        LOG.info("Sent: "  + sent);
+        try {
+            synchronized (this) {
+                while(this.counter.get() > 0)
+                    Thread.sleep(1000);
+            }
+        } catch(InterruptedException e) {
+            LOG.error("Interrupted while waiting", e);
+        }
+        synchronized(this) {
+            duration = System.currentTimeMillis() - start;
+        }
+        throughput = sent*1000/duration;
+
+        reporter.interrupt();
+        try {
+            reporter.join();
+        } catch (InterruptedException ie) {
+            // ignore
+        }
+        LOG.info("Finished processing in ms: " + duration + " tp = " + throughput);
+    }

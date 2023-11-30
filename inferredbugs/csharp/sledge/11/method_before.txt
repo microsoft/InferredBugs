@@ -1,0 +1,29 @@
+        private void RenderViewport(IViewport viewport, Frame frame)
+        {
+            if (_activeScene == null) return;
+
+            var vpData = GetViewportData(viewport);
+            var scData = GetSceneData(_activeScene);
+
+            InitialiseRenderer();
+            InitialiseViewport(viewport, vpData);
+
+            scData.Array.ApplyChanges();
+            vpData.ElementArray.Update(scData.Array.Elements);
+
+            ProcessTextureQueue();
+            ProcessModelQueue();
+
+            // todo: some sort of garbage collection?
+            
+            GL.ClearColor(viewport.Camera is PerspectiveCamera ? Settings.PerspectiveBackgroundColour : Settings.OrthographicBackgroundColour);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            _shaderProgram.Bind();
+            _shaderProgram.GridSpacing = Settings.PerspectiveGridSpacing;
+            _shaderProgram.ShowGrid = Settings.ShowPerspectiveGrid;
+            _shaderProgram.Unbind();
+
+            scData.Array.Render(this, _shaderProgram, _modelShaderProgram, viewport);
+            vpData.ElementArray.Render(this, _shaderProgram, viewport);
+        }

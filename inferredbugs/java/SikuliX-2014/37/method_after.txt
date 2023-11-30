@@ -1,0 +1,79 @@
+  private <PSI> Match doFind(PSI ptn, RepeatableFind repeating) throws IOException {
+    Finder f = null;
+    Match m = null;
+    boolean findingText = false;
+    lastFindTime = (new Date()).getTime();
+    ScreenImage simg;
+    if (repeating != null && repeating._finder != null) {
+      simg = getScreen().capture(this);
+      f = repeating._finder;
+      f.setScreenImage(simg);
+      f.setRepeating();
+      lastSearchTime = (new Date()).getTime();
+      f.findRepeat();
+    } else {
+      Image img = null;
+      if (ptn instanceof String) {
+        if (((String) ptn).startsWith("\t") && ((String) ptn).endsWith("\t")) {
+          findingText = true;
+        } else {
+          img = Image.create((String) ptn);
+          if (img.isValid()) {
+            lastSearchTime = (new Date()).getTime();
+            f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut(), null);
+            if (!f.hasNext()) {
+              f.find(img);
+            }
+          } else if (img.isText()) {
+            findingText = true;
+          } else {
+            throw new IOException("Region: doFind: Image not loadable: " + ptn.toString());
+          }
+        }
+				if (findingText) {
+					if (TextRecognizer.getInstance() != null) {
+						log(lvl, "doFind: Switching to TextSearch");
+						f = new Finder(getScreen().capture(x, y, w, h), this);
+						lastSearchTime = (new Date()).getTime();
+						f.findText((String) ptn);
+					}
+        }
+      } else if (ptn instanceof Pattern) {
+        if (((Pattern) ptn).isValid()) {
+          img = ((Pattern) ptn).getImage();
+          lastSearchTime = (new Date()).getTime();
+          f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut(), (Pattern) ptn);
+          if (!f.hasNext()) {
+            f.find((Pattern) ptn);
+          }
+        } else {
+          throw new IOException("Region: doFind: Image not loadable: " + ptn.toString());
+        }
+      } else if (ptn instanceof Image) {
+        if (((Image) ptn).isValid()) {
+          img = ((Image) ptn);
+          lastSearchTime = (new Date()).getTime();
+          f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut(), null);
+          if (!f.hasNext()) {
+            f.find(img);
+          }
+        } else {
+          throw new IOException("Region: doFind: Image not loadable: " + ptn.toString());
+        }
+      } else {
+        log(-1, "doFind: invalid parameter: %s", ptn);
+        Sikulix.terminate(999);
+      }
+      if (repeating != null) {
+        repeating._finder = f;
+        repeating._image = img;
+      }
+    }
+    lastSearchTime = (new Date()).getTime() - lastSearchTime;
+    lastFindTime = (new Date()).getTime() - lastFindTime;
+    if (f.hasNext()) {
+      m = f.next();
+      m.setTimes(lastFindTime, lastSearchTime);
+    }
+    return m;
+  }

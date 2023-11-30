@@ -1,0 +1,37 @@
+    public static Configuration getInstance() {
+        ConfigType configType = null;
+        try {
+            configType = ConfigType.getType(
+                FILE_INSTANCE.getConfig(ConfigurationKeys.FILE_ROOT_CONFIG + ConfigurationKeys.FILE_CONFIG_SPLIT_CHAR
+                    + ConfigurationKeys.FILE_ROOT_TYPE));
+        } catch (Exception exx) {
+            LOGGER.error(exx.getMessage());
+        }
+        Configuration configuration;
+        switch (configType) {
+            case Nacos:
+                try {
+                    configuration = new NacosConfiguration();
+                } catch (NacosException e) {
+                    throw new RuntimeException(e);
+                }
+                break;
+            case Apollo:
+                try {
+                    configuration = ApolloConfiguration.getInstance();
+                } catch (ApolloConfigException e) {
+                    throw new RuntimeException(e);
+                }
+                break;
+            case File:
+                String pathDataId = ConfigurationKeys.FILE_ROOT_CONFIG + ConfigurationKeys.FILE_CONFIG_SPLIT_CHAR
+                    + FILE_TYPE + ConfigurationKeys.FILE_CONFIG_SPLIT_CHAR
+                    + NAME_KEY;
+                String name = FILE_INSTANCE.getConfig(pathDataId);
+                configuration = new FileConfiguration(name);
+                break;
+            default:
+                throw new NotSupportYetException("not support register type:" + configType);
+        }
+        return configuration;
+    }

@@ -1,0 +1,35 @@
+ public static void main(String[] args) throws AnalysisException, TransformationException, IOException {
+		// args[0] path to xml directory
+		if(args.length != 1) {
+			System.err.println("Source directory needed!");
+			System.exit(1);
+		}
+		
+		SVMInitialZoneClassifier classifier = new SVMInitialZoneClassifier("/pl/edu/icm/cermine/structure/svm_initial_classifier", 
+				"/pl/edu/icm/cermine/structure/svm_initial_classifier.range");
+
+		ReadingOrderResolver ror = new HierarchicalReadingOrderResolver();
+		BxDocumentToTrueVizWriter tvw = new BxDocumentToTrueVizWriter();
+		
+		List<BxDocument> docs = EvaluationUtils.getDocumentsFromPath(args[0]);
+		for(BxDocument doc: docs) {
+			System.out.println(">> " + doc.getFilename());
+			ror.resolve(doc);
+			classifier.classifyZones(doc);
+			BufferedWriter out = null;
+
+			try {
+				// Create file 
+				FileWriter fstream = new FileWriter(doc.getFilename());
+				out = new BufferedWriter(fstream);
+				out.write(tvw.write(doc.getPages()));
+				out.close();
+			} catch (Exception e){//Catch exception if any
+				System.err.println("Error: " + e.getMessage());
+			} finally {
+				if(out != null) {
+					out.close();
+				}
+			}
+		}
+	}

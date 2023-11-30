@@ -1,0 +1,15 @@
+ @Test
+	public void onWhenRequested() throws Exception {
+		setup("server.port=7000", "spring.cloud.config.discovery.enabled=true",
+				"spring.cloud.consul.discovery.port:7001",
+				"spring.cloud.consul.discovery.hostname:foo",
+				"spring.cloud.config.discovery.service-id:configserver");
+		assertEquals( 1, this.context
+						.getBeanNamesForType(ConsulConfigServerAutoConfiguration.class).length);
+		ConsulDiscoveryClient client = this.context.getParent().getBean(
+				ConsulDiscoveryClient.class);
+		verify(client, atLeast(2)).getInstances("configserver");
+		ConfigClientProperties locator = this.context
+				.getBean(ConfigClientProperties.class);
+		assertEquals("http://foo:7001/", locator.getUri()[0]);
+	}

@@ -1,0 +1,45 @@
+ private void printVersionTable(OutputStream out) {
+		try {
+			StringBuffer buffer = new StringBuffer();
+			List<String> modelVersionList = modelService.getAllModelVersions();
+
+			buffer.append("<table>");
+			buffer.append("<tr><th>Version</th><th>Workflow Group</th><th>Uploaded</th></tr>");
+			for (String modelVersion : modelVersionList) {
+				
+				Model model=modelService.getModel(modelVersion);
+				ItemCollection modelEntity=modelService.loadModelEntity(modelVersion);
+
+				// now check groups...
+				List<String> groupList = model.getGroups();
+				for (String group : groupList) {
+					buffer.append("<tr>");
+					buffer.append("<td>" + modelVersion + "</td>");
+					buffer.append("<td><a href=\"./model/" + modelVersion
+							+ "/groups/" + group + "\">" + group + "</a></td>");
+					// print upload date...
+					if (modelEntity!=null) {
+						Date dat = modelEntity.getItemValueDate("$Modified");
+						SimpleDateFormat formater = new SimpleDateFormat(
+								"yyyy-MM-dd HH:mm:ss");
+						buffer.append("<td>" + formater.format(dat) + "</td>");
+					} else {
+						buffer.append("<td> - </td>");
+					}
+					buffer.append("</tr>");
+				}
+
+			}
+
+			buffer.append("</table>");
+			out.write(buffer.toString().getBytes());
+		} catch (Exception e) {
+			// no opp!
+			try {
+				out.write("No model definition found.".getBytes());
+			} catch (IOException e1) {
+
+				e1.printStackTrace();
+			}
+		}
+	}

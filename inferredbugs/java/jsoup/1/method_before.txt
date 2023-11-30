@@ -1,0 +1,37 @@
+    public Document parse() {
+        // TODO: figure out implicit head & body elements
+        Document doc = new Document();
+        stack.add(doc);
+
+        while (tokenStream.hasNext()) {
+            Token token = tokenStream.next();
+
+            if (token.isStartTag()) {
+                Attributes attributes = attributeParser.parse(token.getAttributeString());
+                Tag tag = Tag.valueOf(token.getTagName());
+                StartTag startTag = new StartTag(tag, attributes);
+
+                // if tag is "html", we already have it, so OK to ignore skip. todo: abstract this. and can there be attributes to set?
+                if (doc.getTag().equals(tag)) continue;
+
+                Element parent = popStackToSuitableContainer(tag);
+                Validate.notNull(parent, "Should always have a viable container");
+                Element node = new Element(parent, startTag);
+                parent.addChild(node);
+                stack.add(node);
+            }
+
+            if (token.isEndTag()) { // empty tags are both start and end tags
+                stack.removeLast();
+            }
+
+            // TODO[must] handle comments
+
+            else if (token.isTextNode()) {
+                String text = token.getData();
+                TextNode textNode = new TextNode(stack.peek(), text);
+                stack.getLast().addChild(textNode);
+            }
+        }
+        return doc;
+    }

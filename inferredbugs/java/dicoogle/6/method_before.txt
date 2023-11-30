@@ -1,0 +1,30 @@
+ @Override
+	protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+			throws ServletException, IOException {
+        //resp.addHeader("Access-Control-Allow-Origin", "*");
+		HttpSession session = req.getSession(false);
+		
+		LoggedIn mLoggedIn = Session.getUserLoggedIn(session);
+		if(mLoggedIn == null){
+			resp.sendError(401);
+            return;
+		}
+			
+		JSONObject json_resp = new JSONObject();
+        json_resp.put("user", mLoggedIn.getUserName());
+        json_resp.put("admin", mLoggedIn.isAdmin());
+        User u = UsersStruct.getInstance().getUser(mLoggedIn.getUserName());
+        JSONArray rolesObj = new JSONArray();
+        for (Role r : u.getRoles())
+        {
+            rolesObj.add(r.getName());
+        }
+
+        json_resp.put("roles", rolesObj);
+
+        //Set response content type
+        resp.setContentType("application/json");
+
+        //Write response
+        json_resp.write(resp.getWriter());
+    }

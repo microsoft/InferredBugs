@@ -1,0 +1,80 @@
+    private static void enumerateProperties(Map<String, List<Object>> values, EnumWbemClassObject enumerator,
+            String[] properties, ValueType[] propertyTypes, WbemServices svc) {
+        if (propertyTypes.length > 1 && properties.length != propertyTypes.length) {
+            throw new IllegalArgumentException("Property type array size must be 1 or equal to properties array size.");
+        }
+        // Step 7: -------------------------------------------------
+        // Get the data from the query in step 6 -------------------
+        PointerByReference pclsObj = new PointerByReference();
+        LongByReference uReturn = new LongByReference(0L);
+        while (enumerator.getPointer() != Pointer.NULL) {
+            HRESULT hres = enumerator.Next(new NativeLong(EnumWbemClassObject.WBEM_INFINITE), new NativeLong(1),
+                    pclsObj, uReturn);
+            // Requested 1; if 0 objects returned, we're done
+            if (0L == uReturn.getValue() || COMUtils.FAILED(hres)) {
+                // Enumerator will be released by calling method so no need to
+                // release it here.
+                return;
+            }
+            VARIANT.ByReference vtProp = new VARIANT.ByReference();
+
+            // Get the value of the properties
+            WbemClassObject clsObj = new WbemClassObject(pclsObj.getValue());
+            for (int p = 0; p < properties.length; p++) {
+                String property = properties[p];
+                hres = clsObj.Get(new BSTR(property), new NativeLong(0L), vtProp, null, null);
+
+                ValueType propertyType = propertyTypes.length > 1 ? propertyTypes[p] : propertyTypes[0];
+                switch (propertyType) {
+                case STRING:
+                    values.get(property).add(vtProp.getValue() == null ? "unknown" : vtProp.stringValue());
+                    break;
+                // uint16 == VT_I4, a 32-bit number
+                case UINT16:
+                    values.get(property).add(vtProp.getValue() == null ? 0L : vtProp.intValue());
+                    break;
+                // WMI Uint32s will return as longs
+                case UINT32:
+                    values.get(property).add(vtProp.getValue() == null ? 0L : vtProp.longValue());
+                    break;
+                // WMI Longs will return as strings so we have the option of
+                // calling a string and parsing later, or calling UINT64 and
+                // letting this method do the parsing
+                case UINT64:
+                    values.get(property).add(
+                            vtProp.getValue() == null ? 0L : ParseUtil.parseLongOrDefault(vtProp.stringValue(), 0L));
+                    break;
+                case FLOAT:
+                    values.get(property).add(vtProp.getValue() == null ? 0f : vtProp.floatValue());
+                    break;
+                case DATETIME:
+                    // Read a string in format 20160513072950.782000-420 and
+                    // parse to a long representing ms since eopch
+                    values.get(property)
+                            .add(vtProp.getValue() == null ? 0L : ParseUtil.cimDateTimeToMillis(vtProp.stringValue()));
+                    break;
+                case BOOLEAN:
+                    values.get(property).add(vtProp.getValue() == null ? 0L : vtProp.booleanValue());
+                    break;
+                case PROCESS_GETOWNER:
+                    // Win32_Process object GetOwner method
+                    String owner = FormatUtil.join("\\",
+                            execMethod(svc, vtProp.stringValue(), "GetOwner", "Domain", "User"));
+                    values.get(propertyType.name()).add("\\".equals(owner) ? "N/A" : owner);
+                    break;
+                case PROCESS_GETOWNERSID:
+                    // Win32_Process object GetOwnerSid method
+                    String[] ownerSid = execMethod(svc, vtProp.stringValue(), "GetOwnerSid", "Sid");
+                    values.get(propertyType.name()).add(ownerSid.length < 1 ? "" : ownerSid[0]);
+                    break;
+                default:
+                    // Should never get here! If you get this exception you've
+                    // added something to the enum without adding it here. Tsk.
+                    throw new IllegalArgumentException("Unimplemented enum type: " + propertyType.toString());
+                }
+                OleAuto.INSTANCE.VariantClear(vtProp);
+            }
+
+            clsObj.Release();
+        }
+    }

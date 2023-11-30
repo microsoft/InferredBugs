@@ -1,0 +1,16 @@
+  public Process exec(
+      String namespace, String name, String[] command, String container, boolean stdin, boolean tty)
+      throws ApiException, IOException {
+    if (container == null) {
+      CoreV1Api api = new CoreV1Api(apiClient);
+      V1Pod pod = api.readNamespacedPod(name, namespace, "false", null, null);
+      container = pod.getSpec().getContainers().get(0).getName();
+    }
+    String path = makePath(namespace, name, command, container, stdin, tty);
+
+    ExecProcess exec = new ExecProcess(apiClient);
+    WebSocketStreamHandler handler = exec.getHandler();
+    WebSockets.stream(path, "GET", apiClient, handler);
+
+    return exec;
+  }

@@ -1,0 +1,565 @@
+{
+    "hash": "41b73da57c18f70c61d3c05e8733c6c74dc96491",
+    "message": "changed cpu tensors to reuse the same buffer when reshaping",
+    "file_num_lines": 176,
+    "diff_parsed": {
+        "added": [
+            [
+                1,
+                "\ufeffusing System;"
+            ],
+            [
+                2,
+                "using MathNet.Numerics.LinearAlgebra.Single;"
+            ],
+            [
+                18,
+                "        readonly CpuMatrix _data;"
+            ],
+            [
+                19,
+                "\t    readonly int _rows, _columns, _depth, _count;"
+            ],
+            [
+                21,
+                "\t    public Cpu4DTensor(int rows, int columns, int depth, int count)"
+            ],
+            [
+                22,
+                "\t    {"
+            ],
+            [
+                23,
+                "\t\t    _rows = rows;"
+            ],
+            [
+                24,
+                "\t\t    _count = count;"
+            ],
+            [
+                25,
+                "\t\t    _depth = depth;"
+            ],
+            [
+                26,
+                "\t\t    _count = count;"
+            ],
+            [
+                27,
+                "\t\t    _data = new CpuMatrix(DenseMatrix.Build.Dense(_rows * _count * _depth, _count));"
+            ],
+            [
+                28,
+                "\t    }"
+            ],
+            [
+                29,
+                ""
+            ],
+            [
+                30,
+                "        public Cpu4DTensor(IReadOnlyList<IIndexable3DTensor> tensorList)"
+            ],
+            [
+                34,
+                "            _rows = first.RowCount;"
+            ],
+            [
+                35,
+                "            _columns = first.ColumnCount;"
+            ],
+            [
+                36,
+                "            _depth = first.Depth;"
+            ],
+            [
+                37,
+                "\t        _count = tensorList.Count;"
+            ],
+            [
+                38,
+                ""
+            ],
+            [
+                39,
+                "\t        var offset = 0;"
+            ],
+            [
+                40,
+                "\t        var rowSize = _rows * _columns * _depth;"
+            ],
+            [
+                41,
+                "\t        var data = new float[rowSize * _count];"
+            ],
+            [
+                42,
+                "\t        foreach (var matrix in tensorList) {"
+            ],
+            [
+                43,
+                "\t\t        Array.Copy(matrix.GetInternalArray(), 0, data, offset, rowSize);"
+            ],
+            [
+                44,
+                "\t\t        offset += rowSize;"
+            ],
+            [
+                45,
+                "\t        }"
+            ],
+            [
+                46,
+                ""
+            ],
+            [
+                47,
+                "\t        _data = new CpuMatrix(DenseMatrix.Build.Dense(rowSize, _count, data));"
+            ],
+            [
+                50,
+                "        public int RowCount => _rows;"
+            ],
+            [
+                51,
+                "\t    public int ColumnCount => _columns;"
+            ],
+            [
+                52,
+                "\t    public int Depth => _depth;"
+            ],
+            [
+                53,
+                "\t    public int Count => _count;"
+            ],
+            [
+                54,
+                "\t    public float[] GetInternalArray() => _data.GetInternalArray();"
+            ],
+            [
+                66,
+                "\t    public I3DTensor GetTensorAt(int index) => _data.Column(index).ReshapeAs3DTensor(_rows, _columns, _depth);"
+            ],
+            [
+                67,
+                "\t    public IReadOnlyList<IIndexable3DTensor> Tensors => _data.Columns.Select(c => c.ReshapeAs3DTensor(_rows, _columns, _depth).AsIndexable()).ToList();"
+            ],
+            [
+                73,
+                "            var ret = new List<IIndexable3DTensor>();"
+            ],
+            [
+                74,
+                "            foreach (var item in Tensors)"
+            ],
+            [
+                75,
+                "                ret.Add(item.AddPadding(padding).AsIndexable());"
+            ],
+            [
+                81,
+                "            var ret = new List<IIndexable3DTensor>();"
+            ],
+            [
+                82,
+                "            foreach (var item in Tensors)"
+            ],
+            [
+                83,
+                "                ret.Add(item.RemovePadding(padding).AsIndexable());"
+            ],
+            [
+                89,
+                "            List<IIndexable3DTensor> indexList = saveIndices ? new List<IIndexable3DTensor>() : null;"
+            ],
+            [
+                90,
+                "            var ret = new List<IIndexable3DTensor>();"
+            ],
+            [
+                93,
+                "                indexList?.Add(result.Indices.AsIndexable());"
+            ],
+            [
+                94,
+                "                ret.Add(result.Result.AsIndexable());"
+            ],
+            [
+                101,
+                "            var ret = new List<IIndexable3DTensor>();"
+            ],
+            [
+                104,
+                "                ret.Add(result.AsIndexable());"
+            ],
+            [
+                111,
+                "            var ret = new List<IIndexableMatrix>();"
+            ],
+            [
+                114,
+                "                ret.Add(result.AsIndexable());"
+            ],
+            [
+                121,
+                "            var ret = new List<IIndexable3DTensor>();"
+            ],
+            [
+                124,
+                "                ret.Add(result.AsIndexable());"
+            ],
+            [
+                131,
+                "\t\t\treturn _data;"
+            ],
+            [
+                132,
+                "\t\t\t//var rows = _data.Select(t => t.ReshapeAsVector().AsIndexable()).ToList();"
+            ],
+            [
+                133,
+                "\t\t\t//var first = rows.First();"
+            ],
+            [
+                134,
+                "\t\t\t//return new CpuMatrix(DenseMatrix.Create(first.Count, Count, (i, j) => rows[j][i]));"
+            ],
+            [
+                138,
+                "\t\t    get => Tensors.Select(t => t.Data).ToList();"
+            ],
+            [
+                141,
+                "\t\t\t    for (var z = 0; z < count && z < _count; z++) {"
+            ],
+            [
+                142,
+                "\t\t\t\t    var tensor = value[z];"
+            ],
+            [
+                143,
+                "\t\t\t\t    if (tensor != null) {"
+            ],
+            [
+                144,
+                "\t\t\t\t\t    var matrixList = tensor.Matrix;"
+            ],
+            [
+                145,
+                "\t\t\t\t\t    var matrixCount = matrixList.Length;"
+            ],
+            [
+                146,
+                "\t\t\t\t\t    for (var k = 0; k < matrixCount && k < _depth; k++) {"
+            ],
+            [
+                147,
+                "\t\t\t\t\t\t    var matrix = matrixList[k];"
+            ],
+            [
+                148,
+                "\t\t\t\t\t\t    if (matrix.Row != null) {"
+            ],
+            [
+                149,
+                "\t\t\t\t\t\t\t    for (int i = 0, len = matrix.Row.Length; i < len; i++) {"
+            ],
+            [
+                150,
+                "\t\t\t\t\t\t\t\t    var row = matrix.Row[i];"
+            ],
+            [
+                151,
+                "\t\t\t\t\t\t\t\t    for (int j = 0, len2 = row.Count; j < len2; j++)"
+            ],
+            [
+                152,
+                "\t\t\t\t\t\t\t\t\t    this[i, j, k, z] = row.Data[j];"
+            ],
+            [
+                153,
+                "\t\t\t\t\t\t\t    }"
+            ],
+            [
+                154,
+                "\t\t\t\t\t\t    }"
+            ],
+            [
+                155,
+                "\t\t\t\t\t    }"
+            ],
+            [
+                156,
+                "\t\t\t\t    }"
+            ],
+            [
+                163,
+                "\t\t    return _data.ReshapeAsVector();"
+            ],
+            [
+                164,
+                "\t\t    //var vectorList = _data.Select(m => m.ReshapeAsVector().AsIndexable()).ToArray();"
+            ],
+            [
+                165,
+                "\t\t    //var size = RowCount * ColumnCount * Depth;"
+            ],
+            [
+                166,
+                "\t\t    //var ret = DenseVector.Create(Count * size, i => {"
+            ],
+            [
+                167,
+                "\t\t    // var offset = i / size;"
+            ],
+            [
+                168,
+                "\t\t    // var index = i % size;"
+            ],
+            [
+                169,
+                "\t\t    // return vectorList[offset][index];"
+            ],
+            [
+                170,
+                "\t\t    //});"
+            ],
+            [
+                171,
+                "\t\t    //return new CpuVector(ret);"
+            ],
+            [
+                189,
+                "\t\t    get => _data[_RowIndex(row, column, depth), index];"
+            ],
+            [
+                190,
+                "\t\t    set => _data[_RowIndex(row, column, depth), index] = value;"
+            ],
+            [
+                193,
+                "\t    int _RowIndex(int row, int column, int depth) => depth * _depth + (column * _rows + row);"
+            ],
+            [
+                194,
+                ""
+            ],
+            [
+                205,
+                "\t\t\t\t    foreach(var tensor in Tensors) {"
+            ]
+        ],
+        "deleted": [
+            [
+                1,
+                "\ufeffusing MathNet.Numerics.LinearAlgebra.Single;"
+            ],
+            [
+                17,
+                "        readonly Cpu3DTensor[] _data;"
+            ],
+            [
+                19,
+                "        public Cpu4DTensor(IReadOnlyList<I3DTensor> tensorList)"
+            ],
+            [
+                23,
+                "            RowCount = first.RowCount;"
+            ],
+            [
+                24,
+                "            ColumnCount = first.ColumnCount;"
+            ],
+            [
+                25,
+                "            Depth = first.Depth;"
+            ],
+            [
+                26,
+                "            _data = tensorList.Cast<Cpu3DTensor>().ToArray();"
+            ],
+            [
+                29,
+                "        public int RowCount { get; }"
+            ],
+            [
+                30,
+                "\t    public int ColumnCount { get; }"
+            ],
+            [
+                31,
+                "\t    public int Depth { get; }"
+            ],
+            [
+                32,
+                "\t    public int Count => _data.Length;"
+            ],
+            [
+                44,
+                "\t\tpublic I3DTensor GetTensorAt(int index)"
+            ],
+            [
+                45,
+                "        {"
+            ],
+            [
+                46,
+                "            return _data[index];"
+            ],
+            [
+                47,
+                "        }"
+            ],
+            [
+                48,
+                ""
+            ],
+            [
+                49,
+                "\t    public IReadOnlyList<IIndexable3DTensor> Tensors => _data;"
+            ],
+            [
+                55,
+                "            var ret = new List<I3DTensor>();"
+            ],
+            [
+                56,
+                "            foreach (var item in _data)"
+            ],
+            [
+                57,
+                "                ret.Add(item.AddPadding(padding));"
+            ],
+            [
+                63,
+                "            var ret = new List<I3DTensor>();"
+            ],
+            [
+                64,
+                "            foreach (var item in _data)"
+            ],
+            [
+                65,
+                "                ret.Add(item.RemovePadding(padding));"
+            ],
+            [
+                71,
+                "            List<I3DTensor> indexList = saveIndices ? new List<I3DTensor>() : null;"
+            ],
+            [
+                72,
+                "            var ret = new List<I3DTensor>();"
+            ],
+            [
+                75,
+                "                indexList?.Add(result.Indices);"
+            ],
+            [
+                76,
+                "                ret.Add(result.Result);"
+            ],
+            [
+                83,
+                "            var ret = new List<I3DTensor>();"
+            ],
+            [
+                86,
+                "                ret.Add(result);"
+            ],
+            [
+                93,
+                "            var ret = new List<IMatrix>();"
+            ],
+            [
+                96,
+                "                ret.Add(result);"
+            ],
+            [
+                103,
+                "            var ret = new List<I3DTensor>();"
+            ],
+            [
+                106,
+                "                ret.Add(result);"
+            ],
+            [
+                113,
+                "\t\t\tvar rows = _data.Select(t => t.ReshapeAsVector().AsIndexable()).ToList();"
+            ],
+            [
+                114,
+                "\t\t\tvar first = rows.First();"
+            ],
+            [
+                115,
+                "\t\t\treturn new CpuMatrix(DenseMatrix.Create(first.Count, Count, (i, j) => rows[j][i]));"
+            ],
+            [
+                119,
+                "\t\t    get => _data.Select(t => t.Data).ToList();"
+            ],
+            [
+                122,
+                "\t\t\t    for (var i = 0; i < count && i < _data.Length; i++) {"
+            ],
+            [
+                123,
+                "\t\t\t\t    var tensor = value[i];"
+            ],
+            [
+                124,
+                "\t\t\t\t    if (tensor != null)"
+            ],
+            [
+                125,
+                "\t\t\t\t\t    _data[i].Data = tensor;"
+            ],
+            [
+                132,
+                "\t\t    var vectorList = _data.Select(m => m.ReshapeAsVector().AsIndexable()).ToArray();"
+            ],
+            [
+                133,
+                "\t\t    var size = RowCount * ColumnCount * Depth;"
+            ],
+            [
+                134,
+                "\t\t    var ret = DenseVector.Create(Count * size, i => {"
+            ],
+            [
+                135,
+                "\t\t\t    var offset = i / size;"
+            ],
+            [
+                136,
+                "\t\t\t    var index = i % size;"
+            ],
+            [
+                137,
+                "\t\t\t    return vectorList[offset][index];"
+            ],
+            [
+                138,
+                "\t\t    });"
+            ],
+            [
+                139,
+                "\t\t    return new CpuVector(ret);"
+            ],
+            [
+                157,
+                "\t\t    get => _data[index][row, column, depth];"
+            ],
+            [
+                158,
+                "\t\t    set => _data[index][row, column, depth] = value;"
+            ],
+            [
+                171,
+                "\t\t\t\t    foreach(var tensor in _data) {"
+            ]
+        ]
+    },
+    "num_lines_added": 86,
+    "num_lines_removed": 52
+}

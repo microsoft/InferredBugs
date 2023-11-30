@@ -1,0 +1,66 @@
+    @Override
+    public void execute(CommandLine commandLine, Options options, RPCHook rpcHook) throws SubCommandException {
+        DefaultMQPullConsumer consumer = new DefaultMQPullConsumer(MixAll.TOOLS_CONSUMER_GROUP, rpcHook);
+
+        try {
+            String topic = commandLine.getOptionValue('t').trim();
+
+            String charsetName =
+                !commandLine.hasOption('c') ? "UTF-8" : commandLine.getOptionValue('c').trim();
+
+            String subExpression =
+                !commandLine.hasOption('s') ? "*" : commandLine.getOptionValue('s').trim();
+
+            boolean printBody = !commandLine.hasOption('d') || Boolean.parseBoolean(commandLine.getOptionValue('d').trim());
+
+            consumer.start();
+
+            Set<MessageQueue> mqs = consumer.fetchSubscribeMessageQueues(topic);
+            for (MessageQueue mq : mqs) {
+                long minOffset = consumer.minOffset(mq);
+                long maxOffset = consumer.maxOffset(mq);
+
+                if (commandLine.hasOption('b')) {
+                    String timestampStr = commandLine.getOptionValue('b').trim();
+                    long timeValue = timestampFormat(timestampStr);
+                    minOffset = consumer.searchOffset(mq, timeValue);
+                }
+
+                if (commandLine.hasOption('e')) {
+                    String timestampStr = commandLine.getOptionValue('e').trim();
+                    long timeValue = timestampFormat(timestampStr);
+                    maxOffset = consumer.searchOffset(mq, timeValue);
+                }
+
+                System.out.printf("minOffset=%s, maxOffset=%s, %s", minOffset, maxOffset, mq);
+
+                READQ:
+                for (long offset = minOffset; offset < maxOffset; ) {
+                    try {
+                        PullResult pullResult = consumer.pull(mq, subExpression, offset, 32);
+                        offset = pullResult.getNextBeginOffset();
+                        switch (pullResult.getPullStatus()) {
+                            case FOUND:
+                                printMessage(pullResult.getMsgFoundList(), charsetName, printBody);
+                                break;
+                            case NO_MATCHED_MSG:
+                                System.out.printf(mq + " no matched msg. status=%s, offset=%s", pullResult.getPullStatus(), offset);
+                                break;
+                            case NO_NEW_MSG:
+                            case OFFSET_ILLEGAL:
+                                System.out.printf(mq + " print msg finished. status=%s, offset=%s", pullResult.getPullStatus(), offset);
+                                break READQ;
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        break;
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            throw new SubCommandException(this.getClass().getSimpleName() + " command failed", e);
+        } finally {
+            consumer.shutdown();
+        }
+    }

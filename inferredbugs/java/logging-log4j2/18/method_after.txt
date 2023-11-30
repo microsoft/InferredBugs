@@ -1,0 +1,50 @@
+    private static ConcurrentMap<String, ConcurrentMap<String, PluginType>> decode(final ClassLoader loader) {
+        Enumeration<URL> resources;
+        try {
+            resources = loader.getResources(PATH + FILENAME);
+        } catch (final IOException ioe) {
+            LOGGER.warn("Unable to preload plugins", ioe);
+            return null;
+        }
+        final ConcurrentMap<String, ConcurrentMap<String, PluginType>> map =
+            new ConcurrentHashMap<String, ConcurrentMap<String, PluginType>>();
+        while (resources.hasMoreElements()) {
+            DataInputStream dis = null;
+            try {
+                final URL url = resources.nextElement();
+                LOGGER.debug("Found Plugin Map at {}", url.toExternalForm());
+                final InputStream is = url.openStream();
+                final BufferedInputStream bis = new BufferedInputStream(is);
+                dis = new DataInputStream(bis);
+                final int count = dis.readInt();
+                for (int j = 0; j < count; ++j) {
+                    final String type = dis.readUTF();
+                    final int entries = dis.readInt();
+                    ConcurrentMap<String, PluginType> types = map.get(type);
+                    if (types == null) {
+                        types = new ConcurrentHashMap<String, PluginType>(count);
+                    }
+                    for (int i = 0; i < entries; ++i) {
+                        final String key = dis.readUTF();
+                        final String className = dis.readUTF();
+                        final String name = dis.readUTF();
+                        final boolean printable = dis.readBoolean();
+                        final boolean defer = dis.readBoolean();
+                        final Class<?> clazz = Class.forName(className);
+                        types.put(key, new PluginType(clazz, name, printable, defer));
+                    }
+                    map.putIfAbsent(type, types);
+                }
+            } catch (final Exception ex) {
+                LOGGER.warn("Unable to preload plugins", ex);
+                return null;
+            } finally {
+                try {
+                    dis.close();
+                } catch (Exception ignored) {
+                    // nothing we can do here...
+                }
+            }
+        }
+        return map.size() == 0 ? null : map;
+    }

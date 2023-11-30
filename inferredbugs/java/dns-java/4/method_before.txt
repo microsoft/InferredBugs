@@ -1,0 +1,40 @@
+  public static void main(String[] args) throws IOException {
+    Function<LookupResult, Integer> resultTransformer = new Function<LookupResult, Integer>() {
+      @Nullable
+      @Override
+      public Integer apply(@Nullable LookupResult input) {
+        return input.weight();
+      }
+    };
+
+    DnsSrvResolver resolver = DnsSrvResolvers.newBuilder()
+        .cachingLookups(true)
+        .retainingDataOnFailures(true)
+        .dnsLookupTimeoutMillis(1000)
+        .build();
+
+
+    DnsSrvWatcher<LookupResult> watcher = DnsSrvResolvers.newWatcherBuilder(resolver)
+        .polling(1, TimeUnit.SECONDS)
+        .build();
+
+    boolean quit = false;
+    BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+
+    while (!quit) {
+      System.out.print("Enter a SRV name (empty to quit): ");
+      String line = in.readLine();
+
+      if (line == null || line.isEmpty()) {
+        quit = true;
+      } else {
+        try {
+          ChangeNotifier<LookupResult> notifier = watcher.watch(line);
+          notifier.setListener(new ChangeListener(line), false);
+        }
+        catch (DnsException e) {
+          e.printStackTrace(System.out);
+        }
+      }
+    }
+  }

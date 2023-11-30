@@ -1,0 +1,65 @@
+    public void meldenFertig(String sender) {
+        //wird ausgeführt wenn Sender beendet ist
+        int MAX_SENDER = 25, MAX1 = 22, MAX2 = 15, MAX3 = 20, MAX4 = 30;
+        Log.systemMeldung("Fertig " + sender + ": " + DatumZeit.getJetzt_HH_MM_SS());
+        RunSender run = listeSenderLaufen.senderFertig(sender);
+        if (run != null) {
+            String zeile = "";
+            zeile += textLaenge(MAX_SENDER, "Sender:   " + run.sender);
+            zeile += textLaenge(MAX1, " Laufzeit: " + run.getLaufzeitMinuten() + " Min.");
+            zeile += textLaenge(MAX2, " Seiten: " + GetUrl.getSeitenZaehler(run.sender));
+            zeile += textLaenge(MAX3, " Ladefehler: " + GetUrl.getSeitenZaehlerFehler(run.sender));
+            zeile += textLaenge(MAX3, " Fehlversuche: " + GetUrl.getSeitenZaehlerFehlerVersuche(run.sender));
+            zeile += textLaenge(MAX4, " Wartezeit Fehler[s]: " + GetUrl.getSeitenZaehlerWartezeitFehlerVersuche(run.sender));
+            String nameFilmliste[] = getMReaderNameSenderMreader(run.sender).getNameSenderFilmliste();
+            if (nameFilmliste.length == 1) {
+                zeile += textLaenge(MAX3, " Filme: " + listeFilmeNeu.countSender(nameFilmliste[0]));
+                fertigMeldung.add(zeile);
+            } else {
+                fertigMeldung.add(zeile);
+                for (int i = 0; i < nameFilmliste.length; i++) {
+                    zeile = "              -->  Filme [" + nameFilmliste[i] + "]: " + listeFilmeNeu.countSender(nameFilmliste[i]);
+                    fertigMeldung.add(zeile);
+                }
+            }
+        }
+        // wird einmal aufgerufen, wenn alle Sender fertig sind
+        if (listeSenderLaufen.listeFertig()) {
+            listeFilmeNeu.sort();
+            if (!allesLaden) {
+                // alte Filme eintragen
+                listeFilmeNeu.updateListe(listeFilmeAlt, true /* über den Index vergleichen */);
+            }
+            listeFilmeAlt = null; // brauchmer nicht mehr
+            metaDatenSchreiben();
+            stopZeit = new Date(System.currentTimeMillis());
+
+            SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
+            int minuten;
+            try {
+                minuten = Math.round((stopZeit.getTime() - startZeit.getTime()) / (1000 * 60));
+            } catch (Exception ex) {
+                minuten = -1;
+            }
+            Log.systemMeldung("");
+            Log.systemMeldung("============================================================");
+            Log.systemMeldung("============================================================");
+            Log.systemMeldung("");
+            Log.systemMeldung(fertigMeldung.toArray(new String[0]));
+            Log.systemMeldung("");
+            Log.systemMeldung("============================================================");
+            Log.systemMeldung("");
+            Log.systemMeldung("Seiten geladen:   " + GetUrl.getSeitenZaehler());
+            Log.systemMeldung("Summe geladen:    " + GetUrl.getSumByte() / 1024 / 1024 + " MByte");
+            Log.systemMeldung("  --> Start:      " + sdf.format(startZeit));
+            Log.systemMeldung("  --> Ende:       " + sdf.format(stopZeit));
+            Log.systemMeldung("  --> Dauer[Min]: " + (minuten == 0 ? "<1" : minuten));
+            Log.systemMeldung("");
+            Log.systemMeldung("============================================================");
+            Log.systemMeldung("============================================================");
+            notifyFertig(new FilmListenerElement(sender, "", listeSenderLaufen.getMax(), listeSenderLaufen.getProgress()));
+        } else {
+            //nur ein Sender fertig
+            notifyProgress(new FilmListenerElement(sender, "", listeSenderLaufen.getMax(), listeSenderLaufen.getProgress()));
+        }
+    }

@@ -1,0 +1,61 @@
+    private int flushFromMemToLimit() {
+	if ((hashScore.size() == 0) && (cache.size() == 0)) {
+	    serverLog.logDebug("PLASMA INDEXING", "flushToLimit: called but cache is empty");
+	    return 0;
+	}
+	if ((hashScore.size() == 0) && (cache.size() != 0)) {
+	    serverLog.logError("PLASMA INDEXING", "flushToLimit: hashScore.size=0 but cache.size=" + cache.size());
+	    return 0;
+	}
+	if ((hashScore.size() != 0) && (cache.size() == 0)) {
+	    serverLog.logError("PLASMA INDEXING", "flushToLimit: hashScore.size=" + hashScore.size() + " but cache.size=0");
+	    return 0;
+	}
+
+	//serverLog.logDebug("PLASMA INDEXING", "flushSpecific: hashScore.size=" + hashScore.size() + ", cache.size=" + cache.size());
+        int total = 0;
+        synchronized (hashScore) {
+            String key;
+            int count;
+            Long createTime;
+            
+            // flush high-scores
+            while ((total < 100) && (hashScore.size() >= maxWords)) {
+                key = (String) hashScore.getMaxObject();
+                createTime = (Long) hashDate.get(key);
+                count = hashScore.getScore(key);
+                if (count < 5) {
+                    log.logWarning("flushing of high-key " + key + " not appropriate (too less entries, count=" + count + "): increase cache size");
+                    break;
+                }
+                if ((createTime != null) && ((System.currentTimeMillis() - createTime.longValue()) < 9000)) {
+                    //log.logDebug("high-key " + key + " is too fresh, interrupting flush (count=" + count + ", cachesize=" + cache.size()  + ", singleton-size=" + singletons.size() + ")");
+                    break;
+                }
+                //log.logDebug("flushing high-key " + key + ", count=" + count + ", cachesize=" + cache.size() + ", singleton-size=" + singletons.size());
+                total += flushFromMem(key, false);
+            }
+            
+            // flush singletons
+            Iterator i = hashScore.scores(true);
+            ArrayList al = new ArrayList();
+            while ((i.hasNext()) && (total < 200)) {
+                key = (String) i.next();
+                createTime = (Long) hashDate.get(key);
+                count = hashScore.getScore(key);
+                if (count > 1) {
+                    //log.logDebug("flush of singleton-key " + key + ": count too high (count=" + count + ")");
+                    break;
+                }
+                if ((createTime != null) && ((System.currentTimeMillis() - createTime.longValue()) < 90000)) {
+                    //log.logDebug("singleton-key " + key + " is too fresh, interrupting flush (count=" + count + ", cachesize=" + cache.size()  + ", singleton-size=" + singletons.size() + ")");
+                    continue;
+                }
+                //log.logDebug("flushing singleton-key " + key + ", count=" + count + ", cachesize=" + cache.size() + ", singleton-size=" + singletons.size());
+                al.add(key);
+                total++;
+            }
+            for (int k = 0; k < al.size(); k++) flushFromMem((String) al.get(k), true);
+        }
+        return total;
+    }

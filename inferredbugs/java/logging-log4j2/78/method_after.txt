@@ -1,0 +1,21 @@
+    @Override
+    public void checkConfiguration() {
+        final long current;
+        if (((counter.incrementAndGet() & MASK) == 0) && ((current = System.nanoTime()) - nextCheck >= 0)) {
+            LOCK.lock();
+            try {
+                nextCheck = current + intervalNano;
+                final long currentLastModified = file.lastModified();
+                if (currentLastModified > lastModified) {
+                    lastModified = currentLastModified;
+                    for (final ConfigurationListener listener : listeners) {
+                        final Thread thread = new Thread(new ReconfigurationWorker(listener, reconfigurable));
+                        thread.setDaemon(true);
+                        thread.start();
+                    }
+                }
+            } finally {
+                LOCK.unlock();
+            }
+        }
+    }

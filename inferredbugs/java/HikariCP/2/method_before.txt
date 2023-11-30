@@ -1,0 +1,49 @@
+    public static void main(String... args)
+    {
+        if (args.length < 3)
+        {
+            System.err.println("Usage: <poolname> <threads> <poolsize>");
+            System.err.println("  <poolname>  'hikari' or 'bone'");
+            System.exit(0);
+        }
+
+        THREADS = Integer.parseInt(args[1]);
+        POOL_MAX = Integer.parseInt(args[2]);
+        
+        Benchmark1 benchmarks = new Benchmark1();
+        if (args[0].equals("hikari"))
+        {
+            benchmarks.ds = benchmarks.setupHikari();
+            System.out.printf("Benchmarking HikariCP - %d threads, %d connections", THREADS, POOL_MAX);
+        }
+        else if (args[0].equals("bone"))
+        {
+            benchmarks.ds = benchmarks.setupBone();
+            System.out.printf("Benchmarking BoneCP - %d threads, %d connections", THREADS, POOL_MAX);
+        }
+        else
+        {
+            System.err.println("Start with one of: hikari, bone");
+            System.exit(0);
+        }
+
+        System.out.println("\nMixedBench");
+        System.out.println(" Warming up JIT");
+        benchmarks.startMixedBench(100, 10000);
+        System.out.println(" MixedBench Final Timing Runs");
+        long elapsed = 0;
+        elapsed += benchmarks.startMixedBench(THREADS, 1000);
+        elapsed += benchmarks.startMixedBench(THREADS, 1000);
+        elapsed += benchmarks.startMixedBench(THREADS, 1000);
+        elapsed += benchmarks.startMixedBench(THREADS, 1000);
+        System.out.printf("Elapsed time for timing runs (excluding thread start): %dms\n", TimeUnit.NANOSECONDS.toMillis(elapsed));
+
+        System.out.println("\nBoneBench");
+        System.out.println(" Warming up JIT");
+        benchmarks.startSillyBench(THREADS);
+        System.out.println(" BoneBench Final Timing Run");
+        benchmarks.startSillyBench(THREADS);
+        benchmarks.startSillyBench(THREADS);
+        benchmarks.startSillyBench(THREADS);
+        benchmarks.startSillyBench(THREADS);
+    }

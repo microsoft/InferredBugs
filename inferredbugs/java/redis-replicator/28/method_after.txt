@@ -1,0 +1,27 @@
+    @Test
+    public void testFileV6() throws IOException, InterruptedException {
+        Replicator redisReplicator = new RedisReplicator(
+                RedisSocketReplicatorTest.class.getClassLoader().getResourceAsStream("dumpV6.rdb"), FileType.RDB,
+                Configuration.defaultSetting());
+        final AtomicInteger acc = new AtomicInteger(0);
+        redisReplicator.addRdbListener(new RdbListener.Adaptor() {
+
+            @Override
+            public void handle(Replicator replicator, KeyValuePair<?> kv) {
+                acc.incrementAndGet();
+            }
+
+            @Override
+            public void postFullSync(Replicator replicator, long checksum) {
+                super.postFullSync(replicator, checksum);
+            }
+        });
+        redisReplicator.addCloseListener(new CloseListener() {
+            @Override
+            public void handle(Replicator replicator) {
+                System.out.println("close testFileV6");
+                assertEquals(132, acc.get());
+            }
+        });
+        redisReplicator.open();
+    }

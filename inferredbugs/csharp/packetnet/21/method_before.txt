@@ -1,0 +1,25 @@
+        [Test]
+        public void AddUnknownField()
+        {
+            var dev = new CaptureFileReaderDevice("../../CaptureFiles/80211_ppi_multiplefields.pcap");
+            dev.Open();
+            var rawCapture = dev.GetNextPacket();
+            dev.Close();
+
+            var p = Packet.ParsePacket(rawCapture.LinkLayerType, rawCapture.Data) as PpiPacket;
+
+            var unknownField = new PpiUnknown(99, new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
+            p.Add(unknownField);
+
+            var recreatedPacket = Packet.ParsePacket(LinkLayers.Ppi, p.Bytes) as PpiPacket;
+
+            Assert.IsTrue(recreatedPacket.Contains(PpiFieldType.PpiCommon));
+            Assert.IsTrue(recreatedPacket.Contains(PpiFieldType.PpiMacPhy));
+            Assert.IsTrue(recreatedPacket.Contains((PpiFieldType) 99));
+            var recreatedUnknownField = recreatedPacket.FindFirstByType((PpiFieldType) 99) as PpiUnknown;
+            Assert.AreEqual(new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }, recreatedUnknownField.UnknownBytes);
+
+            var macFrame = recreatedPacket.PayloadPacket as MacFrame;
+            Assert.IsNotNull(macFrame);
+            Assert.IsTrue(macFrame.FcsValid);
+        }

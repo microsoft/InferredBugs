@@ -1,0 +1,37 @@
+    protected void doPublish(PubSubData pubSubData, Channel channel) {
+        // Create a PubSubRequest
+        PubSubRequest.Builder pubsubRequestBuilder = PubSubRequest.newBuilder();
+        pubsubRequestBuilder.setProtocolVersion(ProtocolVersion.VERSION_ONE);
+        pubsubRequestBuilder.setType(OperationType.PUBLISH);
+        if (pubSubData.triedServers != null && pubSubData.triedServers.size() > 0) {
+            pubsubRequestBuilder.addAllTriedServers(pubSubData.triedServers);
+        }
+        long txnId = client.globalCounter.incrementAndGet();
+        pubsubRequestBuilder.setTxnId(txnId);
+        pubsubRequestBuilder.setShouldClaim(pubSubData.shouldClaim);
+        pubsubRequestBuilder.setTopic(pubSubData.topic);
+
+        // Now create the PublishRequest
+        PublishRequest.Builder publishRequestBuilder = PublishRequest.newBuilder();
+
+        publishRequestBuilder.setMsg(pubSubData.msg);
+
+        // Set the PublishRequest into the outer PubSubRequest
+        pubsubRequestBuilder.setPublishRequest(publishRequestBuilder);
+
+        // Update the PubSubData with the txnId and the requestWriteTime
+        pubSubData.txnId = txnId;
+        pubSubData.requestWriteTime = MathUtils.now();
+
+        // Before we do the write, store this information into the
+        // ResponseHandler so when the server responds, we know what
+        // appropriate Callback Data to invoke for the given txn ID.
+        HedwigClientImpl.getResponseHandlerFromChannel(channel).txn2PubSubData.put(txnId, pubSubData);
+
+        // Finally, write the Publish request through the Channel.
+        if (logger.isDebugEnabled())
+            logger.debug("Writing a Publish request to host: " + HedwigClientImpl.getHostFromChannel(channel)
+                         + " for pubSubData: " + pubSubData);
+        ChannelFuture future = channel.write(pubsubRequestBuilder.build());
+        future.addListener(new WriteCallback(pubSubData, client));
+    }

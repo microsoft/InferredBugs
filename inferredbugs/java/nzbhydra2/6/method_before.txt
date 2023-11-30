@@ -1,0 +1,15 @@
+    @Test
+    public void shouldMigrate() {
+        HashMap<String, Object> input = new HashMap<>(ImmutableMap.of("main", new HashMap<>(ImmutableMap.of("configVersion", 1))));
+        HashMap<String, Object> afterMigration = new HashMap<>(ImmutableMap.of("main", new HashMap<>(ImmutableMap.of("configVersion", 2))));
+
+        when(configMigrationStepMock.forVersion()).thenReturn(1);
+        when(configMigrationStepMock.migrate(any())).thenReturn(afterMigration);
+        testee.steps = Arrays.asList(configMigrationStepMock);
+        testee.expectedConfigVersion = 2;
+
+        Map<String, Object> result = testee.migrate(input);
+
+        verify(configMigrationStepMock).migrate(input);
+        assertThat((int) ((Map<String, Object>) result.get("main")).get("configVersion")).isEqualTo(2);
+    }

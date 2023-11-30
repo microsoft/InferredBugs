@@ -1,0 +1,35 @@
+    public boolean processing(long height) {
+        if (chainList.isEmpty()) {
+            return false;
+        }
+        List<String> hashList = this.getHashList(height);
+        if (hashList.size() == 1) {
+            return true;
+        }
+        if (hashList.isEmpty()) {
+            Log.warn("lost a block:" + height);
+            return false;
+        }
+        int maxSize = 0;
+        int secondMaxSize = 0;
+        for (BlockHeaderChain chain : chainList) {
+            int size = chain.size();
+            if (size > maxSize) {
+                secondMaxSize = maxSize;
+                maxSize = size;
+            } else if (size > secondMaxSize) {
+                secondMaxSize = size;
+            } else if (size == maxSize) {
+                secondMaxSize = size;
+            }
+        }
+        if (maxSize <= (secondMaxSize + 6)) {
+            return false;
+        }
+        for (int i = chainList.size() - 1; i >= 0; i--) {
+            if (chainList.size() < maxSize) {
+                chainList.remove(i);
+            }
+        }
+        return true;
+    }

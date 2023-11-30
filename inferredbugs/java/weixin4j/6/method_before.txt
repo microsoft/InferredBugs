@@ -1,0 +1,27 @@
+ public static List<Class<?>> getClasses(String packageName) {
+		String packageFileName = packageName.replace(POINT, File.separator);
+		URL fullPath = getDefaultClassLoader().getResource(packageFileName);
+		if (fullPath == null) {
+			fullPath = ClassUtil.class.getClassLoader().getResource(
+					packageFileName);
+		}
+		String protocol = fullPath.getProtocol();
+		if (protocol.equals(ServerToolkits.PROTOCOL_FILE)) {
+			try {
+				File dir = new File(fullPath.toURI());
+				return findClassesByFile(dir, packageName);
+			} catch (URISyntaxException e) {
+				throw new RuntimeException(e);
+			}
+		} else if (protocol.equals(ServerToolkits.PROTOCOL_JAR)) {
+			try {
+				return findClassesByJar(
+						((JarURLConnection) fullPath.openConnection())
+								.getJarFile(),
+						packageName);
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		}
+		return null;
+	}

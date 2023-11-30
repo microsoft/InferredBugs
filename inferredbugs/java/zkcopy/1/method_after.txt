@@ -1,0 +1,24 @@
+    public static void main(String[] args) {
+        Configuration cfg = parseLegacyConfiguration();
+        if (cfg == null) {
+            cfg = parseConfiguration(args);
+        }
+        if (cfg == null) {
+            Options options = createOptions();
+            printHelp(options);
+            return;
+        }
+        String sourceAddress = cfg.source();
+        String destinationAddress = cfg.target();
+        int threads = cfg.workers();
+        boolean removeDeprecatedNodes = !cfg.copyOnly();
+        LOGGER.info("using " + threads + " concurrent workers to copy data");
+        Reader reader = new Reader(sourceAddress, threads);
+        Node root = reader.read();
+        if (root != null) {
+            Writer writer = new Writer(destinationAddress, root, removeDeprecatedNodes);
+            writer.write();
+        } else {
+            LOGGER.error("FAILED");
+        }
+    }

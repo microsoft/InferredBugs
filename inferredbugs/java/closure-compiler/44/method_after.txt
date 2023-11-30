@@ -1,0 +1,68 @@
+  private void analyzeFunctionBwd(
+      List<DiGraphNode<Node, ControlFlowGraph.Branch>> workset) {
+    for (DiGraphNode<Node, ControlFlowGraph.Branch> dn : workset) {
+      Node n = dn.getValue();
+      if (n.isThrow()) { // Throw statements have no out edges.
+        // TODO(blickly): Support analyzing the body of the THROW
+        continue;
+      }
+      TypeEnv outEnv = getOutEnv(n);
+      TypeEnv inEnv;
+      System.out.println("\tBWD Statment: " + n);
+      System.out.println("\t\toutEnv: " + outEnv);
+      switch (n.getType()) {
+        case Token.EXPR_RESULT:
+          inEnv = analyzeExprBwd(n.getFirstChild(), outEnv, JSType.TOP).env;
+          break;
+        case Token.RETURN: {
+          Node retExp = n.getFirstChild();
+          if (retExp == null) {
+            inEnv = outEnv;
+          } else {
+            JSType declRetType = currentScope.getDeclaredType().getReturnType();
+            declRetType = declRetType == null ? JSType.UNKNOWN : declRetType;
+            inEnv = analyzeExprBwd(retExp, outEnv, declRetType).env;
+          }
+          break;
+        }
+        case Token.VAR: {
+          inEnv = null;
+          for (Node nameNode = n.getFirstChild(); nameNode != null;
+               nameNode = nameNode.getNext()) {
+            String varName = nameNode.getQualifiedName();
+            Node rhs = nameNode.getFirstChild();
+            JSType declType = currentScope.getDeclaredTypeOf(varName);
+            inEnv = envPutType(outEnv, varName, JSType.UNKNOWN);
+            if (rhs == null || currentScope.isLocalFunDef(varName)) {
+              continue;
+            }
+            JSType requiredType = (declType == null) ?
+                JSType.UNKNOWN : declType;
+            inEnv = analyzeExprBwd(rhs, inEnv,
+                JSType.meet(requiredType, envGetType(outEnv, varName))).env;
+          }
+          break;
+        }
+        case Token.BLOCK:
+        case Token.EMPTY:
+          inEnv = outEnv;
+          break;
+        case Token.FOR: // TODO(blickly): Analyze these statements
+        case Token.WHILE:
+        case Token.DO:
+        case Token.IF:
+          inEnv = outEnv;
+          break;
+        default:
+          if (NodeUtil.isStatement(n)) {
+            throw new RuntimeException("Unhandled statement type: "
+                + Token.name(n.getType()));
+          } else {
+            inEnv = analyzeExprBwd(n, outEnv).env;
+            break;
+          }
+      }
+      System.out.println("\t\tinEnv: " + inEnv);
+      setInEnv(n, inEnv);
+    }
+  }

@@ -1,0 +1,44 @@
+    @Override
+    public synchronized boolean saveRepo(RepoResult repoResult) {
+        RepoResult existing = this.getRepoByName(repoResult.getName());
+        this.cache.remove(repoResult.getName());
+
+        boolean isNew = false;
+
+        Connection connection = null;
+        PreparedStatement preparedStatement = null;
+
+        // Update with new details
+        try {
+            connection = this.dbConfig.getConnection();
+            if (existing != null) {
+                preparedStatement = connection.prepareStatement("UPDATE \"repo\" SET \"name\" = ?, \"scm\" = ?, \"url\" = ?, \"username\" = ?, \"password\" = ?, \"source\" = ?, \"branch\" = ? WHERE  \"name\" = ?");
+                preparedStatement.setString(8, repoResult.getName());
+            }
+            else {
+                isNew = true;
+                preparedStatement = connection.prepareStatement("INSERT INTO repo(\"name\",\"scm\",\"url\", \"username\", \"password\",\"source\",\"branch\") VALUES (?,?,?,?,?,?,?)");
+            }
+
+            preparedStatement.setString(1, repoResult.getName());
+            preparedStatement.setString(2, repoResult.getScm());
+            preparedStatement.setString(3, repoResult.getUrl());
+            preparedStatement.setString(4, repoResult.getUsername());
+            preparedStatement.setString(5, repoResult.getPassword());
+            preparedStatement.setString(6, repoResult.getSource());
+            preparedStatement.setString(7, repoResult.getBranch());
+
+            preparedStatement.execute();
+        }
+        catch(SQLException ex) {
+            LOGGER.severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(preparedStatement);
+            Helpers.closeQuietly(connection);
+        }
+
+        this.genericCache.remove(this.repoCountCacheKey);
+        this.genericCache.remove(this.repoAllRepoCacheKey);
+        return isNew;
+    }

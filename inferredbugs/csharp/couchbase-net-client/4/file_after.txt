@@ -1,0 +1,240 @@
+﻿using System;
+using System.Collections.Concurrent;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Threading;
+using Common.Logging;
+using Couchbase.Configuration.Client;
+using Couchbase.Configuration.Server.Serialization;
+using Couchbase.Core;
+using Couchbase.IO;
+using Couchbase.Utils;
+using Newtonsoft.Json;
+
+namespace Couchbase.Configuration.Server.Providers.Streaming
+{
+    internal class HttpStreamingProvider : IConfigProvider, IDisposable
+    {
+        private readonly ILog Log = LogManager.GetCurrentClassLogger();
+        private IServerConfig _serverConfig;
+        private readonly ClientConfiguration _clientConfig;
+
+        private readonly Func<IConnectionPool, IOStrategy> _ioStrategyFactory;
+        private readonly Func<PoolConfiguration, IPEndPoint, IConnectionPool> _connectionPoolFactory;
+        private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationTokens = new ConcurrentDictionary<string, CancellationTokenSource>(); 
+        private readonly ConcurrentDictionary<string, Thread> _threads = new ConcurrentDictionary<string, Thread>(); 
+        private readonly ConcurrentDictionary<string, IConfigInfo> _configs = new ConcurrentDictionary<string, IConfigInfo>();
+        private readonly ConcurrentDictionary<string, IConfigListener> _listeners = new ConcurrentDictionary<string, IConfigListener>();
+        private static readonly CountdownEvent CountdownEvent = new CountdownEvent(1);
+
+        public HttpStreamingProvider(ClientConfiguration clientConfig)
+        {
+            _clientConfig = clientConfig;
+        }
+
+        public HttpStreamingProvider(ClientConfiguration clientConfig,
+            Func<IConnectionPool, IOStrategy> ioStrategyFactory,
+            Func<PoolConfiguration, IPEndPoint, IConnectionPool> connectionPoolFactory)
+        {
+            _clientConfig = clientConfig;
+            _ioStrategyFactory = ioStrategyFactory;
+            _connectionPoolFactory = connectionPoolFactory;
+        }
+
+        public IConfigInfo GetCached(string bucketName)
+        {
+            IConfigInfo configInfo;
+            if (!_configs.TryGetValue(bucketName, out configInfo))
+            {
+                throw new ConfigNotFoundException(bucketName);
+            }
+            return configInfo;
+        }
+
+        public IConfigInfo GetConfig(string bucketName)
+        {
+            var bucketConfig = _serverConfig.Buckets.Find(x => x.Name == bucketName);
+            if (bucketConfig == null)
+            {
+                throw new BucketNotFoundException(bucketName);
+            }
+
+            IConfigInfo configInfo = null;
+            var nodes = bucketConfig.Nodes.ToList();
+            while (nodes.Any())
+            {
+                try
+                {
+                    nodes.Shuffle();
+                    var node = nodes.First();
+                    nodes.Remove(node);
+
+                    IBucketConfig newConfig;
+                    var uri = bucketConfig.GetTerseUri(node);
+                    using (var webClient = new WebClient())
+                    {
+                        var body = webClient.DownloadString(uri);
+                        newConfig = JsonConvert.DeserializeObject<BucketConfig>(body);
+                    }
+
+                    configInfo = CreateConfigInfo(newConfig);
+                   _configs[bucketName] = configInfo;
+                    break;
+
+                } 
+                catch (WebException e)
+                {
+                    Log.Error(e);
+                }
+                catch (IOException e)
+                {
+                    Log.Error(e);
+                }
+            }
+
+            if (configInfo == null)
+            {
+                throw new BucketNotFoundException();
+            }
+            return configInfo;
+        }
+
+        public void Start()
+        {
+            if (_serverConfig == null)
+            {
+                _serverConfig = new HttpServerConfig(_clientConfig);
+                _serverConfig.Initialize();
+
+                Log.Debug(m=>m("Starting provider on main thread: {0}", Thread.CurrentThread.ManagedThreadId));
+            }
+        }
+
+        public bool RegisterListener(IConfigListener listener)
+        {
+            var bucketConfig = _serverConfig.Buckets.Find(x => x.Name == listener.Name);
+            if (bucketConfig == null)
+            {
+                throw new BucketNotFoundException(listener.Name);
+            }
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            _cancellationTokens[listener.Name] = cancellationTokenSource;
+
+            var configThreadState = new ConfigThreadState(bucketConfig, ConfigChangedHandler, ErrorOccurredHandler, cancellationTokenSource.Token);
+            var thread = new Thread(configThreadState.ListenForConfigChanges);
+            
+            if (_threads.TryAdd(listener.Name, thread) && _listeners.TryAdd(listener.Name, listener))
+            {
+                _threads[listener.Name].Start();
+                
+                if (CountdownEvent.CurrentCount == 0)
+                {
+                    CountdownEvent.Reset(1);
+                }
+
+                CountdownEvent.Wait();
+            }
+            return true;//todo fix
+        }
+
+        private void ConfigChangedHandler(IBucketConfig bucketConfig)
+        {
+            //1-Compare previous with current
+            //2-if no change, then continue
+            //3-else update configuration references
+            //4-notify the listener that a new configuration is available
+
+            var listener = _listeners[bucketConfig.Name];
+
+            IConfigInfo configInfo;
+            if (_configs.ContainsKey(bucketConfig.Name))
+            {
+                configInfo = _configs[bucketConfig.Name];
+                if (configInfo.BucketConfig.Equals(bucketConfig))
+                {
+                    SignalCountdownEvent();
+                    return;
+                }
+                configInfo = CreateConfigInfo(bucketConfig);
+            }
+            else
+            {
+                configInfo = CreateConfigInfo(bucketConfig);
+                _configs.TryAdd(bucketConfig.Name, configInfo);
+            }
+            try
+            {
+                listener.NotifyConfigChanged(configInfo);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+            SignalCountdownEvent();
+        }
+
+        void SignalCountdownEvent()
+        {
+            if (CountdownEvent.CurrentCount > 0)
+            {
+                CountdownEvent.Signal();
+            }
+        }
+
+        IConfigInfo CreateConfigInfo(IBucketConfig bucketConfig)
+        {
+            IConfigInfo configInfo = new ConfigContext(bucketConfig,
+                    _clientConfig,
+                    _ioStrategyFactory,
+                    _connectionPoolFactory);
+
+            return configInfo;
+        }
+
+        static void ErrorOccurredHandler(IBucketConfig bucketConfig)
+        {
+            //TODO provide implementation to begin the bootstrapping procss from the beginning
+        }
+
+        public void Dispose()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void UnRegisterListener(IConfigListener listener)
+        {
+            Thread thread;
+            if (_threads.TryRemove(listener.Name, out thread))
+            {
+                CancellationTokenSource cancellationTokenSource;
+                if (_cancellationTokens.TryRemove(listener.Name, out cancellationTokenSource))
+                {
+                    Log.Info(m=>m("Cancelling {0}", listener.Name));
+                    cancellationTokenSource.Cancel();
+                    cancellationTokenSource.Dispose();
+                }
+
+                IConfigListener temp;
+                if (_listeners.TryRemove(listener.Name, out temp))
+                {
+                    Log.Info(m=>m("Removing listener for {0}", listener.Name));
+                }
+
+                IConfigInfo configInfo = null;
+                if (_configs.TryRemove(listener.Name, out configInfo))
+                {
+                    Log.Info(m=>m("Removing config for {0}", listener.Name));
+                }
+            }
+        }
+
+
+        public bool ListenerExists(IConfigListener listener)
+        {
+            throw new NotImplementedException();
+        }
+    }
+}
+

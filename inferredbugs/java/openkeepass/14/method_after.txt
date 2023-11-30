@@ -1,0 +1,20 @@
+ private byte[] processDatabaseEncryption(boolean encrypt, byte[] database, KeePassHeader header, byte[] aesKey)
+			throws IOException {
+		byte[] metaData = new byte[KeePassHeader.VERSION_SIGNATURE_LENGTH + header.getHeaderSize()];
+		SafeInputStream inputStream = new SafeInputStream(new BufferedInputStream(new ByteArrayInputStream(database)));
+		inputStream.readSafe(metaData);
+
+		byte[] payload = StreamUtils.toByteArray(inputStream);
+		byte[] processedPayload;
+		if (encrypt) {
+			processedPayload = Aes.encrypt(aesKey, header.getEncryptionIV(), payload);
+		} else {
+			processedPayload = Aes.decrypt(aesKey, header.getEncryptionIV(), payload);
+		}
+
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		output.write(metaData);
+		output.write(processedPayload);
+
+		return output.toByteArray();
+	}

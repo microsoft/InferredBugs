@@ -1,0 +1,33 @@
+    @Override
+    public void intercept(FixedInvocation inv) {
+        if (!config.isConfigOK()) {
+            inv.invoke();
+            return;
+        }
+
+        SsoShiroBridge ssoShiroBridge = JbootShiroManager.me().getSsoShiroBridge();
+        if (ssoShiroBridge != null && ssoShiroBridge.isSsoCallBackRequest(inv.getController())) {
+            ssoShiroBridge.subjectLogin(inv.getController());
+        }
+
+        AuthorizeResult result = JbootShiroManager.me().invoke(inv.getActionKey());
+
+        if (result == null || result.isOk()) {
+            inv.invoke();
+            return;
+        }
+
+        int errorCode = result.getErrorCode();
+
+        ShiroErrorProcess shiroErrorProcess = JbootShiroManager.me().getShiroErrorProcess();
+        switch (errorCode) {
+            case AuthorizeResult.ERROR_CODE_UNAUTHENTICATED:
+                shiroErrorProcess.doProcessUnauthenticated(inv.getController());
+                break;
+            case AuthorizeResult.ERROR_CODE_UNAUTHORIZATION:
+                shiroErrorProcess.doProcessuUnauthorization(inv.getController());
+                break;
+            default:
+                inv.getController().renderError(404);
+        }
+    }

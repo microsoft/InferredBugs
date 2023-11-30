@@ -1,0 +1,94 @@
+    boolean putEntry(long newHashEntryAdr, long hash, long keyLen, long bytes, boolean ifAbsent, long oldValueAdr, long oldValueLen)
+    {
+        long removeHashEntryAdr = 0L;
+        LongArrayList derefList = null;
+        lock.lock();
+        try
+        {
+            long hashEntryAdr;
+            long ptr = table.bucketOffset(hash);
+            for (int idx = 0; idx < entriesPerBucket; idx++, ptr += Util.BUCKET_ENTRY_LEN)
+            {
+                if ((hashEntryAdr = table.getEntryAdr(ptr)) == 0L)
+                    break;
+
+                if (table.getHash(ptr) != hash)
+                    continue;
+
+                // fetch allocLen here - same CPU cache line needed by key compare
+                long allocLen = HashEntries.getAllocLen(hashEntryAdr);
+                if (notSameKey(newHashEntryAdr, keyLen, hashEntryAdr))
+                    continue;
+
+                // replace existing entry
+
+                if (ifAbsent)
+                    return false;
+
+                if (oldValueAdr != 0L)
+                {
+                    // code for replace() operation
+                    if (HashEntries.getValueLen(hashEntryAdr) != oldValueLen
+                        || !HashEntries.compare(hashEntryAdr, Util.ENTRY_OFF_DATA + Util.roundUpTo8(keyLen), oldValueAdr, 0L, oldValueLen))
+                        return false;
+                }
+
+                freeCapacity += allocLen;
+                table.removeFromTableWithOff(hashEntryAdr, ptr, idx);
+
+                removeHashEntryAdr = hashEntryAdr;
+
+                break;
+            }
+
+            if (freeCapacity < bytes)
+            {
+                derefList = new LongArrayList();
+                do
+                {
+                    long eldestEntryAdr = table.removeEldest();
+                    if (eldestEntryAdr == 0L)
+                    {
+                        if (removeHashEntryAdr != 0L)
+                            size--;
+                        return false;
+                    }
+
+                    freeCapacity += HashEntries.getAllocLen(eldestEntryAdr);
+
+                    size--;
+                    evictedEntries++;
+                    derefList.add(eldestEntryAdr);
+                } while (freeCapacity < bytes);
+            }
+
+            if (removeHashEntryAdr == 0L)
+            {
+                if (size >= threshold)
+                    rehash();
+
+                size++;
+            }
+
+            if (!add(newHashEntryAdr, hash))
+                return false;
+
+            freeCapacity -= bytes;
+
+            if (removeHashEntryAdr == 0L)
+                putAddCount++;
+            else
+                putReplaceCount++;
+
+            return true;
+        }
+        finally
+        {
+            lock.unlock();
+            if (removeHashEntryAdr != 0L)
+                HashEntries.dereference(removeHashEntryAdr);
+            if (derefList != null)
+                for (int i = 0; i < derefList.size(); i++)
+                    HashEntries.dereference(derefList.getLong(i));
+        }
+    }

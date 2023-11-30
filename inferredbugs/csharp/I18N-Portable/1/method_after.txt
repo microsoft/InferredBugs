@@ -1,0 +1,31 @@
+        [TestCase("en", "Line One", "Line Two", "Line Three")]
+        [TestCase("es", "Línea Uno", "Línea dos", "Línea Tres")]
+        public void Translation_ShouldConsider_LineBreakCharacters(string locale, string line1, string line2, string line3)
+        {
+            const string key = "TextWithLineBreakCharacters";
+            
+            void AssertTranslations()
+            {
+                var textWithLineBreaks = I18N.Current.Translate(key);
+                var textWithLineBreaksOrNull = I18N.Current.TranslateOrNull(key);
+                var expected = $"{line1}{Environment.NewLine}{line2}{Environment.NewLine}{line3}";
+
+                Assert.AreEqual(expected, textWithLineBreaks);
+                Assert.AreEqual(expected, textWithLineBreaksOrNull);
+            }
+            
+            I18N.Current.Locale = locale;
+            AssertTranslations();
+            
+            Reload("JsonKvpLocales", new JsonKvpReader(), ".json");
+            I18N.Current.Locale = locale;
+            AssertTranslations();
+
+            Reload("JsonListLocales", new JsonListReader(), ".json");
+            I18N.Current.Locale = locale;
+            AssertTranslations();
+
+            Reload("CsvLineLocales", new SingleLocaleCsvReader(), ".csv");
+            I18N.Current.Locale = locale;
+            AssertTranslations();
+        }

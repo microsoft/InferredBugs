@@ -1,0 +1,25 @@
+        [Fact]
+        public void Dispatch_WhenExpectedResponseHasNotBeenSet_ResponseMapperIsCalledAndReturns500Response()
+        {
+            var nancyContext = new NancyContext
+            {
+                Request = new Request("GET", "/", "HTTP"),
+                Parameters = new ExpandoObject()
+            };
+            nancyContext.Parameters.ExpectedRequest = new PactProviderServiceRequest();
+            nancyContext.Parameters.ExpectedResponse = null;
+
+            var mockNancyResponseMapper = Substitute.For<INancyResponseMapper>();
+            mockNancyResponseMapper.Convert(Arg.Any<PactProviderServiceResponse>())
+                .Returns(new Response
+                {
+                    StatusCode = HttpStatusCode.InternalServerError
+                });
+
+            IRequestDispatcher requestDispatcher = new MockProviderNancyRequestDispatcher(null, null, mockNancyResponseMapper);
+
+            var result = requestDispatcher.Dispatch(nancyContext, CancellationToken.None).Result;
+
+            mockNancyResponseMapper.Received(1).Convert(Arg.Is<PactProviderServiceResponse>(x => x.Status == 500));
+            Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
+        }

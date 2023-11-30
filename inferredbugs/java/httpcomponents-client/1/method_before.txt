@@ -1,0 +1,35 @@
+    public void handle(final HttpRequest request, 
+                       final HttpResponse response,
+                       final HttpContext context)
+        throws HttpException, IOException {
+
+        String method = request.getRequestLine().getMethod().toUpperCase();
+        if (!"GET".equals(method) &&
+            !"POST".equals(method) &&
+            !"PUT".equals(method)
+            ) {
+            throw new MethodNotSupportedException
+                (method + " not supported by " + getClass().getName());
+        }
+
+        HttpEntity entity = null;
+        if (request instanceof HttpEntityEnclosingRequest)
+            entity = ((HttpEntityEnclosingRequest)request).getEntity();
+
+        // For some reason, just putting the incoming entity into
+        // the response will not work. We have to buffer the message.
+        byte[] data = null;
+        if (entity == null) {
+            data = new byte [0];
+        } else {
+            data = EntityUtils.toByteArray(entity);
+        }
+
+        ByteArrayEntity bae = new ByteArrayEntity(data);
+        bae.setContentType(entity.getContentType());
+        entity = bae;
+
+        response.setStatusCode(HttpStatus.SC_OK);
+        response.setEntity(entity);
+
+    }

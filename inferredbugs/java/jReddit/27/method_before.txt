@@ -1,0 +1,41 @@
+    public List<Subreddit> parse(String url) throws RetrievalFailedException, RedditError {
+    	
+    	// Determine cookie
+    	String cookie = (user == null) ? null : user.getCookie();
+    	
+    	// List of subreddits
+        List<Subreddit> subreddits = new LinkedList<Subreddit>();
+        
+        // Send request to reddit server via REST client
+        Object response = restClient.get(url, cookie).getResponseObject();
+        
+        if (response instanceof JSONObject) {
+        	
+	        JSONObject object = (JSONObject) response;
+	        JSONArray array = (JSONArray) ((JSONObject) object.get("data")).get("children");
+	
+	        // Iterate over the subreddit results
+	        JSONObject data;
+	        for (Object anArray : array) {
+	            data = (JSONObject) anArray;
+	            
+	            // Make sure it is of the correct kind
+	            String kind = safeJsonToString(data.get("kind"));
+	            if (kind.equals(Kind.SUBREDDIT.value())) {
+	            	
+	            	// Create and add subreddit
+		            data = ((JSONObject) data.get("data"));
+		            subreddits.add(new Subreddit(data));
+	            
+	            }
+	            
+	        }
+        
+        } else {
+        	System.err.println("Cannot cast to JSON Object: '" + response.toString() + "'");
+        }
+
+        // Finally return list of subreddits 
+        return subreddits;
+        
+    }

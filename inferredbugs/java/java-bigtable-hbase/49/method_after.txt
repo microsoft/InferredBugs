@@ -1,0 +1,33 @@
+  @Override
+  protected boolean onOK(Metadata trailers) {
+    ProcessingStatus status = requestManager.onOK();
+
+    if (status == ProcessingStatus.INVALID) {
+      // Set an exception.
+      onError(INVALID_RESPONSE, trailers);
+      return true;
+    }
+
+    // There was a problem in the data found in onMessage(), so fail the RPC.
+    if (status == ProcessingStatus.SUCCESS || status == ProcessingStatus.NOT_RETRYABLE) {
+      // Set the response, with either success, or non-retryable responses.
+      completionFuture.set(Arrays.asList(requestManager.buildResponse()));
+      return true;
+    }
+
+    // Perform a partial retry, if the backoff policy allows it.
+    Long nextBackOff = getNextBackoff();
+    if (nextBackOff == null) {
+      // Return the response as is, and don't retry;
+      rpc.getRpcMetrics().markRetriesExhasted();
+      completionFuture.set(Arrays.asList(requestManager.buildResponse()));
+      operationSpan.addAnnotation("MutationCount", ImmutableMap.of("failureCount",
+        AttributeValue.longAttributeValue(requestManager.getRetryRequest().getEntriesCount())));
+      return true;
+    }
+
+    performRetry(nextBackOff);
+    operationSpan.addAnnotation("MutationCount", ImmutableMap.of("retryCount",
+      AttributeValue.longAttributeValue(requestManager.getRetryRequest().getEntriesCount())));
+    return false;
+  }

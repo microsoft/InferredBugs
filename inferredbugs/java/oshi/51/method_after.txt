@@ -1,0 +1,85 @@
+    @Test
+    public void testGetChildProcesses() {
+        // Testing child processes is tricky because we don't really know a
+        // priori what processes might have children, and if we do test the full
+        // list vs. individual processes, we run into a race condition where
+        // child processes can start or stop before we measure a second time. So
+        // we can't really test for one-to-one correspondence of child process
+        // lists.
+        //
+        // We can expect code logic failures to occur all/most of the time for
+        // categories of processes, however, and allow occasional differences
+        // due to race conditions. So we will test three categories of
+        // processes: Those with 0 children, those with exactly 1 child process,
+        // and those with multiple child processes. On the second poll, we
+        // expect at least half of those categories to still be in the same
+        // category.
+        //
+        SystemInfo si = new SystemInfo();
+        OperatingSystem os = si.getOperatingSystem();
+        OSProcess[] processes = os.getProcesses(0, null);
+        Set<Integer> zeroChildSet = new HashSet<>();
+        Set<Integer> oneChildSet = new HashSet<>();
+        Set<Integer> manyChildSet = new HashSet<>();
+        // Initialize all processes with no children
+        for (OSProcess p : processes) {
+            zeroChildSet.add(p.getProcessID());
+        }
+        // Move parents with 1 or more children to other set
+        for (OSProcess p : processes) {
+            if (zeroChildSet.contains(p.getParentProcessID())) {
+                // Zero to One
+                zeroChildSet.remove(p.getParentProcessID());
+                oneChildSet.add(p.getParentProcessID());
+            } else if (oneChildSet.contains(p.getParentProcessID())) {
+                // One to many
+                oneChildSet.remove(p.getParentProcessID());
+                manyChildSet.add(p.getParentProcessID());
+            }
+        }
+        // Now test that majority of each set is in same category
+        int matched = 0;
+        int total = 0;
+        for (Integer i : zeroChildSet) {
+            if (os.getChildProcesses(i, 0, null).length == 0) {
+                matched++;
+            }
+            // Quit if enough to test
+            if (++total > 9) {
+                break;
+            }
+        }
+        if (total > 4) {
+            assertTrue("Most processes with no children should not suddenly have them.", matched > total / 2);
+        }
+        matched = 0;
+        total = 0;
+        for (Integer i : oneChildSet) {
+            if (os.getChildProcesses(i, 0, null).length == 1) {
+                matched++;
+            }
+            // Quit if enough to test
+            if (++total > 9) {
+                break;
+            }
+        }
+        if (total > 4) {
+            assertTrue("Most processes with one child should not suddenly have zero or more than one.",
+                    matched > total / 2);
+        }
+        matched = 0;
+        total = 0;
+        for (Integer i : manyChildSet) {
+            if (os.getChildProcesses(i, 0, null).length > 1) {
+                matched++;
+            }
+            // Quit if enough to test
+            if (++total > 9) {
+                break;
+            }
+        }
+        if (total > 4) {
+            assertTrue("Most processes with more than one child should not suddenly have one or less.",
+                    matched > total / 2);
+        }
+    }

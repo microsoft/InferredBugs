@@ -1,0 +1,39 @@
+    @Override
+    public boolean updateAttributes() {
+        try {
+            File ifDir = new File(String.format("/sys/class/net/%s/statistics", getName()));
+            if (!ifDir.isDirectory()) {
+                return false;
+            }
+        } catch (SecurityException e) {
+            return false;
+        }
+        String ifTypePath = String.format("/sys/class/net/%s/type", getName());
+        String carrierPath = String.format("/sys/class/net/%s/carrier", getName());
+        String txBytesPath = String.format("/sys/class/net/%s/statistics/tx_bytes", getName());
+        String rxBytesPath = String.format("/sys/class/net/%s/statistics/rx_bytes", getName());
+        String txPacketsPath = String.format("/sys/class/net/%s/statistics/tx_packets", getName());
+        String rxPacketsPath = String.format("/sys/class/net/%s/statistics/rx_packets", getName());
+        String txErrorsPath = String.format("/sys/class/net/%s/statistics/tx_errors", getName());
+        String rxErrorsPath = String.format("/sys/class/net/%s/statistics/rx_errors", getName());
+        String collisionsPath = String.format("/sys/class/net/%s/statistics/collisions", getName());
+        String rxDropsPath = String.format("/sys/class/net/%s/statistics/rx_dropped", getName());
+        String ifSpeed = String.format("/sys/class/net/%s/speed", getName());
+
+        this.timeStamp = System.currentTimeMillis();
+        this.ifType = FileUtil.getIntFromFile(ifTypePath);
+        this.connectorPresent = FileUtil.getIntFromFile(carrierPath) > 0;
+        this.bytesSent = FileUtil.getUnsignedLongFromFile(txBytesPath);
+        this.bytesRecv = FileUtil.getUnsignedLongFromFile(rxBytesPath);
+        this.packetsSent = FileUtil.getUnsignedLongFromFile(txPacketsPath);
+        this.packetsRecv = FileUtil.getUnsignedLongFromFile(rxPacketsPath);
+        this.outErrors = FileUtil.getUnsignedLongFromFile(txErrorsPath);
+        this.inErrors = FileUtil.getUnsignedLongFromFile(rxErrorsPath);
+        this.collisions = FileUtil.getUnsignedLongFromFile(collisionsPath);
+        this.inDrops = FileUtil.getUnsignedLongFromFile(rxDropsPath);
+        long speedMiB = FileUtil.getUnsignedLongFromFile(ifSpeed);
+        // speed may be -1 from file.
+        this.speed = speedMiB < 0 ? 0 : speedMiB << 20;
+
+        return true;
+    }

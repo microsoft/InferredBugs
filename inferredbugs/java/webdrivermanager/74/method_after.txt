@@ -1,0 +1,26 @@
+    protected void manage(String driverVersion) {
+        httpClient = new HttpClient(config());
+        try (HttpClient wdmHttpClient = httpClient) {
+            downloader = new Downloader(getDriverManagerType());
+
+            if (isUnknown(driverVersion)) {
+                driverVersion = resolveDriverVersion(driverVersion);
+            }
+
+            Optional<String> driverInCache = searchDriverInCache(driverVersion);
+            String exportValue;
+            if (driverInCache.isPresent() && !config().isOverride()) {
+                log.debug("Driver {} {} found in cache", getDriverName(),
+                        getDriverVersionLabel(driverVersion));
+                storeVersionToDownload(driverVersion);
+                exportValue = driverInCache.get();
+            } else {
+                exportValue = download(driverVersion);
+            }
+
+            exportDriver(exportValue);
+
+        } catch (Exception e) {
+            handleException(e, driverVersion);
+        }
+    }

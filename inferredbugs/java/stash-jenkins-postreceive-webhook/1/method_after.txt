@@ -1,0 +1,35 @@
+  @POST
+  @Path(value = "test")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Map<String, Object> test(@Context Repository repository,
+        @FormParam(Notifier.JENKINS_BASE) String jenkinsBase,
+        @FormParam(Notifier.CLONE_TYPE) String cloneType,
+        @FormParam(Notifier.CLONE_URL) String cloneUrl,
+        @FormParam(Notifier.IGNORE_CERTS) boolean ignoreCerts,
+        @FormParam(Notifier.OMIT_HASH_CODE) boolean omitHashCode) {
+    
+    if (jenkinsBase == null || cloneType == null || (cloneType.equals("custom") && cloneUrl == null)) {
+      Map<String, Object> map = new HashMap<String, Object>();
+      map.put("successful", false);
+      map.put("message", "Settings must be configured");
+      return map;
+    }
+
+    permissionService.validateForRepository(repository, Permission.REPO_ADMIN);
+    log.debug("Triggering jenkins notification for repository {}/{}", 
+        repository.getProject().getKey(), repository.getSlug());
+
+    /* @todo carl.loa.odin@klarna.com: Send null instead of master and sha1 and
+     *   handle this in notify
+     */
+    NotificationResult result = notifier.notify(repository, jenkinsBase, 
+        ignoreCerts, cloneType, cloneUrl, null, null, omitHashCode, true);
+    log.debug("Got response from jenkins: {}", result);
+
+    // Shouldn't have to do this but the result isn't being marshalled correctly
+    Map<String, Object> map = new HashMap<String, Object>();
+    map.put("successful", result.isSuccessful());
+    map.put("url", result.getUrl());
+    map.put("message", result.getMessage());
+    return map;
+  }

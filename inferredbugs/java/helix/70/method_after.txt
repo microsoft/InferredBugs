@@ -1,0 +1,69 @@
+  @Override
+  public void disconnect() {
+    if (_zkclient == null || _zkclient.isClosed()) {
+      LOG.info("instanceName: " + _instanceName + " already disconnected");
+      return;
+    }
+
+    LOG.info("disconnect " + _instanceName + "(" + _instanceType + ") from " + _clusterName);
+
+    try {
+      /**
+       * stop all timer tasks
+       */
+      stopTimerTasks();
+
+      /**
+       * shutdown thread pool first to avoid reset() being invoked in the middle of state
+       * transition
+       */
+      _messagingService.getExecutor().shutdown();
+
+      // TODO reset user defined handlers only
+      // TODO Fix the issue that when connection disconnected, reset handlers will be blocked. -- JJ
+      // This is because reset logic contains ZK operations.
+      resetHandlers(true);
+
+      if (_leaderElectionHandler != null) {
+        _leaderElectionHandler.reset(true);
+      }
+
+    } finally {
+      GenericHelixController controller = _controller;
+      if (controller != null) {
+        try {
+          controller.shutdown();
+        } catch (InterruptedException e) {
+          LOG.info("Interrupted shutting down GenericHelixController", e);
+        }
+      }
+
+      ParticipantManager participantManager = _participantManager;
+      if (participantManager != null) {
+        participantManager.disconnect();
+      }
+
+      for (HelixCallbackMonitor callbackMonitor : _callbackMonitors.values()) {
+        callbackMonitor.unregister();
+      }
+
+      _helixPropertyStore = null;
+
+      synchronized (this) {
+        if (_controller != null) {
+          _controller = null;
+          _leaderElectionHandler = null;
+        }
+
+        if (_participantManager != null) {
+          _participantManager = null;
+        }
+
+        if (_zkclient != null) {
+          _zkclient.close();
+        }
+      }
+      _sessionStartTime = null;
+      LOG.info("Cluster manager: " + _instanceName + " disconnected");
+    }
+  }

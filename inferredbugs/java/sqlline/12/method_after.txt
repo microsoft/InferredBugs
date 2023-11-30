@@ -1,0 +1,46 @@
+  @Test
+  public void testHelpSet() {
+    final String expected = "1/1          !help set\n"
+        + "!set                List / set a sqlline variable\n"
+        + "\n"
+        + "Variables:\n"
+        + "\n"
+        + "Variable        Value      Description\n"
+        + "=============== ========== "
+        + "==================================================\n"
+        + "autoCommit      true/false "
+        + "Enable/disable automatic transaction commit\n"
+        + "autoSave        true/false Automatically save preferences\n";
+    checkScriptFile("!help set\n", false, equalTo(SqlLine.Status.OK),
+        containsString(expected));
+
+    // Make sure that each variable (autoCommit, autoSave, color, etc.) has a
+    // line in the output of '!help set'
+    String help = sqlLine.loc("help-set")
+        + sqlLine.loc("variables");
+
+    final TreeSet<String> propertyNamesMixed =
+        Arrays.stream(BuiltInProperty.values())
+            .map(BuiltInProperty::propertyName)
+            .collect(Collectors.toCollection(TreeSet::new));
+    for (String p : propertyNamesMixed) {
+      assertThat(help, containsString("\n" + p + " "));
+    }
+    assertThat(propertyNamesMixed.contains("autoCommit"),
+        is(true));
+    assertThat(propertyNamesMixed.contains("autocommit"),
+        is(false));
+    assertThat(propertyNamesMixed.contains("trimScripts"),
+        is(true));
+
+    while (help.length() > 0) {
+      int i = help.indexOf("\n", 1);
+      if (i < 0) {
+        break;
+      }
+      if (i > 78) {
+        fail("line exceeds 78 chars: " + i + ": " + help.substring(0, i));
+      }
+      help = help.substring(i);
+    }
+  }

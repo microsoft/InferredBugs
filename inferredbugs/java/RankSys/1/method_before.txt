@@ -1,0 +1,21 @@
+    @Override
+    public Stream<IdObject<U, List<I>>> get() {
+        BufferedReader candidatesReader;
+        try {
+            candidatesReader = new BufferedReader(new FileReader(candidatesPath));
+        } catch (FileNotFoundException ex) {
+            throw new UncheckedIOException(ex);
+        }
+
+        return candidatesReader.lines().parallel().map(line -> {
+            CharSequence[] tokens = split(line, '\t', 3);
+            final U user = uParser.parse(tokens[0]);
+            final List<I> candidates = new ArrayList<>();
+            for (CharSequence candidate : split(tokens[1], ',')) {
+                candidates.add(iParser.parse(candidate));
+            }
+            testData.getUserPreferences(user).forEach(iv -> candidates.add(iv.id));
+            
+            return new IdObject<>(user, candidates);
+        });
+    }

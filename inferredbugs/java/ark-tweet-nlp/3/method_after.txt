@@ -1,0 +1,67 @@
+ public void runTagger() throws IOException, ClassNotFoundException {
+		
+		tagger = new Tagger();
+		if (!justTokenize) {
+			tagger.loadModel(modelFilename);			
+		}
+		
+		if (inputFormat.equals("conll")) {
+			runTaggerInEvalMode();
+			return;
+		} 
+		assert (inputFormat.equals("json") || inputFormat.equals("text"));
+		
+		JsonTweetReader jsonTweetReader = new JsonTweetReader();
+		
+		LineNumberReader reader = new LineNumberReader(BasicFileIO.openFileToReadUTF8(inputFilename));
+		String line;
+		long currenttime = System.currentTimeMillis();
+		int numtoks = 0;
+		while ( (line = reader.readLine()) != null) {
+			String[] parts = line.split("\t");
+			String tweetData = parts[inputField-1];
+			
+			if (reader.getLineNumber()==1) {
+				if (inputFormat.equals("auto")) {
+					detectAndSetInputFormat(tweetData);
+				}
+			}
+			
+			String text;
+			if (inputFormat.equals("json")) {
+				text = jsonTweetReader.getText(tweetData);
+				if (text==null) {
+					System.err.println("Warning, null text (JSON parse error?), using blank string instead");
+					text = "";
+				}
+			} else {
+				text = tweetData;
+			}
+			
+			Sentence sentence = new Sentence();
+			
+			sentence.tokens = Twokenize.tokenizeRawTweetText(text);
+			ModelSentence modelSentence = null;
+
+			if (sentence.T() > 0 && !justTokenize) {
+				modelSentence = new ModelSentence(sentence.T());
+				tagger.featureExtractor.computeFeatures(sentence, modelSentence);
+				goDecode(modelSentence);
+			}
+				
+			if (outputFormat.equals("conll")) {
+				outputJustTagging(sentence, modelSentence);
+			} else {
+				outputPrependedTagging(sentence, modelSentence, justTokenize, line);				
+			}
+			numtoks += sentence.T();
+		}
+		long finishtime = System.currentTimeMillis();
+		System.err.printf("Tokenized%s %d tweets (%d tokens) in %.1f seconds: %.1f tweets/sec, %.1f tokens/sec\n",
+				justTokenize ? "" : " and tagged", 
+				reader.getLineNumber(), numtoks, (finishtime-currenttime)/1000.0,
+				reader.getLineNumber() / ((finishtime-currenttime)/1000.0),
+				numtoks / ((finishtime-currenttime)/1000.0)
+		);
+		reader.close();
+	}

@@ -1,0 +1,38 @@
+        @Override
+        public List<String> getURLsFromPage(Document doc) {
+            List<String> result = new ArrayList<String>();
+            Document userpage_doc;
+            // We check for the following string to see if this is a user page or not
+            if (doc.toString().contains("content=\"gallery\"")) {
+                for (Element elem : doc.select("a.image-container")) {
+                    String link = elem.attr("href");
+                    logger.info("Grabbing album " + link);
+                    try {
+                        userpage_doc = Http.url(link).get();
+                    } catch(IOException e){
+                        logger.warn("Failed to log link in Jsoup");
+                        userpage_doc = null;
+                        e.printStackTrace();
+                    }
+                    for (Element element : userpage_doc.select("a.image-container > img")) {
+                            String imageSource = element.attr("src");
+                            logger.info("Found image " + link);
+                            // We remove the .md from images so we download the full size image
+                            // not the medium ones
+                            imageSource = imageSource.replace(".md", "");
+                            result.add(imageSource);
+                        }
+                }
+
+            }
+            else {
+                for (Element el : doc.select("a.image-container > img")) {
+                    String imageSource = el.attr("src");
+                    // We remove the .md from images so we download the full size image
+                    // not the medium ones
+                    imageSource = imageSource.replace(".md", "");
+                    result.add(imageSource);
+                }
+            }
+            return result;
+        }

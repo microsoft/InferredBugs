@@ -1,0 +1,18 @@
+  protected void run() {
+    try (Scope scope = TRACER.withSpan(operationSpan)) {
+      rpcTimerContext = rpc.getRpcMetrics().timeRpc();
+      operationSpan.addAnnotation(Annotation.fromDescriptionAndAttributes("rpcStart",
+        ImmutableMap.of("attempt", AttributeValue.longAttributeValue(failedCount))));
+      Metadata metadata = new Metadata();
+      metadata.merge(originalMetadata);
+      synchronized (callLock) {
+        // There's a subtle race condition in RetryingStreamOperation which requires a separate
+        // newCall/start split. The call variable needs to be set before onMessage() happens; that
+        // usually will occur, but some unit tests broke with a merged newCall and start.
+        call = rpc.newCall(getRpcCallOptions());
+        rpc.start(getRetryRequest(), this, metadata, call);
+      }
+    } catch (Exception e) {
+      setException(e);
+    }
+  }

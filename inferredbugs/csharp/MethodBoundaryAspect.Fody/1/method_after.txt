@@ -1,0 +1,25 @@
+        public void Weave(string assemblyPath)
+        {
+            var readerParameters = new ReaderParameters
+            {
+                ReadSymbols = true,
+                SymbolReaderProvider = new PdbReaderProvider(),
+				ReadWrite = true
+            };
+
+            if (_additionalAssemblyResolveFolders.Any())
+                readerParameters.AssemblyResolver = new FolderAssemblyResolver(_additionalAssemblyResolveFolders);
+
+			using (var assemblyDefinition = AssemblyDefinition.ReadAssembly(assemblyPath, readerParameters))
+			{
+				var module = assemblyDefinition.MainModule;
+				Execute(module);
+
+				var writerParameters = new WriterParameters
+				{
+					WriteSymbols = true,
+					SymbolWriterProvider = new PdbWriterProvider()
+				};
+				assemblyDefinition.Write(writerParameters);
+			}
+        }

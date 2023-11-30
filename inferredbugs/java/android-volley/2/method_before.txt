@@ -1,0 +1,29 @@
+    @Override
+    public synchronized Entry get(String key) {
+        CacheHeader entry = mEntries.get(key);
+        // if the entry does not exist, return.
+        if (entry == null) {
+            return null;
+        }
+
+        File file = getFileForKey(key);
+        CountingInputStream cis = null;
+        try {
+            cis = new CountingInputStream(new FileInputStream(file));
+            CacheHeader.readHeader(cis); // eat header
+            byte[] data = streamToBytes(cis, (int) (file.length() - cis.bytesRead));
+            return entry.toCacheEntry(data);
+        } catch (IOException e) {
+            VolleyLog.d("%s: %s", file.getAbsolutePath(), e.toString());
+            remove(key);
+            return null;
+        } finally {
+            if (cis != null) {
+                try {
+                    cis.close();
+                } catch (IOException ioe) {
+                    return null;
+                }
+            }
+        }
+    }

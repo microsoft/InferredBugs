@@ -1,0 +1,27 @@
+    public void takeSnapshot() {
+        if (raftLog.getTotalSize() < RaftOption.snapshotMinLogSize) {
+            return;
+        }
+        if (lastAppliedIndex <= snapshot.getMetaData().getLastIncludedIndex()) {
+            return;
+        }
+        long lastAppliedTerm = 0;
+        if (lastAppliedIndex >= raftLog.getFirstLogIndex()
+                && lastAppliedIndex <= raftLog.getLastLogIndex()) {
+            lastAppliedTerm = raftLog.getEntry(lastAppliedIndex).getTerm();
+        }
+
+        if (!isSnapshoting) {
+            isSnapshoting = true;
+            // take snapshot
+            String tmpSnapshotDir = snapshot.getSnapshotDir() + ".tmp";
+            snapshot.updateMetaData(tmpSnapshotDir, lastAppliedIndex, lastAppliedTerm);
+            String tmpSnapshotDataDir = tmpSnapshotDir + File.pathSeparator + "data";
+            stateMachine.writeSnapshot(tmpSnapshotDataDir);
+            try {
+                FileUtils.moveDirectory(new File(tmpSnapshotDir), new File(snapshot.getSnapshotDir()));
+            } catch (IOException ex) {
+                LOG.warn("move direct failed, msg={}", ex.getMessage());
+            }
+        }
+    }

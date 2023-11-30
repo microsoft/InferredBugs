@@ -1,0 +1,40 @@
+        private static DataDirectory ReadExportDataDirectory(byte[] programHeader, int index)
+        {
+            using (var reader = new BinaryReader(new MemoryStream(programHeader)))
+            {
+                const uint portableExecutableMagic = 0x00004550;
+                reader.BaseStream.Position = 0x3c;
+
+                reader.BaseStream.Position = reader.ReadInt32();
+
+                if(reader.ReadUInt32() != portableExecutableMagic)
+                {
+                    throw new Win32Exception(
+                        $"Invalid portable executable header {portableExecutableMagic}.");
+                }
+
+                reader.BaseStream.Position += 0x14;
+
+                switch(reader.ReadUInt16())
+                {
+                    case 0x10b:
+                        reader.BaseStream.Position += 0x5E;
+                        break;
+                    case 0x20b:
+                        reader.BaseStream.Position += 0x6E;
+                        break;
+
+                    default:
+                        throw new InvalidOperationException("Portable executable header not supported");
+                }
+
+                reader.BaseStream.Position += (index * 8);
+
+                var rva = reader.ReadUInt32();
+                var size = reader.ReadUInt32();
+
+                reader.Close();
+
+                return new DataDirectory(rva, size);
+            }
+        }

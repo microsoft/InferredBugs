@@ -1,0 +1,31 @@
+  private Boolean handleImageMissing(Image img, boolean recap) {
+    log(lvl, "handleImageMissing: %s (%s)", img.getName(), (recap?"recapture ":"capture missing "));
+    FindFailedResponse response = handleFindFailedShowDialog(img, true);
+    if (findFailedResponse.RETRY.equals(response)) {
+      getRobotForRegion().delay(500);
+      ScreenImage simg = getScreen().userCapture(
+              (recap?"recapture ":"capture missing ") + img.getName());
+      if (simg != null) {
+        String path = ImagePath.getBundlePath();
+        if (path == null) {
+          log(-1, "handleImageMissing: no bundle path - aborting");
+          return null;
+        }
+        simg.getFile(path, img.getImageName());
+        Image.set(img);
+        if (img.isValid()) {
+          log(lvl, "handleImageMissing: %scaptured: %s", (recap?"re":""), img);
+          Image.setIDEshouldReload();
+          return true;
+        }
+      }
+      return null;
+    } else if (findFailedResponse.HANDLE.equals(response)) {
+      log(-1, "handleImageMissing: HANDLE: not implemented");
+      return null;
+    } else if (findFailedResponse.ABORT.equals(response)) {
+      return null;
+    }
+    log(lvl, "handleImageMissing: skip requested on %s", (recap?"recapture ":"capture missing "));
+    return false;
+  }

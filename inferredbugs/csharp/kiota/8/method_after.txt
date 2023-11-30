@@ -1,0 +1,19 @@
+        [Fact]
+        public void AddNamespaceModuleImports() {
+            var declaration = parentClass.StartBlock as CodeClass.Declaration;
+            var subNS = graphNS.AddNamespace($"{graphNS.Name}.messages");
+            var messageClassDef = new CodeClass(subNS) {
+                Name = "Message",
+            };
+            subNS.AddClass(messageClassDef);
+            declaration.Usings.Add(new (parentClass) {
+                Name = messageClassDef.Name,
+                Declaration = new(parentClass) {
+                    Name = messageClassDef.Name,
+                    TypeDefinition = messageClassDef,
+                }
+            });
+            ILanguageRefiner.Refine(new GenerationConfiguration { Language = GenerationLanguage.Ruby, ClientNamespaceName = graphNS.Name }, root);
+            Assert.Equal("./messages/message", declaration.Usings.First().Declaration.Name);
+            Assert.Equal("./graph", declaration.Usings.Last().Declaration.Name);
+        }

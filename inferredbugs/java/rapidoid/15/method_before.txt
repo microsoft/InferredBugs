@@ -1,0 +1,25 @@
+ private static List<Class<?>> getClassesFromJAR(String jarName, List<Class<?>> classes, String pkg, Pattern regex,
+			Predicate<Class<?>> filter, Class<? extends Annotation> annotated, ClassLoader classLoader) {
+
+		try {
+			String pkgPath = pkgToPath(pkg);
+			ZipInputStream zip = new ZipInputStream(new URL("file://" + jarName).openStream());
+
+			ZipEntry e;
+			while ((e = zip.getNextEntry()) != null) {
+				if (!e.isDirectory()) {
+					String name = e.getName();
+
+					if (!ignore(name)) {
+						if (U.isEmpty(pkg) || name.startsWith(pkgPath)) {
+							scanFile(classes, regex, filter, annotated, classLoader, name);
+						}
+					}
+				}
+			}
+		} catch (Exception e) {
+			throw U.rte(e);
+		}
+
+		return classes;
+	}

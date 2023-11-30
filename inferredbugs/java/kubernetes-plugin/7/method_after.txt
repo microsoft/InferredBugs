@@ -1,0 +1,21 @@
+    public void push(String item) throws IOException {
+        if (run == null) {
+            LOGGER.warning("run is null, cannot push");
+            return;
+        }
+        synchronized (run) {
+            BulkChange bc = new BulkChange(run);
+            try {
+                AbstractInvisibleRunAction2 action = run.getAction(this.getClass());
+                if (action == null) {
+                    action = createAction(run);
+                    run.addAction(action);
+                }
+                LOGGER.log(Level.INFO, "Pushing item {0} to action {1} in run {2}", new Object[] { item, action, run });
+                action.stack.push(item);
+                bc.commit();
+            } finally {
+                bc.abort();
+            }
+        }
+    }

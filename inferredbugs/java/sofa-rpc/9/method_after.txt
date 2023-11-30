@@ -1,0 +1,29 @@
+    @Override
+    protected Object getFallback() {
+        events.add(SofaAsyncHystrixEvent.FALLBACK_EMIT);
+        if (lock.getCount() > 0) {
+            // > 0 说明 run 方法没有执行，或是执行时立刻失败了
+            this.sofaResponse = buildEmptyResponse(request);
+            lock.countDown();
+            events.add(SofaAsyncHystrixEvent.FALLBACK_UNLOCKED);
+        }
+        FallbackFactory fallbackFactory = SofaHystrixConfig.loadFallbackFactory((ConsumerConfig) invoker.getConfig());
+        if (fallbackFactory == null) {
+            return super.getFallback();
+        }
+        Object fallback = fallbackFactory.create(new FallbackContext(invoker, request, this.sofaResponse, this
+            .getExecutionException()));
+        if (fallback == null) {
+            return super.getFallback();
+        }
+        try {
+            return request.getMethod().invoke(fallback, request.getMethodArgs());
+        } catch (IllegalAccessException e) {
+            throw new SofaRpcRuntimeException("Hystrix fallback method failed to execute.", e);
+        } catch (InvocationTargetException e) {
+            throw new SofaRpcRuntimeException("Hystrix fallback method failed to execute.",
+                e.getTargetException());
+        } finally {
+            events.add(SofaAsyncHystrixEvent.FALLBACK_SUCCESS);
+        }
+    }

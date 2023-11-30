@@ -1,0 +1,78 @@
+    @Override public void model() {
+
+        String lines[] = new String[100];
+
+		/* read from file args[0] or qcp.txt */
+        try {
+
+            BufferedReader in = new BufferedReader(new FileReader(filename));
+            String str;
+
+            while ((str = in.readLine()) != null) {
+                lines[n] = str;
+                n++;
+            }
+            in.close();
+        } catch (FileNotFoundException e) {
+            System.err.println("You need to run this program in a directory that contains the required file.");
+            System.err.println("I can not find file " + filename);
+            System.exit(-1);
+        } catch (IOException e) {
+            System.err.println("Something is wrong with file" + filename);
+        }
+
+        n = n - 1;
+		/* Creating constraint store */
+        int numbers[][] = new int[n][n];
+
+        // Transforms strings into ints
+        for (int i = 1; i < n + 1; i++) {
+            Pattern pat = Pattern.compile(" ");
+            String[] result = pat.split(lines[i]);
+
+            int current = 0;
+            for (int j = 0; j < result.length; j++)
+                try {
+                    int currentNo = Integer.parseInt(result[j]);
+                    numbers[i - 1][current++] = currentNo;
+                } catch (Exception ex) {
+
+                }
+        }
+
+        store = new Store();
+        store.queueNo = 4;
+
+        vars = new ArrayList<IntVar>();
+
+        // Get problem size n from second program argument.
+        IntVar[][] x = new IntVar[n][n];
+
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++) {
+                if (numbers[i][j] == -1) {
+                    x[i][j] = new IntVar(store, "x" + i + "_" + j, 0, n - 1);
+                    vars.add(x[i][j]);
+                } else
+                    x[i][j] = new IntVar(store, "x" + i + "_" + j, numbers[i][j], numbers[i][j]);
+                vars.add(x[i][j]);
+            }
+
+        // Create variables and state constraints.
+        for (int i = 0; i < n; i++) {
+            Constraint cx = new Alldistinct(x[i]);
+
+            store.impose(cx);
+            shavingConstraints.add(cx);
+
+            IntVar[] y = new IntVar[n];
+            for (int j = 0; j < n; j++)
+                y[j] = x[j][i];
+
+            Constraint cy = new Alldistinct(y);
+            store.impose(cy);
+            shavingConstraints.add(cy);
+
+        }
+
+    }

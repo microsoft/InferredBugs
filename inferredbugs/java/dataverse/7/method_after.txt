@@ -1,0 +1,27 @@
+    public void init() {
+
+        if (dataset.getId() != null) { // view mode for a dataset           
+            dataset = datasetService.find(dataset.getId());
+            editVersion = dataset.getLatestVersion();
+            ownerId = dataset.getOwner().getId();
+            editVersion.setDatasetFields(editVersion.initDatasetFields());
+            datasetVersionUI = new DatasetVersionUI(editVersion);
+        } else if (ownerId != null) {
+            // create mode for a new child dataset
+            editMode = EditMode.CREATE;
+            dataset.setOwner(dataverseService.find(ownerId));
+            dataset.setVersions(new ArrayList());
+            editVersion.setDataset(dataset);
+            editVersion.setFileMetadatas(new ArrayList());
+            editVersion.setVersionState(VersionState.DRAFT);
+            editVersion.setDatasetFields(editVersion.initDatasetFields());
+            editVersion.setVersionNumber(new Long(1));
+            datasetVersionUI = new DatasetVersionUI(editVersion);
+            //TODO add call to initDepositFields if it's decided that they are indeed metadata
+            //initDepositFields();
+            dataset.getVersions().add(editVersion);
+            FacesContext.getCurrentInstance().addMessage(null, new FacesMessage(FacesMessage.SEVERITY_INFO, "Add New Dataset", " - Enter metadata to create the dataset's citation. You can add more metadata about this dataset after it's created."));
+        } else {
+            throw new RuntimeException("On Dataset page without id or ownerid."); // improve error handling
+        }
+    }

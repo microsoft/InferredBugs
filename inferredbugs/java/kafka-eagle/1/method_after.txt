@@ -1,0 +1,36 @@
+ public static long getLogSize(List<String> hosts, String topic, int partition) {
+		LOG.info("Find leader hosts [" + hosts + "]");
+		PartitionMetadata metadata = findLeader(hosts, topic, partition);
+		if (metadata == null) {
+			LOG.error("[KafkaClusterUtils.getLogSize()] - Can't find metadata for Topic and Partition. Exiting");
+			return 0L;
+		}
+		if (metadata.leader() == null) {
+			LOG.error("[KafkaClusterUtils.getLogSize()] - Can't find Leader for Topic and Partition. Exiting");
+			return 0L;
+		}
+
+		String clientName = "Client_" + topic + "_" + partition;
+		String reaHost = metadata.leader().host();
+		int port = metadata.leader().port();
+
+		long ret = 0L;
+		try {
+			SimpleConsumer simpleConsumer = new SimpleConsumer(reaHost, port, 100000, 64 * 1024, clientName);
+			TopicAndPartition topicAndPartition = new TopicAndPartition(topic, partition);
+			Map<TopicAndPartition, PartitionOffsetRequestInfo> requestInfo = new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
+			requestInfo.put(topicAndPartition, new PartitionOffsetRequestInfo(OffsetRequest.LatestTime(), 1));
+			kafka.javaapi.OffsetRequest request = new kafka.javaapi.OffsetRequest(requestInfo, OffsetRequest.CurrentVersion(), clientName);
+			OffsetResponse response = simpleConsumer.getOffsetsBefore(request);
+			if (response.hasError()) {
+				System.out.println("Error fetching data Offset , Reason: " + response.errorCode(topic, partition));
+				LOG.error("Error fetching data Offset , Reason: " + response.errorCode(topic, partition));
+				return 0;
+			}
+			long[] offsets = response.offsets(topic, partition);
+			ret = offsets[0];
+		} catch (Exception ex) {
+			LOG.error(ex.getMessage());
+		}
+		return ret;
+	}

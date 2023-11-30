@@ -1,0 +1,28 @@
+    private DatasetVersion createNewDatasetVersion() {
+        DatasetVersion dsv = new DatasetVersion();
+        dsv.setVersionState(DatasetVersion.VersionState.DRAFT);
+
+        DatasetVersion latestVersion = getLatestVersion();
+        //if the latest version has values get them copied over
+        if (latestVersion.getDatasetFields() != null && !latestVersion.getDatasetFields().isEmpty()) {
+            dsv.setDatasetFields(dsv.copyDatasetFields(latestVersion.getDatasetFields()));
+        }
+        dsv.setFileMetadatas(new ArrayList());
+
+        for (FileMetadata fm : latestVersion.getFileMetadatas()) {
+            FileMetadata newFm = new FileMetadata();
+            newFm.setCategory(fm.getCategory());
+            newFm.setDescription(fm.getDescription());
+            newFm.setLabel(fm.getLabel());
+            newFm.setDataFile(fm.getDataFile());
+            newFm.setDatasetVersion(dsv);
+            dsv.getFileMetadatas().add(newFm);
+        }
+
+        dsv.setVersionNumber(latestVersion.getVersionNumber() + 1);
+        // I'm adding the version to the list so it will be persisted when
+        // the study object is persisted.
+        getVersions().add(0, dsv);
+        dsv.setDataset(this);
+        return dsv;
+    }

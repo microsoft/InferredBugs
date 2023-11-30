@@ -1,0 +1,30 @@
+    public synchronized boolean saveApi(ApiResult apiResult) {
+        boolean successful = false;
+
+        Connection connection = null;
+        PreparedStatement preparedStatement = null;
+        ResultSet resultSet = null;
+
+        try {
+            connection = this.dbConfig.getConnection();
+            preparedStatement = connection.prepareStatement("INSERT INTO \"api\" (\"publickey\",\"privatekey\",\"lastused\",\"data\") VALUES (?,?,?,?)");
+
+            preparedStatement.setString(1, apiResult.getPublicKey());
+            preparedStatement.setString(2, apiResult.getPrivateKey());
+            preparedStatement.setString(3, apiResult.getLastUsed());
+            preparedStatement.setString(4, apiResult.getData());
+
+            preparedStatement.execute();
+
+            successful = true;
+        }
+        catch(SQLException ex) {
+            Singleton.getLogger().severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(resultSet);
+            Helpers.closeQuietly(preparedStatement);
+        }
+
+        return successful;
+    }

@@ -1,0 +1,28 @@
+ public static final synchronized void download(URL url, String version,
+			String export) throws IOException {
+		File targetFile = new File(getTarget(version, url));
+		File binary;
+
+		if (!targetFile.getParentFile().exists()
+				|| WdmConfig.getBoolean("wdm.override")) {
+			log.debug("Downloading {} to {}", url, targetFile);
+			FileUtils.copyURLToFile(url, targetFile);
+
+			if (export.contains("edge")) {
+				binary = extractMsi(targetFile);
+			} else {
+				binary = unZip(targetFile);
+			}
+			targetFile.delete();
+		} else {
+			binary = FileUtils
+					.listFiles(targetFile.getParentFile(), null, true)
+					.iterator().next();
+			log.debug("Using binary driver previously downloaded {}", binary);
+		}
+
+		if (export != null) {
+			BrowserManager.exportDriver(export, binary.toString());
+		}
+
+	}

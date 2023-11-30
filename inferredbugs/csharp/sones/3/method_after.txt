@@ -1,0 +1,33 @@
+        protected override void AlterType_Add(IRequestAlterType myAlterTypeRequest,
+                                                IVertexType myType,
+                                                Int64 myTransactionToken,
+                                                SecurityToken mySecurityToken,
+                                                ref RequestUpdate myUpdateRequest)
+        {
+            var request = myAlterTypeRequest as RequestAlterVertexType;
+
+            AddAttributes(request.ToBeAddedBinaryProperties,
+                          request.ToBeAddedIncomingEdges,
+                          request.ToBeAddedOutgoingEdges,
+                          request.ToBeAddedProperties,
+                          request.ToBeDefinedAttributes,
+                          myType, myTransactionToken, mySecurityToken);
+
+            myType = GetType(request.TypeName, myTransactionToken, mySecurityToken);
+
+            AddMandatoryConstraint(request.ToBeAddedMandatories, myType, myTransactionToken,
+                                   mySecurityToken);
+
+            var indexDefinitions = AddUniqueConstraint(request, myTransactionToken, mySecurityToken);
+
+            AddIndices(request.ToBeAddedIndices, myType, myTransactionToken, mySecurityToken);
+
+            var info = new TypeInfo();
+            info.VertexInfo = new VertexInformation((long)BaseTypes.VertexType,
+                                                    myType.ID);
+
+            ConnectVertexToUniqueIndex(info, 
+                                        indexDefinitions, 
+                                        mySecurityToken, 
+                                        myTransactionToken);
+        }

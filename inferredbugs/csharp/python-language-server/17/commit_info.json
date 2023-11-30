@@ -1,0 +1,665 @@
+{
+    "hash": "d795dd4de658cb38c630ca35bd8afc8a96c71aa3",
+    "message": "Implement proper line split + tests (#1544)\n\n* Implement proper line split + tests\r\n\r\n* Out of order test\r\n\r\n* Rename method\r\n\r\n* Unused code",
+    "file_num_lines": 240,
+    "diff_parsed": {
+        "added": [
+            [
+                18,
+                "using System.Linq;"
+            ],
+            [
+                19,
+                "using System.Reflection;"
+            ],
+            [
+                23,
+                "using Microsoft.Python.Parsing;"
+            ],
+            [
+                83,
+                "            doc.Update(new[] {"
+            ],
+            [
+                133,
+                ""
+            ],
+            [
+                134,
+                "        [TestMethod, Priority(0)]"
+            ],
+            [
+                135,
+                "        public void DeleteMultipleDisjoint() {"
+            ],
+            [
+                136,
+                "            var doc = new DocumentBuffer();"
+            ],
+            [
+                137,
+                "            doc.Reset(0, @\""
+            ],
+            [
+                138,
+                "line1"
+            ],
+            [
+                139,
+                "line2"
+            ],
+            [
+                140,
+                "line3"
+            ],
+            [
+                141,
+                "line4"
+            ],
+            [
+                142,
+                "\");"
+            ],
+            [
+                143,
+                "            doc.Update(new[] {"
+            ],
+            [
+                144,
+                "                DocumentChange.Delete(new SourceSpan(5, 5, 5, 6)),"
+            ],
+            [
+                145,
+                "                DocumentChange.Delete(new SourceSpan(4, 5, 4, 6)),"
+            ],
+            [
+                146,
+                "                DocumentChange.Delete(new SourceSpan(3, 5, 3, 6)),"
+            ],
+            [
+                147,
+                "                DocumentChange.Delete(new SourceSpan(2, 5, 2, 6))"
+            ],
+            [
+                148,
+                "            });"
+            ],
+            [
+                149,
+                "            Assert.AreEqual(@\""
+            ],
+            [
+                150,
+                "line"
+            ],
+            [
+                151,
+                "line"
+            ],
+            [
+                152,
+                "line"
+            ],
+            [
+                153,
+                "line"
+            ],
+            [
+                154,
+                "\", doc.Text);"
+            ],
+            [
+                155,
+                "        }"
+            ],
+            [
+                156,
+                ""
+            ],
+            [
+                157,
+                "        [TestMethod, Priority(0)]"
+            ],
+            [
+                158,
+                "        public void InsertMultipleDisjoint() {"
+            ],
+            [
+                159,
+                "            var doc = new DocumentBuffer();"
+            ],
+            [
+                160,
+                "            doc.Reset(0, @\""
+            ],
+            [
+                161,
+                "line"
+            ],
+            [
+                162,
+                "line"
+            ],
+            [
+                163,
+                "line"
+            ],
+            [
+                164,
+                "line"
+            ],
+            [
+                165,
+                "\");"
+            ],
+            [
+                166,
+                "            doc.Update(new[] {"
+            ],
+            [
+                167,
+                "                DocumentChange.Insert(\"4\", new SourceLocation(5, 5)),"
+            ],
+            [
+                168,
+                "                DocumentChange.Insert(\"3\", new SourceLocation(4, 5)),"
+            ],
+            [
+                169,
+                "                DocumentChange.Insert(\"2\", new SourceLocation(3, 5)),"
+            ],
+            [
+                170,
+                "                DocumentChange.Insert(\"1\", new SourceLocation(2, 5)),"
+            ],
+            [
+                171,
+                "            });"
+            ],
+            [
+                172,
+                "            Assert.AreEqual(@\""
+            ],
+            [
+                173,
+                "line1"
+            ],
+            [
+                174,
+                "line2"
+            ],
+            [
+                175,
+                "line3"
+            ],
+            [
+                176,
+                "line4"
+            ],
+            [
+                177,
+                "\", doc.Text);"
+            ],
+            [
+                178,
+                "        }"
+            ],
+            [
+                179,
+                ""
+            ],
+            [
+                180,
+                "        [TestMethod, Priority(0)]"
+            ],
+            [
+                181,
+                "        public void DeleteAcrossLines() {"
+            ],
+            [
+                182,
+                "            var doc = new DocumentBuffer();"
+            ],
+            [
+                183,
+                "            doc.Reset(0, @\""
+            ],
+            [
+                184,
+                "line1"
+            ],
+            [
+                185,
+                "line2"
+            ],
+            [
+                186,
+                "line3"
+            ],
+            [
+                187,
+                "line4"
+            ],
+            [
+                188,
+                "\");"
+            ],
+            [
+                189,
+                "            doc.Update(new[] {"
+            ],
+            [
+                190,
+                "                DocumentChange.Delete(new SourceSpan(4, 5, 5, 5)),"
+            ],
+            [
+                191,
+                "                DocumentChange.Delete(new SourceSpan(2, 5, 3, 5)),"
+            ],
+            [
+                192,
+                "            });"
+            ],
+            [
+                193,
+                "            Assert.AreEqual(@\""
+            ],
+            [
+                194,
+                "line2"
+            ],
+            [
+                195,
+                "line4"
+            ],
+            [
+                196,
+                "\", doc.Text);"
+            ],
+            [
+                197,
+                "        }"
+            ],
+            [
+                198,
+                ""
+            ],
+            [
+                199,
+                "        [TestMethod, Priority(0)]"
+            ],
+            [
+                200,
+                "        public void SequentialChanges() {"
+            ],
+            [
+                201,
+                "            var doc = new DocumentBuffer();"
+            ],
+            [
+                202,
+                "            doc.Reset(0, @\""
+            ],
+            [
+                203,
+                "line1"
+            ],
+            [
+                204,
+                "line2"
+            ],
+            [
+                205,
+                "line3"
+            ],
+            [
+                206,
+                "line4"
+            ],
+            [
+                207,
+                "\");"
+            ],
+            [
+                208,
+                "            doc.Update(new[] {"
+            ],
+            [
+                209,
+                "                DocumentChange.Delete(new SourceSpan(2, 5, 3, 5)),"
+            ],
+            [
+                210,
+                "                DocumentChange.Delete(new SourceSpan(3, 5, 4, 5))"
+            ],
+            [
+                211,
+                "            });"
+            ],
+            [
+                212,
+                "            Assert.AreEqual(@\""
+            ],
+            [
+                213,
+                "line2"
+            ],
+            [
+                214,
+                "line4"
+            ],
+            [
+                215,
+                "\", doc.Text);"
+            ],
+            [
+                216,
+                "        }"
+            ],
+            [
+                217,
+                ""
+            ],
+            [
+                218,
+                "        [TestMethod, Priority(0)]"
+            ],
+            [
+                219,
+                "        public void InsertTopToBottom() {"
+            ],
+            [
+                220,
+                "            var doc = new DocumentBuffer();"
+            ],
+            [
+                221,
+                "            doc.Reset(0, @\"linelinelineline\");"
+            ],
+            [
+                222,
+                "            doc.Update(new[] {"
+            ],
+            [
+                223,
+                "                DocumentChange.Insert(\"\\n\", new SourceLocation(1, 1)),"
+            ],
+            [
+                224,
+                "                DocumentChange.Insert(\"1\\n\", new SourceLocation(2, 5)),"
+            ],
+            [
+                225,
+                "                DocumentChange.Insert(\"2\\r\", new SourceLocation(3, 5)),"
+            ],
+            [
+                226,
+                "                DocumentChange.Insert(\"3\\r\\n\", new SourceLocation(4, 5)),"
+            ],
+            [
+                227,
+                "                DocumentChange.Insert(\"4\\r\\n\", new SourceLocation(5, 5)),"
+            ],
+            [
+                228,
+                "            });"
+            ],
+            [
+                229,
+                "            Assert.AreEqual(\"\\nline1\\nline2\\rline3\\r\\nline4\\r\\n\", doc.Text);"
+            ],
+            [
+                230,
+                "        }"
+            ],
+            [
+                231,
+                ""
+            ],
+            [
+                232,
+                "        [NewLineTestData]"
+            ],
+            [
+                233,
+                "        [DataTestMethod, Priority(0)]"
+            ],
+            [
+                234,
+                "        public void NewLines(string s, NewLineLocation[] expected) {"
+            ],
+            [
+                235,
+                "            var doc = new DocumentBuffer();"
+            ],
+            [
+                236,
+                "            doc.Reset(0, s);"
+            ],
+            [
+                237,
+                "            var nls = doc.GetNewLineLications().ToArray();"
+            ],
+            [
+                238,
+                "            for (var i = 0; i < nls.Length; i++) {"
+            ],
+            [
+                239,
+                "                Assert.AreEqual(nls[i].Kind, expected[i].Kind);"
+            ],
+            [
+                240,
+                "                Assert.AreEqual(nls[i].EndIndex, expected[i].EndIndex);"
+            ],
+            [
+                241,
+                "            }"
+            ],
+            [
+                242,
+                "        }"
+            ],
+            [
+                243,
+                ""
+            ],
+            [
+                244,
+                "        private sealed class NewLineTestDataAttribute : Attribute, ITestDataSource {"
+            ],
+            [
+                245,
+                "            public IEnumerable<object[]> GetData(MethodInfo methodInfo) =>"
+            ],
+            [
+                246,
+                "                new List<object[]> {"
+            ],
+            [
+                247,
+                "                    new object[] {"
+            ],
+            [
+                248,
+                "                        string.Empty,"
+            ],
+            [
+                249,
+                "                        new NewLineLocation[] {"
+            ],
+            [
+                250,
+                "                            new NewLineLocation(0, NewLineKind.None),"
+            ],
+            [
+                251,
+                "                        }"
+            ],
+            [
+                252,
+                "                    },"
+            ],
+            [
+                253,
+                "                    new object[] {"
+            ],
+            [
+                254,
+                "                        \"\\r\\r\","
+            ],
+            [
+                255,
+                "                        new NewLineLocation[] {"
+            ],
+            [
+                256,
+                "                            new NewLineLocation(1, NewLineKind.CarriageReturn),"
+            ],
+            [
+                257,
+                "                            new NewLineLocation(2, NewLineKind.CarriageReturn)"
+            ],
+            [
+                258,
+                "                        }"
+            ],
+            [
+                259,
+                "                    },"
+            ],
+            [
+                260,
+                "                    new object[] {"
+            ],
+            [
+                261,
+                "                        \"\\n\\n\","
+            ],
+            [
+                262,
+                "                        new NewLineLocation[] {"
+            ],
+            [
+                263,
+                "                            new NewLineLocation(1, NewLineKind.LineFeed),"
+            ],
+            [
+                264,
+                "                            new NewLineLocation(2, NewLineKind.LineFeed)"
+            ],
+            [
+                265,
+                "                        }"
+            ],
+            [
+                266,
+                "                    },"
+            ],
+            [
+                267,
+                "                    new object[] {"
+            ],
+            [
+                268,
+                "                        \"\\r\\n\\n\\r\","
+            ],
+            [
+                269,
+                "                        new NewLineLocation[] {"
+            ],
+            [
+                270,
+                "                            new NewLineLocation(2, NewLineKind.CarriageReturnLineFeed),"
+            ],
+            [
+                271,
+                "                            new NewLineLocation(3, NewLineKind.LineFeed),"
+            ],
+            [
+                272,
+                "                            new NewLineLocation(4, NewLineKind.CarriageReturn)"
+            ],
+            [
+                273,
+                "                        }"
+            ],
+            [
+                274,
+                "                    },"
+            ],
+            [
+                275,
+                "                    new object[] {"
+            ],
+            [
+                276,
+                "                        \"a\\r\\nb\\r\\n c\\r d\\ne\","
+            ],
+            [
+                277,
+                "                        new NewLineLocation[] {"
+            ],
+            [
+                278,
+                "                            new NewLineLocation(3, NewLineKind.CarriageReturnLineFeed),"
+            ],
+            [
+                279,
+                "                            new NewLineLocation(6, NewLineKind.CarriageReturnLineFeed),"
+            ],
+            [
+                280,
+                "                            new NewLineLocation(9, NewLineKind.CarriageReturn),"
+            ],
+            [
+                281,
+                "                            new NewLineLocation(12, NewLineKind.LineFeed),"
+            ],
+            [
+                282,
+                "                            new NewLineLocation(13, NewLineKind.None)"
+            ],
+            [
+                283,
+                "                        }"
+            ],
+            [
+                284,
+                "                    }"
+            ],
+            [
+                285,
+                "                };"
+            ],
+            [
+                286,
+                "            public string GetDisplayName(MethodInfo methodInfo, object[] data)"
+            ],
+            [
+                287,
+                "                => data != null ? $\"{methodInfo.Name} ({FormatName((string)data[0])})\" : null;"
+            ],
+            [
+                288,
+                ""
+            ],
+            [
+                289,
+                "            private static string FormatName(string s) => s.Replace(\"\\n\", \"\\\\n\").Replace(\"\\r\", \"\\\\r\");"
+            ],
+            [
+                290,
+                "        }"
+            ]
+        ],
+        "deleted": [
+            [
+                80,
+                "            doc.Update(new[] {"
+            ]
+        ]
+    },
+    "num_lines_added": 162,
+    "num_lines_removed": 1
+}

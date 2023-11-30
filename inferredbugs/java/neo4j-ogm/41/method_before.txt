@@ -1,0 +1,24 @@
+ private void mapOneToMany(Object instance, Class<?> valueType, Object values, String relationshipType, String relationshipDirection) {
+
+		ClassInfo classInfo = metadata.classInfo(instance);
+
+		RelationalWriter writer = entityAccessStrategy.getIterableWriter(classInfo, valueType, relationshipType, relationshipDirection);
+		if (writer != null) {
+			if (writer.type().isArray() || Iterable.class.isAssignableFrom(writer.type())) {
+				RelationalReader reader = entityAccessStrategy.getIterableReader(classInfo, valueType, relationshipType, relationshipDirection);
+				Object currentValues;
+				if (reader != null) {
+					currentValues = reader.read(instance);
+					if (writer.type().isArray()) {
+						values = EntityAccess.merge(writer.type(), (Iterable<?>) values, (Object[]) currentValues, valueType);
+					} else {
+						values = EntityAccess.merge(writer.type(), (Iterable<?>) values, (Collection) currentValues, valueType);
+					}
+				}
+			}
+			writer.write(instance, values);
+			return;
+		}
+		// this is not necessarily an error. but we can't tell.
+		logger.debug("Unable to map iterable of type: {} onto property of {}", valueType, classInfo.name());
+	}

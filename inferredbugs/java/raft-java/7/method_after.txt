@@ -1,0 +1,68 @@
+    @Override
+    public Raft.AppendEntriesResponse appendEntries(Raft.AppendEntriesRequest request) {
+        raftNode.getLock().lock();
+        Raft.AppendEntriesResponse.Builder responseBuilder = Raft.AppendEntriesResponse.newBuilder();
+        responseBuilder.setTerm(raftNode.getCurrentTerm());
+        responseBuilder.setSuccess(false);
+        responseBuilder.setLastLogIndex(raftNode.getRaftLog().getLastLogIndex());
+        if (request.getTerm() < raftNode.getCurrentTerm()) {
+            raftNode.getLock().unlock();
+            return responseBuilder.build();
+        }
+        if (request.getTerm() > raftNode.getCurrentTerm()) {
+            LOG.info("Received AppendEntries request from server {} " +
+                    "in term {} (this server's term was {})",
+                    request.getServerId(), request.getTerm(),
+                    raftNode.getCurrentTerm());
+            raftNode.stepDown(request.getTerm());
+        }
+        if (raftNode.getLeaderId() == 0) {
+            raftNode.setLeaderId(request.getServerId());
+        }
+
+        if (request.getPrevLogIndex() > raftNode.getRaftLog().getLastLogIndex()) {
+            LOG.debug("Rejecting AppendEntries RPC: would leave gap");
+            raftNode.getLock().unlock();
+            return responseBuilder.build();
+        }
+        if (request.getPrevLogIndex() >= raftNode.getRaftLog().getStartLogIndex()
+                && raftNode.getRaftLog().getEntry(request.getPrevLogIndex()).getTerm()
+                != request.getPrevLogTerm()) {
+            LOG.debug("Rejecting AppendEntries RPC: terms don't agree");
+            raftNode.getLock().unlock();
+            return responseBuilder.build();
+        }
+
+        responseBuilder.setSuccess(true);
+        List<Raft.LogEntry> entries = new ArrayList<>();
+        long index = request.getPrevLogIndex();
+        for (Raft.LogEntry entry : request.getEntriesList()) {
+            index++;
+            if (index < raftNode.getRaftLog().getStartLogIndex()) {
+                continue;
+            }
+            if (raftNode.getRaftLog().getLastLogIndex() >= index) {
+                if (raftNode.getRaftLog().getEntry(index).getTerm() == entry.getTerm()) {
+                    continue;
+                }
+                // truncate segment log from index
+                long lastIndexKept = index - 1;
+                raftNode.getRaftLog().truncateSuffix(lastIndexKept);
+            }
+            entries.add(entry);
+        }
+        raftNode.getRaftLog().append(entries);
+        responseBuilder.setLastLogIndex(raftNode.getRaftLog().getLastLogIndex());
+
+        if (raftNode.getCommitIndex() < request.getCommitIndex()) {
+            raftNode.setCommitIndex(request.getCommitIndex());
+            // apply state machine
+            for (index = raftNode.getLastAppliedIndex() + 1; index <= raftNode.getCommitIndex(); index++) {
+                raftNode.getStateMachine().apply(
+                        raftNode.getRaftLog().getEntry(index).getData().toByteArray());
+            }
+        }
+
+        raftNode.getLock().unlock();
+        return responseBuilder.build();
+    }

@@ -1,0 +1,38 @@
+  @SuppressWarnings("unchecked")
+  @Test
+  public void should_parse_example() throws Exception {
+    Toml toml = new Toml().parse(new File(getClass().getResource("example.toml").getFile()));
+
+    // printMap(root);
+
+    assertEquals("TOML Example", toml.getString("title"));
+
+    Toml owner = toml.getKeyGroup("owner");
+    assertEquals("Tom Preston-Werner", owner.getString("name"));
+    assertEquals("GitHub", owner.getString("organization"));
+    assertEquals("GitHub Cofounder & CEO\nLikes tater tots and beer.", owner.getString("bio"));
+
+    Calendar dob = Calendar.getInstance();
+    dob.set(1979, Calendar.MAY, 27, 7, 32, 0);
+    dob.set(Calendar.MILLISECOND, 0);
+    dob.setTimeZone(TimeZone.getTimeZone("UTC"));
+    assertEquals(dob.getTime(), owner.getDate("dob"));
+
+    Toml database = toml.getKeyGroup("database");
+    assertEquals("192.168.1.1", database.getString("server"));
+    assertEquals(5000L, database.getLong("connection_max").longValue());
+    assertTrue(database.getBoolean("enabled"));
+    assertEquals(Arrays.asList(8001L, 8001L, 8002L), database.getList("ports", Long.class));
+
+    Toml servers = toml.getKeyGroup("servers");
+    Toml alphaServers = servers.getKeyGroup("alpha");
+    assertEquals("10.0.0.1", alphaServers.getString("ip"));
+    assertEquals("eqdc10", alphaServers.getString("dc"));
+    Toml betaServers = servers.getKeyGroup("beta");
+    assertEquals("10.0.0.2", betaServers.getString("ip"));
+    assertEquals("eqdc10", betaServers.getString("dc"));
+
+    Toml clients = toml.getKeyGroup("clients");
+    assertEquals(asList(asList("gamma", "delta"), asList(1L, 2L)), clients.getList("data", String.class));
+    assertEquals(asList("alpha", "omega"), clients.getList("hosts", String.class));
+  }

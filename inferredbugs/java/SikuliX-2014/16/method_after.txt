@@ -1,0 +1,26 @@
+  @Override
+  public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    String mName = method.getName();
+    if ("handleAbout".equals(mName)) {
+      sikulixIDE.doAbout();
+    } else if ("handlePreferences".equals(mName)) {
+      sikulixIDE.showPreferencesWindow();
+    } else if ("handleQuitRequestWith".equals(mName)) {
+      try {
+        Class sysclass = URLClassLoader.class;
+        Class comAppleEawtQuitResponse = sysclass.forName("com.apple.eawt.QuitResponse");
+        Method mCancelQuit = comAppleEawtQuitResponse.getMethod("cancelQuit", null);
+        Method mPerformQuit = comAppleEawtQuitResponse.getMethod("performQuit", null);
+        Object resp = args[1];
+        if (!sikulixIDE.quit()) {
+          mCancelQuit.invoke(resp, null);
+        } else {
+          mPerformQuit.invoke(resp, null);
+        }
+      } catch (Exception ex) {
+        log(lvl, "NativeSupport: Quit: error: %s", ex.getMessage());
+        System.exit(1);
+      }
+    }
+    return new Object();
+  }

@@ -1,0 +1,26 @@
+    public static void main(final String[] args) throws Throwable {
+
+        toInfinityAndBeyond();
+
+        logger.info("Starting ...");
+
+        final ScheduledExecutorService downloadExecutor = Executors
+                .newSingleThreadScheduledExecutor(new NameThreadFactory("DownloadSimulator"));
+
+        final GatewayConfiguration configuration = new GatewayConfiguration(
+                "tcp://kapua-broker:kapua-password@localhost:1883", "kapua-sys", "sim-1");
+
+        final Set<Application> apps = new HashSet<>();
+        apps.add(new SimpleCommandApplication(s -> String.format("Command '%s' not found", s)));
+        apps.add(AnnotatedApplication.build(new SimpleDeployApplication(downloadExecutor)));
+
+        try (final MqttAsyncTransport transport = new MqttAsyncTransport(configuration);
+                final Simulator simulator = new Simulator(configuration, transport, apps);) {
+            Thread.sleep(Long.MAX_VALUE);
+            logger.info("Bye bye...");
+        } finally {
+            downloadExecutor.shutdown();
+        }
+
+        logger.info("Exiting...");
+    }

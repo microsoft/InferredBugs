@@ -1,0 +1,29 @@
+    public void messageReceived(ChannelHandlerContext ctx, User user, StringMessage message) {
+        String[] split = StringUtils.split2(message.body);
+
+        int dashId = ParseUtil.parseInt(split[0]);
+        int deviceId = 0;
+
+        //new value for multi devices
+        if (split.length == 2) {
+            deviceId = ParseUtil.parseInt(split[1]);
+        }
+
+        DashBoard dashBoard = user.profile.getDashByIdOrThrow(dashId);
+        Device device = dashBoard.getDeviceById(deviceId);
+
+        String token = device.token;
+
+        if (token == null) {
+            throw new IllegalCommandBodyException("Wrong device id.");
+        }
+
+        String to = user.name;
+        String dashName = dashBoard.name == null ? "New Project" : dashBoard.name;
+        String deviceName = device.name == null ? "" : device.name;
+        String subj = "Auth Token for " + dashName + " project and device " + deviceName;
+        String body = String.format(BODY, dashName, token);
+
+        log.trace("Sending Mail for user {}, with token : '{}'.", user.name, token);
+        mail(ctx.channel(), user.name, to, subj, body, message.id);
+    }

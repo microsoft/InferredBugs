@@ -1,0 +1,41 @@
+    public void testCreation() throws Exception {
+
+        final Processor processor = new Processor(new NullConsole(), null);
+
+        final File control = new File(getClass().getResource("deb/control/control").toURI());
+        final File archive1 = new File(getClass().getResource("deb/data.tgz").toURI());
+        final File archive2 = new File(getClass().getResource("deb/data.tar.bz2").toURI());
+        final File archive3 = new File(getClass().getResource("deb/data.zip").toURI());
+        final File directory = new File(getClass().getResource("deb/data").toURI());
+
+        final DataProducer[] data = new DataProducer[] {
+            new DataProducerArchive(archive1, null, null, null),
+            new DataProducerArchive(archive2, null, null, null),
+            new DataProducerArchive(archive3, null, null, null),
+            new DataProducerDirectory(directory, null, new String[] { "**/.svn/**" }, null),
+            new DataProducerLink("/link/path-element.ext", "/link/target-element.ext", true, null, null, null)
+        };
+
+        final File deb = File.createTempFile("jdeb", ".deb");
+
+        final PackageDescriptor packageDescriptor = processor.createDeb(new File[] { control }, data, deb, Compression.GZIP);
+
+        assertTrue(packageDescriptor.isValid());
+
+        final Map<String, TarArchiveEntry> filesInDeb = new HashMap<String, TarArchiveEntry>();
+        
+        ArchiveWalker.walkData(deb, new ArchiveVisitor<TarArchiveEntry>() {
+            public void visit(TarArchiveEntry entry, byte[] content) throws IOException {
+                filesInDeb.put(entry.getName(), entry);
+            }
+        }, Compression.GZIP);
+        
+        assertTrue("testfile wasn't found in the package", filesInDeb.containsKey("./test/testfile"));
+        assertTrue("testfile2 wasn't found in the package", filesInDeb.containsKey("./test/testfile2"));
+        assertTrue("testfile3 wasn't found in the package", filesInDeb.containsKey("./test/testfile3"));
+        assertTrue("testfile4 wasn't found in the package", filesInDeb.containsKey("./test/testfile4"));
+        assertTrue("/link/path-element.ext wasn't found in the package", filesInDeb.containsKey("./link/path-element.ext"));
+        assertEquals("/link/path-element.ext has wrong link target", "/link/target-element.ext", filesInDeb.get("./link/path-element.ext").getLinkName());
+
+        assertTrue("Cannot delete the file " + deb, deb.delete());
+    }

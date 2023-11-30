@@ -1,0 +1,52 @@
+    @Override
+    public com.flickr4java.flickr.Response get(String path, Map<String, Object> parameters, String apiKey, String sharedSecret) throws FlickrException {
+
+        OAuthRequest request = new OAuthRequest(Verb.GET, getScheme() + "://" + getHost() + path);
+        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+            request.addQuerystringParameter(entry.getKey(), String.valueOf(entry.getValue()));
+        }
+
+        if (proxyAuth) {
+            request.addHeader("Proxy-Authorization", "Basic " + getProxyCredentials());
+        }
+
+        RequestContext requestContext = RequestContext.getRequestContext();
+        Auth auth = requestContext.getAuth();
+        OAuth1AccessToken requestToken = new OAuth1AccessToken(auth.getToken(), auth.getTokenSecret());
+        OAuth10aService service = createOAuthService(apiKey, sharedSecret);
+        if (auth != null) {
+            service.signRequest(requestToken, request);
+        } else {
+            // For calls that do not require authorization e.g. flickr.people.findByUsername which could be the
+            // first call if the user did not supply the user-id (i.e. nsid).
+            if (!parameters.containsKey(Flickr.API_KEY)) {
+                request.addQuerystringParameter(Flickr.API_KEY, apiKey);
+            }
+        }
+
+        if (Flickr.debugRequest) {
+            logger.debug("GET: " + request.getCompleteUrl());
+        }
+        setTimeouts(request);
+
+        try {
+            com.github.scribejava.core.model.Response scribeResponse = service.execute(request);
+
+            com.flickr4java.flickr.Response f4jResponse;
+            synchronized (mutex) {
+                String strXml = scribeResponse.getBody().trim();
+                if (Flickr.debugStream) {
+                    logger.debug(strXml);
+                }
+                if (strXml.startsWith("oauth_problem=")) {
+                    throw new FlickrRuntimeException(strXml);
+                }
+                Document document = builder.parse(new InputSource(new StringReader(strXml)));
+                f4jResponse = (com.flickr4java.flickr.Response) responseClass.newInstance();
+                f4jResponse.parse(document);
+            }
+            return f4jResponse;
+        } catch (IllegalAccessException | InstantiationException | SAXException | IOException | InterruptedException | ExecutionException e) {
+            throw new FlickrRuntimeException(e);
+        }
+    }

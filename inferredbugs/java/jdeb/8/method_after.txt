@@ -1,0 +1,36 @@
+ public void testTarFileSet() throws Exception {
+		project.executeTarget("tarfileset");
+
+		File deb = new File("target/test-classes/test.deb");
+		assertTrue("package not build", deb.exists());
+
+		ArInputStream in = new ArInputStream(new FileInputStream(deb));
+		ArEntry entry;
+		while ((entry = in.getNextEntry()) != null) {
+			if (entry.getName().equals("data.tar.gz")) {
+				TarInputStream tar = new TarInputStream(new GZIPInputStream(in));
+				TarEntry tarentry;
+				while ((tarentry = tar.getNextEntry()) != null) {
+					assertTrue("prefix", tarentry.getName().startsWith("/foo/"));
+					if (tarentry.isDirectory()) {
+						assertEquals("directory mode (" + tarentry.getName() + ")", 040700, tarentry.getMode());
+					} else {
+						assertEquals("file mode (" + tarentry.getName() + ")", 0100600, tarentry.getMode());
+					}
+					assertEquals("user", "ebourg", tarentry.getUserName());
+					assertEquals("group", "ebourg", tarentry.getGroupName());
+				}
+				tar.close();
+			} else {
+				// skip to the next entry
+				long skip = entry.getLength(); 
+				while(skip > 0) {
+					long skipped = in.skip(skip); 
+					if (skipped == -1) {
+						throw new IOException("Failed to skip");
+					}
+					skip -= skipped;
+				}
+			}
+		}
+	}

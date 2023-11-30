@@ -1,0 +1,21 @@
+    public void initiate() {
+        ReadLastConfirmedOp rlcop = new ReadLastConfirmedOp(lh,
+                new ReadLastConfirmedOp.LastConfirmedDataCallback() {
+                public void readLastConfirmedDataComplete(int rc, RecoveryData data) {
+                    if (rc == BKException.Code.OK) {
+                        lh.lastAddPushed = lh.lastAddConfirmed = data.lastAddConfirmed;
+                        lh.length = data.length;
+                        doRecoveryRead();
+                    } else {
+                        cb.operationComplete(BKException.Code.ReadException, null);
+                    }
+                }
+                });
+
+        /**
+         * Enable fencing on this op. When the read request reaches the bookies
+         * server it will fence off the ledger, stopping any subsequent operation
+         * from writing to it.
+         */
+        rlcop.initiateWithFencing();
+    }

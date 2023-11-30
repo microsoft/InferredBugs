@@ -1,0 +1,76 @@
+    @Test
+    public void testAgentForwarding() throws Exception {
+
+        int port1 = getFreePort();
+        int port2 = getFreePort();
+
+        TestEchoShellFactory shellFactory = new TestEchoShellFactory();
+        ProxyAgentFactory agentFactory = new ProxyAgentFactory();
+        LocalAgentFactory localAgentFactory = new LocalAgentFactory();
+
+        KeyPair pair = createTestKeyPairProvider("dsaprivkey.pem").loadKey(KeyPairProvider.SSH_DSS);
+        localAgentFactory.getAgent().addIdentity(pair, "smx");
+
+        SshServer sshd1 = SshServer.setUpDefaultServer();
+        sshd1.setPort(port1);
+        sshd1.setKeyPairProvider(Utils.createTestHostKeyProvider());
+        sshd1.setShellFactory(shellFactory);
+        sshd1.setPasswordAuthenticator(new BogusPasswordAuthenticator());
+        sshd1.setPublickeyAuthenticator(new BogusPublickeyAuthenticator());
+        sshd1.setAgentFactory(agentFactory);
+        sshd1.start();
+
+        SshServer sshd2 = SshServer.setUpDefaultServer();
+        sshd2.setPort(port2);
+        sshd2.setKeyPairProvider(Utils.createTestHostKeyProvider());
+        sshd2.setShellFactory(new TestEchoShellFactory());
+        sshd2.setPasswordAuthenticator(new BogusPasswordAuthenticator());
+        sshd2.setPublickeyAuthenticator(new BogusPublickeyAuthenticator());
+        sshd2.setAgentFactory(new ProxyAgentFactory());
+        sshd2.start();
+
+        SshClient client1 = SshClient.setUpDefaultClient();
+        client1.setAgentFactory(localAgentFactory);
+        client1.start();
+        ClientSession session1 = client1.connect("localhost", port1).await().getSession();
+        assertTrue(session1.authAgent("smx").await().isSuccess());
+        ChannelShell channel1 = session1.createShellChannel();
+        ByteArrayOutputStream sent = new ByteArrayOutputStream();
+        PipedOutputStream pipedIn = new TeePipedOutputStream(sent);
+        channel1.setIn(new PipedInputStream(pipedIn));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        channel1.setOut(out);
+        channel1.setErr(err);
+        channel1.setAgentForwarding(true);
+        channel1.open().await();
+
+        synchronized (shellFactory.shell) {
+            System.out.println("Possibly waiting for remote shell to start");
+            if (!shellFactory.shell.started) {
+                shellFactory.shell.wait();
+            }
+        }
+
+        SshClient client2 = SshClient.setUpDefaultClient();
+        client2.setAgentFactory(agentFactory);
+        client2.getProperties().putAll(shellFactory.shell.getEnvironment().getEnv());
+        client2.start();
+        ClientSession session2 = client2.connect("localhost", port2).await().getSession();
+        assertTrue(session2.authAgent("smx").await().isSuccess());
+        ChannelShell channel2 = session2.createShellChannel();
+        channel2.setIn(shellFactory.shell.getIn());
+        channel2.setOut(shellFactory.shell.getOut());
+        channel2.setErr(shellFactory.shell.getErr());
+        channel2.setAgentForwarding(true);
+        channel2.open().await();
+
+        pipedIn.write("foo\n".getBytes());
+        pipedIn.flush();
+
+        Thread.sleep(1000);
+
+        System.out.println(out.toString());
+        System.err.println(err.toString());
+
+    }

@@ -1,0 +1,73 @@
+        public static string SWResults(string Searchstring)
+        {
+            string sCatFile = @"wwwroot/rzcat.xml";
+            string sResult = "";
+            if (contentType.ToLower() == "application/json")
+            {
+                if (_cache.TryGetValue("SWResult-" + Searchstring, out sResult))
+                {
+                    return sResult;
+                }
+                sCatFile = @"wwwroot/rzcat.json";
+            }
+
+            try
+            {
+                if (string.IsNullOrEmpty(Searchstring))
+                {
+                    if (File.Exists(sCatFile))
+                    {
+                        if (CatalogTTL == 0 || DateTime.Now.ToUniversalTime() - File.GetCreationTime(sCatFile).ToUniversalTime() <= new TimeSpan(CatalogTTL, 0, 1))
+                        {
+                            sResult = File.ReadAllText(sCatFile);
+                            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                .SetSlidingExpiration(TimeSpan.FromSeconds(60));
+                            _cache.Set("SWResult-" + Searchstring, sResult, cacheEntryOptions);
+                            return sResult;
+                        }
+                    }
+                }
+                else
+                {
+
+                }
+
+                using (var handler = new HttpClientHandler())
+                {
+                    //handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => { return true; }; //To prevent Issue with FW
+
+                    using (var oClient = new HttpClient(handler))
+                    {
+                        oClient.DefaultRequestHeaders.Add("AuthenticatedToken", Token);
+                        oClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
+                        var response = oClient.GetStringAsync(sURL + "/rest/SWResults?search=" + Searchstring);
+                        response.Wait(7000); //7s max.
+                        if (response.IsCompleted)
+                        {
+                            sResult = response.Result;
+                            // Set cache options.
+                            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                .SetSlidingExpiration(TimeSpan.FromSeconds(60));
+                            _cache.Set("SWResult-" + Searchstring, sResult, cacheEntryOptions);
+
+                            if (string.IsNullOrEmpty(Searchstring))
+                                File.WriteAllText(sCatFile, sResult);
+
+                            return sResult;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+
+            //return old File
+            if (File.Exists(sCatFile))
+            {
+                return File.ReadAllText(sCatFile);
+            }
+
+            return "";
+        }

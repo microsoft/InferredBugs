@@ -1,0 +1,621 @@
+{
+    "hash": "c4272aa7346c9a50f33fa15d678a0a769c059b4f",
+    "message": "Integration tests in AMD64 platform (#53)",
+    "file_num_lines": 138,
+    "diff_parsed": {
+        "added": [
+            [
+                6,
+                "using System.Threading;"
+            ],
+            [
+                12,
+                "        // Interval where we try to estabilish connection to udp logger"
+            ],
+            [
+                13,
+                "        const int RETRY_UDP_LOG_CONNECTION_INTERVAL_IN_MS = 1000 * 10;"
+            ],
+            [
+                14,
+                ""
+            ],
+            [
+                18,
+                "        static volatile UdpClient udpClient;"
+            ],
+            [
+                21,
+                "        static volatile bool isInitializeUdpLoggerRunning = false;"
+            ],
+            [
+                22,
+                "        private static Timer retryUdpLogInitializationTimer;"
+            ],
+            [
+                23,
+                ""
+            ],
+            [
+                30,
+                "                InitializeUdpLogger(isRetry: false);"
+            ],
+            [
+                31,
+                ""
+            ],
+            [
+                32,
+                ""
+            ],
+            [
+                33,
+                "                // If udp client was not created set a timer to retry every x seconds"
+            ],
+            [
+                34,
+                "                // The listening container might not have started yet (i.e. AzureDevOpsAgent)"
+            ],
+            [
+                35,
+                "                if (udpClient == null)"
+            ],
+            [
+                37,
+                "                    // retry in 10 seconds"
+            ],
+            [
+                38,
+                "                    retryUdpLogInitializationTimer = new Timer((state) =>"
+            ],
+            [
+                40,
+                "                        InitializeUdpLogger(isRetry: true);"
+            ],
+            [
+                41,
+                "                    },"
+            ],
+            [
+                42,
+                "                    null,"
+            ],
+            [
+                43,
+                "                    RETRY_UDP_LOG_CONNECTION_INTERVAL_IN_MS,"
+            ],
+            [
+                44,
+                "                    RETRY_UDP_LOG_CONNECTION_INTERVAL_IN_MS);"
+            ],
+            [
+                58,
+                "                var msg = message;"
+            ],
+            [
+                60,
+                "                if (!string.IsNullOrEmpty(deviceId))"
+            ],
+            [
+                61,
+                "                    msg = $\"{deviceId}: {message}\";"
+            ],
+            [
+                76,
+                ""
+            ],
+            [
+                77,
+                "        static void LogToConsole(string message)"
+            ],
+            [
+                78,
+                "        {"
+            ],
+            [
+                79,
+                "            Console.WriteLine(String.Concat(DateTime.Now.ToString(\"yyyy-MM-dd HH:mm:ss.fff\"),\" \", message));"
+            ],
+            [
+                80,
+                "        }"
+            ],
+            [
+                81,
+                ""
+            ],
+            [
+                91,
+                "                LogToConsole(string.Concat(\" Error logging to UDP: \", ex.ToString()));"
+            ],
+            [
+                95,
+                "        // Initialize Udp Logger"
+            ],
+            [
+                96,
+                "        // Might be called from a timer while it does not work"
+            ],
+            [
+                97,
+                "        // Need to make this retries because NetworkServer might become alive"
+            ],
+            [
+                98,
+                "        // before listening container is started"
+            ],
+            [
+                99,
+                "        static void InitializeUdpLogger(bool isRetry = false)"
+            ],
+            [
+                101,
+                "            if (isInitializeUdpLoggerRunning)"
+            ],
+            [
+                102,
+                "            {"
+            ],
+            [
+                103,
+                "                LogToConsole(\"Retrying to connect to UDP log server skipped, one already running\");"
+            ],
+            [
+                104,
+                "                return;"
+            ],
+            [
+                105,
+                "            }"
+            ],
+            [
+                106,
+                ""
+            ],
+            [
+                107,
+                "            if (isRetry)"
+            ],
+            [
+                108,
+                "                LogToConsole(\"Retrying to connect to UDP log server\");"
+            ],
+            [
+                109,
+                ""
+            ],
+            [
+                110,
+                "            try"
+            ],
+            [
+                111,
+                "            {"
+            ],
+            [
+                112,
+                "                if (string.IsNullOrEmpty(configuration.LogToUdpAddress))"
+            ],
+            [
+                113,
+                "                {"
+            ],
+            [
+                114,
+                "                    udpEndpoint = new IPEndPoint(IPAddress.Broadcast, configuration.LogToUdpPort);"
+            ],
+            [
+                115,
+                "                }"
+            ],
+            [
+                116,
+                "                else"
+            ],
+            [
+                117,
+                "                {"
+            ],
+            [
+                118,
+                "                    if (IPAddress.TryParse(configuration.LogToUdpAddress, out var parsedIpAddress))"
+            ],
+            [
+                119,
+                "                    {"
+            ],
+            [
+                120,
+                "                        udpEndpoint = new IPEndPoint(parsedIpAddress, configuration.LogToUdpPort);"
+            ],
+            [
+                121,
+                "                    }"
+            ],
+            [
+                122,
+                "                    else"
+            ],
+            [
+                123,
+                "                    {"
+            ],
+            [
+                124,
+                "                        try"
+            ],
+            [
+                125,
+                "                        {"
+            ],
+            [
+                126,
+                "                            // try to parse the address as dns"
+            ],
+            [
+                127,
+                "                            var addresses = Dns.GetHostAddresses(configuration.LogToUdpAddress);"
+            ],
+            [
+                128,
+                "                            if (addresses == null || addresses.Length == 0)"
+            ],
+            [
+                129,
+                "                            {"
+            ],
+            [
+                130,
+                "                                LogToConsole($\"Could not resolve ip address from '{configuration.LogToUdpAddress}'\");"
+            ],
+            [
+                131,
+                "                            }"
+            ],
+            [
+                132,
+                "                            else"
+            ],
+            [
+                133,
+                "                            {"
+            ],
+            [
+                134,
+                "                                udpEndpoint = new IPEndPoint(addresses[0], configuration.LogToUdpPort);"
+            ],
+            [
+                135,
+                "                            }"
+            ],
+            [
+                136,
+                "                        }"
+            ],
+            [
+                137,
+                "                        catch (Exception ex)"
+            ],
+            [
+                138,
+                "                        {"
+            ],
+            [
+                139,
+                "                            LogToConsole($\"Could not resolve ip address from '{configuration.LogToUdpAddress}'. {ex.Message}\");"
+            ],
+            [
+                140,
+                "                        }"
+            ],
+            [
+                141,
+                "                    }"
+            ],
+            [
+                142,
+                "                }"
+            ],
+            [
+                143,
+                ""
+            ],
+            [
+                144,
+                "                if (udpEndpoint != null)"
+            ],
+            [
+                145,
+                "                {"
+            ],
+            [
+                146,
+                "                    udpClient = new UdpClient"
+            ],
+            [
+                147,
+                "                    {"
+            ],
+            [
+                148,
+                "                        ExclusiveAddressUse = false"
+            ],
+            [
+                149,
+                "                    };"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "                    LogToConsole(string.Concat(\"Logging to Udp: \", udpEndpoint.ToString()));"
+            ],
+            [
+                152,
+                ""
+            ],
+            [
+                153,
+                "                    if (retryUdpLogInitializationTimer != null)"
+            ],
+            [
+                154,
+                "                    {"
+            ],
+            [
+                155,
+                "                        retryUdpLogInitializationTimer.Dispose();"
+            ],
+            [
+                156,
+                "                        retryUdpLogInitializationTimer = null;"
+            ],
+            [
+                157,
+                "                    }"
+            ],
+            [
+                158,
+                "                }"
+            ],
+            [
+                159,
+                "            }"
+            ],
+            [
+                160,
+                "            catch (Exception ex)"
+            ],
+            [
+                161,
+                "            {"
+            ],
+            [
+                162,
+                "                LogToConsole(string.Concat(\"Error starting UDP logging: \", ex.ToString()));"
+            ],
+            [
+                163,
+                "            }"
+            ],
+            [
+                164,
+                "            finally"
+            ],
+            [
+                165,
+                "            {"
+            ],
+            [
+                166,
+                "                isInitializeUdpLoggerRunning = false;"
+            ],
+            [
+                167,
+                "            }"
+            ]
+        ],
+        "deleted": [
+            [
+                14,
+                "        static UdpClient udpClient;"
+            ],
+            [
+                23,
+                "                try"
+            ],
+            [
+                25,
+                "                    if (string.IsNullOrEmpty(configuration.LogToUdpAddress))"
+            ],
+            [
+                26,
+                "                    {"
+            ],
+            [
+                27,
+                "                        udpEndpoint = new IPEndPoint(IPAddress.Broadcast, configuration.LogToUdpPort);"
+            ],
+            [
+                28,
+                "                    }"
+            ],
+            [
+                29,
+                "                    else"
+            ],
+            [
+                30,
+                "                    {"
+            ],
+            [
+                31,
+                "                        if (IPAddress.TryParse(configuration.LogToUdpAddress, out var parsedIpAddress))"
+            ],
+            [
+                32,
+                "                        {"
+            ],
+            [
+                33,
+                "                            udpEndpoint = new IPEndPoint(parsedIpAddress, configuration.LogToUdpPort);"
+            ],
+            [
+                34,
+                "                        }"
+            ],
+            [
+                35,
+                "                        else"
+            ],
+            [
+                36,
+                "                        {"
+            ],
+            [
+                37,
+                "                            // try to parse the address as dns"
+            ],
+            [
+                38,
+                "                            var addresses = Dns.GetHostAddresses(configuration.LogToUdpAddress);"
+            ],
+            [
+                39,
+                "                            if (addresses == null || addresses.Length == 0)"
+            ],
+            [
+                40,
+                "                            {"
+            ],
+            [
+                41,
+                "                                LogToConsole($\"Could not resolve ip address from '{configuration.LogToUdpAddress}'\");"
+            ],
+            [
+                42,
+                "                            }"
+            ],
+            [
+                43,
+                "                            else"
+            ],
+            [
+                44,
+                "                            {"
+            ],
+            [
+                45,
+                "                                udpEndpoint = new IPEndPoint(addresses[0], configuration.LogToUdpPort);"
+            ],
+            [
+                46,
+                "                            }"
+            ],
+            [
+                47,
+                "                        }"
+            ],
+            [
+                48,
+                "                    }"
+            ],
+            [
+                49,
+                ""
+            ],
+            [
+                50,
+                "                    if (udpEndpoint == null)"
+            ],
+            [
+                52,
+                "                        LogToConsole($\"Logging to Udp failed. Could not resolve ip address from '{configuration.LogToUdpAddress}'\");"
+            ],
+            [
+                53,
+                "                    }"
+            ],
+            [
+                54,
+                "                    else"
+            ],
+            [
+                55,
+                "                    {"
+            ],
+            [
+                56,
+                "                        udpClient = new UdpClient();"
+            ],
+            [
+                57,
+                "                        udpClient.ExclusiveAddressUse = false;"
+            ],
+            [
+                58,
+                ""
+            ],
+            [
+                59,
+                "                        LogToConsole(string.Concat(\"Logging to Udp: \", udpEndpoint.ToString()));"
+            ],
+            [
+                60,
+                "                    }"
+            ],
+            [
+                61,
+                "                }"
+            ],
+            [
+                62,
+                "                catch (Exception ex)"
+            ],
+            [
+                63,
+                "                {"
+            ],
+            [
+                64,
+                "                    LogToConsole(string.Concat(\"Error starting UDP logging: \", ex.ToString()));"
+            ],
+            [
+                78,
+                "                string msg = \"\";"
+            ],
+            [
+                80,
+                "                if (string.IsNullOrEmpty(deviceId))"
+            ],
+            [
+                81,
+                "                    msg = message;"
+            ],
+            [
+                82,
+                "                else"
+            ],
+            [
+                83,
+                "                    msg = $\"{deviceId}: { message}\";"
+            ],
+            [
+                107,
+                "                Console.WriteLine(string.Concat(DateTime.Now.ToString(\"yyyy-MM-dd HH:mm:ss.fff\"),\" Error logging to UDP: \", ex.ToString()));"
+            ],
+            [
+                111,
+                "        static void LogToConsole(string message)"
+            ],
+            [
+                113,
+                "            Console.WriteLine(String.Concat(DateTime.Now.ToString(\"yyyy-MM-dd HH:mm:ss.fff\"),\" \", message));"
+            ]
+        ]
+    },
+    "num_lines_added": 103,
+    "num_lines_removed": 49
+}

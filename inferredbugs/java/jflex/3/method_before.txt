@@ -1,0 +1,41 @@
+ protected static ClassInfo guessPackageAndClass(File lexFile)
+			throws FileNotFoundException, IOException {
+		assert lexFile.isAbsolute() : lexFile;
+
+		LineNumberReader reader = new LineNumberReader(new FileReader(lexFile));
+
+		ClassInfo classInfo = new ClassInfo();
+		while (classInfo.className == null || classInfo.packageName == null) {
+			String line = reader.readLine();
+			if (line == null)
+				break;
+
+			if (classInfo.packageName == null) {
+				int index = line.indexOf("package");
+				if (index >= 0) {
+					index += 7;
+
+					int end = line.indexOf(';', index);
+					if (end >= index) {
+						classInfo.packageName = line.substring(index, end);
+						classInfo.packageName = classInfo.packageName.trim();
+					}
+				}
+			}
+
+			if (classInfo.className == null) {
+				int index = line.indexOf("%class");
+				if (index >= 0) {
+					index += 6;
+
+					classInfo.className = line.substring(index);
+					classInfo.className = classInfo.className.trim();
+				}
+			}
+		}
+
+		if (classInfo.className == null) {
+			classInfo.className = DEFAULT_NAME;
+		}
+		return classInfo;
+	}

@@ -1,0 +1,37 @@
+ public void checkElementStyleGroup(Element element) {
+		StyleGroup oldGroup = getGroup(getElementGroup(element));
+
+		// Get the old element "dynamic" status.
+
+		boolean isDyn = oldGroup.isElementDynamic(element);
+
+		// Get the old event set for the given element.
+
+		StyleGroup.ElementEvents events = null;
+
+		if (oldGroup != null)
+			events = oldGroup.getEventsFor(element);
+
+		// Remove the element from its old style and add it to insert it in the
+		// correct style.
+
+		removeElement(element);
+		addElement_(element);
+
+		// Eventually push the events on the new style group.
+
+		StyleGroup newGroup = getGroup(getElementGroup(element));
+
+		if (newGroup != null && events != null) {
+			for (String event : events.events)
+				pushEventFor(element, event);
+		}
+
+		for (StyleGroupListener listener : listeners)
+			listener.elementStyleChanged(element, oldGroup, newGroup);
+
+		// Eventually set the element as dynamic, if it was.
+
+		if (newGroup != null && isDyn)
+			newGroup.pushElementAsDynamic(element);
+	}

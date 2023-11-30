@@ -1,0 +1,26 @@
+  public static int runCommand(final CCTask task, final File workingDir, final String[] cmdline,
+      final boolean newEnvironment, final Environment env) throws BuildException {
+    try {
+      task.log(Commandline.toString(cmdline), task.getCommandLogLevel());
+      final Execute exe = new Execute(new LogStreamHandler(task, Project.MSG_INFO, Project.MSG_ERR));
+      if (System.getProperty("os.name").equals("OS/390")) {
+        exe.setVMLauncher(false);
+      }
+      exe.setAntRun(task.getProject());
+      exe.setCommandline(cmdline);
+      exe.setWorkingDirectory(workingDir);
+      if (env != null) {
+        final String[] environment = env.getVariables();
+        if (environment != null) {
+          for (final String element : environment) {
+            task.log("Setting environment variable: " + element, Project.MSG_VERBOSE);
+          }
+        }
+        exe.setEnvironment(environment);
+      }
+      exe.setNewenvironment(newEnvironment);
+      return exe.execute();
+    } catch (final java.io.IOException exc) {
+      throw new BuildException("Could not launch " + cmdline[0] + ": " + exc, task.getLocation());
+    }
+  }

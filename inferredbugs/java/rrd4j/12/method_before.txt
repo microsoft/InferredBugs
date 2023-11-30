@@ -1,0 +1,42 @@
+    public RrdDb requestRrdDb(String path) throws IOException {
+
+        RrdEntry ref = null;
+        try {
+            ref = getEntry(path, true);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("request interrupted for " + path, e);
+        }
+
+        try {
+            //Wait until the pool is not full and 
+            //Don't lock on anything
+            while(ref.count == 0 && ! tryGetSlot()) {
+                passNext(ACTION.SWAP, ref);
+                countLock.lockInterruptibly();
+                full.await();
+                countLock.unlock();                        
+                ref = getEntry(path, true);
+            }
+        } catch (InterruptedException e) {
+            passNext(ACTION.DROP, ref);
+            throw new RuntimeException("request interrupted for " + path, e);
+        } finally {
+            if(countLock.isHeldByCurrentThread()) {
+                countLock.unlock();                        
+            }
+        }
+        //Someone might have already open it, rechecks
+        if(ref.count == 0) {
+            try {
+                ref.rrdDb = new RrdDb(path);
+            } catch (IOException e) {
+                //Don't forget to release the slot reserved earlier
+                usage.decrementAndGet();
+                passNext(ACTION.DROP, ref);
+                throw e;
+            }                
+        }
+        ref.count++;
+        passNext(ACTION.SWAP, ref);
+        return ref.rrdDb;
+    }

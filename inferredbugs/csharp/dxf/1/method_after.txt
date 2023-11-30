@@ -1,0 +1,73 @@
+        private void OutputTables()
+        {
+            foreach (var table in _tables)
+            {
+                var tableItem = Name(table.Element(XName.Get("TableItem", _xmlns)));
+                var className = "Dxf" + Type(table) + "Table";
+                CreateNewFile(TableNamespace, "System.Linq", "System.Collections.Generic", "IxMilia.Dxf.Collections", "IxMilia.Dxf.Sections");
+
+                IncreaseIndent();
+                AppendLine($"public partial class {className} : DxfTable");
+                AppendLine("{");
+                IncreaseIndent();
+                AppendLine($"internal override DxfTableType TableType {{ get {{ return DxfTableType.{Type(table)}; }} }}");
+
+                var tableClassName = TableClassName(table);
+                if (tableClassName != null)
+                {
+                    AppendLine($"internal override string TableClassName {{ get {{ return \"{tableClassName}\"; }} }}");
+                }
+
+                AppendLine();
+                AppendLine($"public IList<{tableItem}> Items {{ get; private set; }}");
+                AppendLine();
+                AppendLine("protected override IEnumerable<DxfSymbolTableFlags> GetSymbolItems()");
+                AppendLine("{");
+                AppendLine("    return Items.Cast<DxfSymbolTableFlags>();");
+                AppendLine("}");
+
+                //
+                // Constructor
+                //
+                AppendLine();
+                AppendLine($"public {className}()");
+                AppendLine("{");
+                AppendLine($"    Items = new ListNonNull<{tableItem}>();");
+                AppendLine("    Normalize();");
+                AppendLine("}");
+
+                //
+                // ReadFromBuffer
+                //
+                AppendLine();
+                AppendLine("internal static DxfTable ReadFromBuffer(DxfCodePairBufferReader buffer)");
+                AppendLine("{");
+                AppendLine($"    var table = new {className}();");
+                AppendLine("    table.Items.Clear();");
+                AppendLine("    while (buffer.ItemsRemain)");
+                AppendLine("    {");
+                AppendLine("        var pair = buffer.Peek();");
+                AppendLine("        buffer.Advance();");
+                AppendLine("        if (DxfTablesSection.IsTableEnd(pair))");
+                AppendLine("        {");
+                AppendLine("            break;");
+                AppendLine("        }");
+                AppendLine();
+                AppendLine($"        if (pair.Code == 0 && pair.StringValue == DxfTable.{TypeStringVariable(table)})");
+                AppendLine("        {");
+                AppendLine($"            var item = {tableItem}.FromBuffer(buffer);");
+                AppendLine("            table.Items.Add(item);");
+                AppendLine("        }");
+                AppendLine("    }"); // end while
+                AppendLine();
+                AppendLine("    return table;");
+                AppendLine("}"); // end method
+
+                DecreaseIndent();
+                AppendLine("}"); // end class
+                DecreaseIndent();
+
+                FinishFile();
+                WriteFile(Path.Combine(_outputDir, $"{className}Generated.cs"));
+            }
+        }

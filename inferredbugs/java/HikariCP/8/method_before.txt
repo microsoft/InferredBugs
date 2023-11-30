@@ -1,0 +1,26 @@
+    @Test
+    public void testTransactionIsolation() throws SQLException
+    {
+        HikariDataSource ds = new HikariDataSource();
+        ds.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
+        ds.setMinimumIdle(1);
+        ds.setMaximumPoolSize(1);
+        ds.setConnectionTestQuery("VALUES 1");
+        ds.setDataSourceClassName("com.zaxxer.hikari.mocks.StubDataSource");
+
+        try
+        {
+            Connection connection = ds.getConnection();
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
+            connection.close();
+
+            Connection connection2 = ds.getConnection();
+            Assert.assertSame(connection, connection2);
+            Assert.assertEquals(Connection.TRANSACTION_READ_COMMITTED, connection2.getTransactionIsolation());
+            connection2.close();
+        }
+        finally
+        {
+            ds.shutdown();
+        }
+    }

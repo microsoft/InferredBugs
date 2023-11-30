@@ -1,0 +1,23 @@
+  [Fact]
+		public void CaptureErrorOnFailingHttpCall_DirectCall()
+		{
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+			RegisterListenerAndStartTransaction(agent);
+
+			var listener = new HttpDiagnosticListener(agent);
+
+			var request = new HttpRequestMessage(HttpMethod.Get, "https://elastic.co");
+
+			//Simulate Start
+			listener.OnNext(new KeyValuePair<string, object>("System.Net.Http.HttpRequestOut.Start", new { Request = request }));
+
+			var exceptionMsg = "Sample exception msg";
+			var exception = new Exception(exceptionMsg);
+			//Simulate Exception
+			listener.OnNext(new KeyValuePair<string, object>("System.Net.Http.Exception", new { Request = request, Exception = exception }));
+
+			Assert.NotEmpty(payloadSender.Errors);
+			Assert.Equal(exceptionMsg, payloadSender.Errors[0].Errors[0].Exception.Message);
+			Assert.Equal(typeof(Exception).FullName, payloadSender.Errors[0].Errors[0].Exception.Type);
+		}

@@ -1,0 +1,49 @@
+        protected string Visit(IAcceptor acceptor, string name, string title, string dataType, string dataFormat, params Attribute[] attributes)
+        {
+            var instance = acceptor as OpenApiSchemaAcceptor;
+            if (instance.IsNullOrDefault())
+            {
+                return null;
+            }
+
+            if (instance.Schemas.ContainsKey(name))
+            {
+                return null;
+            }
+
+            var schema = new OpenApiSchema()
+            {
+                Title = title,
+                Type = dataType,
+                Format = dataFormat
+            };
+
+            // Adds the extra properties.
+            if (attributes.Any())
+            {
+                schema.ApplyValidationAttributes(attributes.OfType<ValidationAttribute>());
+
+                Attribute attr = attributes.OfType<OpenApiPropertyAttribute>().SingleOrDefault();
+                if (!attr.IsNullOrDefault())
+                {
+                    if (dataType != "object")
+                    {
+                        schema.Nullable = this.GetOpenApiPropertyNullable(attr as OpenApiPropertyAttribute);
+                        schema.Default = this.GetOpenApiPropertyDefault(attr as OpenApiPropertyAttribute);
+                    }
+                    schema.Description = this.GetOpenApiPropertyDescription(attr as OpenApiPropertyAttribute);
+                }
+
+                attr = attributes.OfType<OpenApiSchemaVisibilityAttribute>().SingleOrDefault();
+                if (!attr.IsNullOrDefault())
+                {
+                    var extension = new OpenApiString((attr as OpenApiSchemaVisibilityAttribute).Visibility.ToDisplayName());
+
+                    schema.Extensions.Add("x-ms-visibility", extension);
+                }
+            }
+
+            instance.Schemas.Add(name, schema);
+
+            return name;
+        }

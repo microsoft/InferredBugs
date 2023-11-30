@@ -1,0 +1,48 @@
+    @Test
+    public void testDescriptors_WriteSingleFile() {
+
+        String fileName = "1-single.bin";
+
+        long chunkSize = 16;
+        long fileSize = chunkSize * 4;
+
+        Torrent torrent = mockTorrent(fileName, fileSize, chunkSize,
+                new byte[][] {
+                        CryptoUtil.getSha1Digest(Arrays.copyOfRange(SINGLE_FILE, 0, 16)),
+                        CryptoUtil.getSha1Digest(Arrays.copyOfRange(SINGLE_FILE, 16, 32)),
+                        CryptoUtil.getSha1Digest(Arrays.copyOfRange(SINGLE_FILE, 32, 48)),
+                        CryptoUtil.getSha1Digest(Arrays.copyOfRange(SINGLE_FILE, 48, 64)),
+                },
+                mockTorrentFile(fileSize, fileName));
+
+        IDataDescriptor descriptor = new DataDescriptor(dataAccessFactory, configurationService, torrent);
+        List<IChunkDescriptor> chunks = descriptor.getChunkDescriptors();
+
+        assertEquals(4, chunks.size());
+
+        chunks.get(0).writeBlock(sequence(8), 0);
+        chunks.get(0).writeBlock(sequence(8), 8);
+        assertTrue(chunks.get(0).verify());
+
+        chunks.get(1).writeBlock(sequence(4), 0);
+        chunks.get(1).writeBlock(sequence(4), 4);
+        chunks.get(1).writeBlock(sequence(4), 8);
+        chunks.get(1).writeBlock(sequence(4), 12);
+        assertTrue(chunks.get(1).verify());
+
+        // reverse order
+        chunks.get(2).writeBlock(sequence(11), 5);
+        chunks.get(2).writeBlock(sequence(3), 2);
+        chunks.get(2).writeBlock(sequence(2), 0);
+        assertFalse(chunks.get(2).verify());
+
+        // "random" order
+        chunks.get(3).writeBlock(sequence(4), 4);
+        chunks.get(3).writeBlock(sequence(4), 0);
+        chunks.get(3).writeBlock(sequence(4), 12);
+        chunks.get(3).writeBlock(sequence(4), 8);
+        assertTrue(chunks.get(3).verify());
+
+        byte[] file = readBytesFromFile(new File(rootDirectory, fileName), (int) fileSize);
+        assertArrayEquals(SINGLE_FILE, file);
+    }

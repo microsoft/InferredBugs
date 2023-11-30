@@ -1,0 +1,72 @@
+    protected HeimdallRoute getMatchingHeimdallRoute(String requestURI, String method, RequestContext ctx) {
+
+        boolean auxMatch = false;
+        for (Entry<String, ZuulRoute> entry : routeLocator.getAtomicRoutes().get().entrySet()) {
+            if (entry.getKey() != null) {
+                String pattern = entry.getKey();
+                if (this.pathMatcher.match(pattern, requestURI)) {
+
+                    auxMatch = true;
+                    List<Operation> operations = operationRepository.findByEndPoint(pattern);
+                    Operation operation = null;
+                    if (operations != null && !operations.isEmpty()) {
+                        operation = operations.stream().filter(o -> o.getMethod().equals(HttpMethod.ALL) || method.equals(o.getMethod().name().toUpperCase())).findFirst().orElse(null);
+                    }
+
+                    if (operation != null) {
+                        ZuulRoute zuulRoute = entry.getValue();
+
+                        String basePath = operation.getResource().getApi().getBasePath();
+                        requestURI = org.apache.commons.lang.StringUtils.removeStart(requestURI, basePath);
+
+                        ctx.put(PATTERN, org.apache.commons.lang.StringUtils.removeStart(pattern, basePath));
+                        ctx.put(API_NAME, operation.getResource().getApi().getName());
+                        ctx.put(API_ID, operation.getResource().getApi().getId());
+                        ctx.put(RESOURCE_ID, operation.getResource().getId());
+                        ctx.put(OPERATION_ID, operation.getId());
+                        ctx.put("scopes", operation.getScopesIds());
+
+                        List<Environment> environments = operation.getResource().getApi().getEnvironments();
+
+                        String location = null;
+                        if (environments != null) {
+
+                            String host = ctx.getRequest().getHeader("Host");
+
+                            Optional<Environment> environment;
+                            if (host != null && !host.isEmpty()) {
+                                environment = environments.stream().filter(e -> e.getInboundURL().toLowerCase().contains(host.toLowerCase())).findFirst();
+                            } else {
+                                environment = environments.stream().filter(e -> ctx.getRequest().getRequestURL().toString().toLowerCase().contains(e.getInboundURL().toLowerCase())).findFirst();
+                            }
+
+                            if (environment.isPresent()) {
+                                location = environment.get().getOutboundURL();
+                                ctx.put("environmentVariables", environment.get().getVariables());
+                            }
+                        }
+                        Route route = new Route(zuulRoute.getId(), requestURI, location, "", zuulRoute.getRetryable() != null ? zuulRoute.getRetryable() : false, zuulRoute.isCustomSensitiveHeaders() ? zuulRoute.getSensitiveHeaders() : null);
+
+                        TraceContextHolder traceContextHolder = TraceContextHolder.getInstance();
+
+                        traceContextHolder.getActualTrace().setApiId(operation.getResource().getApi().getId());
+                        traceContextHolder.getActualTrace().setApiName(operation.getResource().getApi().getName());
+                        traceContextHolder.getActualTrace().setResourceId(operation.getResource().getId());
+                        traceContextHolder.getActualTrace().setOperationId(operation.getId());
+                        traceContextHolder.getActualTrace().setPattern(operation.getPath());
+
+                        return new HeimdallRoute(pattern, route, false);
+                    } else {
+
+                        ctx.put(INTERRUPT, true);
+                    }
+                }
+            }
+        }
+
+        if (auxMatch) {
+            return new HeimdallRoute().methodNotAllowed();
+        }
+
+        return null;
+    }

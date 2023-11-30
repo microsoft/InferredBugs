@@ -1,0 +1,28 @@
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, SaveProfileMessage message) throws Exception {
+        String userProfileString = message.body;
+
+        //expecting message with 2 parts
+        if (userProfileString == null || userProfileString.equals("")) {
+            throw new InvalidCommandFormatException("Save Profile Handler. Income profile message is empty.", message.id);
+        }
+
+        log.info("Trying to parseProfile user profile : {}", userProfileString);
+        UserProfile userProfile = JsonParser.parseProfile(userProfileString);
+        if (userProfile == null) {
+            throw new InvalidCommandFormatException("Register Handler. Wrong user profile message format.", message.id);
+        }
+
+        log.info("Trying save user profile.");
+
+        User authUser = Session.findUserByChannel(ctx.channel(), message.id);
+
+        authUser.setUserProfile(userProfile);
+        boolean profileSaved = fileManager.overrideUserFile(authUser);
+
+        if (profileSaved) {
+            ctx.writeAndFlush(produce(message.id, OK));
+        } else {
+            ctx.writeAndFlush(produce(message.id, SERVER_ERROR));
+        }
+    }

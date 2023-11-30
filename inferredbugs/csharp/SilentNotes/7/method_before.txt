@@ -1,0 +1,40 @@
+        public string Shorten(string content)
+        {
+            if ((content == null) || (content.Length <= MinimumLengthForShortening))
+                return content;
+
+            int tagCount = 0;
+            Match firstTag = null;
+            Stack<string> tagNames = new Stack<string>();
+            foreach (Match foundTag in EnumerateTags(content))
+            {
+                string tagName = GetTagName(foundTag.Value);
+                if (IsVisibleBlockTag(tagName))
+                {
+                    if (IsOpeningTag(foundTag.Value))
+                    {
+                        tagNames.Push(tagName);
+                        if (firstTag == null)
+                            firstTag = foundTag;
+                    }
+                    else
+                    {
+                        if (tagName == tagNames.Peek())
+                        {
+                            tagNames.Pop();
+
+                            if (tagNames.Count == 0)
+                            {
+                                tagCount++;
+                                int length = foundTag.Index + foundTag.Length - firstTag.Index;
+                                if (tagCount >= WantedTagNumber || length >= WantedLength)
+                                {
+                                    return content.Substring(firstTag.Index, length);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return content;
+        }

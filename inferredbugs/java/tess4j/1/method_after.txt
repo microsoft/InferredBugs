@@ -1,0 +1,33 @@
+    static void copyResources(URL resourceUrl, File targetPath) throws IOException, URISyntaxException {
+        if (resourceUrl == null) {
+            return;
+        }
+
+        URLConnection urlConnection = resourceUrl.openConnection();
+
+        /**
+         * Copy resources either from inside jar or from project folder.
+         */
+        if (urlConnection instanceof JarURLConnection) {
+            copyJarResourceToPath((JarURLConnection) urlConnection, targetPath);
+        } else if (VFS_PROTOCOL.equals(resourceUrl.getProtocol())) {
+            VirtualFile virtualFileOrFolder = VFS.getChild(resourceUrl.toURI());
+            copyFromWarToFolder(virtualFileOrFolder, targetPath);
+        } else {
+            File file = new File(resourceUrl.getPath());
+            if (file.isDirectory()) {
+                for (File resourceFile : FileUtils.listFiles(file, null, true)) {
+                    File targetFile = new File(targetPath, resourceFile.getName());
+                    if (!targetFile.exists() || targetFile.length() != resourceFile.length()) {
+                        if (resourceFile.isFile()) {
+                            FileUtils.copyFile(resourceFile, targetFile);
+                        }
+                    }
+                }
+            } else {
+                if (!targetPath.exists() || targetPath.length() != file.length()) {
+                    FileUtils.copyFile(file, targetPath);
+                }
+            }
+        }
+    }

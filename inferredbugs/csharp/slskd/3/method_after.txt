@@ -1,0 +1,23 @@
+        private static IConfigurationBuilder AddConfigurationProviders(this IConfigurationBuilder builder, string environmentVariablePrefix, string configurationFile)
+        {
+            configurationFile = Path.GetFullPath(configurationFile);
+
+            // todo: write some code here to fetch any properties in options marked with `Attribute` and backed by an array. stuff those arguments into a list for multiValuedArgumetns
+
+            return builder
+                .AddDefaultValues(
+                    targetType: typeof(Options))
+                .AddEnvironmentVariables(
+                    targetType: typeof(Options),
+                    prefix: environmentVariablePrefix)
+                .AddYamlFile(
+                    path: Path.GetFileName(configurationFile),
+                    targetType: typeof(Options),
+                    optional: true,
+                    reloadOnChange: true,
+                    provider: new PhysicalFileProvider(Path.GetDirectoryName(configurationFile), ExclusionFilters.None)) // required for locations outside of the app directory
+                .AddCommandLine(
+                    targetType: typeof(Options),
+                    multiValuedArguments: new[] { "t", "list", "list-of-ints" },
+                    commandLine: Environment.CommandLine);
+        }

@@ -1,0 +1,33 @@
+    @Test
+    public void pollerThreadTearsDownNodeAfterTestIsCompleted() throws IOException {
+
+        // Supported desired capability for the test session
+        Map<String, Object> requestedCapability = getCapabilitySupportedByDockerSelenium();
+
+        // Start poller thread
+        proxy.startPolling();
+
+        // Mock the poller HttpClient to avoid exceptions due to failed connections
+        proxy.getDockerSeleniumNodePollerThread().setClient(getMockedClient());
+
+        // Get a test session
+        TestSession newSession = proxy.getNewSession(requestedCapability);
+        Assert.assertNotNull(newSession);
+
+        // The node should be busy since there is a session in it
+        Assert.assertTrue(proxy.isBusy());
+
+        // We release the session, the node should be free
+        WebDriverRequest request = mock(WebDriverRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(request.getMethod()).thenReturn("DELETE");
+        when(request.getRequestType()).thenReturn(RequestType.STOP_SESSION);
+
+        newSession.getSlot().doFinishRelease();
+        proxy.afterCommand(newSession, request, response);
+
+        // After running one test, the node shouldn't be busy and also down
+        Assert.assertFalse(proxy.isBusy());
+        long sleepTime = proxy.getDockerSeleniumNodePollerThread().getSleepTimeBetweenChecks();
+        await().atMost(sleepTime + 2000, MILLISECONDS).untilCall(to(proxy).isDown(), equalTo(true));
+    }

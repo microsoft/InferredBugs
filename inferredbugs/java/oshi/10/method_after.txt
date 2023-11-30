@@ -1,0 +1,30 @@
+    @Override
+    public int[] getFanSpeeds() {
+        // Initialize
+        int[] fanSpeeds = new int[1];
+        // If we couldn't get through normal WMI go directly to OHM
+        if (!this.fanSpeedWMI) {
+            double[] vals = wmiGetValuesForKeys("/namespace:\\\\root\\OpenHardwareMonitor PATH Sensor", null, "Fan",
+                    "Parent,SensorType,Value");
+            if (vals.length > 0) {
+                fanSpeeds = new int[vals.length];
+                for (int i = 0; i < vals.length; i++) {
+                    fanSpeeds[i] = (int) vals[i];
+                }
+            }
+            return fanSpeeds;
+        }
+        // This branch is used the first time and all subsequent times if
+        // successful (fanSpeedWMI == true)
+        // Try to get value
+        int rpm = wmiGetValue("/namespace:\\\\root\\cimv2 PATH Win32_Fan", "DesiredSpeed");
+        // Set in array and return
+        if (rpm > 0) {
+            fanSpeeds[0] = rpm;
+        } else {
+            // Fail, switch to OHM
+            this.fanSpeedWMI = false;
+            return getFanSpeeds();
+        }
+        return fanSpeeds;
+    }

@@ -1,0 +1,45 @@
+        [Test]
+        public void ShouldReindexNodeWithDateTimeOffsetIndexEntry()
+        {
+            //Arrange
+            var indexEntries = new List<IndexEntry>
+                {
+                    new IndexEntry
+                        {
+                            Name = "my_nodes",
+                            KeyValues = new Dictionary<string, object>
+                                {
+                                    {"FooKey", new DateTimeOffset(1000, new TimeSpan(0))}
+                                },
+                        }
+                };
+
+            using (var testHarness = new RestTestHarness
+                {
+                    {
+                        MockRequest.PostObjectAsJson("/index/node/my_nodes",
+                                                     new
+                                                         {
+                                                             key = "FooKey",
+                                                             value = "1000",
+                                                             uri = "http://foo/db/data/node/123"
+                                                         }),
+                        MockResponse.Json(HttpStatusCode.Created,
+                                          @"Location: http://foo/db/data/index/node/my_nodes/FooKey/someDateValue/123")
+                    },
+                    {
+                        MockRequest.Delete("/index/node/my_nodes/123"),
+                        MockResponse.Http((int) HttpStatusCode.NoContent)
+                    }
+                })
+            {
+                var graphClient = testHarness.CreateAndConnectGraphClient();
+
+                //Act
+                var nodeReference = new NodeReference<TestNode>(123);
+                graphClient.ReIndex(nodeReference, indexEntries);
+
+                // Assert
+                Assert.Pass("Success.");
+            }
+        }

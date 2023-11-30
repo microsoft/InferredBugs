@@ -1,0 +1,56 @@
+        protected sealed override Size2D MeasureCore(Size2D availableSize)
+        {
+            var margin = PerformLayoutRounding(this.Margin);
+
+            var xMargin = margin.Left + margin.Right;
+            var yMargin = margin.Top + margin.Bottom;
+
+            double minWidth, maxWidth;
+            LayoutUtil.GetBoundedMeasure(Width, MinWidth, MaxWidth, out minWidth, out maxWidth);
+
+            double minHeight, maxHeight;
+            LayoutUtil.GetBoundedMeasure(Height, MinHeight, MaxHeight, out minHeight, out maxHeight);
+
+            var availableWidthSansMargin  = Math.Max(0, availableSize.Width - xMargin);
+            var availableHeightSansMargin = Math.Max(0, availableSize.Height - yMargin);
+            var availableSizeSansMargin = new Size2D(availableWidthSansMargin, availableHeightSansMargin);
+
+            isLayoutTransformed = !Transform.IsIdentityTransform(LayoutTransform);
+            if (isLayoutTransformed)
+            {
+                layoutTransformUsedDuringLayout = LayoutTransform.Value;
+
+                availableSizeSansMargin = CalculateMaximumAvailableSizeBeforeLayoutTransform(
+                    availableWidthSansMargin, availableHeightSansMargin, LayoutTransform.Value);
+            }
+
+            var tentativeWidth  = Math.Max(minWidth, Math.Min(maxWidth, availableSizeSansMargin.Width));
+            var tentativeHeight = Math.Max(minHeight, Math.Min(maxHeight, availableSizeSansMargin.Height));
+            var tentativeSize   = new Size2D(tentativeWidth, tentativeHeight);
+            tentativeSize = PerformLayoutRounding(tentativeSize);
+
+            var measuredSize = MeasureOverride(tentativeSize);
+            measuredSize = PerformLayoutRounding(measuredSize);
+
+            var measuredWidth  = measuredSize.Width;
+            var measuredHeight = measuredSize.Height;
+            
+            measuredWidth  = Math.Max(minWidth, Math.Min(maxWidth, measuredWidth));
+            measuredHeight = Math.Max(minHeight, Math.Min(maxHeight, measuredHeight));
+            measuredSize = new Size2D(measuredWidth, measuredHeight);
+            
+            layoutTransformSizeDesiredBeforeTransform = measuredSize;
+
+            if (isLayoutTransformed)
+            {
+                var transform = LayoutTransform.Value;
+                RectangleD area = new RectangleD(0, 0, measuredWidth, measuredHeight);
+                RectangleD.TransformAxisAligned(ref area, ref transform, out area);
+                measuredSize = new Size2D(area.Width, area.Height);                
+            }
+
+            var finalWidth = Math.Max(0, xMargin + measuredSize.Width);
+            var finalHeight = Math.Max(0, yMargin + measuredSize.Height);
+
+            return PerformLayoutRounding(new Size2D(finalWidth, finalHeight));
+        }

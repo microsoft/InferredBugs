@@ -1,0 +1,73 @@
+  @Override
+  protected int runWithJobId(final Namespace options, final HeliosClient client,
+                             final PrintStream out, final boolean json, final JobId jobId,
+                             final BufferedReader stdin)
+      throws ExecutionException, InterruptedException, IOException {
+
+    final boolean all = options.getBoolean(allArg.getDest());
+    final boolean yes = options.getBoolean(yesArg.getDest());
+    final boolean force = options.getBoolean(forceArg.getDest());
+    final List<String> hosts;
+
+    if (force) {
+      log.warn("If you are using '--force' to skip the interactive prompt, " +
+               "note that we have deprecated it. Please use '--yes'.");
+    }
+
+    if (all) {
+      final JobStatus status = client.jobStatus(jobId).get();
+      hosts = ImmutableList.copyOf(status.getDeployments().keySet());
+      if (hosts.isEmpty()) {
+        out.printf("%s is not currently deployed on any hosts.", jobId);
+        return 0;
+      }
+
+      if (!yes && !force) {
+        out.printf("This will undeploy %s from %s%n", jobId, hosts);
+        final boolean confirmed = Utils.userConfirmed(out, stdin);
+        if (!confirmed) {
+          return 1;
+        }
+      }
+    } else {
+      hosts = options.getList(hostsArg.getDest());
+      if (hosts.isEmpty()) {
+        out.println("Please either specify a list of hosts or use the -a/--all flag.");
+        return 1;
+      }
+    }
+
+    if (!json) {
+      out.printf("Undeploying %s from %s%n", jobId, hosts);
+    }
+
+    int code = 0;
+    final HostResolver resolver = HostResolver.create(client);
+
+    for (final String candidateHost : hosts) {
+      final String host = resolver.resolveName(candidateHost);
+
+      if (!json) {
+        out.printf("%s: ", host);
+      }
+
+      final String token = options.getString(tokenArg.getDest());
+      final JobUndeployResponse response = client.undeploy(jobId, host, token).get();
+      if (response.getStatus() == JobUndeployResponse.Status.OK) {
+        if (!json) {
+          out.println("done");
+        } else {
+          out.printf(response.toJsonString());
+        }
+      } else {
+        if (!json) {
+          out.println("failed: " + response);
+        } else {
+          out.printf(response.toJsonString());
+        }
+        code = -1;
+      }
+    }
+
+    return code;
+  }

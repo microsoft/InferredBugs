@@ -1,0 +1,25 @@
+        [Test]
+        public void When_UseSsl_Is_False_At_Bucket_Level_Ssl_Is_Not_Used()
+        {
+            var remoteHost = ConfigurationManager.AppSettings["bootstrapUrl"];
+            var config = new ClientConfiguration
+            {
+                BucketConfigs = new Dictionary<string, BucketConfiguration>
+                {
+                    {"beer-sample", new BucketConfiguration
+                    {
+                        UseSsl = false
+                    }}
+                },
+                Servers = new List<Uri>
+                {
+                    new Uri(remoteHost)
+                }
+            };
+            var cluster = new CouchbaseCluster(config);
+            using (var bucket = cluster.OpenBucket("beer-sample"))
+            {
+                //only the customers bucket will not use SSL
+                Assert.IsFalse(bucket.IsSecure);
+            }
+        }

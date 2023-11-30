@@ -1,0 +1,54 @@
+ protected void doEvaluation(int expectedQueryCount, String qrels, float expectedMAP) throws Exception
+	{
+//		Writer w = Files.writeFileWriter(ApplicationSetup.TREC_QRELS);
+//		System.err.println("Writing qrel files files to " + ApplicationSetup.TREC_QRELS);
+//		w.write(qrels + "\n");
+//		w.close();
+		TrecTerrier.main(new String[]{"-e", "-Dtrec.qrels=" + qrels});
+		float MAP = -1.0f;
+		int queryCount = 0;
+		File[] fs = new File(ApplicationSetup.TREC_RESULTS).listFiles();
+		assertNotNull(fs);
+		for (File f : fs)
+		{
+			if (f.getName().endsWith(".eval"))
+			{
+				BufferedReader br = Files.openFileReader(f);
+				String line = null;
+				while((line = br.readLine()) != null )
+				{
+					//System.out.println(line);
+					if (line.startsWith("Average Precision:"))
+					{
+						MAP = Float.parseFloat(line.split(":")[1].trim());	
+					} 
+					else if (line.startsWith("Number of queries  ="))
+					{
+						queryCount = Integer.parseInt(line.split("\\s+=\\s+")[1].trim());
+					}
+				}
+				br.close();
+				break;
+			}
+		}
+		assertEquals("Query count was "+ queryCount + " instead of "+ expectedQueryCount, expectedQueryCount, queryCount);
+		assertEquals("MAP was "+MAP + " instead of "+expectedMAP, expectedMAP, MAP, 0.0d);
+		
+		//System.err.println("Tidying results folder:");
+		//System.err.println("ls "+ ApplicationSetup.TREC_RESULTS);
+		//System.err.println(Arrays.deepToString(new File(ApplicationSetup.TREC_RESULTS).listFiles()));
+		
+		//delete all runs and evaluations
+		fs = new File(ApplicationSetup.TREC_RESULTS).listFiles();
+		assertNotNull(fs);
+		for (File f :fs)
+		{
+			//System.err.println("Checking file for possible deletion: "+f);
+			if (f.getName().endsWith(".res") || f.getName().endsWith(".eval"))
+			{
+				System.err.println("Removing finished file "+f);
+				if (! f.delete())
+					System.err.println("Could not remove finished file "+f);
+			}
+		}
+	}

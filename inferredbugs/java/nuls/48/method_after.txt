@@ -1,0 +1,142 @@
+    public ValidateResult validate(BlockHeader header, List<Transaction> txs) {
+        if (header.getHeight() == 0) {
+            return ValidateResult.getSuccessResult();
+        }
+        BlockRoundData
+                roundData = new BlockRoundData(header.getExtend());
+        Block preBlock = getBlockService().getBlock(header.getPreHash().getDigestHex());
+        if (null == preBlock) {
+            //When a block does not exist, it is temporarily validated.
+            return ValidateResult.getSuccessResult();
+        }
+        BlockRoundData preRoundData = new BlockRoundData(preBlock.getHeader().getExtend());
+
+        PocMeetingRound localThisRoundData =  calcCurrentRound(header, header.getHeight(), roundData);
+        PocMeetingRound localPreRoundData  = calcCurrentRound(preBlock.getHeader(), preBlock.getHeader().getHeight(), preRoundData);
+
+
+        if (roundData.getConsensusMemberCount() != localThisRoundData.getMemberCount()) {
+            return ValidateResult.getFailedResult("The round data of the block is wrong!");
+        }
+        if (roundData.getRoundIndex() == (localPreRoundData.getIndex() + 1) && roundData.getRoundStartTime() != localPreRoundData.getEndTime()) {
+            return ValidateResult.getFailedResult("The round data of the block is wrong!");
+        }
+        PocMeetingMember member = localThisRoundData.getMember(roundData.getPackingIndexOfRound());
+        if (null == member) {
+            return ValidateResult.getFailedResult("Cannot find the packing member!");
+        }
+        if (member.getIndexOfRound() != roundData.getPackingIndexOfRound() || !member.getPackingAddress().equals(header.getPackingAddress())) {
+            ValidateResult vr = ValidateResult.getFailedResult("It's not the address's turn to pack the block!");
+            vr.setObject(header);
+            vr.setLevel(SeverityLevelEnum.FLAGRANT_FOUL);
+            return vr;
+        }
+        if (null == txs) {
+            return ValidateResult.getSuccessResult();
+        }
+        YellowPunishTransaction yellowPunishTx = null;
+        for (Transaction tx : txs) {
+            if (tx.getType() == TransactionConstant.TX_TYPE_YELLOW_PUNISH) {
+                if (yellowPunishTx == null) {
+                    yellowPunishTx = (YellowPunishTransaction) tx;
+                } else {
+                    return ValidateResult.getFailedResult("There are too many yellow punish transactions!");
+                }
+            }
+        }
+        //when the blocks are continuous
+        boolean isContinuous = preRoundData.getRoundIndex() == roundData.getRoundIndex() && preRoundData.getPackingIndexOfRound() == (roundData.getPackingIndexOfRound() - 1);
+        isContinuous = isContinuous || (preRoundData.getRoundIndex() == (roundData.getRoundIndex() - 1) && preRoundData.getPackingIndexOfRound() == preRoundData.getConsensusMemberCount() &&
+                roundData.getPackingIndexOfRound() == 1);
+        //Too long intervals will not be penalized.
+        boolean longTimeAgo = preRoundData.getRoundIndex() < (roundData.getRoundIndex() - 1);
+        if (longTimeAgo && yellowPunishTx == null) {
+            return ValidateResult.getSuccessResult();
+        }
+        if (isContinuous) {
+            if (yellowPunishTx == null) {
+                return ValidateResult.getSuccessResult();
+            } else {
+                return ValidateResult.getFailedResult("the block shouldn't has any yellow punish tx!");
+            }
+        } else {
+            if (null == yellowPunishTx) {
+                return ValidateResult.getFailedResult("It should be a yellow punish tx here!");
+            }
+            if (yellowPunishTx.getTxData().getHeight() != header.getHeight()) {
+                return ValidateResult.getFailedResult("The yellow punish tx's height is wrong!");
+            }
+            int interval = 0;
+            if (roundData.getRoundIndex() == preRoundData.getRoundIndex()) {
+                interval = roundData.getPackingIndexOfRound() - preRoundData.getPackingIndexOfRound() - 1;
+            } else if ((roundData.getRoundIndex() - 1) == preRoundData.getRoundIndex()) {
+                interval = preRoundData.getConsensusMemberCount() - preRoundData.getPackingIndexOfRound() + roundData.getPackingIndexOfRound() - 1;
+            }
+            if (interval != yellowPunishTx.getTxData().getAddressList().size()) {
+                return ValidateResult.getFailedResult("The count of YellowPunishTx is wrong,it should be " + interval);
+            } else {
+                long roundIndex = preRoundData.getRoundIndex();
+                int indexOfRound = 0;
+
+                if (preRoundData.getPackingIndexOfRound() == preRoundData.getConsensusMemberCount()) {
+                    roundIndex++;
+                    indexOfRound = 1;
+                } else {
+                    indexOfRound = preRoundData.getPackingIndexOfRound() + 1;
+                }
+                List<String> addressList = new ArrayList<>();
+                while (true) {
+                    PocMeetingRound tempRound;
+                    if (roundIndex == roundData.getRoundIndex()) {
+                        tempRound = localThisRoundData;
+                    } else if (roundIndex == (roundData.getRoundIndex() - 1)) {
+                        tempRound = localPreRoundData;
+                    } else {
+                        break;
+                    }
+                    if (tempRound == null) {
+                        break;
+                    }
+                    if (tempRound.getIndex() > roundData.getRoundIndex()) {
+                        break;
+                    }
+                    if (tempRound.getIndex() == roundData.getRoundIndex() && indexOfRound >= roundData.getPackingIndexOfRound()) {
+                        break;
+                    }
+                    if (indexOfRound >= tempRound.getMemberCount()) {
+                        roundIndex++;
+                        indexOfRound = 1;
+                        continue;
+                    }
+                    PocMeetingMember smo;
+                    try {
+                        smo = tempRound.getMember(indexOfRound);
+                        if (null == member) {
+                            break;
+                        }
+                    } catch (Exception e) {
+                        break;
+                    }
+                    indexOfRound++;
+                    addressList.add(smo.getAgentAddress());
+                }
+                if (addressList.size() != yellowPunishTx.getTxData().getAddressList().size()) {
+                    return ValidateResult.getFailedResult("The block has wrong yellow punish Tx!address list size is wrong!");
+                }
+                for (String address : addressList) {
+                    boolean contains = false;
+                    for (Address addressObj : yellowPunishTx.getTxData().getAddressList()) {
+                        if (addressObj.getBase58().equals(address)) {
+                            contains = true;
+                            break;
+                        }
+                    }
+                    if (!contains) {
+                        return ValidateResult.getFailedResult("The block has wrong yellow punish Tx!It has wrong address");
+                    }
+                }
+            }
+        }
+
+        return checkCoinBaseTx(header, txs, roundData, localThisRoundData);
+    }

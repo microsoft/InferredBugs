@@ -1,0 +1,22 @@
+    public Channel getChannel(String clientName) {
+        if (log.isDebugEnabled()) {
+            for (Map.Entry<String, List<Channel>> entry : channelMap.entrySet()) {
+                log.debug("participantName={}, channelNum={}",
+                        entry.getKey(),
+                        entry.getValue() == null ? 0 : entry.getValue().size());
+            }
+        }
+        lock.readLock().lock();
+        try {
+            List<Channel> channelList = channelMap.get(clientName);
+            if (channelList == null || channelList.size() == 0) {
+                log.info("no available connection for clientName={}", clientName);
+                return null;
+            }
+            int id = index.getAndIncrement() % channelList.size();
+            Channel channel = channelList.get(id);
+            return channel;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }

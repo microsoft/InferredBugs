@@ -1,0 +1,27 @@
+    public OutputStream createOutputStream(final long offset)
+            throws IOException {
+
+        // permission check
+        if (!isWritable()) {
+            throw new IOException("No write permission : " + file.getName());
+        }
+
+        // move to the appropriate offset and create output stream
+        final RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        try {
+            raf.setLength(offset);
+            raf.seek(offset);
+
+            // The IBM jre needs to have both the stream and the random access file
+            // objects closed to actually close the file
+            return new FileOutputStream(raf.getFD()) {
+                public void close() throws IOException {
+                    super.close();
+                    raf.close();
+                }
+            };
+        } catch (IOException e) {
+            raf.close();
+            throw e;
+        }
+    }

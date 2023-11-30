@@ -1,0 +1,52 @@
+    private boolean stopUsingMysqldadmin() {
+        boolean retValue = false;
+
+        Reader stdOut = null;
+        Reader stdErr = null;
+        LogFileProcessor processor = null;
+        Set<String> successPatterns = Sets.newHashSet(
+                "'Can't connect to MySQL server on 'localhost'",
+                Platform.detect() == Windows ? "mysqld.exe: Shutdown complete" : "mysqld: Shutdown complete");
+
+        try {
+            String cmd = Paths.get(getExecutable().getFile().generatedBaseDir().getAbsolutePath(), "bin", "mysqladmin").toString();
+
+            Process p = Runtime.getRuntime().exec(new String[] {
+                    cmd, "--no-defaults", "--protocol=tcp",
+                    String.format("-u%s", MysqldConfig.SystemDefaults.USERNAME),
+                    "shutdown"});
+
+            retValue = p.waitFor() == 0;
+
+            OutputWatchStreamProcessor outputWatch = new OutputWatchStreamProcessor(
+                    successPatterns,
+                    Sets.newHashSet("[ERROR]"),
+                    StreamToLineProcessor.wrap(getRuntimeConfig().getProcessOutput().getOutput()));
+
+            processor = new LogFileProcessor(new File(this.getExecutable().executable.generatedBaseDir() + "/data/error.log"), outputWatch);
+
+            stdOut = new InputStreamReader(p.getInputStream());
+            stdErr = new InputStreamReader(p.getErrorStream());
+
+            if (retValue) {
+                outputWatch.waitForResult(getConfig().getTimeout());
+
+                if (!outputWatch.isInitWithSuccess()) {
+                    logger.error("mysql shutdown failed. Expected to find in output: 'Shutdown complete', got: " + outputWatch.getFailureFound());
+                    retValue = false;
+                }
+            } else {
+                logger.error("mysql shutdown failed with error code: " + p.waitFor() + " and message: " + CharStreams.toString(stdErr));
+            }
+
+        } catch (InterruptedException e) {
+            logger.warn("Encountered error why shutting down process.", e);
+        } catch (IOException e) {
+            logger.warn("Encountered error why shutting down process.", e);
+        } finally {
+            closeCloseables(stdOut, stdErr);
+            if (processor != null) processor.shutdown();
+        }
+
+        return retValue;
+    }

@@ -1,0 +1,26 @@
+  @Test
+  public void testReRegisterHost() throws Exception {
+    // Register the host & add some fake data to its status & config dirs
+    final String idPath = Paths.configHostId(HOSTNAME);
+    ZooKeeperRegistrarUtil.registerHost(zkClient, idPath, HOSTNAME, ID);
+    zkClient.ensurePath(Paths.statusHostJob(HOSTNAME, JOB_ID1));
+    zkClient.ensurePath(Paths.configHostJob(HOSTNAME, JOB_ID1));
+    final Stat jobConfigStat = zkClient.stat(Paths.configHostJob(HOSTNAME, JOB_ID1));
+
+    // ... and then re-register it
+    final String newId = UUID.randomUUID().toString();
+    ZooKeeperRegistrarUtil.reRegisterHost(zkClient, HOSTNAME, newId);
+
+    // Verify that the host-id was updated
+    assertEquals(newId, new String(zkClient.getData(idPath)));
+
+    // Verify that /status/hosts/<host>/jobs exists and is EMPTY
+    assertNotNull(zkClient.exists(Paths.statusHostJobs(HOSTNAME)));
+    assertThat(zkClient.listRecursive(Paths.statusHostJobs(HOSTNAME)),
+               contains(Paths.statusHostJobs(HOSTNAME)));
+    // Verify that re-registering didn't change the nodes in /config/hosts/<host>/jobs
+    assertEquals(
+        jobConfigStat,
+        zkClient.stat(Paths.configHostJob(HOSTNAME, JOB_ID1))
+    );
+  }

@@ -1,0 +1,100 @@
+    @NeedAuth
+    @RequestMapping("/remvIP4Dom")
+    public String remvIP4Dom(HttpServletRequest request) throws Exception {
+        String dom = WebUtils.required(request, "dom");
+        String ipListString = WebUtils.required(request, "ipList");
+
+        Map<String, String> proxyParams = new HashMap<>(16);
+        for (Map.Entry<String, String[]> entry : request.getParameterMap().entrySet()) {
+            proxyParams.put(entry.getKey(), entry.getValue()[0]);
+        }
+
+        if (Loggers.DEBUG_LOG.isDebugEnabled()) {
+            Loggers.DEBUG_LOG.debug("[REMOVE-IP] full arguments: params:" + proxyParams);
+        }
+
+        List<String> ipList = new ArrayList<>();
+
+        List<IpAddress> ipObjList = new ArrayList<>(ipList.size());
+        if (Boolean.parseBoolean(WebUtils.optional(request, SwitchEntry.PARAM_JSON, Boolean.FALSE.toString()))) {
+            ipList = Arrays.asList(ipListString);
+            ipObjList = JSON.parseObject(ipListString, new TypeReference<List<IpAddress>>() {
+            });
+        } else {
+            ipList = Arrays.asList(ipListString.split(","));
+            for (String ip : ipList) {
+                ipObjList.add(IpAddress.fromJSON(ip));
+            }
+        }
+
+        if (!RaftCore.isLeader()) {
+            Loggers.RAFT.info("I'm not leader, will proxy to leader.");
+            if (RaftCore.getLeader() == null) {
+                throw new IllegalArgumentException("no leader now.");
+            }
+
+            RaftPeer leader = RaftCore.getLeader();
+
+            String server = leader.ip;
+            if (!server.contains(UtilsAndCommons.CLUSTER_CONF_IP_SPLITER)) {
+                server = server + UtilsAndCommons.CLUSTER_CONF_IP_SPLITER + RunningConfig.getServerPort();
+            }
+
+            String url = "http://" + server
+                + RunningConfig.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/api/remvIP4Dom";
+            HttpClient.HttpResult result1 = HttpClient.httpPost(url, null, proxyParams);
+
+            if (result1.code != HttpURLConnection.HTTP_OK) {
+                Loggers.SRV_LOG.warn("failed to remove ip for dom, caused " + result1.content);
+                throw new IllegalArgumentException("failed to remove ip for dom, caused " + result1.content);
+            }
+
+            return "ok";
+        }
+
+        VirtualClusterDomain domain = (VirtualClusterDomain) domainsManager.getDomain(dom);
+
+        if (domain == null) {
+            throw new IllegalStateException("dom doesn't exist: " + dom);
+        }
+
+        if (CollectionUtils.isEmpty(ipObjList)) {
+            throw new IllegalArgumentException("Empty ip list");
+        }
+
+        String key = UtilsAndCommons.getIPListStoreKey(domainsManager.getDomain(dom));
+
+        long timestamp = 1;
+        if (RaftCore.getDatum(key) != null) {
+            timestamp = RaftCore.getDatum(key).timestamp.get();
+        }
+
+        if (RaftCore.isLeader()) {
+
+            try {
+
+                RaftCore.OPERATE_LOCK.lock();
+
+                proxyParams.put("clientIP", NetUtils.localServer());
+                proxyParams.put("notify", "true");
+                proxyParams.put("term", String.valueOf(RaftCore.getPeerSet().local().term));
+                proxyParams.put("timestamp", String.valueOf(timestamp));
+
+                onRemvIP4Dom(MockHttpRequest.buildRequest2(proxyParams));
+
+                if (domain.getEnableHealthCheck() && !domain.getEnableClientBeat()) {
+                    syncOnRemvIP4Dom(dom, ipList, proxyParams, WebUtils.optional(request, "clientIP", "unknown"));
+                } else {
+                    asyncOnRemvIP4Dom(dom, ipList, proxyParams, WebUtils.optional(request, "clientIP", "unknown"));
+                }
+            } finally {
+                RaftCore.OPERATE_LOCK.unlock();
+            }
+
+            Loggers.EVT_LOG.info("{" + dom + "} {POS} {IP-REMV}" + " new: "
+                + ipListString + " operatorIP: "
+                + WebUtils.optional(request, "clientIP", "unknown"));
+        }
+
+        return "ok";
+    }

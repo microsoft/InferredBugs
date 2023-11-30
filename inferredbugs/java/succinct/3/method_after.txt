@@ -1,0 +1,36 @@
+  public void writeToStream(DataOutputStream os) throws IOException {
+    WritableByteChannel dataChannel = Channels.newChannel(os);
+
+    os.writeInt(getOriginalSize());
+    os.writeInt(getSamplingRateSA());
+    os.writeInt(getSamplingRateISA());
+    os.writeInt(getSamplingRateNPA());
+    os.writeInt(getSampleBitWidth());
+    os.writeInt(getAlphabetSize());
+
+    for (int i = 0; i < getAlphabetSize(); i++) {
+      os.writeInt(alphabet[i]);
+    }
+
+    ByteBuffer bufSA = ByteBuffer.allocate(sa.limit() * SuccinctConstants.LONG_SIZE_BYTES);
+    bufSA.asLongBuffer().put(sa.buffer());
+    dataChannel.write(bufSA.order(ByteOrder.BIG_ENDIAN));
+    sa.rewind();
+
+    ByteBuffer bufISA = ByteBuffer.allocate(isa.limit() * SuccinctConstants.LONG_SIZE_BYTES);
+    bufISA.asLongBuffer().put(isa.buffer());
+    dataChannel.write(bufISA.order(ByteOrder.BIG_ENDIAN));
+    isa.rewind();
+
+    ByteBuffer bufColOff =
+      ByteBuffer.allocate(getAlphabetSize() * SuccinctConstants.LONG_SIZE_BYTES);
+    bufColOff.asLongBuffer().put(columnoffsets.buffer());
+    dataChannel.write(bufColOff.order(ByteOrder.BIG_ENDIAN));
+    columnoffsets.rewind();
+
+    for (int i = 0; i < columns.length; i++) {
+      os.writeInt(columns[i].limit());
+      dataChannel.write(columns[i].order(ByteOrder.BIG_ENDIAN));
+      columns[i].rewind();
+    }
+  }

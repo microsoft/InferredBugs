@@ -1,0 +1,19 @@
+    void block(final long startTimeMs, @SuppressWarnings("unused") final int errorCode) {
+        // TODO: Currently we don't care about error_code which indicates why the
+        // very RPC fails. To make it better there should be different timeout for
+        // each individual error (e.g. we don't need check every
+        // heartbeat_timeout_ms whether a dead follower has come back), but it's just
+        // fine now.
+        final long dueTime = startTimeMs + this.options.getDynamicHeartBeatTimeoutMs();
+        try {
+            LOG.debug("Blocking {} for {} ms", this.options.getPeerId(), this.options.getDynamicHeartBeatTimeoutMs());
+            this.blockTimer = this.timerManager.schedule(() -> onBlockTimeout(this.id), dueTime - Utils.nowMs(),
+                TimeUnit.MILLISECONDS);
+            this.statInfo.runningState = RunningState.BLOCKING;
+            this.id.unlock();
+        } catch (final Exception e) {
+            LOG.error("Fail to add timer", e);
+            // id unlock in sendEmptyEntries.
+            sendEmptyEntries(false);
+        }
+    }

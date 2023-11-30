@@ -1,0 +1,26 @@
+        public static void RegisterFunction(string name, ParserFunction function,
+                                            bool isNative = true)
+        {
+            name = Constants.ConvertName(name);
+            if (s_functions.TryGetValue(name, out ParserFunction old))
+            {
+                var msg = "Warning: Overriding function [" + old.Name + "].";
+                System.Diagnostics.Debug.WriteLine(msg);
+                Interpreter.Instance.AppendOutput(msg, true);
+            }
+            function.Name = Constants.GetRealName(name);
+
+            if (!string.IsNullOrWhiteSpace(s_namespace))
+            {
+                StackLevel level;
+                if (s_namespaces.TryGetValue(s_namespace, out level) &&
+                   function is CustomFunction)
+                {
+                    ((CustomFunction)function).NamespaceData = level;
+                    name = s_namespacePrefix + name;
+                }
+            }
+
+            s_functions[name] = function;
+            function.isNative = isNative;
+        }

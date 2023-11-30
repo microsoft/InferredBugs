@@ -1,0 +1,29 @@
+  private BestPossibleStateOutput compute(ClusterEvent event, Map<String, Resource> resourceMap,
+      CurrentStateOutput currentStateOutput) {
+    ClusterDataCache cache = event.getAttribute(AttributeName.ClusterDataCache.name());
+    BestPossibleStateOutput output = new BestPossibleStateOutput();
+
+    PriorityQueue<TaskSchedulingStage.ResourcePriority> resourcePriorityQueue =
+        new PriorityQueue<>();
+    TaskDriver taskDriver = null;
+    HelixManager helixManager = event.getAttribute(AttributeName.helixmanager.name());
+    if (helixManager != null) {
+      taskDriver = new TaskDriver(helixManager);
+    }
+    for (Resource resource : resourceMap.values()) {
+      resourcePriorityQueue.add(new TaskSchedulingStage.ResourcePriority(resource,
+          cache.getIdealState(resource.getResourceName()), taskDriver));
+    }
+
+    // TODO: Replace this looping available resources with Workflow Queues
+    for (Iterator<TaskSchedulingStage.ResourcePriority> itr = resourcePriorityQueue.iterator();
+        itr.hasNext(); ) {
+      Resource resource = itr.next().getResource();
+      if (!computeResourceBestPossibleState(event, cache, currentStateOutput, resource, output)) {
+        LogUtil
+            .logWarn(logger, _eventId, "Failed to assign tasks for " + resource.getResourceName());
+      }
+    }
+
+    return output;
+  }

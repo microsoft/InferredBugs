@@ -1,0 +1,74 @@
+  public SolutionSet execute() throws JMException, ClassNotFoundException {
+    initParams();
+
+    success_ = false;
+    globalBest_ =  null ;
+    //->Step 1 (and 3) Create the initial population and evaluate
+    for (int i = 0; i < swarmSize_; i++) {
+      Solution particle = new Solution(problem_);
+      problem_.evaluate(particle);
+      evaluations_ ++ ;
+      swarm_.add(particle);
+      if ((globalBest_ == null) || (particle.getObjective(0) < globalBest_.getObjective(0)))
+        globalBest_ = new Solution(particle) ;
+    }
+
+    //-> Step2. Initialize the speed_ of each particle to 0
+    for (int i = 0; i < swarmSize_; i++) {
+      for (int j = 0; j < problem_.getNumberOfVariables(); j++) {
+        speed_[i][j] = 0.0;
+      }
+    }
+
+    //-> Step 6. Initialize the memory of each particle
+    for (int i = 0; i < swarm_.size(); i++) {
+      Solution particle = new Solution(swarm_.get(i));
+      localBest_[i] = particle;
+    }
+
+    //-> Step 7. Iterations ..        
+    while (iteration_ < maxIterations_) {
+      int bestIndividual = (Integer)findBestSolution_.execute(swarm_) ;
+      try {
+        //Compute the speed_
+        computeSpeed(iteration_, maxIterations_);
+      } catch (IOException ex) {
+        Logger.getLogger(StandardPSO2011.class.getName()).log(Level.SEVERE, null, ex);
+      }
+
+      //Compute the new positions for the swarm_
+      computeNewPositions();
+
+      //Mutate the swarm_
+      //mopsoMutation(iteration_, maxIterations_);
+
+      //Evaluate the new swarm_ in new positions
+      for (int i = 0; i < swarm_.size(); i++) {
+        Solution particle = swarm_.get(i);
+        problem_.evaluate(particle);
+        evaluations_ ++ ;
+      }
+
+      //Actualize the memory of this particle
+      for (int i = 0; i < swarm_.size(); i++) {
+        //int flag = comparator_.compare(swarm_.get(i), localBest_[i]);
+        //if (flag < 0) { // the new particle is best_ than the older remember        
+      	if ((swarm_.get(i).getObjective(0) < localBest_[i].getObjective(0))) {
+          Solution particle = new Solution(swarm_.get(i));
+          localBest_[i] = particle;
+        } // if
+      	if ((swarm_.get(i).getObjective(0) < globalBest_.getObjective(0))) {
+          Solution particle = new Solution(swarm_.get(i));
+          globalBest_ = particle;
+        } // if
+      	
+      }
+      iteration_++;
+    }
+    
+    // Return a population with the best individual
+    SolutionSet resultPopulation = new SolutionSet(1) ;
+    resultPopulation.add(swarm_.get((Integer)findBestSolution_.execute(swarm_))) ;
+    
+    return resultPopulation ;
+  }

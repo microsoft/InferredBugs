@@ -1,0 +1,56 @@
+    public Response updateWidgetProperty(String token,
+                                         String pinString,
+                                         String property,
+                                         String... values) {
+        if (values.length == 0) {
+            log.debug("No properties for update provided.");
+            return Response.badRequest("No properties for update provided.");
+        }
+
+        TokenValue tokenValue = tokenManager.getTokenValueByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return Response.badRequest("Invalid token.");
+        }
+
+        final User user = tokenValue.user;
+        final int deviceId = tokenValue.deviceId;
+
+        DashBoard dash = tokenValue.dash;
+
+        //todo add test for this use case
+        if (!dash.isActive) {
+            return Response.badRequest("Project is not active.");
+        }
+
+        PinType pinType;
+        byte pin;
+        try {
+            pinType = PinType.getPinType(pinString.charAt(0));
+            pin = Byte.parseByte(pinString.substring(1));
+        } catch (NumberFormatException | IllegalCommandBodyException e) {
+            log.debug("Wrong pin format. {}", pinString);
+            return Response.badRequest("Wrong pin format.");
+        }
+
+        //for now supporting only virtual pins
+        Widget widget = dash.findWidgetByPin(deviceId, pin, pinType);
+
+        if (widget == null || pinType != PinType.VIRTUAL) {
+            log.debug("No widget for SetWidgetProperty command.");
+            return Response.badRequest("No widget for SetWidgetProperty command.");
+        }
+
+        try {
+            //todo for now supporting only single property
+            widget.setProperty(property, values[0]);
+        } catch (Exception e) {
+            log.debug("Error setting widget property. Reason : {}", e.getMessage());
+            return Response.badRequest("Error setting widget property.");
+        }
+
+        Session session = sessionDao.userSession.get(new UserKey(user));
+        session.sendToApps(SET_WIDGET_PROPERTY, 111, dash.id, deviceId, "" + pin + BODY_SEPARATOR + property + BODY_SEPARATOR + values[0]);
+        return Response.ok();
+    }

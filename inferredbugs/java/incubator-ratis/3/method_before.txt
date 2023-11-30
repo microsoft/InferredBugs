@@ -1,0 +1,23 @@
+    public static void main(String[] args) {
+        VerificationTool tool = new VerificationTool();
+        JCommander.newBuilder()
+                .addObject(tool)
+                .build()
+                .parse(args);
+        System.out.println(tool.metaQuorum);
+        LogServiceClient client = new LogServiceClient(tool.metaQuorum);
+        ExecutorService executor = Executors.newCachedThreadPool();
+        List<Future<?>> futures = new ArrayList<Future<?>>(tool.numLogs);
+        for (int i = 0; i < tool.numLogs; i++) {
+            BulkWriter writer = new BulkWriter(LOG_NAME_PREFIX + i, client, tool.numRecords);
+            futures.add(executor.submit(writer));
+        }
+        waitForCompletion(futures);
+        futures = new ArrayList<Future<?>>(tool.numLogs);
+        for (int i = 0; i < tool.numLogs; i++) {
+            BulkReader reader = new BulkReader(LOG_NAME_PREFIX + i, client, tool.numRecords);
+            futures.add(executor.submit(reader));
+        }
+        waitForCompletion(futures);
+        executor.shutdownNow();
+    }

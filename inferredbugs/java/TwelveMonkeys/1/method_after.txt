@@ -1,0 +1,20 @@
+    private void writeBody(ByteArrayOutputStream pImageData) throws IOException {
+        imageOutput.writeInt(IFF.CHUNK_BODY);
+        imageOutput.writeInt(pImageData.size());
+
+        // NOTE: This is much faster than imageOutput.write(pImageData.toByteArray())
+        // as the data array is not duplicated
+        OutputStream adapter = IIOUtil.createStreamAdapter(imageOutput);
+        try {
+            pImageData.writeTo(adapter);
+        }
+        finally {
+            adapter.close();
+        }
+
+        if (pImageData.size() % 2 == 0) {
+            imageOutput.writeByte(0); // PAD
+        }
+
+        imageOutput.flush();
+    }

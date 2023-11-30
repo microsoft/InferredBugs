@@ -1,0 +1,76 @@
+     protected Pagination<DimensionRow> getResultsPage(Query query, PaginationParameters paginationParameters)
+            throws PageNotFoundException {
+        int perPage = paginationParameters.getPerPage();
+        validatePerPage(perPage);
+
+        TreeSet<DimensionRow> filteredDimRows;
+        int documentCount;
+        initializeIndexSearcher();
+        LOG.trace("Lucene Query {}", query);
+
+        readLock();
+        try {
+            ScoreDoc[] hits;
+            try (TimedPhase timer = RequestLog.startTiming("QueryingLucene")) {
+                TopDocs hitDocs = getPageOfData(
+                        luceneIndexSearcher,
+                        null,
+                        query,
+                        perPage
+                );
+                hits = hitDocs.scoreDocs;
+                // The change to supprt long document sizes is incompletely supported in Lucene
+                // Since we can't request up to long documents we'll only expect to receive up to Integer.MAX_VALUE
+                // responses, and throw an error if we exceed that.
+                if (hitDocs.totalHits > Integer.MAX_VALUE) {
+                    String message = String.format(TOO_MANY_DOCUMENTS, hitDocs.totalHits);
+                    RowLimitReachedException exception = new RowLimitReachedException(message);
+                    LOG.error(exception.getMessage(), exception);
+                    throw exception;
+                }
+                documentCount = (int) hitDocs.totalHits;
+
+                int requestedPageNumber = paginationParameters.getPage(documentCount);
+                if (hits.length == 0) {
+                    if (requestedPageNumber == 1) {
+                        return new SinglePagePagination<>(Collections.emptyList(), paginationParameters, 0);
+                    } else {
+                        throw new PageNotFoundException(requestedPageNumber, perPage, 0);
+                    }
+                }
+                for (int currentPage = 1; currentPage < requestedPageNumber; currentPage++) {
+                    ScoreDoc lastEntry = hits[hits.length - 1];
+                    hits = getPageOfData(luceneIndexSearcher, lastEntry, query, perPage).scoreDocs;
+                    if (hits.length == 0) {
+                        throw new PageNotFoundException(requestedPageNumber, perPage, 0);
+                    }
+                }
+            }
+
+            // convert hits to dimension rows
+            try (TimedPhase timer = RequestLog.startTiming("LuceneHydratingDimensionRows")) {
+                String idKey = DimensionStoreKeyUtils.getColumnKey(dimension.getKey().getName());
+                filteredDimRows = Arrays.stream(hits)
+                        .map(
+                                hit -> {
+                                    try {
+                                        return luceneIndexSearcher.doc(hit.doc);
+                                    } catch (IOException e) {
+                                        LOG.error("Unable to convert hit " + hit);
+                                        throw new RuntimeException(e);
+                                    }
+                                }
+                        )
+                        .map(document -> document.get(idKey))
+                        .map(dimension::findDimensionRowByKeyValue)
+                        .collect(Collectors.toCollection(TreeSet::new));
+            }
+        } finally {
+            readUnlock();
+        }
+        return new SinglePagePagination<>(
+                Collections.unmodifiableList(filteredDimRows.stream().collect(Collectors.toList())),
+                paginationParameters,
+                documentCount
+        );
+    }

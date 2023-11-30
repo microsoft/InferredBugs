@@ -1,0 +1,26 @@
+        public Image TakeScreenshot(int delayms = 0) {
+            if (delayms != 0)
+                SysWaiter.Wait(delayms);
+
+            if(_session.capabilities.GetValue("takesElementScreenshot", false)){
+                return (Image)Send(RequestMethod.GET, "/screenshot");
+            }
+
+            var dict = (Dictionary)_session.javascript.Execute(
+                "return arguments[0].getBoundingClientRect();", new[] { this }, false);
+
+            int left = Convert.ToInt32(dict["left"]);
+            int top = Convert.ToInt32(dict["top"]);
+            int width = Convert.ToInt32(dict["width"]);
+            int height = Convert.ToInt32(dict["height"]);
+            var rect = new System.Drawing.Rectangle(left, top, width, height);
+
+            using (Image image = (Image)_session.Send(RequestMethod.GET, "/screenshot")) {
+                var bitmap = image.GetBitmap();
+                if (rect.Right > bitmap.Width || rect.Bottom > bitmap.Height)
+                    throw new SeleniumError("Element outside of the screenshot.");
+
+                var bmpCrop = bitmap.Clone(rect, bitmap.PixelFormat);
+                return new Image(bmpCrop);
+            }
+        }

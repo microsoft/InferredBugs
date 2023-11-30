@@ -1,0 +1,20 @@
+    public void testRootBeans() throws Exception
+    {
+        final String JSON = aposToQuotes("{'a':3} {'x':5}");
+        MappingIterator<Bean> it = MAPPER.readerFor(Bean.class).readValues(JSON);
+        // First one should be fine
+        assertTrue(it.hasNextValue());
+        Bean bean = it.nextValue();
+        assertEquals(3, bean.a);
+        // but second one not
+        try {
+            bean = it.nextValue();
+            fail("Should not have succeeded");
+        } catch (JsonMappingException e) {
+            verifyException(e, "Unrecognized field \"x\"");
+        }
+        // 21-May-2015, tatu: With [databind#734], recovery, we now know there's no more data!
+        assertFalse(it.hasNextValue());
+
+        it.close();
+    }

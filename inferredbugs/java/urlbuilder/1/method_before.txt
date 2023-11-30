@@ -1,0 +1,25 @@
+    public static UrlBuilder fromString(final String url, final Charset inputEncoding) {
+        if (url.isEmpty()) {
+            return new UrlBuilder();
+        }
+        final Matcher m = URI_PATTERN.matcher(url);
+        String protocol = null, hostName = null, path = null, anchor = null;
+        Integer port = null;
+        Map<String, List<String>> queryParameters = null;
+        if (m.find()) {
+            protocol = m.group(2);
+            if (m.group(4) != null) {
+                final Matcher n = AUTHORITY_PATTERN.matcher(m.group(4));
+                if (n.find()) {
+                    hostName = IDN.toUnicode(n.group(1));
+                    if (n.group(3) != null) {
+                        port = Integer.parseInt(n.group(3));
+                    }
+                }
+            }
+            path = decodePath(m.group(5), inputEncoding);
+            queryParameters = decodeQueryParameters(m.group(7), inputEncoding);
+            anchor = m.group(9);
+        }
+        return of(inputEncoding, DEFAULT_ENCODING, protocol, hostName, port, path, queryParameters, anchor);
+    }

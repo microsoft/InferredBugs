@@ -1,0 +1,19 @@
+    public void parse(
+            InputStream stream, ContentHandler handler, Metadata metadata)
+            throws IOException, SAXException, TikaException {
+        // We need buffering to enable MIME magic detection before parsing
+        if (!stream.markSupported()) {
+            stream = new BufferedInputStream(stream);
+        }
+
+        // Automatically detect the MIME type of the document 
+        MediaType type = types.detect(stream, metadata);
+        metadata.set(Metadata.CONTENT_TYPE, type.toString());
+
+        // TIKA-216: Zip bomb prevention
+        CountingInputStream count = new CountingInputStream(stream);
+        SecureContentHandler secure = new SecureContentHandler(handler, count);
+
+        // Parse the document
+        super.parse(count, secure, metadata);
+    }

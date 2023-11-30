@@ -1,0 +1,23 @@
+    @Override
+    public void doFilter(final Logbook logbook, final HttpServletRequest httpRequest,
+            final HttpServletResponse httpResponse, final FilterChain chain) throws ServletException, IOException {
+
+        final TeeRequest request = new TeeRequest(httpRequest);
+        final TeeResponse response = new TeeResponse(httpResponse);
+
+        chain.doFilter(request, response);
+
+        if (isUnauthorized(response)) {
+            final Optional<Correlator> correlator;
+
+            if (isFirstRequest(request)) {
+                correlator = logbook.write(new UnauthorizedRawHttpRequest(request));
+            } else {
+                correlator = readCorrelator(request);
+            }
+
+            if (correlator.isPresent()) {
+                correlator.get().write(response);
+            }
+        }
+    }

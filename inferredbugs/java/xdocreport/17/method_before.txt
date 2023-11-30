@@ -1,0 +1,43 @@
+    private void visitHeadersFooters( IXWPFMasterPage masterPage, CTSectPr sectPr )
+        throws Exception
+    {
+        // see titlePg at http://officeopenxml.com/WPsection.php i
+        // Specifies whether the section should have a different header and
+        // footer
+        // for its first page.
+        // If the element is set to true (e.g., <w:titlePg/>),
+        // then the section will use a first page header;
+        // if it is false (e.g., <w:titlePg w:val="false"/>)
+        // (the default value), then the first page uses the odd page header. If
+        // the element is set to true but the
+        // first page header type is omitted, then a blank header is created.
+        boolean ignoreFirstHeaderFooter = !XWPFUtils.isCTOnOff( sectPr.getTitlePg() );
+
+        Collection<CTHdrFtrRef> headersRef = sectPr.getHeaderReferenceList();
+        Collection<CTHdrFtrRef> footersRef = sectPr.getFooterReferenceList();
+
+        boolean firstHeaderFooter = false;
+        for ( CTHdrFtrRef headerRef : headersRef )
+        {
+            STHdrFtr type = headerRef.xgetType();
+            firstHeaderFooter = ( type != null && type.enumValue() == STHdrFtr.FIRST );
+            if ( !firstHeaderFooter || ( firstHeaderFooter && !ignoreFirstHeaderFooter ) )
+            {
+                masterPage.setType( type.enumValue().intValue() );
+                documentHandler.visitHeaderRef( headerRef, sectPr, masterPage );
+            }
+        }
+
+        for ( CTHdrFtrRef footerRef : footersRef )
+        {
+            STHdrFtr type = footerRef.xgetType();
+            firstHeaderFooter = ( type != null && type.enumValue() == STHdrFtr.FIRST );
+            if ( !firstHeaderFooter || ( firstHeaderFooter && !ignoreFirstHeaderFooter ) )
+            {
+                masterPage.setType( type.enumValue().intValue() );
+                documentHandler.visitFooterRef( footerRef, sectPr, masterPage );
+            }
+        }
+        masterPage.setType( STHdrFtr.INT_FIRST );
+
+    }

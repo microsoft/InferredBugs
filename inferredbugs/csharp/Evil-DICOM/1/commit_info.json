@@ -1,0 +1,653 @@
+{
+    "hash": "145908aab04e90cd244aaf2866baed06f513ded0",
+    "message": "Simplified sigantures and removed memory leak of TcpClient",
+    "file_num_lines": 154,
+    "diff_parsed": {
+        "added": [
+            [
+                3,
+                "using System;"
+            ],
+            [
+                25,
+                "            using (var client = new TcpClient())"
+            ],
+            [
+                26,
+                "            {"
+            ],
+            [
+                27,
+                "                client.ConnectAsync(IPAddress.Parse(ae.IpAddress), ae.Port).Wait();"
+            ],
+            [
+                28,
+                "                var assoc = new Association(this, client) { AeTitle = ae.AeTitle };"
+            ],
+            [
+                29,
+                "                PDataMessenger.Send(dimse, assoc);"
+            ],
+            [
+                30,
+                "                assoc.Listen();"
+            ],
+            [
+                31,
+                "            }"
+            ],
+            [
+                34,
+                "        public T GetResponse<T,U>(U request, Entity e, ref ushort msgId) where U : AbstractDIMSERequest where T:AbstractDIMSEResponse"
+            ],
+            [
+                36,
+                "            System.DateTime lastContact = System.DateTime.Now;"
+            ],
+            [
+                37,
+                "            int msWait = 2000;"
+            ],
+            [
+                39,
+                "            var mr = new ManualResetEvent(false);"
+            ],
+            [
+                40,
+                "            T resp = null;"
+            ],
+            [
+                41,
+                "            var cr = new Services.DIMSEService.DIMSEResponseHandler<T>((res, asc) =>"
+            ],
+            [
+                43,
+                "                lastContact = System.DateTime.Now;"
+            ],
+            [
+                44,
+                "                if (!(res.Status == (ushort)Status.PENDING))"
+            ],
+            [
+                45,
+                "                    mr.Set();"
+            ],
+            [
+                46,
+                "                resp = res;"
+            ],
+            [
+                47,
+                "            });"
+            ],
+            [
+                48,
+                ""
+            ],
+            [
+                49,
+                "            DIMSEService.Subscribe(cr);"
+            ],
+            [
+                50,
+                "            SendMessage(request, e);"
+            ],
+            [
+                51,
+                "            while ((System.DateTime.Now - lastContact).TotalMilliseconds < msWait)"
+            ],
+            [
+                52,
+                "                mr.WaitOne(msWait);"
+            ],
+            [
+                53,
+                "            DIMSEService.Unsubscribe(cr);"
+            ],
+            [
+                54,
+                "            msgId += 2;"
+            ],
+            [
+                55,
+                "            return resp;"
+            ],
+            [
+                58,
+                "        public IEnumerable<T> GetResponses<T, U>(U request, Entity e, ref ushort msgId) where U : AbstractDIMSERequest where T : AbstractDIMSEResponse"
+            ],
+            [
+                60,
+                "            System.DateTime lastContact = System.DateTime.Now;"
+            ],
+            [
+                61,
+                "            int msWait = 2000;"
+            ],
+            [
+                62,
+                ""
+            ],
+            [
+                63,
+                "            var mr = new ManualResetEvent(false);"
+            ],
+            [
+                65,
+                "            List<T> responses = new List<T>();"
+            ],
+            [
+                66,
+                "            var cr = new Services.DIMSEService.DIMSEResponseHandler<T>((res, asc) =>"
+            ],
+            [
+                68,
+                "                lastContact = System.DateTime.Now;"
+            ],
+            [
+                69,
+                "                if (!(res.Status == (ushort)Status.PENDING))"
+            ],
+            [
+                70,
+                "                    mr.Set();"
+            ],
+            [
+                71,
+                "                responses.Add(res);"
+            ],
+            [
+                72,
+                "            });"
+            ],
+            [
+                73,
+                ""
+            ],
+            [
+                74,
+                "            DIMSEService.Subscribe(cr);"
+            ],
+            [
+                75,
+                "            SendMessage(request, e);"
+            ],
+            [
+                76,
+                "            while ((System.DateTime.Now - lastContact).TotalMilliseconds < msWait)"
+            ],
+            [
+                77,
+                "                mr.WaitOne(msWait);"
+            ],
+            [
+                78,
+                "            DIMSEService.Unsubscribe(cr);"
+            ],
+            [
+                79,
+                "            msgId += 2;"
+            ],
+            [
+                126,
+                "        public CMoveResponse SendCMove(Entity daemon, CFindImageIOD iod, string toAETite, ref ushort msgId)"
+            ],
+            [
+                137,
+                "            return GetResponse<CMoveResponse, CMoveRequest>(request, daemon, ref msgId);"
+            ],
+            [
+                140,
+                "        public CMoveResponse SendCMove(Entity daemon, CFindSeriesIOD iod, string toAETite, ref ushort msgId)"
+            ],
+            [
+                151,
+                "            return GetResponse<CMoveResponse, CMoveRequest>(request, daemon, ref msgId);"
+            ],
+            [
+                164,
+                "            return GetResponse<CMoveResponse, CMoveRequest>(request, daemon, ref msgId);"
+            ]
+        ],
+        "deleted": [
+            [
+                24,
+                "            var client = new TcpClient();"
+            ],
+            [
+                25,
+                "            client.ConnectAsync(IPAddress.Parse(ae.IpAddress), ae.Port).Wait();"
+            ],
+            [
+                26,
+                "            var assoc = new Association(this, client) { AeTitle = ae.AeTitle };"
+            ],
+            [
+                27,
+                "            PDataMessenger.Send(dimse, assoc);"
+            ],
+            [
+                28,
+                "            assoc.Listen();"
+            ],
+            [
+                31,
+                "        public IEnumerable<CFindResponse> GetResponse(CFindRequest cFind, Entity ae)"
+            ],
+            [
+                33,
+                "            var client = new TcpClient();"
+            ],
+            [
+                34,
+                "            client.ConnectAsync(IPAddress.Parse(ae.IpAddress), ae.Port).Wait();"
+            ],
+            [
+                35,
+                "            var assoc = new Association(this, client) { AeTitle = ae.AeTitle };"
+            ],
+            [
+                36,
+                "            PDataMessenger.Send(cFind, assoc);"
+            ],
+            [
+                37,
+                "            var responses = new List<CFindResponse>();"
+            ],
+            [
+                39,
+                "            Services.DIMSEService.DIMSEResponseHandler<CFindResponse> action = null;"
+            ],
+            [
+                40,
+                "            action = (resp, asc) =>"
+            ],
+            [
+                42,
+                "                responses.Add(resp);"
+            ],
+            [
+                43,
+                "                if (resp.Status != (ushort)Status.PENDING)"
+            ],
+            [
+                44,
+                "                    DIMSEService.CFindResponseReceived -= action;"
+            ],
+            [
+                45,
+                "            };"
+            ],
+            [
+                46,
+                "            DIMSEService.CFindResponseReceived += action;"
+            ],
+            [
+                47,
+                "            assoc.Listen();"
+            ],
+            [
+                48,
+                "            return responses;"
+            ],
+            [
+                51,
+                "        public IEnumerable<CMoveResponse> GetResponse(CMoveRequest cMove, Entity ae)"
+            ],
+            [
+                53,
+                "            var client = new TcpClient();"
+            ],
+            [
+                54,
+                "            client.ConnectAsync(IPAddress.Parse(ae.IpAddress), ae.Port).Wait();"
+            ],
+            [
+                55,
+                "            var assoc = new Association(this, client) { AeTitle = ae.AeTitle };"
+            ],
+            [
+                56,
+                "            PDataMessenger.Send(cMove, assoc);"
+            ],
+            [
+                57,
+                "            var responses = new List<CMoveResponse>();"
+            ],
+            [
+                59,
+                "            Services.DIMSEService.DIMSEResponseHandler<CMoveResponse> action = null;"
+            ],
+            [
+                60,
+                "            action = (resp, asc) =>"
+            ],
+            [
+                62,
+                "                responses.Add(resp);"
+            ],
+            [
+                63,
+                "                if (resp.Status != (ushort)Status.PENDING)"
+            ],
+            [
+                64,
+                "                    DIMSEService.CMoveResponseReceived -= action;"
+            ],
+            [
+                65,
+                "            };"
+            ],
+            [
+                66,
+                "            DIMSEService.CMoveResponseReceived += action;"
+            ],
+            [
+                67,
+                "            assoc.Listen();"
+            ],
+            [
+                114,
+                "        public CMoveResponse SendCMoveImage(Entity daemon, CFindImageIOD iod, string toAETite, ref ushort msgId)"
+            ],
+            [
+                116,
+                "            System.DateTime lastContact = System.DateTime.Now;"
+            ],
+            [
+                117,
+                "            int msWait = 2000;"
+            ],
+            [
+                118,
+                ""
+            ],
+            [
+                119,
+                "            var mr = new ManualResetEvent(false);"
+            ],
+            [
+                120,
+                "            CMoveResponse resp = null;"
+            ],
+            [
+                121,
+                "            var cr = new Services.DIMSEService.DIMSEResponseHandler<CMoveResponse>((res, asc) =>"
+            ],
+            [
+                122,
+                "            {"
+            ],
+            [
+                123,
+                "                lastContact = System.DateTime.Now;"
+            ],
+            [
+                124,
+                "                if (!(res.Status == (ushort)Status.PENDING))"
+            ],
+            [
+                125,
+                "                    mr.Set();"
+            ],
+            [
+                126,
+                "                resp = res;"
+            ],
+            [
+                127,
+                "            });"
+            ],
+            [
+                137,
+                "            DIMSEService.CMoveResponseReceived += cr;"
+            ],
+            [
+                138,
+                "            SendMessage(request, daemon);"
+            ],
+            [
+                139,
+                "            while ((System.DateTime.Now - lastContact).TotalMilliseconds < msWait)"
+            ],
+            [
+                140,
+                "                mr.WaitOne(msWait);"
+            ],
+            [
+                141,
+                "            DIMSEService.CMoveResponseReceived -= cr;"
+            ],
+            [
+                142,
+                "            msgId += 2;"
+            ],
+            [
+                143,
+                "            return resp;"
+            ],
+            [
+                146,
+                "        public CMoveResponse SendCMoveSeries(Entity daemon, CFindSeriesIOD iod, string toAETite, ref ushort msgId)"
+            ],
+            [
+                148,
+                "            System.DateTime lastContact = System.DateTime.Now;"
+            ],
+            [
+                149,
+                "            int msWait = 2000;"
+            ],
+            [
+                150,
+                ""
+            ],
+            [
+                151,
+                "            var mr = new ManualResetEvent(false);"
+            ],
+            [
+                152,
+                "            CMoveResponse resp = null;"
+            ],
+            [
+                153,
+                "            var cr = new Services.DIMSEService.DIMSEResponseHandler<CMoveResponse>((res, asc) =>"
+            ],
+            [
+                154,
+                "            {"
+            ],
+            [
+                155,
+                "                lastContact = System.DateTime.Now;"
+            ],
+            [
+                156,
+                "                if (!(res.Status == (ushort)Status.PENDING))"
+            ],
+            [
+                157,
+                "                    mr.Set();"
+            ],
+            [
+                158,
+                "                resp = res;"
+            ],
+            [
+                159,
+                "            });"
+            ],
+            [
+                169,
+                "            DIMSEService.CMoveResponseReceived += cr;"
+            ],
+            [
+                170,
+                "            SendMessage(request, daemon);"
+            ],
+            [
+                171,
+                "            while ((System.DateTime.Now - lastContact).TotalMilliseconds < msWait)"
+            ],
+            [
+                172,
+                "                mr.WaitOne(msWait);"
+            ],
+            [
+                173,
+                "            DIMSEService.CMoveResponseReceived -= cr;"
+            ],
+            [
+                174,
+                "            msgId += 2;"
+            ],
+            [
+                175,
+                "            return resp;"
+            ],
+            [
+                180,
+                "            System.DateTime lastContact = System.DateTime.Now;"
+            ],
+            [
+                181,
+                "            int msWait = 2000;"
+            ],
+            [
+                182,
+                ""
+            ],
+            [
+                183,
+                "            var mr = new ManualResetEvent(false);"
+            ],
+            [
+                184,
+                "            CMoveResponse resp = null;"
+            ],
+            [
+                185,
+                "            var cr = new Services.DIMSEService.DIMSEResponseHandler<CMoveResponse>((res, asc) =>"
+            ],
+            [
+                186,
+                "            {"
+            ],
+            [
+                187,
+                "                lastContact = System.DateTime.Now;"
+            ],
+            [
+                188,
+                "                if (!(res.Status == (ushort)Status.PENDING))"
+            ],
+            [
+                189,
+                "                    mr.Set();"
+            ],
+            [
+                190,
+                "                resp = res;"
+            ],
+            [
+                191,
+                "            });"
+            ],
+            [
+                200,
+                "            DIMSEService.CMoveResponseReceived += cr;"
+            ],
+            [
+                201,
+                "            SendMessage(request, daemon);"
+            ],
+            [
+                202,
+                "            while ((System.DateTime.Now - lastContact).TotalMilliseconds < msWait)"
+            ],
+            [
+                203,
+                "                mr.WaitOne(msWait);"
+            ],
+            [
+                204,
+                "            DIMSEService.CMoveResponseReceived -= cr;"
+            ],
+            [
+                205,
+                "            msgId += 2;"
+            ],
+            [
+                206,
+                "            return resp;"
+            ],
+            [
+                239,
+                ""
+            ],
+            [
+                240,
+                "        /// <summary>"
+            ],
+            [
+                241,
+                "        /// Emits a CMove operation to an entity which moves an image from the entity to the specified AETitle"
+            ],
+            [
+                242,
+                "        /// </summary>"
+            ],
+            [
+                243,
+                "        /// <param name=\"scp\">the provider which will perform the move</param>"
+            ],
+            [
+                244,
+                "        /// <param name=\"sopUid\">the uid of the image to be moved</param>"
+            ],
+            [
+                245,
+                "        /// <param name=\"patientId\">the patient id of the image</param>"
+            ],
+            [
+                246,
+                "        /// <param name=\"toAETite\">the entity title which will receive the image</param>"
+            ],
+            [
+                247,
+                "        /// <param name=\"msgId\">the message id</param>"
+            ],
+            [
+                248,
+                "        /// <returns>the move response</returns>"
+            ],
+            [
+                249,
+                "        public CMoveResponse SendCMoveImage(Entity daemon, string patientId, string sopInstanceUid, string toAETite,"
+            ],
+            [
+                250,
+                "            ref ushort msgId)"
+            ],
+            [
+                251,
+                "        {"
+            ],
+            [
+                252,
+                "            var cfindIod = new CFindImageIOD { PatientId = patientId, SOPInstanceUID = sopInstanceUid };"
+            ],
+            [
+                253,
+                "            return SendCMoveImage(daemon, cfindIod, toAETite, ref msgId);"
+            ],
+            [
+                254,
+                "        }"
+            ]
+        ]
+    },
+    "num_lines_added": 51,
+    "num_lines_removed": 109
+}

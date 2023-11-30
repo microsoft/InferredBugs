@@ -1,0 +1,21 @@
+        public override Paging<User> GetList<TFilter>(IFilter<TFilter> filter)
+        {
+            UserFilter userFilter = filter as UserFilter;
+
+            var builder = Builders<User>.Filter;
+            FilterDefinition<User> queryFilter = builder.Empty;
+
+            if (!string.IsNullOrEmpty(userFilter.username))
+            {
+                queryFilter = queryFilter & builder.Regex($"username", new BsonRegularExpression($".*{userFilter.username}.*", "i"));
+            }
+
+            if (!string.IsNullOrEmpty(userFilter.email))
+            {
+                queryFilter = queryFilter & builder.Eq($"email", userFilter.email);
+            }
+
+            SortDefinition<User> sort = Builders<User>.Sort.Ascending(x => x.Username);
+
+            return new Paging<User>(this.Collection, userFilter.page, queryFilter, sort, userFilter.per_page);
+        }

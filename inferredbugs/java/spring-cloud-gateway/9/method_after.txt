@@ -1,0 +1,10 @@
+ @Override
+	public Flux<Payload> requestStream(Payload payload) {
+		GatewayExchange exchange = createExchange(REQUEST_STREAM, payload);
+		return findRSocketOrCreatePending(exchange)
+				.flatMapMany(rSocket -> rSocket.requestStream(payload))
+				// S N E F
+				.doOnNext(s -> count(exchange, "payload"))
+				.doOnError(t -> count(exchange, "error"))
+				.doFinally(s -> count(exchange, Tags.empty()));
+	}

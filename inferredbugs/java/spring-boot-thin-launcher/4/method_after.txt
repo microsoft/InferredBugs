@@ -1,0 +1,48 @@
+ public List<Dependency> dependencies(final Resource resource,
+			final Properties properties) {
+		if ("true".equals(properties.getProperty("computed", "false"))) {
+			log.info("Dependencies are pre-computed in properties");
+			Model model = new Model();
+			model = ThinPropertiesModelProcessor.process(model, properties);
+			return aetherDependencies(model.getDependencies(), properties);
+		}
+		initialize();
+		try {
+			log.info("Computing dependencies from pom and properties");
+			ProjectBuildingRequest request = getProjectBuildingRequest(properties);
+			request.setResolveDependencies(true);
+			synchronized (DependencyResolver.class) {
+				ProjectBuildingResult result = projectBuilder
+						.build(new PropertiesModelSource(properties, resource), request);
+				DependencyResolver.globals = null;
+				DependencyResolutionResult dependencies = result
+						.getDependencyResolutionResult();
+				if (!dependencies.getUnresolvedDependencies().isEmpty()) {
+					StringBuilder builder = new StringBuilder();
+					for (Dependency dependency : dependencies
+							.getUnresolvedDependencies()) {
+						List<Exception> errors = dependencies
+								.getResolutionErrors(dependency);
+						for (Exception exception : errors) {
+							if (builder.length() > 0) {
+								builder.append("\n");
+							}
+							builder.append(exception.getMessage());
+						}
+					}
+					throw new RuntimeException(builder.toString());
+				}
+				List<Dependency> output = runtime(dependencies.getDependencies());
+				if (log.isInfoEnabled()) {
+					for (Dependency dependency : output) {
+						log.info("Resolved: " + coordinates(dependency) + "="
+								+ dependency.getArtifact().getFile());
+					}
+				}
+				return output;
+			}
+		}
+		catch (ProjectBuildingException | NoLocalRepositoryManagerException e) {
+			throw new IllegalStateException("Cannot build model", e);
+		}
+	}

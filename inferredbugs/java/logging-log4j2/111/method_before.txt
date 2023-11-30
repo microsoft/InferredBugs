@@ -1,0 +1,54 @@
+    public static void main(String[] args) throws Exception {
+        System.setProperty("Log4jContextSelector", AsyncLoggerContextSelector.class.getName());
+        System.setProperty("log4j.configurationFile", "perf3PlainNoLoc.xml");
+
+        Logger logger = LogManager.getLogger();
+        logger.info("Starting..."); // initializes Log4j
+        Thread.sleep(100);
+
+        final long nanoTimeCost = PerfTest.calcNanoTimeCost();
+        System.out.println(nanoTimeCost);
+
+        long maxOpsPerSec = 1000 * 1000; // just assume... TODO make parameter
+        double targetLoadLevel = 0.05; // TODO make parameter
+
+        long oneOpDurationNanos = TimeUnit.SECONDS.toNanos(1) / maxOpsPerSec;
+        long idleTimeNanos = (long) ((1.0 - targetLoadLevel) * oneOpDurationNanos);
+        System.out.printf("Idle time is %d nanos at %,f load level%n", idleTimeNanos, targetLoadLevel);
+
+        final int WARMUP_ITERATIONS = 5;
+        final int threadCount = 8;
+        List<List<Histogram>> warmups = new ArrayList<>();
+        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
+            List<Histogram> warmupHistograms = new ArrayList<>(threadCount);
+
+            final int WARMUP_COUNT = 500000;
+            final long interval = idleTimeNanos;
+            final IdleStrategy idleStrategy = new NoOpIdleStrategy();
+            runLatencyTest(logger, WARMUP_COUNT, interval, idleStrategy, warmupHistograms, nanoTimeCost, threadCount);
+            warmups.add(warmupHistograms);
+        }
+
+        long start = System.currentTimeMillis();
+        final int MEASURED_ITERATIONS = 5;
+        List<List<Histogram>> tests = new ArrayList<>();
+        for (int i = 0; i < MEASURED_ITERATIONS; i++) {
+            List<Histogram> histograms = new ArrayList<>(threadCount);
+
+            final int COUNT = 5000000;
+            final long interval = idleTimeNanos;
+            final IdleStrategy idleStrategy = new NoOpIdleStrategy();
+            runLatencyTest(logger, COUNT, interval, idleStrategy, histograms, nanoTimeCost, threadCount);
+            tests.add(histograms);
+        }
+        long end = System.currentTimeMillis();
+
+        final Histogram result = new Histogram(TimeUnit.SECONDS.toNanos(10), 3);
+        for (List<Histogram> done : tests) {
+            for (Histogram hist : done) {
+                result.add(hist);
+            }
+        }
+        result.outputPercentileDistribution(System.out, 1000.0);
+        System.out.println("Test duration: " + (end - start) / 1000.0 + " seconds");
+    }

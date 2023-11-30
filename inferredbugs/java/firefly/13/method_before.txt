@@ -1,0 +1,38 @@
+ private void initializeHTTP2ClientConnection(final Session session, final HTTP2ClientContext context,
+			final SSLSession sslSession) {
+
+		final HTTP2ClientConnection connection = new HTTP2ClientConnection(config, session, sslSession,
+				context.listener);
+		Map<Integer, Integer> settings = context.listener.onPreface(connection.getHttp2Session());
+		if (settings == null) {
+			settings = Collections.emptyMap();
+		}
+		PrefaceFrame prefaceFrame = new PrefaceFrame();
+		SettingsFrame settingsFrame = new SettingsFrame(settings, false);
+		SessionSPI sessionSPI = connection.getSessionSPI();
+		int windowDelta = config.getInitialSessionRecvWindow() - FlowControlStrategy.DEFAULT_WINDOW_SIZE;
+		Callback callback = new Callback() {
+
+			@Override
+			public void succeeded() {
+				context.promise.succeeded(connection);
+			}
+
+			@Override
+			public void failed(Throwable x) {
+				try {
+					connection.close();
+				} catch (IOException e) {
+					log.error("http2 connection initialization error", e);
+				}
+				context.promise.failed(x);
+			}
+		};
+
+		if (windowDelta > 0) {
+			sessionSPI.updateRecvWindow(windowDelta);
+			sessionSPI.frames(null, callback, prefaceFrame, settingsFrame, new WindowUpdateFrame(0, windowDelta));
+		} else {
+			sessionSPI.frames(null, callback, prefaceFrame, settingsFrame);
+		}
+	}

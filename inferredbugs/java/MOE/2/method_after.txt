@@ -1,0 +1,70 @@
+  public void generateMergedFile(String filename) {
+    File origFile = originalCodebase.getFile(filename);
+    boolean origExists = filesystem.exists(origFile);
+
+    File destFile = destinationCodebase.getFile(filename);
+    boolean destExists = filesystem.exists(destFile);
+
+    File modFile = modifiedCodebase.getFile(filename);
+    boolean modExists = filesystem.exists(modFile);
+
+    if (!destExists && !modExists) {
+      // This should never be thrown since generateMergedFile(...) is only called on filesToMerge
+      // from merge() which is the union of the files in the destination and modified codebases.
+      throw new MoeProblem(
+          "%s doesn't exist in either %s nor %s. This should not be possible.",
+          filename,
+          destinationCodebase,
+          modifiedCodebase);
+
+    } else if (origExists && modExists && !destExists) {
+      if (areDifferent(filename, origFile, modFile)) {
+        // Proceed and merge in /dev/null, which should produce a merge conflict (incoming edit on
+        // delete).
+        destFile = new File("/dev/null");
+      } else {
+        // Defer to deletion in destination codebase.
+        return;
+      }
+
+    } else if (origExists && !modExists && destExists) {
+      // Blindly follow deletion of the original file by not copying it into the merged codebase.
+      return;
+
+    } else if (!origExists && !(modExists && destExists)) {
+      // File exists only in modified or destination codebase, so just copy it over.
+      File existingFile = (modExists ? modFile : destFile);
+      copyToMergedCodebase(filename, existingFile);
+      return;
+
+    } else if (!origExists && modExists && destExists) {
+      // Merge both new files (conflict expected).
+      origFile = new File("/dev/null");
+    }
+
+    File mergedFile = copyToMergedCodebase(filename, destFile);
+
+    try {
+      // Merges the changes that lead from origFile to modFile into mergedFile (which is a copy
+      // of destFile). After, mergedFile will have the combined changes of modFile and destFile.
+      cmd.runCommand(
+          "merge",
+          ImmutableList.of(
+              mergedFile.getAbsolutePath(), origFile.getAbsolutePath(), modFile.getAbsolutePath()),
+          this.mergedCodebase.getPath().getAbsolutePath());
+      // Return status was 0 and the merge was successful. Note it.
+      mergedFiles.add(mergedFile.getAbsolutePath());
+    } catch (CommandException e) {
+      // If merge fails with exit status 1, then a conflict occurred. Make a note of the filepath.
+      if (e.returnStatus == 1) {
+        failedToMergeFiles.add(mergedFile.getAbsolutePath());
+      } else {
+        throw new MoeProblem(
+            "Merge returned with unexpected status %d when trying to run \"merge -p %s %s %s\"",
+            e.returnStatus,
+            destFile.getAbsolutePath(),
+            origFile.getAbsolutePath(),
+            modFile.getAbsolutePath());
+      }
+    }
+  }

@@ -1,0 +1,73 @@
+ @Before
+	@SuppressWarnings({ "unchecked", "deprecation" })
+	public void before() throws IllegalArgumentException, IllegalAccessException, SQLException, SecurityException, NoSuchFieldException, CloneNotSupportedException{
+		driver = new MockJDBCDriver(new MockJDBCAnswer() {
+
+			public Connection answer() throws SQLException {
+				return new MockConnection();
+			}
+		});
+		mockConfig = EasyMock.createNiceMock(BoneCPConfig.class);
+		expect(mockConfig.clone()).andReturn(mockConfig).anyTimes();
+		expect(mockConfig.getPartitionCount()).andReturn(2).anyTimes();
+		expect(mockConfig.getMaxConnectionsPerPartition()).andReturn(1).anyTimes();
+		expect(mockConfig.getMinConnectionsPerPartition()).andReturn(1).anyTimes();
+		expect(mockConfig.getIdleConnectionTestPeriodInMinutes()).andReturn(0L).anyTimes();
+		expect(mockConfig.getIdleMaxAgeInMinutes()).andReturn(1000L).anyTimes();
+		expect(mockConfig.getUsername()).andReturn(CommonTestUtils.username).anyTimes();
+		expect(mockConfig.getPassword()).andReturn(CommonTestUtils.password).anyTimes();
+		expect(mockConfig.getJdbcUrl()).andReturn(CommonTestUtils.url).anyTimes();
+		expect(mockConfig.getReleaseHelperThreads()).andReturn(1).once().andReturn(0).anyTimes();
+		expect(mockConfig.getStatementReleaseHelperThreads()).andReturn(1).once().andReturn(0).anyTimes();
+		expect(mockConfig.getInitSQL()).andReturn(CommonTestUtils.TEST_QUERY).anyTimes();
+		expect(mockConfig.isCloseConnectionWatch()).andReturn(true).anyTimes();
+		expect(mockConfig.isLogStatementsEnabled()).andReturn(true).anyTimes();
+		expect(mockConfig.getConnectionTimeoutInMs()).andReturn(Long.MAX_VALUE).anyTimes();
+		expect(mockConfig.getServiceOrder()).andReturn("LIFO").anyTimes();
+
+		expect(mockConfig.getAcquireRetryDelayInMs()).andReturn(1000L).anyTimes();
+		expect(mockConfig.getPoolName()).andReturn("poolName").anyTimes();
+		expect(mockConfig.getPoolAvailabilityThreshold()).andReturn(20).anyTimes();
+		
+		replay(mockConfig);
+
+		// once for no {statement, connection} release threads, once with release threads....
+		testClass = new BoneCP(mockConfig);
+		testClass = new BoneCP(mockConfig);
+
+		Field field = testClass.getClass().getDeclaredField("partitions");
+		field.setAccessible(true);
+		ConnectionPartition[] partitions = (ConnectionPartition[]) field.get(testClass);
+
+
+		// if all ok 
+		assertEquals(2, partitions.length);
+		// switch to our mock version now
+		mockPartition = EasyMock.createNiceMock(ConnectionPartition.class);
+		Array.set(field.get(testClass), 0, mockPartition);
+		Array.set(field.get(testClass), 1, mockPartition);
+
+		mockKeepAliveScheduler = EasyMock.createNiceMock(ScheduledExecutorService.class); 
+		field = testClass.getClass().getDeclaredField("keepAliveScheduler");
+		field.setAccessible(true);
+		field.set(testClass, mockKeepAliveScheduler);
+
+		field = testClass.getClass().getDeclaredField("connectionsScheduler");
+		field.setAccessible(true);
+		mockConnectionsScheduler = EasyMock.createNiceMock(ExecutorService.class);
+		field.set(testClass, mockConnectionsScheduler);
+
+		mockConnectionHandles = EasyMock.createNiceMock(BoundedLinkedTransferQueue.class);
+		mockConnection = EasyMock.createNiceMock(ConnectionHandle.class);
+		mockLock = EasyMock.createNiceMock(Lock.class);
+		mockLogger = TestUtils.mockLogger(testClass.getClass());
+		makeThreadSafe(mockLogger, true);
+		mockDatabaseMetadata = EasyMock.createNiceMock(DatabaseMetaData.class);
+		mockResultSet = EasyMock.createNiceMock(MockResultSet.class);
+
+		mockLogger.error((String)anyObject(), anyObject());
+		expectLastCall().anyTimes();
+
+		reset(mockConfig, mockKeepAliveScheduler, mockConnectionsScheduler, mockPartition, 
+				mockConnectionHandles, mockConnection, mockLock);
+	}

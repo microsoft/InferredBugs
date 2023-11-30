@@ -1,0 +1,74 @@
+  @Test
+  public void testTimeFormat() {
+    // Use System.err as it is used in sqlline.SqlLineOpts#set
+    final PrintStream originalErr = System.err;
+    try {
+      final ByteArrayOutputStream errBaos = new ByteArrayOutputStream();
+      System.setErr(
+          new PrintStream(errBaos, false, StandardCharsets.UTF_8.name()));
+
+      // successful patterns
+      final String okTimeFormat = "!set timeFormat HH:mm:ss\n";
+      final String defaultTimeFormat = "!set timeFormat default\n";
+      final String okDateFormat = "!set dateFormat YYYY-MM-dd\n";
+      final String defaultDateFormat = "!set dateFormat default\n";
+      final String okTimestampFormat = "!set timestampFormat default\n";
+      final String defaultTimestampFormat = "!set timestampFormat default\n";
+
+      // successful cases
+      final SqlLine sqlLine = new SqlLine();
+      sqlLine.runCommands(new DispatchCallback(), okTimeFormat);
+      assertThat(errBaos.toString("UTF8"),
+          not(
+              anyOf(containsString("Error setting configuration"),
+                  containsString("Exception"))));
+      sqlLine.runCommands(new DispatchCallback(), defaultTimeFormat);
+      assertThat(errBaos.toString("UTF8"),
+          not(
+              anyOf(containsString("Error setting configuration"),
+                  containsString("Exception"))));
+      sqlLine.runCommands(new DispatchCallback(), okDateFormat);
+      assertThat(errBaos.toString("UTF8"),
+          not(
+              anyOf(containsString("Error setting configuration"),
+                  containsString("Exception"))));
+      sqlLine.runCommands(new DispatchCallback(), defaultDateFormat);
+      assertThat(errBaos.toString("UTF8"),
+          not(
+              anyOf(containsString("Error setting configuration"),
+                  containsString("Exception"))));
+      sqlLine.runCommands(new DispatchCallback(), okTimestampFormat);
+      assertThat(errBaos.toString("UTF8"),
+          not(
+              anyOf(containsString("Error setting configuration"),
+                  containsString("Exception"))));
+      sqlLine.runCommands(new DispatchCallback(), defaultTimestampFormat);
+      assertThat(errBaos.toString("UTF8"),
+          not(
+              anyOf(containsString("Error setting configuration"),
+                  containsString("Exception"))));
+
+      // failed patterns
+      final String wrongTimeFormat = "!set timeFormat qwerty\n";
+      final String wrongDateFormat = "!set dateFormat ASD\n";
+      final String wrongTimestampFormat =
+          "!set timestampFormat 'YYYY-MM-ddTHH:MI:ss'\n";
+
+      // failed cases
+      sqlLine.runCommands(new DispatchCallback(), wrongTimeFormat);
+      assertThat(errBaos.toString("UTF8"),
+          containsString("Illegal pattern character 'q'"));
+      sqlLine.runCommands(new DispatchCallback(), wrongDateFormat);
+      assertThat(errBaos.toString("UTF8"),
+          containsString("Illegal pattern character 'A'"));
+      sqlLine.runCommands(new DispatchCallback(), wrongTimestampFormat);
+      assertThat(errBaos.toString("UTF8"),
+          containsString("Illegal pattern character 'T'"));
+    } catch (Throwable t) {
+      // fail
+      throw new RuntimeException(t);
+    } finally {
+      // Set error stream back
+      System.setErr(originalErr);
+    }
+  }

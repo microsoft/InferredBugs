@@ -1,0 +1,27 @@
+    protected void parseConfigBlock() throws TransactionException {
+
+        try {
+
+            final Block configBlock = getConfigurationBlock();
+
+            logger.debug(format("Channel %s Got config block getting MSP data and anchorPeers data", name));
+
+            Envelope envelope = Envelope.parseFrom(configBlock.getData().getData(0));
+            Payload payload = Payload.parseFrom(envelope.getPayload());
+            ConfigEnvelope configEnvelope = ConfigEnvelope.parseFrom(payload.getData());
+            ConfigGroup channelGroup = configEnvelope.getConfig().getChannelGroup();
+            Map<String, MSP> newMSPS = traverseConfigGroupsMSP("", channelGroup, new HashMap<>(20));
+
+            msps = Collections.unmodifiableMap(newMSPS);
+
+//            anchorPeers = Collections.unmodifiableSet(traverseConfigGroupsAnchors("", channelGroup, new HashSet<>()));
+
+        } catch (TransactionException e) {
+            logger.error(e.getMessage(), e);
+            throw e;
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            throw new TransactionException(e);
+        }
+
+    }

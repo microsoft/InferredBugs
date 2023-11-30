@@ -1,0 +1,33 @@
+    @Override
+    public boolean isTerminated(ContainerCreationStatus container) {
+        try {
+            List<String> termStates = Arrays.asList("complete", "failed", "shutdown", "rejected", "orphaned", "removed");
+            String containerId = container.getContainerId();
+            List<Task> tasks = dockerClient.listTasks();
+            boolean containerExists = tasks.stream().anyMatch(task -> {
+                ContainerStatus containerStatus = task.status().containerStatus();
+                return containerStatus != null && containerStatus.containerId().equals(containerId);
+            });
+
+            if (!containerExists) {
+                logger.info("Container {} has no task - terminal.", container);
+                return true;
+            } else {
+                return tasks.stream().anyMatch(task -> {
+                    ContainerStatus containerStatus = task.status().containerStatus();
+                    boolean hasTerminalState = termStates.contains(task.status().state());
+                    boolean isContainer = containerStatus != null && containerStatus.containerId().equals(containerId);
+                    boolean isTerminated = isContainer && hasTerminalState;
+
+                    if (isTerminated) {
+                        logger.info("Container {} is {} - terminal.", container, task.status().state());
+                    }
+
+                    return isTerminated;
+                });
+            }
+        } catch (DockerException | InterruptedException e) {
+            logger.warn("Failed to fetch container status [" + container + "].", e);
+            return false;
+        }
+    }

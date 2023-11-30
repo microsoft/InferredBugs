@@ -1,0 +1,29 @@
+        private void CreateZookeeperClient(string connStr)
+        {
+            var zookeeperClientOptions = new ZookeeperClientOptions(connStr)
+            {
+                ConnectionTimeout = TimeSpan.FromMilliseconds(_registryCenterOptions.ConnectionTimeout),
+                OperatingTimeout = TimeSpan.FromMilliseconds(_registryCenterOptions.OperatingTimeout),
+                SessionTimeout = TimeSpan.FromMilliseconds(_registryCenterOptions.SessionTimeout),
+            };
+            try
+            {
+                var zookeeperClient = new ZookeeperClient(zookeeperClientOptions);
+                zookeeperClient.SubscribeStatusChange(async (client, connectionStateChangeArgs) =>
+                {
+                    if (connectionStateChangeArgs.State == Watcher.Event.KeeperState.Expired)
+                    {
+                        if (client.WaitForKeeperState(Watcher.Event.KeeperState.SyncConnected,
+                            zookeeperClientOptions.ConnectionTimeout))
+                        {
+                            _zookeeperClients.Remove(client.Options.ConnectionString, out _);
+                        }
+                    }
+                });
+                _zookeeperClients.GetOrAdd(connStr, zookeeperClient);
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning($"无法链接服务注册中心{connStr},原因:{e.Message}");
+            }
+        }

@@ -1,0 +1,50 @@
+    private void DoHandshake(out SecureChannel clientSecureChannel,
+      out SecureChannel serverSecureChannel)
+    {
+      X509Certificate2 certificate = new X509Certificate2("NetMQ.Testing.pfx", "1");
+
+      serverSecureChannel = new SecureChannel(ConnectionEnd.Server);
+      serverSecureChannel.Certificate = certificate;
+
+      clientSecureChannel = new SecureChannel(ConnectionEnd.Client);
+      
+      IList<NetMQMessage> clientOutgoingMessages = new List<NetMQMessage>();
+      IList<NetMQMessage> serverOutgoingMessages = new List<NetMQMessage>();
+      
+      bool serverComplete = false;
+
+      bool clientComplete = clientSecureChannel.ProcessMessage(null, clientOutgoingMessages);
+
+      while (!serverComplete || !clientComplete)
+      {
+        if (!serverComplete)
+        {
+          foreach (var message in clientOutgoingMessages)
+          {
+            serverComplete = serverSecureChannel.ProcessMessage(message, serverOutgoingMessages);
+
+            if (serverComplete)
+            {
+              break;
+            }
+          }
+
+          clientOutgoingMessages.Clear();
+        }
+
+        if (!clientComplete)
+        {
+          foreach (var message in serverOutgoingMessages)
+          {
+            clientComplete = clientSecureChannel.ProcessMessage(message, clientOutgoingMessages);
+
+            if (clientComplete)
+            {
+              break;
+            }
+          }
+
+          serverOutgoingMessages.Clear();
+        }        
+      }
+    }

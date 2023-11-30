@@ -1,0 +1,69 @@
+    public Keyspace keyspace()
+    {
+        if (keyspace != null)
+            return keyspace;
+
+        synchronized (AstyanaxConnection.class)
+        {
+            // double check...
+            if (keyspace != null)
+                return keyspace;
+
+            try
+            {
+                File propFile = new File("cassandra.properties");
+                if (propFile.exists())
+                    config.load(new FileReader(propFile));
+
+                AstyanaxConfigurationImpl configuration = new AstyanaxConfigurationImpl();
+                configuration.setDiscoveryType(NodeDiscoveryType.valueOf(config.getProperty("astyanax.connection.discovery", "NONE")));
+                configuration.setConnectionPoolType(ConnectionPoolType.valueOf(config.getProperty("astyanax.connection.pool", "ROUND_ROBIN")));
+                configuration.setDefaultReadConsistencyLevel(ConsistencyLevel.valueOf(com.netflix.jmeter.properties.Properties.instance.cassandra.getReadConsistency()));
+                configuration.setDefaultWriteConsistencyLevel(ConsistencyLevel.valueOf(com.netflix.jmeter.properties.Properties.instance.cassandra.getWriteConsistency()));
+
+                logger.info("AstyanaxConfiguration: " + configuration.toString());
+
+                String property = config.getProperty("astyanax.connection.latency.stategy", "EmptyLatencyScoreStrategyImpl");
+                LatencyScoreStrategy latencyScoreStrategy = null;
+                if (property.equalsIgnoreCase("SmaLatencyScoreStrategyImpl"))
+                {
+                    int updateInterval = Integer.parseInt(config.getProperty("astyanax.connection.latency.stategy.updateInterval", "2000"));
+                    int resetInterval = Integer.parseInt(config.getProperty("astyanax.connection.latency.stategy.resetInterval", "10000"));
+                    int windowSize = Integer.parseInt(config.getProperty("astyanax.connection.latency.stategy.windowSize", "100"));
+                    double badnessThreshold = Double.parseDouble(config.getProperty("astyanax.connection.latency.stategy.badnessThreshold", "0.1"));
+                    // latencyScoreStrategy = new SmaLatencyScoreStrategyImpl(updateInterval, resetInterval, windowSize, badnessThreshold);
+                }
+                else
+                {
+                    latencyScoreStrategy = new EmptyLatencyScoreStrategyImpl();
+                }
+
+                String maxConnection = com.netflix.jmeter.properties.Properties.instance.cassandra.getMaxConnsPerHost();
+                ConnectionPoolConfigurationImpl poolConfig = new ConnectionPoolConfigurationImpl(getClusterName()).setPort(port);
+                poolConfig.setMaxConnsPerHost(Integer.parseInt(maxConnection));
+                poolConfig.setSeeds(StringUtils.join(endpoints, ":" + port + ","));
+                poolConfig.setLatencyScoreStrategy(latencyScoreStrategy);
+
+                logger.info("ConnectionPoolConfiguration: " + poolConfig.toString());
+
+                ConnectionPoolMonitor connectionPoolMonitor = new CountingConnectionPoolMonitor();
+                // set this as field for logging purpose only.
+                Builder builder = new AstyanaxContext.Builder();
+                builder.forCluster(getClusterName());
+                builder.forKeyspace(getKeyspaceName());
+                builder.withAstyanaxConfiguration(configuration);
+                builder.withConnectionPoolConfiguration(poolConfig);
+                builder.withConnectionPoolMonitor(connectionPoolMonitor);
+                builder.withConnectionPoolMonitor(new CountingConnectionPoolMonitor());
+
+                context = builder.buildKeyspace(ThriftFamilyFactory.getInstance());
+                context.start();
+                keyspace = context.getEntity();
+                return keyspace;
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }

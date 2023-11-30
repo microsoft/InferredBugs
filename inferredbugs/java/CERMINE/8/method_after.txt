@@ -1,0 +1,74 @@
+    public static void main(String[] args) {
+        if (args.length != 1) {
+            System.err.println("Usage: <pubmed directory>");
+            System.exit(1);
+        }
+	
+        File dir = new File(args[0]);
+        for (File pdfFile : FileUtils.listFiles(dir, new String[]{"pdf"}, true)) {
+            try { 
+                String pdfPath = pdfFile.getPath();
+                String nxmlPath = StringTools.getNLMPath(pdfPath);
+                
+                File xmlFile = new File(StringTools.getTrueVizPath(nxmlPath));
+                if (xmlFile.exists()) {
+                    continue;
+                }
+
+                System.out.print(pdfPath+" ");
+
+                InputStream pdfStream = new FileInputStream(pdfPath);
+                InputStream nxmlStream = new FileInputStream(nxmlPath);
+
+                PubmedXMLGenerator datasetGenerator = new PubmedXMLGenerator();
+                datasetGenerator.setVerbose(false);
+                BxDocument bxDoc = datasetGenerator.generateTrueViz(pdfStream, nxmlStream);
+                
+                int keys = 0;
+                Set<BxZoneLabel> set = EnumSet.noneOf(BxZoneLabel.class);
+                int total = 0;
+                int known = 0;
+                for (BxZone z: bxDoc.asZones()) {
+                    total++;
+                    if (z.getLabel() != null) {
+                        known++;
+                        if (z.getLabel().isOfCategoryOrGeneral(BxZoneLabelCategory.CAT_METADATA)) {
+                            set.add(z.getLabel());
+                        }
+                        if (BxZoneLabel.REFERENCES.equals(z.getLabel())) {
+                            keys = 1;
+                        }
+                    }
+                }
+                
+                if (set.contains(BxZoneLabel.MET_AFFILIATION)) {
+                    keys++;
+                }
+                if (set.contains(BxZoneLabel.MET_AUTHOR)) {
+                    keys++;
+                }
+                if (set.contains(BxZoneLabel.MET_BIB_INFO)) {
+                    keys++;
+                }
+                if (set.contains(BxZoneLabel.MET_TITLE)) {
+                    keys++;
+                }
+                int coverage = 0;
+                if (total > 0) {
+                    coverage = known*100/total;
+                }
+                System.out.print(coverage+" "+set.size()+" "+keys);
+
+                FileWriter fstream = new FileWriter(
+                        StringTools.getTrueVizPath(nxmlPath).replace(".xml", "."+coverage+"."+set.size()+"."+keys+".cerm.xml"));
+                BufferedWriter out = new BufferedWriter(fstream);
+                BxDocumentToTrueVizWriter writer = new BxDocumentToTrueVizWriter();
+                out.write(writer.write(bxDoc.getPages()));
+                out.close();
+                
+                System.out.println(" done");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }

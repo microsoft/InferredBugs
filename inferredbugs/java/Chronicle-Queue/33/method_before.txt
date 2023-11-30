@@ -1,0 +1,32 @@
+    @Override
+    public void init() {
+        final long timeoutAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(20L);
+        boolean warnedOnFailure = false;
+        while (System.currentTimeMillis() < timeoutAt) {
+            try (final FileChannel channel = FileChannel.open(tableStore.file().toPath(),
+                    StandardOpenOption.WRITE);
+                 final FileLock fileLock = channel.tryLock()) {
+                maxCycleValue = tableStore.acquireValueFor(HIGHEST_CREATED_CYCLE);
+                minCycleValue = tableStore.acquireValueFor(LOWEST_CREATED_CYCLE);
+                lock = tableStore.acquireValueFor(LOCK);
+                modCount = tableStore.acquireValueFor(MOD_COUNT);
+                if (lock.getVolatileValue() == Long.MIN_VALUE) {
+                    lock.compareAndSwapValue(Long.MIN_VALUE, 0);
+                }
+                if (modCount.getVolatileValue() == Long.MIN_VALUE) {
+                    modCount.compareAndSwapValue(Long.MIN_VALUE, 0);
+                }
+                return;
+            } catch (IOException | RuntimeException e) {
+                // failed to acquire the lock, wait until other operation completes
+                if (!warnedOnFailure) {
+                    LOGGER.warn("Failed to acquire a lock on the directory-listing file: {}:{}. Retrying.",
+                            e.getClass().getSimpleName(), e.getMessage());
+                    warnedOnFailure = true;
+                }
+                Jvm.pause(50L);
+            }
+        }
+
+        throw new IllegalStateException("Unable to claim exclusive lock on file " + tableStore.file());
+    }

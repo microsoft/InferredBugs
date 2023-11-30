@@ -1,0 +1,84 @@
+ boolean flushEventLogByCount(int count) {
+		Date lastEventDate = null;
+		boolean cacheIsEmpty = true;
+		IndexWriter indexWriter = null;
+		long l = System.currentTimeMillis();
+		logger.finest("......flush eventlog cache....");
+
+		List<EventLogEntry> events = eventLogService.findEvents(count + 1,
+				EVENTLOG_TOPIC_ADD, EVENTLOG_TOPIC_REMOVE);
+
+		if (events != null && events.size() > 0) {
+			try {
+				indexWriter = createIndexWriter();
+				int _counter = 0;
+				for (EventLogEntry eventLogEntry : events) {
+					Term term = new Term("$uniqueid", eventLogEntry.getUniqueID());
+					// lookup the Document Entity...
+					org.imixs.workflow.engine.jpa.Document doc = manager
+							.find(org.imixs.workflow.engine.jpa.Document.class, eventLogEntry.getUniqueID());
+
+					// if the document was found we add/update the index. Otherwise we remove the
+					// document form the index.
+					if (doc != null && EVENTLOG_TOPIC_ADD.equals(eventLogEntry.getTopic())) {
+						// add workitem to search index....
+						long l2 = System.currentTimeMillis();
+						ItemCollection workitem = new ItemCollection();
+						workitem.setAllItems(doc.getData());
+						if (!workitem.getItemValueBoolean(DocumentService.NOINDEX)) {
+							indexWriter.updateDocument(term, createDocument(workitem));
+							logger.finest("......lucene add/update workitem '" + doc.getId() + "' to index in "
+									+ (System.currentTimeMillis() - l2) + "ms");
+						}
+					} else {
+						long l2 = System.currentTimeMillis();
+						indexWriter.deleteDocuments(term);
+						logger.finest("......lucene remove workitem '" + term + "' from index in "
+								+ (System.currentTimeMillis() - l2) + "ms");
+					}
+
+					// remove the eventLogEntry.
+					lastEventDate = eventLogEntry.getModified().getTime();
+					eventLogService.removeEvent(eventLogEntry);
+
+					// break?
+					_counter++;
+					if (_counter >= count) {
+						// we skipp the last one if the maximum was reached.
+						cacheIsEmpty = false;
+						break;
+					}
+				}
+			} catch (IOException luceneEx) {
+				logger.warning("...unable to flush lucene event log: " + luceneEx.getMessage());
+				// We just log a warning here and close the flush mode to no longer block the
+				// writer.
+				// NOTE: maybe throwing a IndexException would be an alternative:
+				//
+				// throw new IndexException(IndexException.INVALID_INDEX, "Unable to update
+				// lucene search index",
+				// luceneEx);
+				return true;
+			} finally {
+				// close writer!
+				if (indexWriter != null) {
+					logger.finest("......lucene close IndexWriter...");
+					try {
+						indexWriter.close();
+					} catch (CorruptIndexException e) {
+						throw new IndexException(IndexException.INVALID_INDEX, "Unable to close lucene IndexWriter: ",
+								e);
+					} catch (IOException e) {
+						throw new IndexException(IndexException.INVALID_INDEX, "Unable to close lucene IndexWriter: ",
+								e);
+					}
+				}
+			}
+		}
+
+		logger.fine("...flushEventLog - " + events.size() + " events in " + (System.currentTimeMillis() - l)
+				+ " ms - last log entry: " + lastEventDate);
+
+		return cacheIsEmpty;
+
+	}

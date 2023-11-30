@@ -1,0 +1,55 @@
+  protected V getClosest(
+      SpatialQuadTree<V> spatial, LayoutModel<V, Point2D> layoutModel, double x, double y) {
+    SpatialQuadTree<V> leaf = spatial.getContainingQuadTreeLeaf(x, y);
+    double diameter = leaf.getLayoutArea().getWidth();
+    double radius = diameter / 2;
+    double minDistance = Double.MAX_VALUE;
+
+    V closest = null;
+    Ellipse2D target = new Ellipse2D.Double(x - radius, y - radius, diameter, diameter);
+    Collection<V> nodes = spatial.getVisibleNodes(target);
+    if (log.isTraceEnabled()) {
+      log.trace("instead of checking all nodes: {}", getFilteredVertices());
+      log.trace("out of these candidates: {}...", nodes);
+    }
+    for (V node : nodes) {
+      Shape shape = vv.getRenderContext().getVertexShapeTransformer().apply(node);
+      // get the vertex location
+      Point2D p = layoutModel.apply(node);
+      if (p == null) {
+        continue;
+      }
+      // transform the vertex location to screen coords
+      p = vv.getRenderContext().getMultiLayerTransformer().transform(Layer.LAYOUT, p);
+
+      double ox = x - p.getX();
+      double oy = y - p.getY();
+
+      if (shape.contains(ox, oy)) {
+
+        if (style == Style.LOWEST) {
+          // return the first match
+          return node;
+        } else if (style == Style.HIGHEST) {
+          // will return the last match
+          closest = node;
+        } else {
+
+          // return the vertex closest to the
+          // center of a vertex shape
+          Rectangle2D bounds = shape.getBounds2D();
+          double dx = bounds.getCenterX() - ox;
+          double dy = bounds.getCenterY() - oy;
+          double dist = dx * dx + dy * dy;
+          if (dist < minDistance) {
+            minDistance = dist;
+            closest = node;
+          }
+        }
+      }
+    }
+    if (log.isTraceEnabled()) {
+      log.trace("picked {} with spatial quadtree", closest);
+    }
+    return closest;
+  }

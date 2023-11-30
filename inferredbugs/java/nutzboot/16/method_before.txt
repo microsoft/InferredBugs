@@ -1,0 +1,60 @@
+    public void prepareIoc() throws Exception {
+        if (ctx.getComboIocLoader() == null) {
+        	int asyncPoolSize = ctx.getConfigureLoader().get().getInt("nutz.ioc.async.poolSize", 64);
+        	List<String> args = new ArrayList<>();
+        	args.add("*js");
+        	args.add("ioc/");
+        	args.add("*tx");
+        	args.add("*async");
+        	args.add(""+asyncPoolSize);
+        	args.add("*anno");
+        	args.add(ctx.getPackage());
+        	IocBy iocBy = ctx.getMainClass().getAnnotation(IocBy.class);
+        	if (iocBy != null) {
+        		String[] tmp = iocBy.args();
+        		ArrayList<String> _args = new ArrayList<>();
+        		for (int i=0;i<tmp.length;i++) {
+        			if (tmp[i].startsWith("*")) {
+        				if (!_args.isEmpty()) {
+        					switch (_args.get(0)) {
+        					case "*tx":
+        					case "*async":
+        					case "*anno":
+        					case "*js":
+        						break;
+        					default:
+        						args.addAll(_args);
+        					}
+    						_args.clear();
+        				}
+        			}
+    				_args.add(tmp[i]);
+        		}
+        		if (_args.size() > 0) {
+        			switch (_args.get(0)) {
+					case "*tx":
+					case "*async":
+					case "*anno":
+					case "*js":
+						break;
+					default:
+						args.addAll(_args);
+					}
+        		}
+        	}
+            ctx.setComboIocLoader(new ComboIocLoader(args.toArray(new String[args.size()])));
+        }
+        // 用于加载Starter的IocLoader
+        starterIocLoader = new AnnotationIocLoader(NbApp.class.getPackage().getName() + ".starter");
+        ctx.getComboIocLoader().addLoader(starterIocLoader);
+        if (ctx.getIoc() == null) {
+            ctx.setIoc(new NutIoc(ctx.getComboIocLoader()));
+        }
+        // 把核心对象放进ioc容器
+        if (!ctx.ioc.has("appContext")){
+            Ioc2 ioc2 = (Ioc2)ctx.getIoc();
+            ioc2.getIocContext().save("app", "appContext", new ObjectProxy(ctx));
+            ioc2.getIocContext().save("app", "conf", new ObjectProxy(ctx.getConf()));
+            ioc2.getIocContext().save("app", "nbApp", new ObjectProxy(this));
+        }
+    }

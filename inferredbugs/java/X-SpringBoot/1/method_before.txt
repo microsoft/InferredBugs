@@ -1,0 +1,27 @@
+    @SneakyThrows
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication){
+        String token;
+        if(authentication.getPrincipal() instanceof CustomUserDetailsUser){
+            CustomUserDetailsUser userDetailsUser = (CustomUserDetailsUser) authentication.getPrincipal();
+            token = SecureUtil.md5(userDetailsUser.getUsername() + System.currentTimeMillis());
+        }else {
+            token = SecureUtil.md5(String.valueOf(System.currentTimeMillis()));
+        }
+        redisTemplate.opsForValue().set(Constant.AUTHENTICATION_TOKEN,token,Constant.TOKEN_EXPIRE, TimeUnit.SECONDS);
+        byte[] authenticationKey = redisTokenStoreSerializationStrategy.serialize(token);
+        byte[] authenticationValue = redisTokenStoreSerializationStrategy.serialize(authentication);
+        RedisConnection conn = redisTemplate.getConnectionFactory().getConnection();
+        try{
+            conn.openPipeline();
+            conn.set(authenticationKey, authenticationValue);
+            conn.closePipeline();
+        }finally {
+            conn.close();
+        }
+
+        response.setCharacterEncoding(CharsetUtil.UTF_8);
+        response.setContentType(MediaType.APPLICATION_JSON_UTF8_VALUE);
+        PrintWriter printWriter = response.getWriter();
+        printWriter.append(objectMapper.writeValueAsString(R.ok().put(Constant.TOKEN,token)));
+    }

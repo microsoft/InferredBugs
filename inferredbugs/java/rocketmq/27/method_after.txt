@@ -1,0 +1,24 @@
+    @Test
+    public void should_get_consume_queue_offset_successfully_when_timestamp_is_skewing() throws InterruptedException {
+        final int totalCount = 10;
+        int queueId = 0;
+        String topic = "FooBar";
+        AppendMessageResult[] appendMessageResults = putMessages(totalCount, topic, queueId, true);
+        //Thread.sleep(10);
+        StoreTestUtil.waitCommitLogReput((DefaultMessageStore) messageStore);
+        int skewing = 2;
+
+        ConsumeQueue consumeQueue = getDefaultMessageStore().findConsumeQueue(topic, queueId);
+        for (AppendMessageResult appendMessageResult : appendMessageResults) {
+            long offset = messageStore.getOffsetInQueueByTime(topic, queueId, appendMessageResult.getStoreTimestamp() + skewing);
+            long offset2 = messageStore.getOffsetInQueueByTime(topic, queueId, appendMessageResult.getStoreTimestamp() - skewing);
+            SelectMappedBufferResult indexBuffer = consumeQueue.getIndexBuffer(offset);
+            SelectMappedBufferResult indexBuffer2 = consumeQueue.getIndexBuffer(offset2);
+            assertThat(indexBuffer.getByteBuffer().getLong()).isEqualTo(appendMessageResult.getWroteOffset());
+            assertThat(indexBuffer.getByteBuffer().getInt()).isEqualTo(appendMessageResult.getWroteBytes());
+            assertThat(indexBuffer2.getByteBuffer().getLong()).isEqualTo(appendMessageResult.getWroteOffset());
+            assertThat(indexBuffer2.getByteBuffer().getInt()).isEqualTo(appendMessageResult.getWroteBytes());
+            indexBuffer.release();
+            indexBuffer2.release();
+        }
+    }

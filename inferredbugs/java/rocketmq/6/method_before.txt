@@ -1,0 +1,35 @@
+    public static void main(String[] args) throws MQClientException {
+        DefaultMQPullConsumer consumer = new DefaultMQPullConsumer("please_rename_unique_group_name_5");
+
+        consumer.start();
+
+        Set<MessageQueue> mqs = consumer.fetchSubscribeMessageQueues("TopicTest1");
+        for (MessageQueue mq : mqs) {
+            System.out.printf("Consume from the queue: " + mq + "%n");
+            SINGLE_MQ:
+            while (true) {
+                try {
+                    PullResult pullResult =
+                        consumer.pullBlockIfNotFound(mq, null, getMessageQueueOffset(mq), 32);
+                    System.out.printf("%s%n", pullResult);
+                    putMessageQueueOffset(mq, pullResult.getNextBeginOffset());
+                    switch (pullResult.getPullStatus()) {
+                        case FOUND:
+                            break;
+                        case NO_MATCHED_MSG:
+                            break;
+                        case NO_NEW_MSG:
+                            break SINGLE_MQ;
+                        case OFFSET_ILLEGAL:
+                            break;
+                        default:
+                            break;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        consumer.shutdown();
+    }

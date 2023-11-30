@@ -1,0 +1,30 @@
+    @Override
+    public void run() {
+        initServerSocket();
+
+        // Notify everybody that we're ready to accept connections
+        synchronized (startupMonitor) {
+            startupMonitor.notifyAll();
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Started " + getName());
+        }
+
+        // Handle connections
+        while (keepOn()) {
+            try {
+                Socket clientSocket = serverSocket.accept();
+                if (!keepOn()) {
+                    clientSocket.close();
+                } else {
+                    handleClientSocket(clientSocket);
+                }
+            } catch (IOException ignored) {
+                //ignored
+                if (log.isTraceEnabled()) {
+                    log.trace("Error while processing client socket for " + getName(), ignored);
+                }
+            }
+        }
+    }

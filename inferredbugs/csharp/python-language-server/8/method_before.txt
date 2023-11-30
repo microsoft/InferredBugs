@@ -1,0 +1,19 @@
+        internal void AddReturnValue(IMember value) {
+            if (value.IsUnknown()) {
+                return; // Don't add useless values.
+            }
+
+            if (StaticReturnValue.IsUnknown()) {
+                SetReturnValue(value, false);
+                return;
+            }
+
+            // If return value is set from annotation, it should not be changing.
+            var currentType = StaticReturnValue.GetPythonType();
+            var valueType = value.GetPythonType();
+            if (!_fromAnnotation && !currentType.Equals(valueType)) {
+                var type = PythonUnionType.Combine(currentType, valueType);
+                // Track instance vs type info.
+                StaticReturnValue = value is IPythonInstance ? new PythonInstance(type) : (IMember)type;
+            }
+        }

@@ -1,0 +1,47 @@
+    @Override
+    public void store(String url, Status status, Metadata metadata,
+            Date nextFetch) throws Exception {
+
+        // the mysql insert statement
+        String query = tableName
+                + " (url, status, nextfetchdate, metadata, bucket, host)"
+                + " values (?, ?, ?, ?, ?, ?)";
+
+        StringBuffer mdAsString = new StringBuffer();
+        for (String mdKey : metadata.keySet()) {
+            String[] vals = metadata.getValues(mdKey);
+            for (String v : vals) {
+                mdAsString.append("\t").append(mdKey).append("=").append(v);
+            }
+        }
+
+        int partition = 0;
+        String partitionKey = partitioner.getPartition(url, metadata);
+        if (maxNumBuckets > 1) {
+            // determine which shard to send to based on the host / domain / IP
+            partition = Math.abs(partitionKey.hashCode() % maxNumBuckets);
+        }
+
+        // create in table if does not already exist
+        if (status.equals(Status.DISCOVERED)) {
+            query = "INSERT IGNORE INTO " + query;
+        } else
+            query = "REPLACE INTO " + query;
+
+        PreparedStatement preparedStmt = connection.prepareStatement(query);
+        preparedStmt.setString(1, url);
+        preparedStmt.setString(2, status.toString());
+        preparedStmt.setObject(3, nextFetch);
+        preparedStmt.setString(4, mdAsString.toString());
+        preparedStmt.setInt(5, partition);
+        preparedStmt.setString(6, partitionKey);
+
+        long start = System.currentTimeMillis();
+
+        // execute the preparedstatement
+        preparedStmt.execute();
+        eventCounter.scope("sql_query_number").incrBy(1);
+        averagedMetrics.scope("sql_execute_time").update(
+                System.currentTimeMillis() - start);
+        preparedStmt.close();
+    }

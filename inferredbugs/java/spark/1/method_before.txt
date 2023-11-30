@@ -1,0 +1,39 @@
+    @BeforeClass
+    public static void setup() {
+		testUtil = new SparkTestUtil(PORT);
+		
+		final Server server = new Server();
+        ServerConnector connector = new ServerConnector(server);
+		
+		// Set some timeout options to make debugging easier.
+		connector.setIdleTimeout(1000 * 60 * 60);
+		connector.setSoLingerTime(-1);
+		connector.setPort(PORT);
+		server.setConnectors(new Connector[] { connector });
+		
+		WebAppContext bb = new WebAppContext();
+		bb.setServer(server);
+		bb.setContextPath(SOMEPATH);
+		bb.setWar("src/test/webapp");
+		
+		server.setHandler(bb);
+		
+		new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    System.out.println(">>> STARTING EMBEDDED JETTY SERVER for jUnit testing of SparkFilter");
+                    server.start();
+                    System.in.read();
+                    System.out.println(">>> STOPPING EMBEDDED JETTY SERVER"); 
+                    server.stop();
+                    server.join();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.exit(100);
+                }        
+            }
+        }).start();
+		
+		sleep(1000);
+    }

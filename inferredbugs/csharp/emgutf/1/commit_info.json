@@ -1,0 +1,489 @@
+{
+    "hash": "b196fea9ac948877020c8702a68a533d690711ee",
+    "message": "Enable batch processing for Inception model.",
+    "file_num_lines": 149,
+    "diff_parsed": {
+        "added": [
+            [
+                20,
+                "        /// <summary>"
+            ],
+            [
+                21,
+                "        /// Read image files, covert the data and save it to the native pointer"
+            ],
+            [
+                22,
+                "        /// </summary>"
+            ],
+            [
+                23,
+                "        /// <typeparam name=\"T\">The type of the data to covert the image pixel values to. e.g. \"float\" or \"byte\"</typeparam>"
+            ],
+            [
+                24,
+                "        /// <param name=\"fileNames\">The name of the image files</param>"
+            ],
+            [
+                25,
+                "        /// <param name=\"dest\">The native pointer where the image pixels values will be saved to.</param>"
+            ],
+            [
+                26,
+                "        /// <param name=\"inputHeight\">The height of the image, must match the height requirement for the tensor</param>"
+            ],
+            [
+                27,
+                "        /// <param name=\"inputWidth\">The width of the image, must match the width requirement for the tensor</param>"
+            ],
+            [
+                28,
+                "        /// <param name=\"inputMean\">The mean value, it will be subtracted from the input image pixel values</param>"
+            ],
+            [
+                29,
+                "        /// <param name=\"scale\">The scale, after mean is subtracted, the scale will be used to multiply the pixel values</param>"
+            ],
+            [
+                30,
+                "        /// <param name=\"flipUpSideDown\">If true, the image needs to be flipped up side down</param>"
+            ],
+            [
+                31,
+                "        /// <param name=\"swapBR\">If true, will flip the Blue channel with the Red. e.g. If false, the tensor's color channel order will be RGB. If true, the tensor's color channle order will be BGR </param>"
+            ],
+            [
+                32,
+                "        public static void ReadImageFilesToTensor<T>("
+            ],
+            [
+                33,
+                "            String[] fileNames,"
+            ],
+            [
+                34,
+                "            IntPtr dest,"
+            ],
+            [
+                35,
+                "            int inputHeight = -1,"
+            ],
+            [
+                36,
+                "            int inputWidth = -1,"
+            ],
+            [
+                37,
+                "            float inputMean = 0.0f,"
+            ],
+            [
+                38,
+                "            float scale = 1.0f,"
+            ],
+            [
+                39,
+                "            bool flipUpSideDown = false,"
+            ],
+            [
+                40,
+                "            bool swapBR = false)"
+            ],
+            [
+                41,
+                "            where T : struct"
+            ],
+            [
+                42,
+                "        {"
+            ],
+            [
+                43,
+                "            IntPtr dataPtr = dest;"
+            ],
+            [
+                44,
+                "            for (int i = 0; i < fileNames.Length; i++)"
+            ],
+            [
+                45,
+                "            {"
+            ],
+            [
+                46,
+                "                String fileName = fileNames[i];"
+            ],
+            [
+                47,
+                "                if (!File.Exists(fileName))"
+            ],
+            [
+                48,
+                "                    throw new FileNotFoundException(String.Format(\"File {0} do not exist.\", fileName));"
+            ],
+            [
+                49,
+                ""
+            ],
+            [
+                50,
+                "                //Read the file using Bitmap class"
+            ],
+            [
+                51,
+                "                System.Drawing.Bitmap bmp = new Bitmap(fileName);"
+            ],
+            [
+                52,
+                ""
+            ],
+            [
+                53,
+                "                if (inputHeight > 0 || inputWidth > 0)"
+            ],
+            [
+                54,
+                "                {"
+            ],
+            [
+                55,
+                "                    //resize bmp"
+            ],
+            [
+                56,
+                "                    System.Drawing.Bitmap newBmp = new Bitmap(bmp, inputWidth, inputHeight);"
+            ],
+            [
+                57,
+                "                    bmp.Dispose();"
+            ],
+            [
+                58,
+                "                    bmp = newBmp;"
+            ],
+            [
+                59,
+                "                }"
+            ],
+            [
+                60,
+                ""
+            ],
+            [
+                61,
+                "                int bmpWidth = bmp.Width;"
+            ],
+            [
+                62,
+                "                int bmpHeight = bmp.Height;"
+            ],
+            [
+                63,
+                "                System.Drawing.Imaging.BitmapData bd = new System.Drawing.Imaging.BitmapData();"
+            ],
+            [
+                64,
+                "                bmp.LockBits("
+            ],
+            [
+                65,
+                "                    new Rectangle(0, 0, bmpWidth, bmpHeight),"
+            ],
+            [
+                66,
+                "                    System.Drawing.Imaging.ImageLockMode.ReadOnly,"
+            ],
+            [
+                67,
+                "                    System.Drawing.Imaging.PixelFormat.Format24bppRgb, bd);"
+            ],
+            [
+                68,
+                ""
+            ],
+            [
+                69,
+                "                try"
+            ],
+            [
+                70,
+                "                {"
+            ],
+            [
+                71,
+                "                    if (typeof(T) == typeof(float))"
+            ],
+            [
+                72,
+                "                    {"
+            ],
+            [
+                73,
+                "                        Emgu.TF.Util.Toolbox.Pixel24ToPixelFloat("
+            ],
+            [
+                74,
+                "                            bd.Scan0,"
+            ],
+            [
+                75,
+                "                            bmpWidth,"
+            ],
+            [
+                76,
+                "                            bmpHeight,"
+            ],
+            [
+                77,
+                "                            inputMean,"
+            ],
+            [
+                78,
+                "                            scale,"
+            ],
+            [
+                79,
+                "                            flipUpSideDown,"
+            ],
+            [
+                80,
+                "                            swapBR,"
+            ],
+            [
+                81,
+                "                            dataPtr"
+            ],
+            [
+                82,
+                "                        );"
+            ],
+            [
+                83,
+                "                        int step = bmpWidth * bmpHeight * 3 * Marshal.SizeOf<float>();"
+            ],
+            [
+                84,
+                "                        dataPtr = new IntPtr(dataPtr.ToInt64() + step);"
+            ],
+            [
+                85,
+                "                    }"
+            ],
+            [
+                86,
+                "                    else if (typeof(T) == typeof(byte))"
+            ],
+            [
+                87,
+                "                    {"
+            ],
+            [
+                88,
+                "                        Emgu.TF.Util.Toolbox.Pixel24ToPixelByte("
+            ],
+            [
+                89,
+                "                            bd.Scan0,"
+            ],
+            [
+                90,
+                "                            bmpWidth,"
+            ],
+            [
+                91,
+                "                            bmpHeight,"
+            ],
+            [
+                92,
+                "                            inputMean,"
+            ],
+            [
+                93,
+                "                            scale,"
+            ],
+            [
+                94,
+                "                            flipUpSideDown,"
+            ],
+            [
+                95,
+                "                            swapBR,"
+            ],
+            [
+                96,
+                "                            dataPtr"
+            ],
+            [
+                97,
+                "                        );"
+            ],
+            [
+                98,
+                "                        int step = bmpWidth * bmpHeight * 3 * Marshal.SizeOf<byte>();"
+            ],
+            [
+                99,
+                "                        dataPtr = new IntPtr(dataPtr.ToInt64() + step);"
+            ],
+            [
+                100,
+                "                    }"
+            ],
+            [
+                101,
+                "                    else"
+            ],
+            [
+                102,
+                "                    {"
+            ],
+            [
+                103,
+                "                        throw new NotImplementedException(String.Format(\"Destination data type {0} is not supported.\","
+            ],
+            [
+                104,
+                "                            typeof(T).ToString()));"
+            ],
+            [
+                105,
+                "                    }"
+            ],
+            [
+                106,
+                "                }"
+            ],
+            [
+                107,
+                "                finally"
+            ],
+            [
+                108,
+                "                {"
+            ],
+            [
+                109,
+                "                    bmp.UnlockBits(bd);"
+            ],
+            [
+                110,
+                "                }"
+            ],
+            [
+                111,
+                ""
+            ],
+            [
+                112,
+                "            }"
+            ],
+            [
+                113,
+                "        }"
+            ],
+            [
+                114,
+                ""
+            ],
+            [
+                115,
+                ""
+            ],
+            [
+                139,
+                "            ReadImageFilesToTensor<T>("
+            ],
+            [
+                140,
+                "                new string[] {fileName},"
+            ],
+            [
+                141,
+                "                dest,"
+            ],
+            [
+                142,
+                "                inputHeight,"
+            ],
+            [
+                143,
+                "                inputWidth,"
+            ],
+            [
+                144,
+                "                inputMean,"
+            ],
+            [
+                145,
+                "                scale,"
+            ],
+            [
+                146,
+                "                flipUpSideDown, swapBR);"
+            ],
+            [
+                147,
+                "            /*"
+            ]
+        ],
+        "deleted": [
+            [
+                59,
+                "                /*"
+            ],
+            [
+                60,
+                "                if (flipUpSideDown)"
+            ],
+            [
+                61,
+                "                {"
+            ],
+            [
+                62,
+                "                    bmp.RotateFlip(RotateFlipType.RotateNoneFlipY);"
+            ],
+            [
+                63,
+                "                }*/"
+            ],
+            [
+                64,
+                ""
+            ],
+            [
+                114,
+                "            }"
+            ],
+            [
+                115,
+                "            /*"
+            ],
+            [
+                116,
+                "            else //Unix"
+            ],
+            [
+                117,
+                "            {"
+            ],
+            [
+                118,
+                "                //if (flipUpSideDown)"
+            ],
+            [
+                119,
+                "                //    throw new NotImplementedException(\"Flip Up Side Down is Not implemented\");"
+            ],
+            [
+                120,
+                ""
+            ],
+            [
+                121,
+                "                throw new NotImplementedException(\"Not implemented\");"
+            ]
+        ]
+    },
+    "num_lines_added": 105,
+    "num_lines_removed": 14
+}

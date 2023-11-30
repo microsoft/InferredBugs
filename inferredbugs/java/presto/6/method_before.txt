@@ -1,0 +1,20 @@
+    @Test
+    public void testCountAllWithPredicate()
+    {
+        List<Tuple> expected = computeExpected("SELECT COUNT(*) FROM orders WHERE orderstatus = 'F'", FIXED_INT_64);
+
+        TupleStream orderStatus = createBlockStream(ordersData, Column.ORDER_ORDERSTATUS, VARIABLE_BINARY);
+
+        ApplyPredicateOperator filtered = new ApplyPredicateOperator(orderStatus, new Predicate<Cursor>()
+        {
+            @Override
+            public boolean apply(Cursor input)
+            {
+                return input.getSlice(0).equals(Slices.copiedBuffer("F", Charsets.UTF_8));
+            }
+        });
+
+        AggregationOperator aggregation = new AggregationOperator(filtered, CountAggregation.PROVIDER);
+
+        assertEqualsIgnoreOrder(tuples(aggregation), expected);
+    }

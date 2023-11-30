@@ -1,0 +1,97 @@
+        private void DoNetwork()
+        {
+            while (true)
+            {
+                bool idle = true;
+                for (int i = 0; i < Clients.Count && i >= 0; i++)
+                {
+                    Console.WriteLine("Running update " + DateTime.Now);
+                    var client = Clients[i] as RemoteClient;
+                    var sendTimeout = DateTime.Now.AddMilliseconds(50);
+                    while (client.PacketQueue.Count != 0 && DateTime.Now < sendTimeout)
+                    {
+                        idle = false;
+                        try
+                        {
+                            IPacket packet;
+                            while (!client.PacketQueue.TryDequeue(out packet)) ;
+                            LogPacket(packet, false);
+                            PacketReader.WritePacket(client.MinecraftStream, packet);
+                            client.MinecraftStream.BaseStream.Flush();
+                            if (packet is DisconnectPacket)
+                            {
+                                DisconnectClient(client);
+                                break;
+                            }
+                        }
+                        catch (SocketException e)
+                        {
+                            Log(LogCategory.Debug, "Disconnecting client due to exception in network worker");
+                            Log(LogCategory.Debug, e.ToString());
+                            PacketReader.WritePacket(client.MinecraftStream, new DisconnectPacket("An exception has occured on the server."));
+                            client.MinecraftStream.BaseStream.Flush();
+                            DisconnectClient(client);
+                            break;
+                        }
+                        catch (Exception e)
+                        {
+                            Log(LogCategory.Debug, "Disconnecting client due to exception in network worker");
+                            Log(LogCategory.Debug, e.ToString());
+                            DisconnectClient(client);
+                            break;
+                        }
+                    }
+                    if (client.Disconnected)
+                    {
+                        Clients.RemoveAt(i);
+                        break;
+                    }
+                    var receiveTimeout = DateTime.Now.AddMilliseconds(50);
+                    while (client.DataAvailable && DateTime.Now < receiveTimeout)
+                    {
+                        idle = false;
+                        var packet = PacketReader.ReadPacket(client.MinecraftStream);
+                        LogPacket(packet, true);
+                        if (PacketHandlers[packet.ID] != null)
+                        {
+                            try
+                            {
+                                PacketHandlers[packet.ID](packet, client, this);
+                            }
+                            catch (PlayerDisconnectException)
+                            {
+                                DisconnectClient(client);
+                                break;
+                            }
+                            catch (SocketException e)
+                            {
+                                Log(LogCategory.Debug, "Disconnecting client due to exception in network worker");
+                                Log(LogCategory.Debug, e.ToString());
+                                DisconnectClient(client);
+                                break;
+                            }
+                            catch (Exception e)
+                            {
+                                Log(LogCategory.Debug, "Disconnecting client due to exception in network worker");
+                                Log(LogCategory.Debug, e.ToString());
+                                PacketReader.WritePacket(client.MinecraftStream, new DisconnectPacket("An exception has occured on the server."));
+                                client.MinecraftStream.BaseStream.Flush();
+                                DisconnectClient(client);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            // TODO: Something productive
+                        }
+                    }
+                    if (idle)
+                        Thread.Sleep(100);
+                    if (client.Disconnected)
+                    {
+                        Clients.RemoveAt(i);
+                        break;
+                    }
+                }
+            }
+        }

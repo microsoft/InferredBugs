@@ -1,0 +1,36 @@
+ @Test
+	public void doUnmarshalValue() throws Exception {
+		//Note: Marshalling of 2.1 AGENT types is tested in VCardWriterTest
+
+		VCardVersion version = VCardVersion.V3_0;
+		List<String> warnings = new ArrayList<String>();
+		CompatibilityMode compatibilityMode = CompatibilityMode.RFC;
+		VCardSubTypes subTypes = new VCardSubTypes();
+		AgentType t;
+
+		//@formatter:off
+		StringBuilder sb = new StringBuilder();
+		sb.append("BEGIN: VCARD\\n");
+		sb.append("VERSION: 3.0\\n");
+		sb.append("FN: Agent 007\\n");
+		sb.append("EMAIL\\;TYPE=internet: 007@mi5.co.uk\\n");
+		sb.append("AGENT: ");
+			sb.append("BEGIN: VCARD\\\\n");
+			sb.append("VERSION: 3.0\\\\n");
+			sb.append("FN: Agent 009\\\\n");
+			sb.append("EMAIL\\\\\\;TYPE=internet: 009@mi5.co.uk\\\\n");
+			sb.append("END: VCARD\\\\n\\n");
+		sb.append("END: VCARD\\n");
+		//@formatter:on
+
+		t = new AgentType();
+		t.unmarshalValue(subTypes, sb.toString(), version, warnings, compatibilityMode);
+		VCard agent1 = t.getVcard();
+		assertEquals("Agent 007", agent1.getFormattedName().getValue());
+		assertEquals("007@mi5.co.uk", agent1.getEmails().get(0).getValue());
+		assertTrue(agent1.getEmails().get(0).getTypes().contains(EmailTypeParameter.INTERNET));
+		VCard agent2 = agent1.getAgent().getVcard();
+		assertEquals("Agent 009", agent2.getFormattedName().getValue());
+		assertEquals("009@mi5.co.uk", agent2.getEmails().get(0).getValue());
+		assertTrue(agent2.getEmails().get(0).getTypes().contains(EmailTypeParameter.INTERNET));
+	}

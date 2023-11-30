@@ -1,0 +1,25 @@
+  public Result<AccessToken> accessToken(String clientId, String clientSecret, String grantType,
+      String code, String redirectUri, Boolean wap) {
+    List<NameValuePair> params = new ArrayList<NameValuePair>();
+    connect.addParameter(params, "client_id", clientId);
+    connect.addParameter(params, "client_secret", clientSecret);
+    connect.addParameter(params, "grant_type", grantType);
+    connect.addParameter(params, "code", code);
+    connect.addParameter(params, "redirect_uri", redirectUri);
+    String url = "https://graph.qq.com/oauth2.0/token";
+    if (Boolean.TRUE.equals(wap)) {
+      url = "https://graph.z.qq.com/moc2/token";
+    }
+    String result = connect.get(url, params);
+    String[] results = result.split("\\&");
+    JSONObject jsonObject = new JSONObject();
+    for (String param : results) {
+      String[] keyValue = param.split("\\=");
+      jsonObject.put(keyValue[0], keyValue.length > 0 ? keyValue[1] : null);
+    }
+    String errorCode = jsonObject.optString("code", null);
+    if (errorCode != null) {
+      jsonObject.put("ret", errorCode);// To match Error.parse()
+    }
+    return Result.parse(jsonObject, AccessToken.class);
+  }

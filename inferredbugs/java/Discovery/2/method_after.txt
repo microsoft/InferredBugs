@@ -1,0 +1,43 @@
+    @SuppressWarnings("rawtypes")
+    @Override
+    protected void parseRoot(Element element) {
+        LOG.info("Start to parse rule xml...");
+
+        int registerElementCount = element.elements(ConfigConstant.REGISTER_ELEMENT_NAME).size();
+        if (registerElementCount > 1) {
+            throw new PluginException("Allow only one element[" + ConfigConstant.REGISTER_ELEMENT_NAME + "] to be configed");
+        }
+
+        int discoveryElementCount = element.elements(ConfigConstant.DISCOVERY_ELEMENT_NAME).size();
+        if (discoveryElementCount > 1) {
+            throw new PluginException("Allow only one element[" + ConfigConstant.DISCOVERY_ELEMENT_NAME + "] to be configed");
+        }
+
+        RegisterEntity registerEntity = null;
+        DiscoveryEntity discoveryEntity = null;
+        for (Iterator elementIterator = element.elementIterator(); elementIterator.hasNext();) {
+            Object childElementObject = elementIterator.next();
+            if (childElementObject instanceof Element) {
+                Element childElement = (Element) childElementObject;
+
+                if (StringUtils.equals(childElement.getName(), ConfigConstant.REGISTER_ELEMENT_NAME)) {
+                    registerEntity = new RegisterEntity();
+                    parseRegister(childElement, registerEntity);
+                } else if (StringUtils.equals(childElement.getName(), ConfigConstant.DISCOVERY_ELEMENT_NAME)) {
+                    discoveryEntity = new DiscoveryEntity();
+                    parseDiscovery(childElement, discoveryEntity);
+                }
+            }
+        }
+
+        String text = getText();
+
+        RuleEntity ruleEntity = new RuleEntity();
+        ruleEntity.setRegisterEntity(registerEntity);
+        ruleEntity.setDiscoveryEntity(discoveryEntity);
+        ruleEntity.setContent(text);
+
+        ruleCache.put(PluginConstant.RULE, ruleEntity);
+
+        LOG.info("Rule entity=\n{}", ruleEntity);
+    }

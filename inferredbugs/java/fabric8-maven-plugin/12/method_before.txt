@@ -1,0 +1,46 @@
+    private KubernetesList convertToOpenShiftResources(KubernetesList resources) throws MojoExecutionException {
+        KubernetesListBuilder builder = new KubernetesListBuilder();
+        builder.withMetadata(resources.getMetadata());
+        List<HasMetadata> items = resources.getItems();
+        List<HasMetadata> objects = new ArrayList<>();
+        if (items != null) {
+            for (HasMetadata item : items) {
+                if (item instanceof Deployment) {
+                    // if we have a Deployment and a DeploymentConfig of the same name
+                    // since we have a different manifest for OpenShift then lets filter out
+                    // the Kubernetes specific Deployment
+                    String name = KubernetesHelper.getName(item);
+                    if (hasDeploymentConfigNamed(items, name)) {
+                        continue;
+                    }
+                }
+                HasMetadata converted = convertKubernetesItemToOpenShift(item);
+                if (converted != null) {
+                    objects.add(converted);
+                }
+            }
+        }
+
+        openshiftDependencyResources.addMissingResources(objects);
+
+        if (openshiftManifest != null && openshiftManifest.isFile() && openshiftManifest.exists()) {
+            // lets add any ImageStream / ImageStreamTag objects which are already on disk
+            // from a previous `BuildMojo` execution
+            KubernetesClient client = clusterAccess.createDefaultClient(log);
+            Set<HasMetadata> oldEntities;
+            try {
+                oldEntities = KubernetesResourceUtil.loadResources(openshiftManifest);
+            } catch (Exception e) {
+                throw new MojoExecutionException("Failed to load openshift manifest " + openshiftManifest + ". " + e, e);
+            }
+            for (HasMetadata entity : oldEntities) {
+                if (entity instanceof ImageStream || entity instanceof ImageStreamTag) {
+                    if (KubernetesResourceUtil.findResourceByName(objects, entity.getClass(), KubernetesHelper.getName(entity)) == null) {
+                        objects.add(entity);
+                    }
+                }
+            }
+        }
+        moveTemplatesToTopLevel(builder, objects);
+        return builder.build();
+    }

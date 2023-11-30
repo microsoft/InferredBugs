@@ -1,0 +1,46 @@
+    @Override
+    public int scan(String table, String startkey, int recordcount,
+            Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
+        MongoCursor<Document> cursor = null;
+        try {
+            MongoCollection<Document> collection = database
+                    .getCollection(table);
+
+            Document scanRange = new Document("$gte", startkey);
+            Document query = new Document("_id", scanRange);
+            Document sort = new Document("_id", INCLUDE);
+            Document projection = null;
+            if (fields != null) {
+                projection = new Document();
+                for (String fieldName : fields) {
+                    projection.put(fieldName, INCLUDE);
+                }
+            }
+
+            cursor = collection.find(query)
+                    .projection(projection).sort(sort).limit(recordcount).iterator();
+            if (!cursor.hasNext()) {
+                System.err.println("Nothing found in scan for key " + startkey);
+                return 1;
+            }
+            while (cursor.hasNext()) {
+                HashMap<String, ByteIterator> resultMap = new HashMap<String, ByteIterator>();
+
+                Document obj = cursor.next();
+                fillMap(resultMap, obj);
+
+                result.add(resultMap);
+            }
+
+            return 0;
+        }
+        catch (Exception e) {
+            System.err.println(e.toString());
+            return 1;
+        }
+        finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+    }

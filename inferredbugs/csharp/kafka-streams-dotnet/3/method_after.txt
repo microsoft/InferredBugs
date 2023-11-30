@@ -1,0 +1,26 @@
+        [Test]
+        public void RestoreFromInvalidOffset()
+        {
+            storeChangelogReader.Restore();
+            stateMgr.Checkpoint();
+            stateMgr.Close();
+
+            // set an invalid offset in checkpoint file
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("0").AppendLine("1").AppendLine("store-changelog-topic 0 -100");
+            File.WriteAllText(Path.Combine(config.StateDir, config.ApplicationId, "0-0", ".checkpoint"), sb.ToString());
+
+            restoreConsumer.Resume(restoreConsumer.Assignment);
+            store.Init(context, store);
+            stateMgr.InitializeOffsetsFromCheckpoint();
+
+            storeChangelogReader.Restore();
+
+            Assert.AreEqual(2, store.All().ToList().Count);
+
+            var metadata = storeChangelogReader.GetMetadata(new TopicPartition(changelogTopic, 0));
+            Assert.IsNotNull(metadata);
+            Assert.AreEqual(ChangelogState.COMPLETED, metadata.ChangelogState);
+            Assert.AreEqual(1, metadata.RestoreEndOffset);
+            Assert.AreEqual(2, metadata.TotalRestored);
+        }

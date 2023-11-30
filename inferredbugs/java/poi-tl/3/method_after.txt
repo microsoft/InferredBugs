@@ -1,0 +1,25 @@
+    @Override
+    public void doRender(RunTemplate runTemplate, NumbericRenderData numbericData, XWPFTemplate template)
+            throws Exception {
+        NiceXWPFDocument doc = template.getXWPFDocument();
+        XWPFRun run = runTemplate.getRun();
+        List<TextRenderData> datas = numbericData.getNumbers();
+        Style fmtStyle = numbericData.getFmtStyle();
+
+        BigInteger numID = doc.addNewNumbericId(numbericData.getNumFmt());
+
+        XWPFParagraph paragraph;
+        XWPFRun newRun;
+        for (TextRenderData line : datas) {
+            paragraph = doc.insertNewParagraph(run);
+            paragraph.setNumID(numID);
+            CTP ctp = paragraph.getCTP();
+            CTPPr pPr = ctp.isSetPPr() ? ctp.getPPr() : ctp.addNewPPr();
+            CTParaRPr pr = pPr.isSetRPr() ? pPr.getRPr() : pPr.addNewRPr();
+            StyleUtils.styleRpr(pr, fmtStyle);
+            newRun = paragraph.createRun();
+            StyleUtils.styleRun(newRun, line.getStyle());
+            newRun.setText(line.getText());
+        }
+
+    }

@@ -1,0 +1,55 @@
+        protected override Variable Evaluate(ParsingScript script)
+        {
+            // First check if this element is part of an array:
+            if (script.TryPrev() == Constants.START_ARRAY)
+            {
+                // There is an index given - it must be for an element of the tuple.
+                if (m_value.Tuple == null || m_value.Tuple.Count == 0)
+                {
+                    throw new ArgumentException("No tuple exists for the index");
+                }
+
+                if (m_arrayIndices == null)
+                {
+                    string startName = script.Substr(script.Pointer - 1);
+                    m_arrayIndices = Utils.GetArrayIndices(script, startName, m_delta, (newStart, newDelta) => { startName = newStart; m_delta = newDelta; } );
+                }
+
+                script.Forward(m_delta);
+                while (script.MoveForwardIf(Constants.END_ARRAY))
+                {
+                }
+
+                Variable result = Utils.ExtractArrayElement(m_value, m_arrayIndices, script);
+                if (script.Prev == '.')
+                {
+                    script.Backward();
+                }
+
+                if (script.TryCurrent() != '.')
+                {
+                    return result;
+                }
+                script.Forward();
+
+                m_propName = Utils.GetToken(script, Constants.TOKEN_SEPARATION);
+                Variable propValue = result.GetProperty(m_propName, script);
+                Utils.CheckNotNull(propValue, m_propName, script);
+                return propValue;
+            }
+
+            // Now check that this is an object:
+            if (!string.IsNullOrWhiteSpace(m_propName))
+            {
+                string temp = m_propName;
+                m_propName = null; // Need this to reset for recursive calls
+                Variable propValue = m_value.Type == Variable.VarType.ENUM ?
+                                     m_value.GetEnumProperty(temp, script) :
+                                     m_value.GetProperty(temp, script);
+                Utils.CheckNotNull(propValue, temp, script);
+                return propValue;
+            }
+
+            // Otherwise just return the stored value.
+            return m_value;
+        }

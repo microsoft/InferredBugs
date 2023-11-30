@@ -1,0 +1,29 @@
+    @Override
+    public void process(ComplexEventChunk complexEventChunk) {
+        List<ComplexEventChunk<ComplexEvent>> outputEventChunks = new ArrayList<ComplexEventChunk<ComplexEvent>>();
+        complexEventChunk.reset();
+        synchronized (this) {
+            complexEventChunk.reset();
+            while (complexEventChunk.hasNext()) {
+                ComplexEvent event = complexEventChunk.next();
+                if (event.getType() == ComplexEvent.Type.TIMER) {
+                    if (event.getTimestamp() >= scheduledTime) {
+                        ComplexEventChunk<ComplexEvent> outputEventChunk = new ComplexEventChunk<ComplexEvent>(false);
+                        for (ComplexEvent complexEvent : groupByKeyEvents.values()) {
+                            outputEventChunk.add(cloneComplexEvent(complexEvent));
+                        }
+                        outputEventChunks.add(outputEventChunk);
+                        scheduledTime += value;
+                        scheduler.notifyAt(scheduledTime);
+                    }
+                } else if (event.getType() == ComplexEvent.Type.CURRENT) {
+                    complexEventChunk.remove();
+                    GroupedComplexEvent groupedComplexEvent = ((GroupedComplexEvent) event);
+                    groupByKeyEvents.put(groupedComplexEvent.getGroupKey(), groupedComplexEvent.getComplexEvent());
+                }
+            }
+        }
+        for (ComplexEventChunk eventChunk : outputEventChunks) {
+            sendToCallBacks(eventChunk);
+        }
+    }

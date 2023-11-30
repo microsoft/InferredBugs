@@ -1,0 +1,102 @@
+    public void evict() throws Exception {
+        assertOpen();
+
+        if (getNumIdle() == 0) {
+            return;
+        }
+
+        boolean testWhileIdle = getTestWhileIdle();
+        long idleEvictTime = Long.MAX_VALUE;
+         
+        if (getMinEvictableIdleTimeMillis() > 0) {
+            idleEvictTime = getMinEvictableIdleTimeMillis();
+        }
+
+        PooledObject<T> underTest = null;
+        LinkedBlockingDeque<PooledObject<T>> idleObjects = null;
+         
+        for (int i = 0, m = getNumTests(); i < m; i++) {
+            if(evictionIterator == null || !evictionIterator.hasNext()) {
+                if (evictionKeyIterator == null ||
+                        !evictionKeyIterator.hasNext()) {
+                    List<K> keyCopy = new ArrayList<K>();
+                    keyCopy.addAll(poolKeyList);
+                    evictionKeyIterator = keyCopy.iterator();
+                }
+                while (evictionKeyIterator.hasNext()) {
+                    evictionKey = evictionKeyIterator.next();
+                    ObjectDeque<T> objectDeque = poolMap.get(evictionKey);
+                    if (objectDeque == null) {
+                        continue;
+                    }
+                    idleObjects = objectDeque.getIdleObjects();
+                    
+                    if (getLifo()) {
+                        evictionIterator = idleObjects.descendingIterator();
+                    } else {
+                        evictionIterator = idleObjects.iterator();
+                    }
+                    if (evictionIterator.hasNext()) {
+                        break;
+                    }
+                    evictionIterator = null;
+                }
+            }
+            if (evictionIterator == null) {
+                // Pools exhausted
+                return;
+            }
+            try {
+                underTest = evictionIterator.next();
+            } catch (NoSuchElementException nsee) {
+                // Object was borrowed in another thread
+                // Don't count this as an eviction test so reduce i;
+                i--;
+                evictionIterator = null;
+                continue;
+            }
+
+            if (!underTest.startEvictionTest()) {
+                // Object was borrowed in another thread
+                // Don't count this as an eviction test so reduce i;
+                i--;
+                continue;
+            }
+
+            if (idleEvictTime < underTest.getIdleTimeMillis()) {
+                destroy(evictionKey, underTest, true);
+                destroyedByEvictorCount.incrementAndGet();
+            } else {
+                if (testWhileIdle) {
+                    boolean active = false;
+                    try {
+                        factory.activateObject(evictionKey, 
+                                underTest.getObject());
+                        active = true;
+                    } catch (Exception e) {
+                        destroy(evictionKey, underTest, true);
+                        destroyedByEvictorCount.incrementAndGet();
+                    }
+                    if (active) {
+                        if (!factory.validateObject(evictionKey,
+                                underTest.getObject())) {
+                            destroy(evictionKey, underTest, true);
+                            destroyedByEvictorCount.incrementAndGet();
+                        } else {
+                            try {
+                                factory.passivateObject(evictionKey,
+                                        underTest.getObject());
+                            } catch (Exception e) {
+                                destroy(evictionKey, underTest, true);
+                                destroyedByEvictorCount.incrementAndGet();
+                            }
+                        }
+                    }
+                }
+                if (!underTest.endEvictionTest(idleObjects)) {
+                    // TODO - May need to add code here once additional states
+                    // are used
+                }
+            }
+        }
+    }

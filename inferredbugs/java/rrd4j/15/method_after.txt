@@ -1,0 +1,48 @@
+    public Archive findMatchingArchive(FetchRequest request) throws IOException {
+        ConsolFun consolFun = request.getConsolFun();
+        long fetchStart = request.getFetchStart();
+        long fetchEnd = request.getFetchEnd();
+        long resolution = request.getResolution();
+        Archive bestFullMatch = null;
+        Archive bestPartialMatch = null;
+        long bestStepDiff = 0;
+        long bestMatch = 0;
+        for (Archive archive : archives) {
+            if (archive.getConsolFun() == consolFun) {
+                long arcStep = archive.getArcStep();
+                long arcStart = archive.getStartTime() - arcStep;
+                long fullMatch = fetchEnd - fetchStart;
+                // we need step difference in either full or partial case
+                long tmpStepDiff = Math.abs(archive.getArcStep() - resolution);
+                if (arcStart <= fetchStart) {
+                    // best full match
+                    if (bestFullMatch == null || tmpStepDiff < bestStepDiff) {
+                        bestStepDiff = tmpStepDiff;
+                        bestFullMatch = archive;
+                    }
+                }
+                else {
+                    // best partial match
+                    long tmpMatch = fullMatch;
+                    if (arcStart > fetchStart) {
+                        tmpMatch -= (arcStart - fetchStart);
+                    }
+                    if (bestPartialMatch == null ||
+                            bestMatch < tmpMatch ||
+                            (bestMatch == tmpMatch && tmpStepDiff < bestStepDiff) ) {
+                        bestPartialMatch = archive;
+                        bestMatch = tmpMatch;
+                    }
+                }
+            }
+        }
+        if (bestFullMatch != null) {
+            return bestFullMatch;
+        }
+        else if (bestPartialMatch != null) {
+            return bestPartialMatch;
+        }
+        else {
+            throw new IllegalStateException("RRD file does not contain RRA: " + consolFun + " archive");
+        }
+    }

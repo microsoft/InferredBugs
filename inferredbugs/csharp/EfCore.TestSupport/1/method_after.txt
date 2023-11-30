@@ -1,0 +1,29 @@
+        public static void FasterPostgreSqlEnsureClean(this DatabaseFacade databaseFacade, bool setUpSchema = true)
+        {
+            var connectionString = databaseFacade.GetDbConnection().ConnectionString;
+            if (connectionString.DatabaseExists())
+            {
+                using var conn = new NpgsqlConnection(connectionString);
+                conn.Open();
+
+                var dropPublicSchemaCommand = new NpgsqlCommand
+                {
+                    Connection = conn,
+                    CommandText = @"
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('pg_toast', 'pg_catalog', 'information_schema'))
+        LOOP
+            EXECUTE 'DROP SCHEMA ' || quote_ident(r.nspname) || ' CASCADE';
+        END LOOP;
+    EXECUTE 'CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public';
+END $$"
+                };
+                dropPublicSchemaCommand.ExecuteNonQuery();
+            }
+
+            if (setUpSchema)
+                databaseFacade.EnsureCreated();
+        }

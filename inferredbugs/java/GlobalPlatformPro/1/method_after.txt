@@ -1,0 +1,38 @@
+    public List<byte[]> getLoadBlocks(boolean includeDebug,
+            boolean separateComponents, int blockSize) {
+        List<byte[]> blocks = null;
+
+        if (!separateComponents) {
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            try {
+                bo.write(createHeader(includeDebug));
+                bo.write(getRawCode(includeDebug));
+            } catch (IOException ioe) {
+
+            }
+            blocks = splitArray(bo.toByteArray(), blockSize);
+        } else {
+            for (String name : componentNames) {
+                if (!includeDebug
+                        && (name.equals("Debug") || name.equals("Descriptor")))
+                    continue;
+
+                byte[] currentComponent = capComponents.get(name);
+                if (currentComponent == null) {
+                    continue;
+                }
+                if (name.equals("Header")) {
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    try {
+                        bo.write(createHeader(includeDebug));
+                        bo.write(currentComponent);
+                    } catch (IOException ioe) {
+
+                    }
+                    currentComponent = bo.toByteArray();
+                }
+                blocks = splitArray(currentComponent, blockSize);
+            }
+        }
+        return blocks;
+    }

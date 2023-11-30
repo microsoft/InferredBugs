@@ -1,0 +1,67 @@
+  public void download_multiple_files() throws IOException, NoSuchAlgorithmException, InterruptedException, URISyntaxException {
+    int numFiles = 50;
+    this.tracker.setAcceptForeignTorrents(true);
+
+    final File srcDir = tempFiles.createTempDir();
+    final File downloadDir = tempFiles.createTempDir();
+
+    Client seeder = createClient("seeder");
+    seeder.start(InetAddress.getLocalHost());
+    Client leech = null;
+
+
+    try {
+      URL announce = new URL("http://127.0.0.1:6969/announce");
+      URI announceURI = announce.toURI();
+      final Set<String> names = new HashSet<String>();
+      List<File> filesToShare = new ArrayList<File>();
+      for (int i = 0; i < numFiles; i++) {
+        File tempFile = tempFiles.createTempFile(513 * 1024);
+        File srcFile = new File(srcDir, tempFile.getName());
+        assertTrue(tempFile.renameTo(srcFile));
+
+        Torrent torrent = TorrentCreator.create(srcFile, announceURI, "Test");
+        File torrentFile = new File(srcFile.getParentFile(), srcFile.getName() + ".torrent");
+        saveTorrent(torrent, torrentFile);
+        filesToShare.add(srcFile);
+        names.add(srcFile.getName());
+      }
+
+      for (File f : filesToShare) {
+        File torrentFile = new File(f.getParentFile(), f.getName() + ".torrent");
+        seeder.addTorrent(torrentFile.getAbsolutePath(), f.getParent());
+      }
+      leech = createClient("leecher");
+      leech.start(new InetAddress[]{InetAddress.getLocalHost()}, 5, null);
+      for (File f : filesToShare) {
+        File torrentFile = new File(f.getParentFile(), f.getName() + ".torrent");
+        leech.addTorrent(torrentFile.getAbsolutePath(), downloadDir.getAbsolutePath());
+      }
+
+      new WaitFor(60 * 1000) {
+        @Override
+        protected boolean condition() {
+
+          final Set<String> strings = listFileNames(downloadDir);
+          int count = 0;
+          final List<String> partItems = new ArrayList<String>();
+          for (String s : strings) {
+            if (s.endsWith(".part")) {
+              count++;
+              partItems.add(s);
+            }
+          }
+          if (count < 5) {
+
+            System.err.printf("Count: %d. Items: %s%n", count, Arrays.toString(partItems.toArray()));
+          }
+          return strings.containsAll(names);
+        }
+      };
+
+      assertEquals(listFileNames(downloadDir), names);
+    } finally {
+      leech.stop();
+      seeder.stop();
+    }
+  }

@@ -1,0 +1,36 @@
+    @Override
+    public List<Device> getDevices(String machineIP, String platform) throws Exception {
+        ObjectMapper mapper = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        List<Device> devices = null;
+
+        if (platform.equalsIgnoreCase(OSType.ANDROID.name()) ||
+                platform.equalsIgnoreCase(OSType.BOTH.name())) {
+            devices.addAll(Arrays.asList(mapper.readValue(new URL(
+                            "http://" + machineIP + ":4567/devices/android"),
+                    Device[].class)));
+        }
+        if (platform.equalsIgnoreCase(OSType.iOS.name()) ||
+                platform.equalsIgnoreCase(OSType.BOTH.name())) {
+
+            if (CapabilityManager.getInstance().isApp()) {
+
+                if (CapabilityManager.getInstance().isSimulatorAppPresentInCapsJson()) {
+                    devices.addAll(Arrays.asList(mapper.readValue(new URL(
+                                    "http://" + machineIP + ":4567/devices/ios/bootedSims"),
+                            Device[].class)));
+                }
+                if (CapabilityManager.getInstance().isRealDeviceAppPresentInCapsJson()) {
+                    devices.addAll(Arrays.asList(mapper.readValue(new URL(
+                                    "http://" + machineIP + ":4567/devices/ios/realDevices"),
+                            Device[].class)));
+                }
+            } else {
+                devices.addAll(Arrays.asList(mapper.readValue(new URL(
+                                "http://" + machineIP + ":4567/devices/ios"),
+                        Device[].class)));
+            }
+        }
+        assert devices != null;
+        return devices;
+    }

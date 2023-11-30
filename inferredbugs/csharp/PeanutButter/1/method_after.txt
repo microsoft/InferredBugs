@@ -1,0 +1,14 @@
+        public static WindowsServiceUtil GetServiceByPath(string path)
+        {
+            var queryString = $"select Name from Win32_Service where PathName = '{path.Replace("'", "''").Replace("\\", "\\\\")}'";
+            var searcher = new ManagementObjectSearcher(queryString);
+            var collection = searcher.Get();
+            if (collection.Count == 0)
+                return null;
+            var svcName = collection.Cast<ManagementBaseObject>()
+                                        .Select(item => item.Properties["Name"].Value.ToString())
+                                        .FirstOrDefault();
+            return svcName == null 
+                    ? null 
+                    : new WindowsServiceUtil(svcName);
+        }

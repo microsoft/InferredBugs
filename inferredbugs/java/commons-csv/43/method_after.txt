@@ -1,0 +1,43 @@
+   private static void testCSVLexer(final boolean newToken, String test) throws Exception {
+       Token token = new Token();
+       String dynamic = "";
+       for (int i = 0; i < max; i++) {
+           final ExtendedBufferedReader input = new ExtendedBufferedReader(getReader());
+           Lexer lexer = null;
+           if (test.startsWith("CSVLexer")) {
+               dynamic="!";
+               lexer = getLexerCtor(test).newInstance(new Object[]{format, input});
+           } else {
+               lexer = new CSVLexer(format, input);
+           }
+           int count = 0;
+           int fields = 0;
+           long t0 = System.currentTimeMillis();
+           do {
+               if (newToken) {
+                   token = new Token();
+               } else {
+                   token.reset();
+               }
+               lexer.nextToken(token);
+               switch(token.type) {
+               case EOF:
+                   break;
+               case EORECORD:
+                   fields++;
+                   count++;
+                   break;
+               case INVALID:
+                   throw new IOException("invalid parse sequence");
+               case TOKEN:
+                   fields++;
+                   break;
+              }
+
+           } while (!token.type.equals(Token.Type.EOF));
+           Stats s = new Stats(count, fields);
+           input.close();
+           show(lexer.getClass().getSimpleName()+dynamic+" "+(newToken ? "new" : "reset"), s, t0);
+       }
+       show();
+   }

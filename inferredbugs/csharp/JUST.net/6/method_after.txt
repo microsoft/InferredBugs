@@ -1,0 +1,85 @@
+        private void RecursiveEvaluate(JToken parentToken, IDictionary<string, JArray> parentArray, IDictionary<string, JToken> currentArrayToken)
+        {
+            if (parentToken == null)
+                return;
+
+            JEnumerable<JToken> tokens = parentToken.Children();
+
+            List<JToken> selectedTokens = null;
+            Dictionary<string, JToken> tokensToReplace = null;
+            List<JToken> tokensToDelete = null;
+
+            List<string> loopProperties = null;
+            JArray arrayToForm = null;
+            JObject dictToForm = null;
+            List<JToken> tokenToForm = null;
+            List<JToken> tokensToAdd = null;
+
+            bool isLoop = false;
+            bool isBulk = false;
+
+            foreach (JToken childToken in tokens)
+            {
+                if (childToken.Type == JTokenType.Array && (parentToken as JProperty)?.Name.Trim() != "#")
+                {
+                    IEnumerable<object> itemsToAdd = TransformArray(childToken.Children(), parentArray, currentArrayToken);
+                    BuildArrayToken(childToken as JArray, itemsToAdd);
+                }
+                else if (childToken.Type == JTokenType.Property && childToken is JProperty property && property.Name != null)
+                {
+                    /* For looping*/
+                    isLoop = false;
+
+                    if (property.Name == "#" && property.Value.Type == JTokenType.Array && property.Value is JArray values)
+                    {
+                        BulkOperations(values.Children(), parentArray, currentArrayToken, ref selectedTokens, ref tokensToReplace, ref tokensToDelete);
+                        isBulk = true;
+                    }
+                    else
+                    {
+                        if (ExpressionHelper.TryParseFunctionNameAndArguments(property.Name, out string functionName, out string arguments))
+                        {
+                            switch(functionName)
+                            {
+                                case "ifgroup":
+                                    ConditionalGroupOperation(property.Name, arguments, parentArray, currentArrayToken, ref loopProperties, ref tokenToForm, childToken);
+                                    isLoop = true;
+                                    break;
+                                case "loop":
+                                    LoopOperation(property.Name, arguments, parentArray, currentArrayToken, ref loopProperties, ref arrayToForm, ref dictToForm, childToken);
+                                    isLoop = true;
+                                    break;
+                                case "eval":
+                                    EvalOperation(property, arguments, parentArray, currentArrayToken, ref loopProperties, ref tokensToAdd);
+                                    break;
+                            }
+                        }
+                        else if (property.Value.ToString().Trim().StartsWith("#"))
+                        {
+                            property.Value = GetToken(ParseFunction(property.Value.ToString(), parentArray, currentArrayToken));
+                        }
+                    }
+
+                    if (property.Name != null && property.Value.ToString().StartsWith($"{ExpressionHelper.EscapeChar}#"))
+                    {
+                        var clone = property.Value as JValue;
+                        clone.Value = clone.Value.ToString().Substring(1);
+                        property.Value.Replace(clone);
+                    }
+                    /*End looping */
+                }
+                else if (childToken.Type == JTokenType.String && childToken.Value<string>().Trim().StartsWith("#")
+                    && parentArray != null && currentArrayToken != null)
+                {
+                    object newValue = ParseFunction(childToken.Value<string>(), parentArray, currentArrayToken);
+                    childToken.Replace(GetToken(newValue));
+                }
+
+                if (!isLoop && !isBulk)
+                {
+                    RecursiveEvaluate(childToken, parentArray, currentArrayToken);
+                }
+            }
+
+            parentToken = PostOperationsBuildUp(parentToken, selectedTokens, tokensToReplace, tokensToDelete, loopProperties, arrayToForm, dictToForm, tokenToForm, tokensToAdd);
+        }

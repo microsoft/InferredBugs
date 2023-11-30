@@ -1,0 +1,31 @@
+    public static Result createArea(String areaName) {
+        // prevent too many areas
+        if(AREAS.size() > (MAX -1)) {
+            return new Result(false, "KV_AREA_CREATE_ERROR");
+        }
+        if(StringUtils.isBlank(areaName)) {
+            return Result.getFailed(ErrorCode.NULL_PARAMETER);
+        }
+        if (AREAS.containsKey(areaName)) {
+            return new Result(true, "KV_AREA_EXISTS");
+        }
+        //TODO 特殊字符校验
+        if(!checkPathLegal(areaName)) {
+            return new Result(false, "KV_AREA_CREATE_ERROR");
+        }
+        Result result;
+        try {
+            File dir = new File(dataPath + File.separator + areaName);
+            if(!dir.exists()) {
+                dir.mkdir();
+            }
+            String filePath = dataPath + File.separator + areaName + File.separator + BASE_DB_NAME;
+            DB db = openDB(filePath, true);
+            AREAS.put(areaName, db);
+            result = Result.getSuccess();
+        } catch (Exception e) {
+            Log.error("error create area: " + areaName, e);
+            result = new Result(false, "KV_AREA_CREATE_ERROR");
+        }
+        return result;
+    }

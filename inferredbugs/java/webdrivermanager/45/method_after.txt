@@ -1,0 +1,59 @@
+    protected void manage(Architecture arch, String version) {
+        httpClient = new HttpClient(config());
+        try (HttpClient wdmHttpClient = httpClient) {
+            downloader = new Downloader(getDriverManagerType());
+            urlFilter = new UrlFilter();
+
+            boolean getLatest = isVersionLatest(version);
+            boolean cache = config().isForceCache();
+
+            if (getLatest) {
+                version = detectDriverVersionFromBrowser();
+            }
+            getLatest = isNullOrEmpty(version);
+
+            // For Edge
+            if (checkInsiderVersion(version)) {
+                return;
+            }
+
+            String os = config().getOs();
+            log.trace("Managing {} arch={} version={} getLatest={} cache={}",
+                    getDriverName(), arch, version, getLatest, cache);
+
+            if (getLatest && latestVersion != null) {
+                log.debug("Latest version of {} is {} (recently resolved)",
+                        getDriverName(), latestVersion);
+                version = latestVersion;
+                cache = true;
+            }
+
+            Optional<String> driverInCache = handleCache(arch, version, os,
+                    getLatest, cache);
+
+            String versionStr = getLatest ? "(latest version)" : version;
+            if (driverInCache.isPresent() && !config().isOverride()) {
+                storeVersionToDownload(version);
+                downloadedVersion = version;
+                log.debug("Driver {} {} found in cache", getDriverName(),
+                        versionStr);
+                exportDriver(driverInCache.get());
+            } else {
+                List<URL> candidateUrls = filterCandidateUrls(arch, version,
+                        getLatest);
+
+                if (candidateUrls.isEmpty()) {
+                    String errorMessage = getDriverName() + " " + versionStr
+                            + " for " + os + arch.toString() + " not found in "
+                            + getDriverUrl();
+                    log.error(errorMessage);
+                    throw new WebDriverManagerException(errorMessage);
+                }
+
+                downloadCandidateUrls(candidateUrls);
+            }
+
+        } catch (Exception e) {
+            handleException(e, arch, version);
+        }
+    }

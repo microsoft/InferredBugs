@@ -1,0 +1,32 @@
+  @Test
+  public void testPartialResults() throws Exception {
+    when(mockBigtableApi.getDataClient()).thenReturn(mockDataClientWrapper);
+    when(mockDataClientWrapper.createBulkRead(isA(String.class))).thenReturn(mockBulkRead);
+    byte[] key1 = randomBytes(8);
+    byte[] key2 = randomBytes(8);
+    Result expected =
+        Result.create(
+            ImmutableList.<org.apache.hadoop.hbase.Cell>of(
+                new RowCell(
+                    key1,
+                    Bytes.toBytes("cf"),
+                    Bytes.toBytes(""),
+                    10,
+                    Bytes.toBytes("hi!"),
+                    ImmutableList.<String>of())));
+    RuntimeException exception = new RuntimeException("Something bad happened");
+    when(mockBulkRead.add(any(Query.class)))
+        .thenReturn(ApiFutures.immediateFuture(expected))
+        .thenReturn(ApiFutures.<Result>immediateFailedFuture(exception));
+
+    List<Get> gets = Arrays.asList(new Get(key1), new Get(key2));
+    Object[] results = new Object[2];
+
+    try {
+      createExecutor().batch(gets, results);
+    } catch (RetriesExhaustedWithDetailsException ignored) {
+    }
+    assertTrue("first result is a result", results[0] instanceof Result);
+    assertTrue(matchesRow(expected).matches(results[0]));
+    Assert.assertEquals(exception, results[1]);
+  }

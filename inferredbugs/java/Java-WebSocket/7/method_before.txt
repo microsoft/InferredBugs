@@ -1,0 +1,81 @@
+ public void run() {
+		if( thread != null )
+			throw new IllegalStateException( "This instance of " + getClass().getSimpleName() + " can only be started once the same time." );
+		thread = Thread.currentThread();
+		try {
+			server = ServerSocketChannel.open();
+			server.configureBlocking( false );
+			server.socket().bind( address );
+			// InetAddress.getLocalHost()
+			selector = Selector.open();
+			server.register( selector, server.validOps() );
+		} catch ( IOException ex ) {
+			onWebsocketError( null, ex );
+			return;
+		}
+
+		while ( !thread.isInterrupted() ) {
+			SelectionKey key = null;
+			WebSocket conn = null;
+			try {
+				selector.select();
+				Set<SelectionKey> keys = selector.selectedKeys();
+				Iterator<SelectionKey> i = keys.iterator();
+
+				while ( i.hasNext() ) {
+					key = i.next();
+
+					// Remove the current key
+					i.remove();
+
+					// if isAcceptable == true
+					// then a client required a connection
+					if( key.isAcceptable() ) {
+						SocketChannel client = server.accept();
+						client.configureBlocking( false );
+						WebSocket c = new WebSocket( this, Collections.singletonList( draft ), client );
+						client.register( selector, SelectionKey.OP_READ, c );
+					}
+
+					// if isReadable == true
+					// then the server is ready to read
+					if( key.isReadable() ) {
+						conn = (WebSocket) key.attachment();
+						conn.handleRead();
+					}
+
+					// if isWritable == true
+					// then we need to send the rest of the data to the client
+					if( key.isValid() && key.isWritable() ) {
+						conn = (WebSocket) key.attachment();
+						conn.flush();
+						key.channel().register( selector, SelectionKey.OP_READ, conn );
+					}
+				}
+				synchronized ( connections ) {
+					Iterator<WebSocket> it = this.connections.iterator();
+					while ( it.hasNext() ) {
+						// We have to do this check here, and not in the thread that
+						// adds the buffered data to the WebSocket, because the
+						// Selector is not thread-safe, and can only be accessed
+						// by this thread.
+						conn = it.next();
+						if( conn.hasBufferedData() ) {
+							conn.flush();
+							// key.channel().register( selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, conn );
+						}
+					}
+				}
+			} catch ( IOException ex ) {
+				if( key != null )
+					key.cancel();
+				onWebsocketError( conn, ex );// conn may be null here
+				if( conn != null ) {
+					conn.close( CloseFrame.ABNROMAL_CLOSE );
+				}
+			} catch ( Throwable e ) {
+				System.out.println( e );
+				e.printStackTrace();
+			}
+		}
+	}

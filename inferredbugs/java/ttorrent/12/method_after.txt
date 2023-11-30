@@ -1,0 +1,50 @@
+ @Override
+	public void announce(AnnounceRequestMessage.RequestEvent event,
+		boolean inhibitEvents) throws AnnounceException {
+		logger.info("Announcing{} to tracker with {}U/{}D/{}L bytes...",
+			new Object[] {
+				this.formatAnnounceEvent(event),
+				this.torrent.getUploaded(),
+				this.torrent.getDownloaded(),
+				this.torrent.getLeft()
+			});
+
+		URLConnection conn = null;
+
+		try {
+			HTTPAnnounceRequestMessage request =
+				this.buildAnnounceRequest(event);
+
+			// Send announce request (HTTP GET)
+			URL target = request.buildAnnounceURL(this.tracker.toURL());
+			conn = target.openConnection();
+
+			InputStream is = new AutoCloseInputStream(conn.getInputStream());
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			baos.write(is);
+
+			// Parse and handle the response
+			HTTPTrackerMessage message =
+				HTTPTrackerMessage.parse(ByteBuffer.wrap(baos.toByteArray()));
+			this.handleTrackerAnnounceResponse(message, inhibitEvents);
+		} catch (MalformedURLException mue) {
+			throw new AnnounceException("Invalid announce URL (" +
+				mue.getMessage() + ")", mue);
+		} catch (MessageValidationException mve) {
+			throw new AnnounceException("Tracker message violates expected " +
+				"protocol (" + mve.getMessage() + ")", mve);
+		} catch (IOException ioe) {
+			throw new AnnounceException(ioe.getMessage(), ioe);
+		} finally {
+			if (conn != null && conn instanceof HttpURLConnection) {
+				InputStream err = ((HttpURLConnection) conn).getErrorStream();
+				if (err != null) {
+					try {
+						err.close();
+					} catch (IOException ioe) {
+						logger.warn("Problem ensuring error stream closed!", ioe);
+					}
+				}
+			}
+		}
+	}

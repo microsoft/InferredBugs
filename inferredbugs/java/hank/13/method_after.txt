@@ -1,0 +1,24 @@
+  public void run() throws IOException, InterruptedException {
+    setStateSynchronized(HostState.IDLE); // In case of exception, server will stop and state will be coherent.
+
+    processCommandOnStartup();
+    while (!stopping) {
+      try {
+        Thread.sleep(MAIN_THREAD_STEP_SLEEP_MS);
+      } catch (InterruptedException e) {
+        LOG.debug("Interrupted in run loop. Exiting.", e);
+        break;
+      }
+    }
+    // Shuting down
+    LOG.info("Partition server main thread is stopping.");
+    // Stop serving data
+    stopServingData();
+    // Stop updating if necessary
+    if (updateThread != null) {
+      LOG.info("Update thread is still running. Interrupting and waiting for it to finish...");
+      updateThread.interrupt();
+      updateThread.join(); // In case of interrupt exception, server will stop and state will be coherent.
+    }
+    setStateSynchronized(HostState.OFFLINE); // In case of exception, server will stop and state will be coherent.
+  }

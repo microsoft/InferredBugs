@@ -1,0 +1,28 @@
+    @Test
+    public void testTokenFilter() throws IOException{
+        StringReader sr = new StringReader("刘德华");
+        Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_36);
+        PinyinTokenFilter filter = new PinyinTokenFilter(analyzer.tokenStream("f",sr),"","none");
+        List<String>  pinyin= new ArrayList<String>();
+        while (filter.incrementToken())
+        {
+            CharTermAttribute ta = filter.getAttribute(CharTermAttribute.class);
+            pinyin.add(ta.toString());
+        }
+        Assert.assertEquals(3,pinyin.size());
+        Assert.assertEquals("liu",pinyin.get(0));
+        Assert.assertEquals("de",pinyin.get(1));
+        Assert.assertEquals("hua",pinyin.get(2));
+
+        sr = new StringReader("刘德华");
+        analyzer = new KeywordAnalyzer();
+        filter = new PinyinTokenFilter(analyzer.tokenStream("f",sr),"","only");
+        pinyin.clear();
+        while (filter.incrementToken())
+        {
+            CharTermAttribute ta = filter.getAttribute(CharTermAttribute.class);
+            pinyin.add(ta.toString());
+        }
+        Assert.assertEquals(1,pinyin.size());
+        Assert.assertEquals("ldh",pinyin.get(0));
+    }

@@ -1,0 +1,62 @@
+    @Test
+    public void testRenderMultipleObjects() {  
+        
+        TestObject testObject = new TestObject();
+        
+        // step 1: add one object.
+        Result result = new Result(200);
+        result.render(testObject);
+        
+        
+        assertEquals(testObject, result.getRenderable());
+
+        // step 2: add a second object (string is just a dummy)
+        // => we expect to get a map from the result now...
+        String string = new String("test");
+        
+        result.render(string);
+        
+        assertTrue(result.getRenderable() instanceof Map);
+        Map<String, Object> resultMap = (Map) result.getRenderable();
+        assertEquals(string, resultMap.get("string"));
+        assertEquals(testObject, resultMap.get("testObject"));
+        
+        // step 3: add same object => we expect an illegal argument exception as the map
+        // cannot handle that case:
+        TestObject anotherObject = new TestObject();
+        boolean gotException = false;
+        try {
+            result.render(anotherObject);
+        } catch (IllegalArgumentException e) {
+            gotException = true;
+        }
+        
+        assertTrue(gotException);
+        
+        
+        // step 4: add an entry
+        Entry<String, Object> entry = new AbstractMap.SimpleImmutableEntry<String, Object>("anotherObject", anotherObject);
+        result.render(entry);
+        resultMap = (Map) result.getRenderable();
+        assertEquals(3, resultMap.size());
+        assertEquals(anotherObject, resultMap.get("anotherObject"));
+        
+        
+        // step 5: add another map and check that conversion works:
+        Map<String, Object> mapToRender = Maps.newHashMap();
+        
+        String anotherString = new String("anotherString");
+        TestObject anotherTestObject = new TestObject();
+        mapToRender.put("anotherString", anotherString);
+        mapToRender.put("anotherTestObject", anotherTestObject);
+        result.render(mapToRender);
+        
+       
+        resultMap = (Map) result.getRenderable();
+        assertEquals(2, resultMap.size());
+        assertEquals(anotherString, resultMap.get("anotherString"));
+        assertEquals(anotherTestObject, resultMap.get("anotherTestObject"));
+        
+        
+        
+    }

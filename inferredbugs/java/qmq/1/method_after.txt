@@ -1,0 +1,39 @@
+    private void recover() {
+        if (segments.isEmpty()) {
+            return;
+        }
+
+        LOG.info("Recovering logs.");
+        final List<Long> baseOffsets = new ArrayList<>(segments.navigableKeySet());
+        final int offsetCount = baseOffsets.size();
+        long offset = -1;
+        for (int i = offsetCount - 2; i < offsetCount; i++) {
+            if (i < 0) continue;
+
+            final LogSegment segment = segments.get(baseOffsets.get(i));
+            offset = segment.getBaseOffset();
+            final LogSegmentValidator.ValidateResult result = segmentValidator.validate(segment);
+            offset += result.getValidatedSize();
+            if (result.getStatus() == LogSegmentValidator.ValidateStatus.COMPLETE) {
+                segment.setWrotePosition(segment.getFileSize());
+            } else {
+                break;
+            }
+        }
+        flushedOffset = offset;
+
+        final LogSegment latestSegment = latestSegment();
+        final long maxOffset = latestSegment.getBaseOffset() + latestSegment.getFileSize();
+        final int relativeOffset = (int) (offset % fileSize);
+        final LogSegment segment = locateSegment(offset);
+        if (segment != null && maxOffset != offset) {
+            segment.setWrotePosition(relativeOffset);
+            LOG.info("recover wrote offset to {}:{}", segment, segment.getWrotePosition());
+            if (segment.getBaseOffset() != latestSegment.getBaseOffset()) {
+                LOG.info("will remove all segment after max wrote position. current base offset: {}, max base offset: {}",
+                        segment.getBaseOffset(), latestSegment.getBaseOffset());
+                deleteSegmentsAfterOffset(offset);
+            }
+        }
+        LOG.info("Recover done.");
+    }

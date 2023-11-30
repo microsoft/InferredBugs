@@ -1,0 +1,87 @@
+    private void load() {
+        File configFile = new File(CONFIG_FILE);
+        if (!configFile.exists()) {
+            try {
+                new File(CONFIG_FILE_PATH).mkdir();
+                FileWriter fileWriter = new FileWriter(CONFIG_FILE);
+                fileWriter.write(new JSONObject().toJSONString());
+                fileWriter.flush();
+                fileWriter.close();
+
+                saveButtonsConfig(getDefaultButtons());
+                Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+                double width = screenSize.getWidth();
+                double height = screenSize.getHeight();
+                saveComponentLocation("TaskBarFrame", new Point(500, 500));
+                saveComponentLocation("MessageFrame", new Point(700, 500));
+                saveComponentLocation("GamePathChooser", new Point(600, 500));
+                saveComponentLocation("TestCasesFrame", new Point(900, 500));
+                saveComponentLocation("SettingsFrame", new Point(600, 600));
+                saveComponentLocation("HistoryFrame", new Point(600, 600));
+                saveComponentLocation("NotificationFrame", new Point((int) width / 2, (int) height / 2));
+            } catch (IOException e) {
+                logger.error(e);
+            }
+        } else {
+            JSONParser parser = new JSONParser();
+            try {
+                Object obj = parser.parse(new FileReader(CONFIG_FILE));
+                JSONObject jsonObject = (JSONObject) obj;
+                String gamePath = (String) jsonObject.get("gamePath");
+
+                JSONArray buttons = (JSONArray) jsonObject.get("buttons");
+                Map<String, String> buttonsConfig = new HashMap<>();
+                if (buttons != null) {
+                    for (JSONObject next : (Iterable<JSONObject>) buttons) {
+                        buttonsConfig.put((String) next.get("title"), (String) next.get("value"));
+                    }
+                } else {
+                    buttonsConfig = getDefaultButtons();
+                }
+                JSONObject taskBarLocation = (JSONObject) jsonObject.get("TaskBarFrame");
+                Point taskBarPoint = new Point(
+                        Integer.valueOf(String.valueOf(taskBarLocation.get("x"))),
+                        Integer.valueOf(String.valueOf(taskBarLocation.get("y"))));
+
+                JSONObject messageLocation = (JSONObject) jsonObject.get("MessageFrame");
+                Point messagePoint = new Point(
+                        Integer.valueOf(String.valueOf(messageLocation.get("x"))),
+                        Integer.valueOf(String.valueOf(messageLocation.get("y"))));
+                JSONObject gamePathLocation = (JSONObject) jsonObject.get("GamePathChooser");
+                Point gamePathPoint = new Point(
+                        Integer.valueOf(String.valueOf(gamePathLocation.get("x"))),
+                        Integer.valueOf(String.valueOf(gamePathLocation.get("y"))));
+                JSONObject settingsLocation = (JSONObject) jsonObject.get("SettingsFrame");
+                Point settingsPoint = new Point(
+                        Integer.valueOf(String.valueOf(settingsLocation.get("x"))),
+                        Integer.valueOf(String.valueOf(settingsLocation.get("y"))));
+                JSONObject historyLocation = (JSONObject) jsonObject.get("HistoryFrame");
+                Point historyPoint = new Point(
+                        Integer.valueOf(String.valueOf(historyLocation.get("x"))),
+                        Integer.valueOf(String.valueOf(historyLocation.get("y"))));
+                JSONObject notificationLocation = (JSONObject) jsonObject.get("NotificationFrame");
+                Point notificationPoint = new Point(
+                        Integer.valueOf(String.valueOf(notificationLocation.get("x"))),
+                        Integer.valueOf(String.valueOf(notificationLocation.get("y"))));
+
+                //removing
+                JSONObject testLocation = (JSONObject) jsonObject.get("TestCasesFrame");
+                Point testPoint = new Point(
+                        Integer.valueOf(String.valueOf(testLocation.get("x"))),
+                        Integer.valueOf(String.valueOf(testLocation.get("y"))));
+
+                properties.put("gamePath", gamePath);
+                properties.put("buttons", buttonsConfig);
+                properties.put("TaskBarFrame", taskBarPoint);
+                properties.put("MessageFrame", messagePoint);
+                properties.put("GamePathChooser", gamePathPoint);
+                properties.put("SettingsFrame", settingsPoint);
+                properties.put("HistoryFrame", historyPoint);
+                properties.put("NotificationFrame", notificationPoint);
+                //removing
+                properties.put("TestCasesFrame", testPoint);
+            } catch (Exception e) {
+                logger.error("Error in ConfigManager.load", e);
+            }
+        }
+    }

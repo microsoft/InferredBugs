@@ -1,0 +1,43 @@
+    @Test
+    public void testReplication1() throws IOException {
+        final int RUNS = 100;
+
+        final String sourceBasePath = getVanillaTestPath("-source");
+        final String sinkBasePath = getVanillaTestPath("-sink");
+        final ChronicleSource source = new ChronicleSource(new VanillaChronicle(sourceBasePath), 0);
+        final ChronicleSink sink = new ChronicleSink(new VanillaChronicle(sinkBasePath), "localhost", source.getLocalPort());
+
+        try {
+            final ExcerptAppender appender = source.createAppender();
+            final ExcerptTailer tailer = sink.createTailer();
+
+            for (int i = 0; i < RUNS; i++) {
+                appender.startExcerpt();
+                long value = 1000000000 + i;
+                appender.append(value).append(' ');
+                appender.finish();
+
+                while(!tailer.nextIndex());
+
+                long val = tailer.parseLong();
+                //System.out.println("" + val);
+                assertEquals("i: " + i, value, val);
+                assertEquals("i: " + i, 0, tailer.remaining());
+                tailer.finish();
+            }
+
+            appender.close();
+            tailer.close();
+        } finally {
+            sink.close();
+            sink.checkCounts(1, 1);
+            sink.clear();
+
+            source.close();
+            source.checkCounts(1, 1);
+            source.clear();
+
+            assertFalse(new File(sourceBasePath).exists());
+            assertFalse(new File(sinkBasePath).exists());
+        }
+    }

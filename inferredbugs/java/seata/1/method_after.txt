@@ -1,0 +1,51 @@
+    public static <T, S extends Statement> T execute(SQLRecognizer sqlRecognizer,
+                                                     StatementProxy<S> statementProxy,
+                                                     StatementCallback<T, S> statementCallback,
+                                                     Object... args) throws SQLException {
+
+        if (!RootContext.inGlobalTransaction()) {
+            // Just work as original statement
+            return statementCallback.execute(statementProxy.getTargetStatement(), args);
+        }
+
+        if (sqlRecognizer == null) {
+            sqlRecognizer = SQLVisitorFactory.get(
+                    statementProxy.getTargetSQL(),
+                    statementProxy.getConnectionProxy().getDbType());
+        }
+        Executor<T> executor = null;
+        if (sqlRecognizer == null) {
+            executor = new PlainExecutor<T, S>(statementProxy, statementCallback);
+        } else {
+            switch (sqlRecognizer.getSQLType()) {
+                case INSERT:
+                    executor = new InsertExecutor<T, S>(statementProxy, statementCallback, sqlRecognizer);
+                    break;
+                case UPDATE:
+                    executor = new UpdateExecutor<T, S>(statementProxy, statementCallback, sqlRecognizer);
+                    break;
+                case DELETE:
+                    executor = new DeleteExecutor<T, S>(statementProxy, statementCallback, sqlRecognizer);
+                    break;
+                case SELECT_FOR_UPDATE:
+                    executor = new SelectForUpdateExecutor(statementProxy, statementCallback, sqlRecognizer);
+                    break;
+                default:
+                    executor = new PlainExecutor<T, S>(statementProxy, statementCallback);
+                    break;
+            }
+        }
+        T rs = null;
+        try {
+            rs = executor.execute(args);
+
+        } catch (Throwable ex) {
+            if (ex instanceof SQLException) {
+                throw (SQLException) ex;
+            } else {
+                // Turn everything into SQLException
+                new SQLException(ex);
+            }
+        }
+        return rs;
+    }

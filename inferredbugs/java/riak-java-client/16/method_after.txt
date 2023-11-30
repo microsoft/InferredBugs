@@ -1,0 +1,18 @@
+    public Bucket execute() throws RiakRetryFailedException {
+        final BucketProperties propsToStore = builder.precommitHooks(precommitHooks).postcommitHooks(postcommitHooks).build();
+
+        retrier.attempt(new Callable<Void>() {
+            public Void call() throws Exception {
+                client.updateBucket(name, propsToStore);
+                return null;
+            }
+        });
+
+        BucketProperties properties = retrier.attempt(new Callable<BucketProperties>() {
+            public BucketProperties call() throws Exception {
+                return client.fetchBucket(name);
+            }
+        });
+
+        return new DefaultBucket(name, properties, client, retrier);
+    }

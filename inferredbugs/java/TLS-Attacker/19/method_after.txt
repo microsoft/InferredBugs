@@ -1,0 +1,112 @@
+    @Override
+    public int parseMessageAction(byte[] message, int pointer) {
+        if (message[pointer] != HandshakeMessageType.CLIENT_HELLO.getValue()) {
+            throw new InvalidMessageTypeException("This is not a client hello message");
+        }
+        protocolMessage.setType(message[pointer]);
+
+        int currentPointer = pointer + HandshakeByteLength.MESSAGE_TYPE;
+        int nextPointer = currentPointer + HandshakeByteLength.MESSAGE_TYPE_LENGTH;
+        int length = ArrayConverter.bytesToInt(Arrays.copyOfRange(message, currentPointer, nextPointer));
+        protocolMessage.setLength(length);
+
+        currentPointer = nextPointer;
+        nextPointer = currentPointer + RecordByteLength.PROTOCOL_VERSION;
+        ProtocolVersion highestClientVersion = ProtocolVersion.getProtocolVersion(Arrays.copyOfRange(message,
+                currentPointer, nextPointer));
+        protocolMessage.setProtocolVersion(highestClientVersion.getValue());
+        tlsContext.setHighestClientProtocolVersion(highestClientVersion);
+        currentPointer = nextPointer;
+        nextPointer = currentPointer + HandshakeByteLength.UNIX_TIME;
+        protocolMessage.setUnixTime(Arrays.copyOfRange(message, currentPointer, nextPointer));
+
+        currentPointer = nextPointer;
+        nextPointer = currentPointer + HandshakeByteLength.RANDOM;
+        protocolMessage.setRandom(Arrays.copyOfRange(message, currentPointer, nextPointer));
+
+        tlsContext.setClientRandom(ArrayConverter.concatenate(protocolMessage.getUnixTime().getValue(), protocolMessage
+                .getRandom().getValue()));
+
+        currentPointer = nextPointer;
+        nextPointer += HandshakeByteLength.SESSION_ID_LENGTH;
+        int sessionIdLength = ArrayConverter.bytesToInt(Arrays.copyOfRange(message, currentPointer, nextPointer));
+        protocolMessage.setSessionIdLength(sessionIdLength);
+
+        currentPointer = nextPointer;
+        nextPointer += sessionIdLength;
+        protocolMessage.setSessionId(Arrays.copyOfRange(message, currentPointer, nextPointer));
+
+        // handle unknown SessionID during Session resumption
+        if (tlsContext.getConfig().isSessionResumption()
+                && !(Arrays.equals(tlsContext.getSessionID(), protocolMessage.getSessionId().getValue()))) {
+            throw new WorkflowExecutionException("Session ID is unknown to the Server");
+        }
+        // TODO !!!
+        if (tlsContext.getConfig().getHighestProtocolVersion() == ProtocolVersion.DTLS12
+                || tlsContext.getConfig().getHighestProtocolVersion() == ProtocolVersion.DTLS10) {
+            de.rub.nds.tlsattacker.dtls.protocol.handshake.ClientHelloDtlsMessage dtlsClientHello = (de.rub.nds.tlsattacker.dtls.protocol.handshake.ClientHelloDtlsMessage) protocolMessage;
+            currentPointer = nextPointer;
+            nextPointer += HandshakeByteLength.DTLS_HANDSHAKE_COOKIE_LENGTH;
+            byte cookieLength = message[currentPointer];
+            dtlsClientHello.setCookieLength(cookieLength);
+
+            currentPointer = nextPointer;
+            nextPointer += cookieLength;
+            dtlsClientHello.setCookie(Arrays.copyOfRange(message, currentPointer, nextPointer));
+        }
+
+        currentPointer = nextPointer;
+        nextPointer += HandshakeByteLength.CIPHER_SUITE;
+        int cipherSuitesLength = ArrayConverter.bytesToInt(Arrays.copyOfRange(message, currentPointer, nextPointer));
+        protocolMessage.setCipherSuiteLength(cipherSuitesLength);
+
+        currentPointer = nextPointer;
+        nextPointer += cipherSuitesLength;
+        protocolMessage.setCipherSuites(Arrays.copyOfRange(message, currentPointer, nextPointer));
+
+        tlsContext.setClientSupportedCiphersuites(CipherSuite.getCiphersuites(protocolMessage.getCipherSuites()
+                .getValue()));
+        currentPointer = nextPointer;
+        nextPointer += HandshakeByteLength.COMPRESSION;
+        int compressionsLength = ArrayConverter.bytesToInt(Arrays.copyOfRange(message, currentPointer, nextPointer));
+        protocolMessage.setCompressionLength(compressionsLength);
+
+        currentPointer = nextPointer;
+        nextPointer += compressionsLength;
+        protocolMessage.setCompressions(Arrays.copyOfRange(message, currentPointer, nextPointer));
+
+        byte[] compression = protocolMessage.getCompressions().getValue();
+        tlsContext.setCompressionMethod(CompressionMethod.getCompressionMethod(compression[0]));
+
+        currentPointer = nextPointer;
+        if ((currentPointer - pointer) < length) {
+            currentPointer += ExtensionByteLength.EXTENSIONS;
+
+            while ((currentPointer - pointer) < length) {
+                nextPointer = currentPointer + ExtensionByteLength.TYPE;
+                byte[] extensionType = Arrays.copyOfRange(message, currentPointer, nextPointer);
+                // Not implemented/unknown extensions will generate an Exception
+                // ...
+                try {
+                    ExtensionHandler<? extends ExtensionMessage> eh = ExtensionType.getExtensionType(extensionType)
+                            .getExtensionHandler();
+                    currentPointer = eh.parseExtension(message, currentPointer);
+                    protocolMessage.addExtension(eh.getExtensionMessage());
+                }
+                // ... which we catch, then disregard that extension and carry
+                // on.
+                catch (Exception ex) {
+                    currentPointer = nextPointer;
+                    nextPointer += 2;
+                    currentPointer += ArrayConverter.bytesToInt(Arrays
+                            .copyOfRange(message, currentPointer, nextPointer));
+                    nextPointer += 2;
+                    currentPointer += 2;
+                }
+            }
+        }
+
+        protocolMessage.setCompleteResultingMessage(Arrays.copyOfRange(message, pointer, currentPointer));
+
+        return (currentPointer - pointer);
+    }

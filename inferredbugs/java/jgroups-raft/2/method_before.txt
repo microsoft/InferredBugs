@@ -1,0 +1,35 @@
+    protected void handleEvent(Message msg, RaftHeader hdr) {
+        log.trace("%s: received %s from %s", local_addr, hdr, msg.src());
+        impl_lock.lock();
+        try {
+            if(hdr instanceof AppendEntriesRequest) {
+                AppendEntriesRequest req=(AppendEntriesRequest)hdr;
+                impl.handleAppendEntriesRequest(msg.src(),req.term());
+            }
+            else if(hdr instanceof AppendEntriesResponse) {
+                AppendEntriesResponse rsp=(AppendEntriesResponse)hdr;
+                impl.handleAppendEntriesResponse(msg.src(),rsp.term());
+            }
+            else if(hdr instanceof VoteRequest) {
+                VoteRequest header=(VoteRequest)hdr;
+                impl.handleVoteRequest(msg.src(),header.term());
+            }
+            else if(hdr instanceof VoteResponse) {
+                VoteResponse rsp=(VoteResponse)hdr;
+                impl.handleVoteResponse(msg.src(),rsp.term());
+            }
+            else if(hdr instanceof InstallSnapshotRequest) {
+                InstallSnapshotRequest req=(InstallSnapshotRequest)hdr;
+                impl.handleInstallSnapshotRequest(msg.src(),req.term());
+            }
+            else if(hdr instanceof InstallSnapshotResponse) {
+                InstallSnapshotResponse rsp=(InstallSnapshotResponse)hdr;
+                impl.handleInstallSnapshotResponse(msg.src(),rsp.term());
+            }
+            else
+                log.warn("%s: invalid header %s",local_addr,hdr.getClass().getCanonicalName());
+        }
+        finally {
+            impl_lock.unlock();
+        }
+    }

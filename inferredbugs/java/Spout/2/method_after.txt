@@ -1,0 +1,25 @@
+ @DelayedWrite
+	public short set(int index, short value) {
+		boolean success = false;
+		int divIndex = index >> 1;
+		boolean isZero = (index & 0x1) == 0;
+		short one;
+		short zero;
+		short old = 0;
+		
+		while (!success) {
+			int packed = live.get(divIndex);
+			if (isZero) {
+				old = unpackZero(packed);
+				one = unpackOne(packed);
+				zero = value;
+			} else {
+				old = unpackOne(packed);
+				one = value;
+				zero = unpackZero(packed);
+			}
+			success = live.compareAndSet(divIndex, packed, pack(zero, one));
+		}
+		markDirty(index);
+		return old;
+	}

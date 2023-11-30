@@ -1,0 +1,34 @@
+ private List<ApiParamDoc> getQueryParamsFromSpringAnnotation(Method method, Class<?> controller) {
+		List<ApiParamDoc> apiParamDocs = new ArrayList<ApiParamDoc>();
+		
+		if(controller.isAnnotationPresent(RequestMapping.class)) {
+			RequestMapping requestMapping = controller.getAnnotation(RequestMapping.class);
+			if(requestMapping.params().length > 0) {
+				for (String param : requestMapping.params()) {
+					String[] splitParam = param.split("=");
+					if(splitParam != null) {
+						apiParamDocs.add(new ApiParamDoc(splitParam[0], null, JSONDocTypeBuilder.build(new JSONDocType(), String.class, null), "true", new String[]{splitParam[1]}, null, null));
+					} else {
+						apiParamDocs.add(new ApiParamDoc(param, null, JSONDocTypeBuilder.build(new JSONDocType(), String.class, null), "true", new String[]{}, null, null));
+					}
+				}
+			}
+		}
+		
+		if(method.isAnnotationPresent(RequestMapping.class)) {
+			RequestMapping requestMapping = method.getAnnotation(RequestMapping.class);
+			if(requestMapping.params().length > 0) {
+				apiParamDocs.clear();
+				for (String param : requestMapping.params()) {
+					String[] splitParam = param.split("=");
+					if(splitParam.length > 1) {
+						apiParamDocs.add(new ApiParamDoc(splitParam[0], "", JSONDocTypeBuilder.build(new JSONDocType(), String.class, null), "true", new String[]{splitParam[1]}, null, null));
+					} else {
+						apiParamDocs.add(new ApiParamDoc(param, "", JSONDocTypeBuilder.build(new JSONDocType(), String.class, null), "true", new String[]{}, null, null));
+					}
+				}
+			}
+		}
+		
+		return apiParamDocs;
+	}

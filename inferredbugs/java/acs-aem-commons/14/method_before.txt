@@ -1,0 +1,60 @@
+    @Activate
+    protected final void activate(Map<String, Object> config) throws RepositoryException {
+        if (!capabilityHelper.isOak()) {
+            log.info("Cowardly refusing to create indexes on non-Oak instance.");
+            return;
+        }
+
+        final String srcPath = PropertiesUtil.toString(config.get(PROP_SOURCE_OAK_INDEX_PATH),
+                DEFAULT_SOURCE_OAK_INDEX_PATH);
+
+        final String destPath = PropertiesUtil.toString(config.get(PROP_DESTINATION_OAK_INDEX_PATH),
+                DEFAULT_DESTINATION_OAK_INDEX_PATH);
+
+        final String[] forceReindexNames =
+                PropertiesUtil.toStringArray(config.get(PROP_FORCE_REINDEX_OF), new String[]{});
+
+
+        final InfoWriter iw = new InfoWriter();
+        iw.title("Ensuring Oak Index");
+        iw.message(" * {} ~> {} ", srcPath, destPath);
+        iw.line();
+        if (forceReindexNames.length > 0) {
+            iw.message("Force reindex of:", forceReindexNames);
+        }
+        iw.end();
+        log.info(iw.toString());
+
+
+        ResourceResolver resourceResolver = null;
+        try {
+
+            if (StringUtils.isBlank(srcPath)) {
+                throw new IllegalArgumentException("OSGi Configuration Property `"
+                        + PROP_SOURCE_OAK_INDEX_PATH + "` " + "cannot be blank.");
+            } else if (StringUtils.isBlank(destPath)) {
+                throw new IllegalArgumentException("OSGi Configuration Property `"
+                        + PROP_DESTINATION_OAK_INDEX_PATH + "` " + "cannot be blank.");
+            }
+
+            resourceResolver = resourceResolverFactory.getAdministrativeResourceResolver(null);
+
+            try {
+                this.ensure(resourceResolver, srcPath, destPath, forceReindexNames);
+            } catch (PersistenceException e) {
+                log.error("Could not ensure management of oak index [ {} ]", destPath, e);
+            } catch (IOException e) {
+                log.error("Could not ensure management of oak index [ {} ]", destPath, e);
+            }
+        } catch (IllegalArgumentException e) {
+            log.error(e.getMessage());
+        } catch (LoginException e) {
+            log.error("Could not get an admin resource resolver to ensure oak indexes", e);
+        } catch (Exception e) {
+            log.error("Unknown error occurred while ensuring indexes", e);
+        } finally {
+            if (resourceResolver != null) {
+                resourceResolver.close();
+            }
+        }
+    }

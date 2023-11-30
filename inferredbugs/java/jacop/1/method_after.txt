@@ -1,0 +1,63 @@
+    private void commonInitialization(Store store, IntVar[] list, int[] weights, int sum) {
+
+	assert ( list.length == weights.length ) : "\nLength of two vectors different in Propagations";
+
+	this.store = store;
+	this.b = sum;
+	numberId = idNumber++;
+	
+	LinkedHashMap<IntVar, Integer> parameters = new LinkedHashMap<IntVar, Integer>();
+
+	for (int i = 0; i < list.length; i++) {
+
+	    assert (list[i] != null) : i + "-th element of list in Propagations constraint is null";
+			
+	    if (weights[i] != 0) {
+		if (list[i].singleton()) 
+		    this.b -= list[i].value() * weights[i];
+		else
+		    if (parameters.get(list[i]) != null) {
+			// variable ordered in the scope of the Propagations constraint.
+			Integer coeff = parameters.get(list[i]);
+			Integer sumOfCoeff = coeff + weights[i];
+			parameters.put(list[i], sumOfCoeff);
+		    }
+		    else
+			parameters.put(list[i], weights[i]);
+
+	    }
+	}
+
+	this.x = new IntVar[parameters.size()];
+	this.a = new int[parameters.size()];
+
+	int i = 0;
+	for (IntVar var : parameters.keySet()) {
+	    int coeff = parameters.get(var);
+	    if (coeff > 0) {
+		    this.x[i] = var;
+		    this.a[i] = coeff;
+		    i++;
+	    }
+	}
+	pos = i;
+	for (IntVar var : parameters.keySet()) {
+	    int coeff = parameters.get(var);
+	    if (coeff < 0) {
+		    this.x[i] = var;
+		    this.a[i] = coeff;
+		    i++;
+	    }
+	}
+
+	this.l = x.length;
+	this.I = new int[l];
+	    
+	checkForOverflow();
+
+	if (l <= 3)
+	    queueIndex = 0;
+	else
+	    queueIndex = 1;
+
+    }

@@ -1,0 +1,521 @@
+{
+    "hash": "b500c13e7beae2e336d9747993d41116426fba9c",
+    "message": "Checking the padding in the ValidateMac method.\nGenerating an IV from a counter instead from RandomNumberGenerator for better performance.",
+    "file_num_lines": 146,
+    "diff_parsed": {
+        "added": [
+            [
+                7,
+                "using System.Threading;"
+            ],
+            [
+                8,
+                "using System.Threading.Tasks;"
+            ],
+            [
+                27,
+                "      clientSecureChannel.SetVerifyCertificate(c => true);"
+            ],
+            [
+                28,
+                ""
+            ],
+            [
+                31,
+                ""
+            ],
+            [
+                66,
+                "        }"
+            ],
+            [
+                78,
+                "      string text = \"hellohello-hello1\";"
+            ],
+            [
+                95,
+                "      using (NetMQContext context = NetMQContext.Create())"
+            ],
+            [
+                96,
+                "      {"
+            ],
+            [
+                97,
+                "        Task t = Task.Factory.StartNew(() => Server(context));"
+            ],
+            [
+                98,
+                ""
+            ],
+            [
+                99,
+                "        Thread.Sleep(1000);"
+            ],
+            [
+                100,
+                ""
+            ],
+            [
+                101,
+                "        Client(context);"
+            ],
+            [
+                102,
+                ""
+            ],
+            [
+                103,
+                "        t.Wait();"
+            ],
+            [
+                104,
+                "      }"
+            ],
+            [
+                105,
+                "    }"
+            ],
+            [
+                106,
+                ""
+            ],
+            [
+                107,
+                "    private void Client(NetMQContext context)"
+            ],
+            [
+                108,
+                "    {"
+            ],
+            [
+                109,
+                "      using (var socket = context.CreateDealerSocket())"
+            ],
+            [
+                110,
+                "      {"
+            ],
+            [
+                111,
+                "        socket.Connect(\"tcp://127.0.0.1:5556\");"
+            ],
+            [
+                112,
+                ""
+            ],
+            [
+                113,
+                "        SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Client);"
+            ],
+            [
+                114,
+                ""
+            ],
+            [
+                115,
+                "        // we are not using signed certificate so we need to validate the certificate of the server"
+            ],
+            [
+                116,
+                "        // by default the secure channel is checking that the source of the certitiface is root certificate authority"
+            ],
+            [
+                117,
+                "        secureChannel.SetVerifyCertificate(c => true);"
+            ],
+            [
+                118,
+                ""
+            ],
+            [
+                119,
+                "        IList<NetMQMessage> outgoingMessages = new List<NetMQMessage>();"
+            ],
+            [
+                120,
+                ""
+            ],
+            [
+                121,
+                "        // call the process message with null as the incoming message"
+            ],
+            [
+                122,
+                "        // because the client is initiating the connection"
+            ],
+            [
+                123,
+                "        secureChannel.ProcessMessage(null, outgoingMessages);"
+            ],
+            [
+                124,
+                ""
+            ],
+            [
+                125,
+                "        // the process message method fill the outgoing messages list with"
+            ],
+            [
+                126,
+                "        // messages to send over the socket"
+            ],
+            [
+                127,
+                "        foreach (NetMQMessage outgoingMessage in outgoingMessages)"
+            ],
+            [
+                128,
+                "        {"
+            ],
+            [
+                129,
+                "          socket.SendMessage(outgoingMessage);"
+            ],
+            [
+                130,
+                "        }"
+            ],
+            [
+                131,
+                "        outgoingMessages.Clear();"
+            ],
+            [
+                132,
+                ""
+            ],
+            [
+                133,
+                "        // waiting for a message from the server"
+            ],
+            [
+                134,
+                "        NetMQMessage incomingMessage = socket.ReceiveMessage();"
+            ],
+            [
+                135,
+                ""
+            ],
+            [
+                136,
+                "        // calling ProcessMessage until ProcessMessage return true and the SecureChannel is ready"
+            ],
+            [
+                137,
+                "        // to encrypt and decrypt messages"
+            ],
+            [
+                138,
+                "        while (!secureChannel.ProcessMessage(incomingMessage, outgoingMessages))"
+            ],
+            [
+                139,
+                "        {"
+            ],
+            [
+                140,
+                "          foreach (NetMQMessage outgoingMessage in outgoingMessages)"
+            ],
+            [
+                141,
+                "          {"
+            ],
+            [
+                142,
+                "            socket.SendMessage(outgoingMessage);"
+            ],
+            [
+                143,
+                "          }"
+            ],
+            [
+                144,
+                "          outgoingMessages.Clear();"
+            ],
+            [
+                145,
+                ""
+            ],
+            [
+                146,
+                "          incomingMessage = socket.ReceiveMessage();"
+            ],
+            [
+                147,
+                "        }"
+            ],
+            [
+                148,
+                ""
+            ],
+            [
+                149,
+                "        foreach (NetMQMessage outgoingMessage in outgoingMessages)"
+            ],
+            [
+                150,
+                "        {"
+            ],
+            [
+                151,
+                "          socket.SendMessage(outgoingMessage);"
+            ],
+            [
+                152,
+                "        }"
+            ],
+            [
+                153,
+                "        outgoingMessages.Clear();"
+            ],
+            [
+                154,
+                ""
+            ],
+            [
+                155,
+                ""
+            ],
+            [
+                156,
+                "        // you can now use the secure channel to encrypt messages"
+            ],
+            [
+                157,
+                "        NetMQMessage plainMessage = new NetMQMessage();"
+            ],
+            [
+                158,
+                "        plainMessage.Append(\"Hello\");"
+            ],
+            [
+                159,
+                ""
+            ],
+            [
+                160,
+                "        // encrypting the message and sending it over the socket"
+            ],
+            [
+                161,
+                "        socket.SendMessage(secureChannel.EncryptApplicationMessage(plainMessage));"
+            ],
+            [
+                162,
+                "      }"
+            ],
+            [
+                163,
+                "    }"
+            ],
+            [
+                164,
+                ""
+            ],
+            [
+                165,
+                "    private void Server(NetMQContext context)"
+            ],
+            [
+                166,
+                "    {"
+            ],
+            [
+                167,
+                "      // we are using dealer here, but we can use router as well, we just have to manager"
+            ],
+            [
+                168,
+                "      // SecureChannel for each identity"
+            ],
+            [
+                169,
+                "      using (var socket = context.CreateDealerSocket())"
+            ],
+            [
+                170,
+                "      {"
+            ],
+            [
+                171,
+                "        socket.Bind(\"tcp://*:5556\");"
+            ],
+            [
+                172,
+                ""
+            ],
+            [
+                173,
+                "        SecureChannel secureChannel = new SecureChannel(ConnectionEnd.Server);"
+            ],
+            [
+                174,
+                ""
+            ],
+            [
+                175,
+                "        // we need to set X509Certificate with a private key for the server"
+            ],
+            [
+                176,
+                "        X509Certificate2 certificate = new X509Certificate2(\"NetMQ.Testing.pfx\", \"1\");"
+            ],
+            [
+                177,
+                "        secureChannel.Certificate = certificate;"
+            ],
+            [
+                178,
+                ""
+            ],
+            [
+                179,
+                "        IList<NetMQMessage> outgoingMessages = new List<NetMQMessage>();"
+            ],
+            [
+                180,
+                ""
+            ],
+            [
+                181,
+                "        // waiting for message from client"
+            ],
+            [
+                182,
+                "        NetMQMessage incomingMessage = socket.ReceiveMessage();"
+            ],
+            [
+                183,
+                ""
+            ],
+            [
+                184,
+                "        // calling ProcessMessage until ProcessMessage return true and the SecureChannel is ready"
+            ],
+            [
+                185,
+                "        // to encrypt and decrypt messages"
+            ],
+            [
+                186,
+                "        while (!secureChannel.ProcessMessage(incomingMessage, outgoingMessages))"
+            ],
+            [
+                187,
+                "        {"
+            ],
+            [
+                188,
+                "          foreach (NetMQMessage outgoingMessage in outgoingMessages)"
+            ],
+            [
+                189,
+                "          {"
+            ],
+            [
+                190,
+                "            socket.SendMessage(outgoingMessage);"
+            ],
+            [
+                191,
+                "          }"
+            ],
+            [
+                192,
+                "          outgoingMessages.Clear();"
+            ],
+            [
+                193,
+                ""
+            ],
+            [
+                194,
+                "          incomingMessage = socket.ReceiveMessage();"
+            ],
+            [
+                195,
+                "        }"
+            ],
+            [
+                196,
+                "        foreach (NetMQMessage outgoingMessage in outgoingMessages)"
+            ],
+            [
+                197,
+                "        {"
+            ],
+            [
+                198,
+                "          socket.SendMessage(outgoingMessage);"
+            ],
+            [
+                199,
+                "        }"
+            ],
+            [
+                200,
+                "        outgoingMessages.Clear();"
+            ],
+            [
+                201,
+                ""
+            ],
+            [
+                202,
+                "        // this message is now encrypted"
+            ],
+            [
+                203,
+                "        NetMQMessage cipherMessage = socket.ReceiveMessage();"
+            ],
+            [
+                204,
+                ""
+            ],
+            [
+                205,
+                "        // decrypting the message"
+            ],
+            [
+                206,
+                "        NetMQMessage plainMessage = secureChannel.DecryptApplicationMessage(cipherMessage);"
+            ],
+            [
+                207,
+                "        Console.WriteLine(plainMessage.First.ConvertToString());"
+            ],
+            [
+                208,
+                "      }"
+            ]
+        ],
+        "deleted": [
+            [
+                25,
+                ""
+            ],
+            [
+                28,
+                ""
+            ],
+            [
+                63,
+                "        }"
+            ],
+            [
+                75,
+                "      string text = \"hellohello-hello1\";"
+            ],
+            [
+                92,
+                ""
+            ],
+            [
+                93,
+                ""
+            ]
+        ]
+    },
+    "num_lines_added": 121,
+    "num_lines_removed": 6
+}

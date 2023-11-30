@@ -1,0 +1,67 @@
+  private void removeUnreferencedVars() {
+    CodingConvention convention = codingConvention;
+
+    for (Iterator<Var> it = maybeUnreferenced.iterator(); it.hasNext(); ) {
+      Var var = it.next();
+
+      // Remove calls to inheritance-defining functions where the unreferenced
+      // class is the subclass.
+      for (Node exprCallNode : inheritsCalls.get(var)) {
+        NodeUtil.removeChild(exprCallNode.getParent(), exprCallNode);
+        compiler.reportCodeChange();
+      }
+
+      // Regardless of what happens to the original declaration,
+      // we need to remove all assigns, because they may contain references
+      // to other unreferenced variables.
+      removeAllAssigns(var);
+
+      compiler.addToDebugLog("Unreferenced var: " + var.name);
+      Node nameNode = var.nameNode;
+      Node toRemove = nameNode.getParent();
+      Node parent = toRemove.getParent();
+
+      Preconditions.checkState(
+          toRemove.getType() == Token.VAR ||
+          toRemove.getType() == Token.FUNCTION ||
+          toRemove.getType() == Token.LP &&
+          parent.getType() == Token.FUNCTION,
+          "We should only declare vars and functions and function args");
+
+      if (toRemove.getType() == Token.LP &&
+          parent.getType() == Token.FUNCTION) {
+        // Don't remove function arguments here. That's a special case
+        // that's taken care of in removeUnreferencedFunctionArgs.
+      } else if (NodeUtil.isFunctionExpression(toRemove)) {
+        if (!preserveFunctionExpressionNames) {
+          toRemove.getFirstChild().setString("");
+          compiler.reportCodeChange();
+        }
+        // Don't remove bleeding functions.
+      } else if (parent != null &&
+          parent.getType() == Token.FOR &&
+          parent.getChildCount() < 4) {
+        // foreach iterations have 3 children. Leave them alone.
+      } else if (toRemove.getType() == Token.VAR &&
+          nameNode.hasChildren() &&
+          NodeUtil.mayHaveSideEffects(nameNode.getFirstChild())) {
+        // If this is a single var declaration, we can at least remove the
+        // declaration itself and just leave the value, e.g.,
+        // var a = foo(); => foo();
+        if (toRemove.getChildCount() == 1) {
+          parent.replaceChild(toRemove,
+              new Node(Token.EXPR_RESULT, nameNode.removeFirstChild()));
+          compiler.reportCodeChange();
+        }
+      } else if (toRemove.getType() == Token.VAR &&
+          toRemove.getChildCount() > 1) {
+        // For var declarations with multiple names (i.e. var a, b, c),
+        // only remove the unreferenced name
+        toRemove.removeChild(nameNode);
+        compiler.reportCodeChange();
+      } else if (parent != null) {
+        NodeUtil.removeChild(parent, toRemove);
+        compiler.reportCodeChange();
+      }
+    }
+  }

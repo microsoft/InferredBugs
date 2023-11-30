@@ -1,0 +1,53 @@
+        private Expression ParseAddExpInternal(Expression arg1)
+        {
+            if (!new[] {TokenType.ADD, TokenType.SUB}.Contains(PeekType()))
+                return arg1;
+            var oper = PeekToken();
+            ReadToken();
+            var arg2 = ParseMulExp();
+
+            var type1 = arg1.Type;
+            var type2 = arg2.Type;
+            Helper.MakeTypesCompatible(arg1, arg2, out arg1, out arg2);
+            
+            if (!arg1.Type.IsString() && !arg2.Type.IsString())
+            {
+                AssertArgsNotNullLiterals(arg1, type1, arg2, type2, oper);
+                if (!(arg1.Type.IsNumeric() && arg2.Type.IsNumeric()) 
+                    && !(arg1.Type.IsDateTime() && arg2.Type.IsDateTime()) 
+                    && !(arg1.Type.IsTimeSpan() && arg2.Type.IsTimeSpan()) 
+                    && !(arg1.Type.IsDateTime() && arg2.Type.IsTimeSpan()))
+                    throw new ParseErrorException(
+                        $"Operator '{oper.Value}' cannot be applied to operands of type '{type1}' and '{type2}'.",
+                        oper.Location);
+            }
+
+            if (oper.Type == TokenType.ADD)
+                if (arg1.Type.IsDateTime() && arg2.Type.IsDateTime())
+                    throw new ParseErrorException(
+                        $"Operator '{oper.Value}' cannot be applied to operands of type '{type1}' and '{type2}'.",
+                        oper.Location);
+            if (oper.Type == TokenType.SUB)
+            {
+                AssertArgsNotNullLiterals(arg1, type1, arg2, type2, oper);
+                if (arg1.Type.IsString() && arg2.Type.IsString())
+                    throw new ParseErrorException(
+                        $"Operator '{oper.Value}' cannot be applied to operands of type '{type1}' and '{type2}'.",
+                        oper.Location);
+            }
+
+            switch (oper.Type)
+            {
+                case TokenType.ADD:
+                    return ParseAddExpInternal(
+                        (arg1.Type.IsString() || arg2.Type.IsString())
+                            ? Expression.Add(
+                                Expression.Convert(arg1, typeof (object)),
+                                Expression.Convert(arg2, typeof (object)),
+                                typeof (string).GetMethod("Concat", new[] {typeof (object), typeof (object)})) // convert string + string into a call to string.Concat
+                            : Expression.Add(arg1, arg2));
+                default:
+                    Debug.Assert(oper.Type == TokenType.SUB);
+                    return ParseAddExpInternal(Expression.Subtract(arg1, arg2));
+            }
+        }

@@ -1,0 +1,47 @@
+    public static void main(String[] args) throws Throwable {
+        KeycloakServerConfig config = new KeycloakServerConfig();
+
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("-b")) {
+                config.setHost(args[++i]);
+            }
+
+            if (args[i].equals("-p")) {
+                config.setPort(Integer.valueOf(args[++i]));
+            }
+        }
+
+        if (System.getProperties().containsKey("resources")) {
+            String resources = System.getProperty("resources");
+            if (resources == null || resources.equals("")) {
+                for (String c : System.getProperty("java.class.path").split(File.pathSeparator)) {
+                    if (c.contains(File.separator + "testsuite" + File.separator + "integration")) {
+                        config.setResourcesHome(c.replaceFirst("testsuite.integration.*", ""));
+                    }
+                }
+            } else {
+                config.setResourcesHome(resources);
+            }
+        }
+
+        final KeycloakServer keycloak = new KeycloakServer(config);
+        keycloak.sysout = true;
+        keycloak.start();
+
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("-import")) {
+                keycloak.importRealm(new FileInputStream(args[++i]));
+            }
+        }
+
+        if (System.getProperties().containsKey("import")) {
+            keycloak.importRealm(new FileInputStream(System.getProperty("import")));
+        }
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                keycloak.stop();
+            }
+        });
+    }

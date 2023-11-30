@@ -1,0 +1,34 @@
+  public static <T> List<T> queryObjectListSQL(String poolName, String sql, Class<T> type, Object[] params) {
+
+    List<T> returnList = null;
+
+    Connection con = null;
+
+    try {
+      con = DB_CONNECTION_MANAGER.getConnection(poolName);
+
+      if (con == null) {
+        throw new ConnectionException(poolName);
+      }
+
+      con.setAutoCommit(false);
+
+      BeanListHandler<T> resultSetHandler = new BeanListHandler<T>(type);
+
+      returnList = new QueryRunner().query(con, sql, resultSetHandler, params);
+
+      con.commit();
+
+    } catch (Exception e) {
+      logger.error(QUERY_EXCEPTION_MESSAGE, e);
+      try {
+        con.rollback();
+      } catch (SQLException e2) {
+        logger.error(ROLLBACK_EXCEPTION_MESSAGE, e2);
+      }
+    } finally {
+      DB_CONNECTION_MANAGER.freeConnection(con);
+    }
+
+    return returnList;
+  }

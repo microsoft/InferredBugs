@@ -1,0 +1,33 @@
+    public void shutdown() {
+
+        poolLock.lock();
+        try {
+
+            if (isShutDown)
+                return;
+
+            // no point in monitoring GC anymore
+            if (refWorker != null)
+                refWorker.shutdown();
+
+            // close all connections that are issued to an application
+            Iterator<BasicPoolEntryRef> iter = issuedConnections.iterator();
+            while (iter.hasNext()) {
+                BasicPoolEntryRef per = iter.next();
+                iter.remove();
+                BasicPoolEntry entry = per.get();
+                if (entry != null) {
+                    closeConnection(entry.getConnection());
+                }
+            }
+
+            // remove all references to connections
+            //@@@ use this for shutting them down instead?
+            idleConnHandler.removeAll();
+
+            isShutDown = true;
+
+        } finally {
+            poolLock.unlock();
+        }
+    }

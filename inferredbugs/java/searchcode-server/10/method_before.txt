@@ -1,0 +1,69 @@
+    @Override
+    public synchronized boolean saveRepo(RepoResult repoResult) {
+        RepoResult existing = this.getRepoByName(repoResult.getName());
+        this.cache.remove(repoResult.getName());
+
+        boolean isNew = false;
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        if (existing != null) {
+            // Update with new details
+            try {
+                conn = this.dbConfig.getConnection();
+                stmt = conn.prepareStatement("UPDATE \"repo\" SET \"name\" = ?, \"scm\" = ?, \"url\" = ?, \"username\" = ?, \"password\" = ?, \"source\" = ?, \"branch\" = ? WHERE  \"name\" = ?");
+
+                stmt.setString(1, repoResult.getName());
+                stmt.setString(2, repoResult.getScm());
+                stmt.setString(3, repoResult.getUrl());
+                stmt.setString(4, repoResult.getUsername());
+                stmt.setString(5, repoResult.getPassword());
+                stmt.setString(6, repoResult.getSource());
+                stmt.setString(7, repoResult.getBranch());
+
+                // Target the row
+                stmt.setString(8, repoResult.getName());
+
+                stmt.execute();
+            }
+            catch(SQLException ex) {
+                LOGGER.severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+            }
+            finally {
+                Helpers.closeQuietly(rs);
+                Helpers.closeQuietly(stmt);
+                Helpers.closeQuietly(conn);
+            }
+        }
+        else {
+            isNew = true;
+            try {
+                conn = this.dbConfig.getConnection();
+                stmt = conn.prepareStatement("INSERT INTO repo(\"name\",\"scm\",\"url\", \"username\", \"password\",\"source\",\"branch\") VALUES (?,?,?,?,?,?,?)");
+
+                stmt.setString(1, repoResult.getName());
+                stmt.setString(2, repoResult.getScm());
+                stmt.setString(3, repoResult.getUrl());
+                stmt.setString(4, repoResult.getUsername());
+                stmt.setString(5, repoResult.getPassword());
+                stmt.setString(6, repoResult.getSource());
+                stmt.setString(7, repoResult.getBranch());
+
+                stmt.execute();
+            }
+            catch(SQLException ex) {
+                LOGGER.severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+            }
+            finally {
+                Helpers.closeQuietly(rs);
+                Helpers.closeQuietly(stmt);
+                Helpers.closeQuietly(conn);
+            }
+        }
+
+        this.genericCache.remove(this.repoCountCacheKey);
+        this.genericCache.remove(this.repoAllRepoCacheKey);
+        return isNew;
+    }

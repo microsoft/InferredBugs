@@ -1,0 +1,31 @@
+        public void StoreSnapshot(SnapshotId snapshotId, object value)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(snapshotId.FilePath));
+
+            var newSnapshot = JToken.FromObject(value);
+
+            JToken newSnapshotToWrite;
+
+            if (snapshotId.PartialId == null)
+            {
+                newSnapshotToWrite = newSnapshot;
+            }
+            else
+            {
+                var rawSnapshotContent = GetRawSnapshotContent(snapshotId.FilePath);
+                if (rawSnapshotContent == null)
+                {
+                    newSnapshotToWrite = new JObject
+                    {
+                        [snapshotId.PartialId] = newSnapshot
+                    };
+                }
+                else
+                {
+                    newSnapshotToWrite = JObject.Parse(rawSnapshotContent);
+                    newSnapshotToWrite[snapshotId.PartialId] = newSnapshot;
+                }
+            }
+
+            File.WriteAllText(snapshotId.FilePath, newSnapshotToWrite.ToString());
+        }

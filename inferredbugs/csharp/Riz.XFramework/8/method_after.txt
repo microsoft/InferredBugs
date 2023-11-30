@@ -1,0 +1,31 @@
+        public static bool CanEvaluate(this Expression node)
+        {
+            // => 5
+            // => a.ActiveDate == DateTime.Now
+            // => a.State == (byte)state
+            // => a.Accounts[0].Markets[0].MarketId
+
+            if (node == null) return false;
+            if (node.NodeType == ExpressionType.Constant) return true;
+            if (node.NodeType == ExpressionType.ArrayIndex) return true;
+            if (node.NodeType == ExpressionType.Call)
+            {
+                // List<int>{0}[]
+                // => a.Accounts[0].Markets[0].MarketId
+                MethodCallExpression methodExpression = node as MethodCallExpression;
+                Expression objExpression = methodExpression.Object;
+                bool isGetItem = objExpression != null && Data.TypeUtils.IsCollectionType(objExpression.Type) && methodExpression.Method.Name == "get_Item";
+                if (isGetItem) node = objExpression;
+            }
+
+            if (node.NodeType == ExpressionType.ListInit) return true;
+            if (node.NodeType == ExpressionType.NewArrayInit) return true;
+            if (node.NodeType != ExpressionType.MemberAccess) return false;
+            
+            var memberExpression = node as MemberExpression;
+            if (memberExpression == null) return false;
+            if (memberExpression.Expression == null) return true;
+            if (memberExpression.Expression.NodeType == ExpressionType.Constant) return true;
+
+            return memberExpression.Expression.CanEvaluate();
+        }

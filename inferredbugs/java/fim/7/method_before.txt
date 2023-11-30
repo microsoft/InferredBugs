@@ -1,0 +1,46 @@
+ public State loadState(int stateNumber) throws IOException
+	{
+		File stateFile = getStateFile(stateNumber);
+		if (!stateFile.exists())
+		{
+			throw new IllegalStateException(String.format("Unable to load State file %d from directory %s", stateNumber, stateDir));
+		}
+
+		State state = new State();
+		state.loadFromGZipFile(stateFile);
+
+		// Replace by 'no_hash' accurately to be able to compare the FileState entry
+		switch (parameters.getHashMode())
+		{
+			case DONT_HASH_FILES:
+				for (FileState fileState : state.getFileStates())
+				{
+					fileState.getFileHash().setFirstFourKiloHash(FileState.NO_HASH);
+					fileState.getFileHash().setFirstMegaHash(FileState.NO_HASH);
+					fileState.getFileHash().setFullHash(FileState.NO_HASH);
+				}
+				break;
+
+			case HASH_ONLY_FIRST_FOUR_KILO:
+				for (FileState fileState : state.getFileStates())
+				{
+					fileState.getFileHash().setFirstMegaHash(FileState.NO_HASH);
+					fileState.getFileHash().setFullHash(FileState.NO_HASH);
+				}
+				break;
+
+			case HASH_ONLY_FIRST_MEGA:
+				for (FileState fileState : state.getFileStates())
+				{
+					fileState.getFileHash().setFirstFourKiloHash(FileState.NO_HASH);
+					fileState.getFileHash().setFullHash(FileState.NO_HASH);
+				}
+				break;
+
+			case COMPUTE_ALL_HASH:
+				// Nothing to do
+				break;
+		}
+
+		return state;
+	}

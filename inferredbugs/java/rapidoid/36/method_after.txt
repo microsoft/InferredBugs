@@ -1,0 +1,17 @@
+ private boolean handleError(Channel channel, boolean isKeepAlive, ReqImpl req, MediaType contentType, Throwable e) {
+		if (req != null) {
+			if (!req.isStopped()) {
+				HttpIO.errorAndDone(req, e);
+			}
+			return true;
+
+		} else {
+			Log.error("Low-level HTTP handler error!", e);
+			HttpIO.startResponse(channel, 500, isKeepAlive, contentType);
+			byte[] bytes = HttpUtils.responseToBytes(req, "Internal Server Error!", contentType, routes()[0].custom().jsonResponseRenderer());
+			HttpIO.writeContentLengthAndBody(channel, bytes);
+			HttpIO.done(channel, isKeepAlive);
+		}
+
+		return false;
+	}

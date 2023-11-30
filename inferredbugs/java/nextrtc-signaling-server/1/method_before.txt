@@ -1,0 +1,26 @@
+ @Test
+	public void shouldCreateConversation() throws Exception {
+		// given
+		MessageMatcher matcher = new MessageMatcher();
+		InternalMessage message = InternalMessage.create()//
+				.from(Member.builder()//
+						.session(mockSession("sessionId", matcher))//
+						.build())//
+				.signal(create)//
+				.content("c1")//
+				.build();
+
+		// when
+		create.executeMessage(message);
+
+		// then
+		Optional<Conversation> conv = conversations.findBy("c1");
+		assertTrue(conv.isPresent());
+		Message send = matcher.getMessage();
+		assertNotNull(send);
+		assertThat(send.getFrom(), is(EMPTY));
+		assertThat(send.getTo(), is("sessionId"));
+		assertThat(send.getSignal(), is("created"));
+		assertThat(send.getContent(), is("c1"));
+		assertThat(send.getParameters(), notNullValue());
+	}

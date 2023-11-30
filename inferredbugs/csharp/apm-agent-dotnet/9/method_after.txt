@@ -1,0 +1,33 @@
+  [Fact]
+		public void ErrorOnSpan()
+		{
+			var transactionName = "TestTransaction";
+			var transactionType = "UnitTest";
+			var spanName = "TestSpan";
+			var exceptionMessage = "Foo!";
+			var payloadSender = new MockPayloadSender();
+			var agent = new ApmAgent(new TestAgentComponents(payloadSender: payloadSender));
+
+			var transaction = agent.Tracer.StartTransaction(transactionName, transactionType);
+
+			var span = transaction.StartSpan(spanName, ApiConstants.TypeExternal);
+
+			Thread.Sleep(5); //Make sure we have duration > 0
+
+			try
+			{
+				throw new InvalidOperationException(exceptionMessage);
+			}
+			catch (Exception e)
+			{
+				span.CaptureException(e);
+			}
+
+			span.End();
+			transaction.End();
+
+			Assert.Single(payloadSender.Payloads);
+			Assert.Single(payloadSender.Errors);
+			Assert.Equal(exceptionMessage, payloadSender.Errors[0].Errors[0].Exception.Message);
+			Assert.Equal(exceptionMessage, payloadSender.Errors[0].Errors[0].Exception.Message);
+		}

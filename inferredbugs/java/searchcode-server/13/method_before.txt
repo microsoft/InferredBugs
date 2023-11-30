@@ -1,0 +1,26 @@
+    public synchronized void deleteApiByPublicKey(String publicKey) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = this.dbConfig.getConnection();
+            stmt = conn.prepareStatement("delete from api where publickey=?;");
+
+            stmt.setString(1, publicKey);
+
+            stmt.execute();
+
+            this.cache.remove(publicKey);
+            this.genericCache.remove(apiAllApiCacheKey);
+
+        }
+        catch(SQLException ex) {
+            LOGGER.severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(rs);
+            Helpers.closeQuietly(stmt);
+            Helpers.closeQuietly(conn);
+        }
+    }
