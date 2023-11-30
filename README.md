@@ -1,14 +1,35 @@
-# Project
+# InferredBugs
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+InferredBugs is a metadata-rich dataset of bugs and fixes in Java and C# programming languages extracted with the [Infer](https://fbinfer.com/) static analyzer tool. The dataset has been constructed by systematically analyzing open-source repositories, scrutinizing each commit to identify the inception and resolution of bugs.
 
-As the maintainer of this project, please make a few updates:
+This dataset served as the foundational corpus for training the InferFix model, as detailed in the ESEC/FSE paper titled *"InferFix: End-to-End Program Repair with LLMs"*.
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+This dataset encompasses comprehensive metadata for each identified bug, making it an invaluable resource for advancing research in the field of Automated Program Repair. Additionally, it facilitates large-scale empirical analyses on bugs, empowering researchers to glean insights and advance the understanding of software defects and their resolutions.
+
+## Dataset Structure
+The InferredBugs dataset is meticulously organized by programming language, with distinct folders for `java` and `csharp` located in the root directory. The structure of each language-specific folder is as follows:
+
+- `<repository>`: Name of the repository subjected to analysis.
+    - `<bug_id>`: Bug identifier for the given repository.
+        - `bug.json`: Metadata associated with the bug, meticulously extracted by Infer. This file includes rich information such as `bug_type`, `severity`, and localization details.
+        - `commit_info.json`: Metadata associated with the commit that rectified the bug. It encompasses essential information like `hash` and `message`.
+        - `file_before.txt`: The content of the file before the bug fix.
+        - `file_after.txt`: The content of the file after the bug fix.
+        - `method_before.txt`: The content of the buggy method before the fix.
+        - `method_after.txt`: The content of the method after the fix.
+
+## Citation
+
+```
+@inproceedings{inferifx2023,
+    title={InferFix: End-to-End Program Repair with LLMs},
+    author={Matthew Jin, Syed Shahriar, Michele Tufano, Xin Shi, Shuai Lu, Neel Sundaresan, and Alexey Svyatkovskiy},
+    booktitle={2023 31st ACM Joint European Software Engineering Conference and Symposium on the Foundations of Software Engineering (ESEC/FSE 2023)},
+    year={2023},
+    organization={ACM}
+}
+```
+
 
 ## Contributing
 
