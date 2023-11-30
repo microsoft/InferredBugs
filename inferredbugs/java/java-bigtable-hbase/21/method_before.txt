@@ -1,0 +1,19 @@
+  private void retryOnTimeout(ScanTimeoutException rte) throws BigtableRetriesExhaustedException {
+    LOG.info("The client could not get a response in %d ms. Retrying the scan.",
+      retryOptions.getReadPartialRowTimeoutMillis());
+
+    // Cancel the existing rpc.
+    cancel(TIMEOUT_CANCEL_MSG);
+    rpcTimerContext.close();
+    failedCount++;
+
+    // Can this request be retried
+    int maxRetries = retryOptions.getMaxScanTimeoutRetries();
+    if (retryOptions.enableRetries() && ++timeoutRetryCount <= maxRetries) {
+      rpc.getRpcMetrics().markRetry();
+      resetStatusBasedBackoff();
+      run();
+    } else {
+      throw getExhaustedRetriesException(Status.ABORTED);
+    }
+  }

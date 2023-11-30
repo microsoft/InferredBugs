@@ -1,0 +1,38 @@
+    public static MathProgSysModel make(final File file) {
+
+        final MathProgSysModel retVal = new MathProgSysModel();
+
+        String tmpLine;
+        FileSection tmpSection = null;
+
+        try {
+
+            final BufferedReader tmpBufferedFileReader = new BufferedReader(new FileReader(file));
+
+            //readLine is a bit quirky :
+            //it returns the content of a line MINUS the newline.
+            //it returns null only for the END of the stream.
+            //it returns an empty String if two newlines appear in a row.
+            while ((tmpLine = tmpBufferedFileReader.readLine()) != null) {
+
+                // BasicLogger.debug("Line: {}", tmpLine);
+
+                if ((tmpLine.length() == 0) || tmpLine.startsWith(COMMENT) || tmpLine.startsWith(COMMENT_REF)) {
+                    // Skip this line
+                } else if (tmpLine.startsWith(SPACE)) {
+                    retVal.parseSectionLine(tmpSection, tmpLine);
+                } else {
+                    tmpSection = retVal.identifySection(tmpLine);
+                }
+            }
+
+            tmpBufferedFileReader.close();
+
+        } catch (final FileNotFoundException anException) {
+            anException.printStackTrace();
+        } catch (final IOException anException) {
+            anException.printStackTrace();
+        }
+
+        return retVal;
+    }

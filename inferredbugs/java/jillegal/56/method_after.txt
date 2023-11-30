@@ -1,0 +1,44 @@
+ protected void init(Class<T> elementType, long objectCount, 
+			NonPrimitiveFieldAllocationConfigType allocateNonPrimitiveFieldsAtOffHeapConfigType, 
+			DirectMemoryService directMemoryService) {
+		super.init(elementType, allocateNonPrimitiveFieldsAtOffHeapConfigType, directMemoryService);
+		
+		if (elementType.isAnnotation()) {
+			throw new IllegalArgumentException("Annotation class " + "(" + elementType.getName() + ")" + 
+											   " is not supported !");
+		}
+		if (elementType.isInterface()) {
+			throw new IllegalArgumentException("Interface class " + "(" + elementType.getName() + ")" + 
+											   " is not supported !");
+		}
+		if (elementType.isAnonymousClass()) {
+			throw new IllegalArgumentException("Anonymous class " + "(" + elementType.getName() + ")" + 
+											   " is not supported !");
+		}
+		this.elementType = elementType;
+		this.objectCount = objectCount;
+		this.usedObjectCount = 0;
+		this.directMemoryService = directMemoryService;
+		
+		inUseBlockCount = objectCount;
+		inUseBlockAddress = directMemoryService.allocateMemory(inUseBlockCount);
+		sampleObject = JvmUtil.getSampleInstance(elementType);
+		if (sampleObject == null) {
+			throw new IllegalStateException("Unable to create a sample object for class " + elementType.getName());
+		}
+		sampleHeader = directMemoryService.getLong(sampleObject, 0L);
+		objectSize = directMemoryService.sizeOfObject(sampleObject);
+		offHeapSampleObjectAddress = directMemoryService.allocateMemory(objectSize);
+		directMemoryService.copyMemory(sampleObject, 0L, null, offHeapSampleObjectAddress, objectSize);
+		/*
+		for (int i = 0; i < objectSize; i += JvmUtil.LONG_SIZE) {
+			directMemoryService.putLong(offHeapSampleObjectAddress + i, directMemoryService.getLong(sampleObject, i));
+		}
+		*/
+		/*
+		for (int i = 0; i < objectSize; i++) {
+			directMemoryService.putByte(offHeapSampleObjectAddress + i, directMemoryService.getByte(sampleObject, i));
+		}
+		*/
+		// directMemoryService.copyMemory(directMemoryService.addressOf(sampleObject), offHeapSampleObjectAddress, objectSize);
+	}

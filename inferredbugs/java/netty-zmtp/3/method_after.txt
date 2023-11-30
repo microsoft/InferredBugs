@@ -1,0 +1,30 @@
+  @Test
+  public void testReframe() throws Exception {
+    final ZMTPFramingDecoder decoder = new ZMTPFramingDecoder(wireFormat(ZMTP10), new RawDecoder());
+    final ZMTPWriter writer = ZMTPWriter.create(ZMTP10);
+    final ByteBuf buf = Unpooled.buffer();
+
+    writer.reset(buf);
+
+    // Request a frame with margin in anticipation of a larger payload...
+    // ... but write a smaller payload
+    final ByteBuf content = copiedBuffer("hello world", UTF_8);
+    writer.frame(content.readableBytes() * 2, true).writeBytes(content.duplicate());
+
+    // And rewrite the frame accordingly
+    writer.reframe(content.readableBytes(), false);
+
+    // Verify that the message can be parsed
+    decoder.decode(null, buf, out);
+    assertThat(out, hasSize(1));
+    assertThat(out, contains((Object) singletonList(content)));
+
+    // Write and verify another message
+    final ByteBuf next = copiedBuffer("next", UTF_8);
+    writer.frame(next.readableBytes(), false).writeBytes(next.duplicate());
+
+    out.clear();
+    decoder.decode(null, buf, out);
+    assertThat(out, hasSize(1));
+    assertThat(out, contains((Object) singletonList(next)));
+  }

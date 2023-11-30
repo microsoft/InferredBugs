@@ -1,0 +1,34 @@
+  @Override
+  public void transitionInto(RunState state) {
+    switch (state.state()) {
+      case SUBMITTING:
+        try {
+          final String executionId = dockerRunnerStart(state);
+          // this is racy
+          final Event submitted = Event.submitted(state.workflowInstance(), executionId);
+          try {
+            stateManager.receive(submitted);
+          } catch (StateManager.IsClosed isClosed) {
+            LOG.warn("Could not send 'created' event", isClosed);
+          }
+        } catch (Exception e) {
+          LOG.warn("Failed the docker starting procedure for " + state.workflowInstance().toKey(), e);
+          stateManager.receiveIgnoreClosed(Event.halt(state.workflowInstance()));
+        }
+        break;
+
+      case TERMINATED:
+      case FAILED:
+      case ERROR:
+        if (state.executionId().isPresent()) {
+          final String executionId = state.executionId().get();
+          LOG.info("Cleaning up {} pod: {}", state.workflowInstance().toKey(), executionId);
+
+          dockerRunner.cleanup(executionId);
+        }
+        break;
+
+      default:
+        // do nothing
+    }
+  }

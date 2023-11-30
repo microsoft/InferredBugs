@@ -1,0 +1,21 @@
+    private String getContainerId(String zaleniumContainerName, URL remoteUrl) {
+        try {
+            List<Task> tasks = dockerClient.listTasks();
+            for (Task task : tasks) {
+                List<NetworkAttachment> networkAttachments = task.networkAttachments();
+                if (networkAttachments != null) {
+                    for (NetworkAttachment networkAttachment : task.networkAttachments()) {
+                        for (String address : networkAttachment.addresses()) {
+                            if (address.startsWith(remoteUrl.getHost())) {
+                                return task.status().containerStatus().containerId();
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (DockerException | InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }

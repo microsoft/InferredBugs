@@ -1,0 +1,31 @@
+ private List<MappedProperty> getMappedProperties(ExecutableElement method, Map<String, Mapping> mappings) {
+		Element returnTypeElement = typeUtils.asElement( method.getReturnType() );
+		Element parameterElement = typeUtils.asElement( method.getParameters().get( 0 ).asType() );
+
+		List<MappedProperty> properties = new ArrayList<MappedProperty>();
+
+		for ( ExecutableElement getterMethod : getterMethodsIn( parameterElement.getEnclosedElements() ) ) {
+
+			String sourcePropertyName = getPropertyName( getterMethod );
+			Mapping mapping = mappings.get( sourcePropertyName );
+
+			for ( ExecutableElement setterMethod : setterMethodsIn( returnTypeElement.getEnclosedElements() ) ) {
+
+				String targetPropertyName = getPropertyName( setterMethod );
+
+				if ( targetPropertyName.equals( mapping != null ? mapping.getTargetName() : sourcePropertyName ) ) {
+					properties.add(
+							new MappedProperty(
+									sourcePropertyName,
+									retrieveReturnType( getterMethod ),
+									mapping != null ? mapping.getTargetName() : targetPropertyName,
+									retrieveParameter( setterMethod ).getType(),
+									mapping != null ? mapping.getConverterType() : null
+							)
+					);
+				}
+			}
+		}
+
+		return properties;
+	}

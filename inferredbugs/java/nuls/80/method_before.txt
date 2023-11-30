@@ -1,0 +1,67 @@
+    public PocMeetingRound getRound(long preRoundIndex, long roundIndex, boolean needPreRound) {
+        PocMeetingRound round = ROUND_MAP.get(roundIndex);
+        Block preRoundFirstBlock = null;
+        BlockRoundData preRoundData = null;
+        if (null == round) {
+            Block bestBlock = getBestBlock();
+            BlockRoundData nowRoundData = new BlockRoundData(bestBlock.getHeader().getExtend());
+            if (nowRoundData.getRoundIndex() >= preRoundIndex) {
+                preRoundFirstBlock = getBlockService().getPreRoundFirstBlock(preRoundIndex);
+                if (null == preRoundFirstBlock) {
+                    return null;
+                }
+                preRoundData = new BlockRoundData(preRoundFirstBlock.getHeader().getExtend());
+                round = calcRound(preRoundFirstBlock.getHeader().getHeight(), roundIndex, preRoundData.getRoundEndTime(), false);
+                if (roundIndex > (preRoundData.getRoundIndex() + 1)) {
+                    long roundTime = PocConsensusConstant.BLOCK_TIME_INTERVAL_SECOND * 1000L * round.getMemberCount();
+                    long startTime = round.getStartTime() + (roundIndex - (preRoundData.getRoundIndex() + 1)) * roundTime;
+                    round.setStartTime(startTime);
+                    List<PocMeetingMember> memberList = round.getMemberList();
+                    for (PocMeetingMember member : memberList) {
+                        member.setRoundStartTime(round.getStartTime());
+                    }
+                    Collections.sort(memberList);
+                    round.setMemberList(memberList);
+                }
+                ROUND_MAP.put(round.getIndex(), round);
+            } else {
+                return null;
+            }
+        }
+        if (needPreRound && round.getPreRound() == null) {
+            if (null == preRoundFirstBlock) {
+                Block firstBlock = getBlockService().getPreRoundFirstBlock(preRoundIndex);
+                if (null == firstBlock) {
+                    return null;
+                }
+                preRoundFirstBlock = firstBlock;
+                preRoundData = new BlockRoundData(preRoundFirstBlock.getHeader().getExtend());
+            }
+            if (preRoundFirstBlock.getHeader().getHeight() == 0) {
+                round.setPreRound(calcRound(0, 1, preRoundData.getRoundStartTime(), false));
+                return round;
+            }
+            Block preblock = getBlockService().getBlock(preRoundFirstBlock.getHeader().getPreHash().getDigestHex());
+            if (null == preblock) {
+                return null;
+            }
+            BlockRoundData preBlockRoundData = new BlockRoundData(preblock.getHeader().getExtend());
+
+            round.setPreRound(getRound(preBlockRoundData.getRoundIndex(), preRoundIndex, false));
+        }
+        StringBuilder str = new StringBuilder();
+        for (PocMeetingMember member : round.getMemberList()) {
+            str.append(member.getPackingAddress());
+            str.append(" ,order:" + member.getPackingIndexOfRound());
+            str.append(",packEndTime:" + new Date(member.getPackEndTime()));
+            str.append("\n");
+        }
+        if(null==round.getPreRound()){
+            BlockLog.info("calc new round:index:" + round.getIndex() + " , start:" + new Date(round.getStartTime())
+                    + ", netTime:(" + new Date(TimeService.currentTimeMillis()).toString() + ") , members:\n :" + str);
+        }else {
+            BlockLog.info("calc new round:index:" + round.getIndex() + " ,preIndex:" + round.getPreRound().getIndex() + " , start:" + new Date(round.getStartTime())
+                    + ", netTime:(" + new Date(TimeService.currentTimeMillis()).toString() + ") , members:\n :" + str);
+        }
+        return round;
+    }

@@ -1,0 +1,28 @@
+    private boolean initGhRepository() {
+        GitHub gitHub = null;
+        try {
+            GhprbGitHub repo = helper.getGitHub();
+            if (repo == null) {
+                return false;
+            }
+            gitHub = repo.get();
+            if (gitHub.getRateLimit().remaining == 0) {
+                return false;
+            }
+        } catch (FileNotFoundException ex) {
+            logger.log(Level.INFO, "Rate limit API not found.");
+        } catch (IOException ex) {
+            logger.log(Level.SEVERE, "Error while accessing rate limit API", ex);
+            return false;
+        }
+
+        if (ghRepository == null) {
+            try {
+                ghRepository = gitHub.getRepository(reponame);
+            } catch (IOException ex) {
+                logger.log(Level.SEVERE, "Could not retrieve GitHub repository named " + reponame + " (Do you have properly set 'GitHub project' field in job configuration?)", ex);
+                return false;
+            }
+        }
+        return true;
+    }

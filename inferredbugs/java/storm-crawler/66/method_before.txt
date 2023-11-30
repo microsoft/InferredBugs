@@ -1,0 +1,61 @@
+    @Override
+    public void execute(Tuple input) {
+        _collector.ack(input);
+
+        // this bolt can be connected to anything
+        // we just want to trigger a new search when the input is a tick tuple
+        if (!TupleUtils.isTick(input)) {
+            return;
+        }
+
+        Status[] slist = new Status[] { Status.DISCOVERED, Status.ERROR,
+                Status.FETCH_ERROR, Status.FETCHED, Status.REDIRECTION };
+
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+
+        // should be faster than running the aggregations
+        // sent as a single multisearch
+        for (Status s : slist) {
+            SearchRequest request = new SearchRequest(indexName);
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            sourceBuilder.query(QueryBuilders.termQuery("status", s.name()));
+            sourceBuilder.from(0);
+            sourceBuilder.size(0);
+            sourceBuilder.explain(false);
+            sourceBuilder.trackTotalHits(true);
+            request.source(sourceBuilder);
+            multiSearchRequest.add(request);
+        }
+
+        long start = System.currentTimeMillis();
+
+        MultiSearchResponse response;
+        try {
+            response = connection.getClient().msearch(multiSearchRequest,
+                    RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            LOG.error("Exception caught when getting multisearch", e);
+            return;
+        }
+
+        long end = System.currentTimeMillis();
+
+        LOG.info("Multiquery returned in {} msec", end - start);
+
+        long total = 0l;
+
+        for (int i = 0; i < response.getResponses().length; i++) {
+            final Item item = response.getResponses()[i];
+            if (item.isFailure()) {
+                LOG.warn("failure response when querying for status {}",
+                        slist[i].name());
+                continue;
+            }
+            SearchResponse res = item.getResponse();
+            long count = res.getHits().getTotalHits().value;
+            latestStatusCounts.put(slist[i].name(), count);
+            total += count;
+        }
+
+        latestStatusCounts.put("TOTAL", total);
+    }

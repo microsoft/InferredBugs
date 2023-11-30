@@ -1,0 +1,37 @@
+    @Override
+    public List<Device> getDevices(String machineIP, String platform) throws Exception {
+        ObjectMapper mapper = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        List<Device> devices = new ArrayList<>();
+
+        if (platform.equalsIgnoreCase(OSType.ANDROID.name()) ||
+                platform.equalsIgnoreCase(OSType.BOTH.name())) {
+            List<Device> androidDevices = Arrays.asList(mapper.readValue(new URL(
+                            "http://" + machineIP + ":4567/devices/android"),
+                    Device[].class));
+            Optional.ofNullable(androidDevices).ifPresent(devices::addAll);
+        }
+        if (platform.equalsIgnoreCase(OSType.iOS.name()) ||
+                platform.equalsIgnoreCase(OSType.BOTH.name())) {
+            if (CapabilityManager.getInstance().isApp()) {
+                if (CapabilityManager.getInstance().isSimulatorAppPresentInCapsJson()) {
+                    List<Device> bootedSims = Arrays.asList(mapper.readValue(new URL(
+                                    "http://" + machineIP + ":4567/devices/ios/bootedSims"),
+                            Device[].class));
+                    Optional.ofNullable(bootedSims).ifPresent(devices::addAll);
+                }
+                if (CapabilityManager.getInstance().isRealDeviceAppPresentInCapsJson()) {
+                    List<Device> iOSRealDevices = Arrays.asList(mapper.readValue(new URL(
+                                    "http://" + machineIP + ":4567/devices/ios/realDevices"),
+                            Device[].class));
+                    Optional.ofNullable(iOSRealDevices).ifPresent(devices::addAll);
+                }
+            } else {
+                List<Device> iOSDevices = Arrays.asList(mapper.readValue(new URL(
+                                "http://" + machineIP + ":4567/devices/ios/realDevices"),
+                        Device[].class));
+                Optional.ofNullable(iOSDevices).ifPresent(devices::addAll);
+            }
+        }
+        return devices;
+    }

@@ -1,0 +1,26 @@
+    public void logGuildLeave(GuildMemberRemoveEvent event)
+    {
+        TextChannel tc = vortex.getDatabase().settings.getSettings(event.getGuild()).getServerLogChannel(event.getGuild());
+        if(tc==null)
+            return;
+        OffsetDateTime now = OffsetDateTime.now();
+        String msg = FormatUtil.formatFullUser(event.getUser())+" left or was kicked from the server.";
+        Member member = event.getMember();
+        if(member != null)
+        {
+            long seconds = member.getTimeJoined().until(now, ChronoUnit.SECONDS);
+            StringBuilder rlist;
+            if(member.getRoles().isEmpty())
+                rlist = new StringBuilder();
+            else
+            {
+                rlist= new StringBuilder("\nRoles: `"+member.getRoles().get(0).getName());
+                for(int i=1; i<member.getRoles().size(); i++)
+                    rlist.append("`, `").append(member.getRoles().get(i).getName());
+                rlist.append("`");
+            }
+            msg += "\nJoined: " + member.getTimeJoined().format(DateTimeFormatter.RFC_1123_DATE_TIME) 
+                    + " (" + FormatUtil.secondsToTimeCompact(seconds) + " ago)" + rlist.toString();
+        }
+        log(now, tc, LEAVE, msg, null);
+    }

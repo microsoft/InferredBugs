@@ -1,0 +1,24 @@
+    public void enableConnectionGC()
+        throws IllegalStateException {
+
+        if (refQueue != null) {
+            throw new IllegalStateException("Connection GC already enabled.");
+        }
+        poolLock.lock();
+        try {
+            if (numConnections > 0) { //@@@ is this check sufficient?
+                throw new IllegalStateException("Pool already in use.");
+            }
+        } finally {
+            poolLock.unlock();
+        }
+
+        refQueue  = new ReferenceQueue<Object>();
+        refWorker = new RefQueueWorker(refQueue, this);
+        Thread t = new Thread(refWorker); //@@@ use a thread factory
+        t.setDaemon(true);
+        t.setName("RefQueueWorker@" + this);
+        t.start();
+
+        connManager = new ConnMgrRef(connManager.get(), refQueue);
+    }

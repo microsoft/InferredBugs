@@ -1,0 +1,19 @@
+    private JSONObject builderStaffInfo(JSONObject paramObj, DataFlowContext dataFlowContext) {
+
+        UserDto userDto = new UserDto();
+        userDto.setStatusCd("0");
+        userDto.setUserId(paramObj.getString("userId"));
+        List<UserDto> userDtos = userInnerServiceSMOImpl.getUserHasPwd(userDto);
+
+        Assert.listOnlyOne(userDtos, "数据错误查询到多条用户信息或单条");
+
+        JSONObject userInfo = JSONObject.parseObject(JSONObject.toJSONString(userDtos.get(0)));
+
+        if (!paramObj.getString("oldPwd").equals(userDtos.get(0).getPassword())) {
+            throw new IllegalArgumentException("原始密码错误");
+        }
+        userInfo.putAll(paramObj);
+        userInfo.put("password", paramObj.getString("newPwd"));
+
+        return userInfo;
+    }

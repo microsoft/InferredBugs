@@ -1,0 +1,94 @@
+  private boolean checkPatterns(ScreenImage simg) {
+    log(lvl + 1, "update: checking patterns");
+    if (!observedRegion.isObserving()) {
+      return false;
+    }
+    Finder finder = null;
+    for (String name : eventStates.keySet()) {
+      if (!patternsToCheck()) {
+        continue;
+      }
+      if (eventStates.get(name) == State.REPEAT) {
+        if ((new Date()).getTime() < eventRepeatWaitTimes.get(name)) {
+          continue;
+        } else {
+          eventStates.put(name, State.UNKNOWN);
+        }
+      }
+      Object ptn = eventNames.get(name);
+      Image img = Image.getImageFromTarget(ptn);
+      if (img == null || !img.isUseable()) {
+        Debug.error("EventMgr: checkPatterns: Image not valid", ptn);
+        eventStates.put(name, State.MISSING);
+        continue;
+      }
+      Match match = null;
+      boolean hasMatch = false;
+      long lastSearchTime;
+      long now = 0;
+      if (!Settings.UseImageFinder && Settings.CheckLastSeen && null != img.getLastSeen()) {
+        Region r = Region.create(img.getLastSeen());
+        if (observedRegion.contains(r)) {
+          lastSearchTime = (new Date()).getTime();
+          Finder f = new Finder(new Screen().capture(r), r);
+          f.find(new Pattern(img).similar(Settings.CheckLastSeenSimilar));
+          if (f.hasNext()) {
+            log(lvl + 1, "checkLastSeen: still there");
+            match = new Match(new Region(img.getLastSeen()), img.getLastSeenScore());
+            match.setTimes(0, (new Date()).getTime() - lastSearchTime);
+            hasMatch = true;
+          } else {
+            log(lvl + 1, "checkLastSeen: not there");
+          }
+        }
+      }
+      if (match == null) {
+        if (finder == null) {
+          if (Settings.UseImageFinder) {
+            finder = new ImageFinder(observedRegion);
+            ((ImageFinder) finder).setIsMultiFinder();
+          } else {
+            finder = new Finder(simg, observedRegion);
+          }
+        }
+        lastSearchTime = (new Date()).getTime();
+        now = (new Date()).getTime();
+        finder.find(img);
+        if (finder.hasNext()) {
+          match = finder.next();
+          match.setTimes(0, now - lastSearchTime);
+          if (match.getScore() >= getSimiliarity(ptn)) {
+            hasMatch = true;
+            img.setLastSeen(match.getRect(), match.getScore());
+          }
+        }
+      }
+      if (hasMatch) {
+        eventMatches.put(name, match);
+        log(lvl + 1, "(%s): %s match: %s in:%s", eventTypes.get(name), ptn.toString(),
+                match.toStringShort(), observedRegion.toStringShort());
+      } else if (eventStates.get(ptn) == State.FIRST) {
+        log(lvl + 1, "(%s): %s match: %s in:%s", eventTypes.get(name), ptn.toString(),
+                match.toStringShort(), observedRegion.toStringShort());
+        eventStates.put(name, State.UNKNOWN);
+      }
+      if (eventStates.get(name) != State.HAPPENED) {
+        if (hasMatch && eventTypes.get(name) == ObserveEvent.Type.VANISH) {
+          eventMatches.put(name, match);
+        }
+        if ((hasMatch && eventTypes.get(name) == ObserveEvent.Type.APPEAR)
+                || (!hasMatch && eventTypes.get(name) == ObserveEvent.Type.VANISH)) {
+          eventStates.put(name, State.HAPPENED);
+          eventCounts.put(name, eventCounts.get(name) + 1);
+          callEventObserver(name, eventMatches.get(name), now);
+          if (shouldStopOnFirstEvent) {
+            observedRegion.stopObserver();
+          }
+        }
+      }
+      if (!observedRegion.isObserving()) {
+        return false;
+      }
+    }
+    return patternsToCheck();
+  }

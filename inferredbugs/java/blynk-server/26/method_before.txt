@@ -1,0 +1,26 @@
+    @GET
+    @Path("{token}/rtc")
+    @Metric(HTTP_GET_PIN_DATA)
+    public Response getWidgetPinData(@PathParam("token") String token) {
+        TokenValue tokenValue = tokenManager.getTokenValueByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return Response.badRequest("Invalid token.");
+        }
+
+        final User user = tokenValue.user;
+        final int dashId = tokenValue.dashId;
+
+        DashBoard dashBoard = user.profile.getDashById(dashId);
+
+        RTC rtc = dashBoard.getWidgetByType(RTC.class);
+
+
+        if (rtc == null) {
+            log.debug("Requested rtc widget not found. User {}", user.email);
+            return Response.badRequest("Requested rtc not exists in app.");
+        }
+
+        return ok(rtc.getJsonValue());
+    }

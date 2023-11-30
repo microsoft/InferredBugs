@@ -1,0 +1,26 @@
+ @Override
+	public FloatProcessor toFloat(int channelNumber, FloatProcessor fp)
+	{
+		int width = getWidth();
+		int height = getHeight();
+		
+		long size = getNumPixels(this.imageData);
+		
+		if (fp == null || fp.getWidth()!=width || fp.getHeight()!=height)
+			fp = new FloatProcessor(width, height, new float[(int)size], super.cm);
+		
+		int[] origin = Index.create(0, 0, getPlanePosition());
+		
+		int[] span = Span.singlePlane(width, height, this.imageData.getNumDimensions());
+		
+		SetFloatValuesOperation<T> floatOp = new SetFloatValuesOperation<T>(this.imageData, origin, span, fp);
+
+		Operation.apply(floatOp);
+		
+		fp.setRoi(getRoi());
+		fp.setMask(getMask());
+		fp.setMinAndMax(this.min, this.max);
+		fp.setThreshold(getMinThreshold(), getMaxThreshold(), ImageProcessor.NO_LUT_UPDATE);
+
+		return fp;
+	}

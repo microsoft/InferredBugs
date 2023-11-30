@@ -1,0 +1,27 @@
+    private void addProfiledResourcesFromSubirectories(KubernetesListBuilder builder, File resourceDir, EnricherManager enricherManager) throws IOException, MojoExecutionException {
+        File[] profileDirs = resourceDir.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File pathname) {
+                return pathname.isDirectory();
+            }
+        });
+        for (File profileDir : profileDirs) {
+            Profile profile = ProfileUtil.findProfile(profileDir.getName(), resourceDir);
+            ProcessorConfig enricherConfig = profile.getEnricherConfig();
+            if (profile == null) {
+                throw new MojoExecutionException(String.format("Invalid profile '%s' given as directory in %s. " +
+                                                               "Please either define a profile of this name or move this directory away",
+                                                               profileDir.getName(), resourceDir));
+            }
+            File[] resourceFiles = KubernetesResourceUtil.listResourceFragments(profileDir);
+            if (resourceFiles.length > 0) {
+                KubernetesListBuilder profileBuilder = readResourceFragments(resourceFiles);
+                enricherManager.createDefaultResources(enricherConfig, profileBuilder);
+                enricherManager.enrich(enricherConfig, profileBuilder);
+                KubernetesList profileItems = profileBuilder.build();
+                for (HasMetadata item : profileItems.getItems()) {
+                    builder.addToItems(item);
+                }
+            }
+        }
+    }

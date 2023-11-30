@@ -1,0 +1,29 @@
+  @Test
+  public void testCommandHandler() {
+    SqlLine sqlLine = new SqlLine();
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    begin(sqlLine, os, false, "-e", "!set maxwidth 80");
+
+    try {
+      final String script = "!commandhandler"
+          + " sqlline.extensions.HelloWorld2CommandHandler"
+          + " sqlline.extensions.HelloWorldCommandHandler";
+      sqlLine.runCommands(new DispatchCallback(), script);
+      sqlLine.runCommands(new DispatchCallback(), "!hello");
+      String output = os.toString("UTF8");
+      assertThat(output, containsString("HELLO WORLD2"));
+      final String expected = "Could not add command handler "
+          + "sqlline.extensions.HelloWorldCommandHandler as one of commands "
+          + "[hello, test] is already present";
+      assertThat(output, containsString(expected));
+      os.reset();
+      sqlLine.runCommands(new DispatchCallback(), "!help hello");
+      output = os.toString("UTF8");
+      assertThat(output, containsString("help for hello2"));
+      sqlLine.runCommands(new DispatchCallback(), "!quit");
+      assertTrue(sqlLine.isExit());
+    } catch (Exception e) {
+      // fail
+      throw new RuntimeException(e);
+    }
+  }

@@ -1,0 +1,40 @@
+    void ladenHttp(String filmWebsite, String thema, String alter) {
+        // erst die Nummer suchen
+        // >25420<4<165<23. Die b
+        // <http://www.kikaplus.net/clients/kika/mediathek/previewpic/1355302530-f80b463888fd4602d925b2ef2c861928 9.jpg<
+        final String MUSTER_BILD = "<http://www.";
+        seiteHttp = getUrlIo.getUri(nameSenderMReader, filmWebsite, Konstanten.KODIERUNG_UTF, 1, seiteHttp, thema);
+        String nummer, url, bild, urlFilm, titel;
+        nummer = seiteHttp.extract(">", "<");
+        bild = seiteHttp.extract(MUSTER_BILD, "<");
+        if (!bild.isEmpty()) {
+            bild = "http://www." + bild;
+        }
+        // die URL bauen:
+        // http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=video&age=10&id=25420&page=az
+        if (!nummer.isEmpty()) {
+            url = "http://www.kikaplus.net/clients/kika/kikaplus/hbbtv/index.php?cmd=video&age=" + alter + "&id=" + nummer + "&page=az";
+            seiteHttp = getUrlIo.getUri(nameSenderMReader, url, Konstanten.KODIERUNG_UTF, 1, seiteHttp, thema);
+            final String MUSTER_URL = "var videofile = \"";
+            final String MUSTER_TITEL = "var videotitle = \"";
+            urlFilm = seiteHttp.extract(MUSTER_URL, "\"");
+            titel = seiteHttp.extract(MUSTER_TITEL, "\"");
+            if (!urlFilm.equals("")) {
+                meldung(urlFilm);
+                // DatenFilm(String ssender, String tthema, String filmWebsite, String ttitel, String uurl, String uurlRtmp,
+                //     String datum, String zeit,
+                //     long dauerSekunden, String description, String thumbnailUrl, String imageUrl, String[] keywords) {
+                DatenFilm film = null;
+                if ((film = istInFilmListe(nameSenderMReader, thema, titel)) != null) {
+                    film.addUrlKlein(urlFilm, "");
+                } else {
+                    // dann gibs ihn noch nicht
+                    addFilm(new DatenFilm(nameSenderMReader, thema, "http://www.kika.de/fernsehen/mediathek/index.shtml", titel, urlFilm, ""/* urlRtmp */,
+                            ""/*datum*/, ""/*zeit*/,
+                            0, "", bild, "", new String[]{""}));
+                }
+            } else {
+                Log.fehlerMeldung(-915263078, Log.FEHLER_ART_MREADER, "MediathekKika", "keine URL: " + filmWebsite);
+            }
+        }
+    }

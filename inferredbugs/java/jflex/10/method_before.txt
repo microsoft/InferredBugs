@@ -1,0 +1,35 @@
+  private byte[] loadJarData(String path, String fileName) {
+    ZipFile zipFile;
+    ZipEntry entry;
+    int size;
+
+    try {
+      zipFile = new ZipFile(new File(path));
+      entry = zipFile.getEntry(fileName);
+      if (entry == null) return null;
+      size = (int) entry.getSize();
+    } catch (IOException io) {
+      return null;
+    }
+
+    InputStream stream = null;
+    try {
+      stream = zipFile.getInputStream(entry);
+      if (stream == null) return null;
+      byte[] data = new byte[size];
+      int pos = 0;
+      while (pos < size) {
+        int n = stream.read(data, pos, data.length - pos);
+        pos += n;
+      }
+      zipFile.close();
+      return data;
+    } catch (IOException e) {
+    } finally {
+      try {
+        if (stream != null) stream.close();
+      } catch (IOException e) {
+      }
+    }
+    return null;
+  }

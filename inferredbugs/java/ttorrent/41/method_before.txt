@@ -1,0 +1,54 @@
+  @Override
+  public void run() {
+    logger.info("Starting announce loop...");
+
+
+    while (!this.stop && !Thread.currentThread().isInterrupted()) {
+      logger.debug("Starting announce for {} torrents", torrents.size());
+      for (SharedTorrent torrent : this.torrents) {
+        if (this.stop || Thread.currentThread().isInterrupted()){
+          break;
+        }
+        try {
+          TrackerClient trackerClient = this.getCurrentTrackerClient(torrent);
+          if (trackerClient != null) {
+            trackerClient.announceAllInterfaces(AnnounceRequestMessage.RequestEvent.NONE, torrent.isFinished(), torrent);
+          } else {
+            logger.warn("Tracker client for {} is null. Torrent is not announced on tracker", torrent.getName());
+          }
+        } catch (Exception e) {
+          logger.info(e.getMessage());
+          logger.debug(e.getMessage(), e);
+        }
+      }
+
+      try {
+        Thread.sleep(this.myAnnounceInterval * 1000);
+      } catch (InterruptedException ie) {
+        break;
+      }
+    }
+
+    logger.info("Exited announce loop.");
+
+    if (!this.forceStop) {
+      // Send the final 'stopped' event to the tracker after a little
+      // while.
+      try {
+        Thread.sleep(500);
+      } catch (InterruptedException ie) {
+        // Ignore
+        return;
+      }
+
+      try {
+        for (SharedTorrent torrent : this.torrents) {
+            this.getCurrentTrackerClient(torrent).announceAllInterfaces(AnnounceRequestMessage.RequestEvent.STOPPED, true, torrent);
+        }
+      } catch (AnnounceException e) {
+        logger.info("Can't announce stop: " + e.getMessage());
+        logger.debug("Can't announce stop", e);
+        // don't try to announce all. Stop after first error, assuming tracker is already unavailable
+      }
+    }
+  }

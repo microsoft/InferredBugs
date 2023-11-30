@@ -1,0 +1,33 @@
+    public void stop()
+    {
+        if (State.TRANSCRIBING.equals(this.state))
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("Transcriber is now finishing up");
+
+            StatsDClient dClient = JigasiBundleActivator.getDataDogClient();
+            if(dClient != null)
+            {
+                dClient.increment(DD_ASPECT_STOP);
+                if(logger.isDebugEnabled())
+                {
+                    logger.debug("thrown stat: " + DD_ASPECT_STOP);
+                }
+            }
+
+            this.state = State.FINISHING_UP;
+            this.executorService.shutdown();
+
+            TranscriptEvent event = this.transcript.ended();
+            fireTranscribeEvent(event);
+            ActionServicesHandler.getInstance()
+                .notifyActionServices(this, event);
+
+            checkIfFinishedUp();
+        }
+        else
+        {
+            logger.warn("Trying to stop Transcriber while it is " +
+                            "already stopped");
+        }
+    }

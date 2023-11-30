@@ -1,0 +1,34 @@
+ @Override
+	public List<Feature> encodeFeatures(List<String> ids, List<Feature> features, SkLearnEncoder encoder){
+		List<?> data = getData();
+
+		ClassDictUtil.checkSize(1, ids, features);
+
+		final
+		InvalidValueTreatmentMethod invalidValueTreatment = DomainUtil.parseInvalidValueTreatment(getInvalidValueTreatment());
+
+		WildcardFeature wildcardFeature = (WildcardFeature)features.get(0);
+
+		Function<Object, String> function = new Function<Object, String>(){
+
+			@Override
+			public String apply(Object object){
+				return ValueUtil.formatValue(object);
+			}
+		};
+
+		List<String> categories = Lists.transform(data, function);
+
+		FieldDecorator decorator = new ValidValueDecorator(){
+
+			{
+				setInvalidValueTreatment(invalidValueTreatment);
+			}
+		};
+
+		CategoricalFeature categoricalFeature = wildcardFeature.toCategoricalFeature(categories);
+
+		encoder.addDecorator(categoricalFeature.getName(), decorator);
+
+		return Collections.<Feature>singletonList(categoricalFeature);
+	}

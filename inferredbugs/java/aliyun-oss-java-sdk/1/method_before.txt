@@ -1,0 +1,45 @@
+    @Test
+    public void testEmpytObjectCRC() {
+        String key = "empty-object-crc";
+
+        try {
+            // put
+            PutObjectResult putObjectResult = ossClient.putObject(bucketName, key,
+                    new ByteArrayInputStream(new String("").getBytes()));
+            Assert.assertTrue(putObjectResult.getClientCRC() == 0L);
+            Assert.assertTrue(putObjectResult.getServerCRC() == 0L);
+            
+            String localFile = TestUtils.genFixedLengthFile(0);
+            putObjectResult = ossClient.putObject(bucketName, key, new FileInputStream(localFile));
+            Assert.assertEquals(putObjectResult.getClientCRC(), putObjectResult.getServerCRC());
+            Assert.assertTrue(putObjectResult.getClientCRC() == 0L);
+            Assert.assertTrue(putObjectResult.getServerCRC() == 0L);
+            
+            putObjectResult = ossClient.putObject(bucketName, key, new File(localFile));
+            Assert.assertEquals(putObjectResult.getClientCRC(), putObjectResult.getServerCRC());
+            Assert.assertTrue(putObjectResult.getClientCRC() == 0L);
+            Assert.assertTrue(putObjectResult.getServerCRC() == 0L);
+
+            // get
+            OSSObject ossObject = ossClient.getObject(bucketName, key);
+            Assert.assertNull(ossObject.getClientCRC());
+            Assert.assertNotNull(ossObject.getServerCRC());
+            
+            Assert.assertTrue(IOUtils.getCRCValue(ossObject.getObjectContent()) == 0L);
+            
+            InputStream content = ossObject.getObjectContent();
+            while (content.read() != -1) {
+            }
+
+            ossObject.setClientCRC(IOUtils.getCRCValue(content));
+            Assert.assertTrue(putObjectResult.getClientCRC() == 0L);
+            Assert.assertTrue(putObjectResult.getServerCRC() == 0L);
+            content.close();
+            
+            ossClient.deleteObject(bucketName, key);
+            TestUtils.removeFile(localFile);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail(e.getMessage());
+        }
+    }

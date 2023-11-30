@@ -1,0 +1,19 @@
+    @Override
+    public List<ReferenceTypeUsage> getAllAncestors() {
+        List<ReferenceTypeUsage> ancestors = new LinkedList<>();
+        if (getSuperClass() != null) {
+            ReferenceTypeUsage superClass = getSuperClass();
+            ancestors.add(superClass);
+            ancestors.addAll(getSuperClass().getAllAncestors());
+        }
+        ancestors.addAll(getAllInterfaces(typeSolver).stream().map((i)->new ReferenceTypeUsage(i, typeSolver)).collect(Collectors.<ReferenceTypeUsage>toList()));
+        for (int i=0;i<ancestors.size();i++){
+            if (ancestors.get(i).getQualifiedName().equals(Object.class.getCanonicalName())) {
+                ancestors.remove(i);
+                i--;
+            }
+        }
+        ReferenceTypeUsage object = new ReferenceTypeUsage(new ReflectionClassDeclaration(Object.class, typeSolver), typeSolver);
+        ancestors.add(object);
+        return ancestors;
+    }

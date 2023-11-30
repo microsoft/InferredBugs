@@ -1,0 +1,26 @@
+  @Override
+  @PreFetch(enabled = false)
+  public void onIdealStateChange(List<IdealState> idealStates, NotificationContext changeContext) {
+    logger.info(
+        "START: Generic GenericClusterController.onIdealStateChange() for cluster " + _clusterName);
+    if (changeContext == null || changeContext.getType() != Type.CALLBACK) {
+      _cache.requireFullRefresh();
+      _taskCache.requireFullRefresh();
+    } else {
+      _cache.updateDataChange(ChangeType.IDEAL_STATE);
+      _taskCache.updateDataChange(ChangeType.IDEAL_STATE);
+    }
+
+    ClusterEvent event = new ClusterEvent(_clusterName, ClusterEventType.IdealStateChange);
+    event.addAttribute(AttributeName.helixmanager.name(), changeContext.getManager());
+    event.addAttribute(AttributeName.changeContext.name(), changeContext);
+
+    _eventQueue.put(event);
+    _taskEventQueue.put(event.clone());
+
+    if (changeContext.getType() != Type.FINALIZE) {
+      checkRebalancingTimer(changeContext.getManager(), idealStates, _cache.getClusterConfig());
+    }
+
+    logger.info("END: GenericClusterController.onIdealStateChange() for cluster " + _clusterName);
+  }

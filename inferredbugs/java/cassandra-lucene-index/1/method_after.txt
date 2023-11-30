@@ -1,0 +1,28 @@
+    @Test
+    public void testValidate() throws InvalidRequestException, ConfigurationException {
+
+        List<ColumnDef> columnDefinitions = new ArrayList<>();
+        columnDefinitions.add(new ColumnDef(ByteBufferUtil.bytes("field1"),
+                                            UTF8Type.class.getCanonicalName()).setIndex_name("field1")
+                                                                              .setIndex_type(IndexType.KEYS));
+
+        columnDefinitions.add(new ColumnDef(ByteBufferUtil.bytes("field2"),
+                                            IntegerType.class.getCanonicalName()).setIndex_name("field2")
+                                                                                 .setIndex_type(IndexType.KEYS));
+        CfDef cfDef = new CfDef().setDefault_validation_class(AsciiType.class.getCanonicalName())
+                                 .setColumn_metadata(columnDefinitions)
+                                 .setKeyspace("Keyspace1")
+                                 .setName("Standard1");
+        CFMetaData metadata = CFMetaData.fromThrift(cfDef);
+
+        ColumnMapperBuilder columnMapper1 = new ColumnMapperStringBuilder();
+        ColumnMapperBuilder columnMapper2 = new ColumnMapperIntegerBuilder();
+
+        Map<String, ColumnMapperBuilder> columnMappers = new HashMap<>();
+        columnMappers.put("field1", columnMapper1);
+        columnMappers.put("field2", columnMapper2);
+
+        Schema schema = new Schema(columnMappers, null, null);
+        schema.validate(metadata);
+        schema.close();
+    }

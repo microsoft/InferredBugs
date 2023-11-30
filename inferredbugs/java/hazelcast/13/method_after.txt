@@ -1,0 +1,20 @@
+    public void run() {
+        boolean readPackets = false;
+        boolean readProcessables = false;
+        while (running) {
+            readPackets = (dequeuePackets() != 0);
+            readProcessables = (dequeueProcessables() != 0);
+            if (!readPackets && !readProcessables) {
+                try {
+                    synchronized (notEmptyLock) {
+                        notEmptyLock.wait(100);
+                    }
+                    checkPeriodics();
+                } catch (InterruptedException e) {
+                    node.handleInterruptedException(Thread.currentThread(), e);
+                }
+            }
+        }
+        packetQueue.clear();
+        processableQueue.clear();
+    }

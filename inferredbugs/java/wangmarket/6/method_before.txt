@@ -1,0 +1,114 @@
+ @RequestMapping(value="uploadImportTemplate${url.suffix}", method = RequestMethod.POST)
+	@ResponseBody
+	public void uploadImportTemplate(HttpServletResponse response, HttpServletRequest request, 
+			@RequestParam("templateFile") MultipartFile multipartFile){
+		if(multipartFile == null){
+			responseJson(response, BaseVO.FAILURE, "请选择要导入的模版");
+			return;
+		}
+		
+		String wscsoTemplateText = null;	//wscso后缀的模版文件
+		
+		//判断导入的模版文件格式，是wscso还是zip格式
+		
+		//判断一下上传文件大小
+		int lengthKB = 0;
+		try {
+			lengthKB = (int) Math.ceil(multipartFile.getInputStream().available()/1024);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+			responseJson(response, BaseVO.FAILURE, "未获取到所导入的文件大小");
+			return;
+		}
+		
+		//获取上传的文件的后缀
+		String fileSuffix = Lang.findFileSuffix(multipartFile.getOriginalFilename()).toLowerCase();
+		if(fileSuffix.equals("wscso")){
+			//wscso的限制在配置文件applilcation.properties的大小以内
+			if(lengthKB > AttachmentFile.getMaxFileSizeKB()){
+				//超过
+				responseJson(response, BaseVO.FAILURE, "纯模版文件最大限制"+AttachmentFile.getMaxFileSizeKB()+"KB以内");
+				return;
+			}
+			try {
+				wscsoTemplateText = StringUtil.inputStreamToString(multipartFile.getInputStream(), "UTF-8");
+			} catch (IOException e) {
+				Log.error("获取到的，导入模版没有内容");
+				e.printStackTrace();
+				responseJson(response, BaseVO.FAILURE, "所获取到所导入的模版未发现模版内容");
+				return;
+			}
+		}else if (fileSuffix.equals("zip")) {
+			//上传的是模版文件，包含素材，将其上传到服务器本地 ， v4.7 增加
+			//zip的限制在50MB以内
+			if(lengthKB > 50*1025){
+				//超过50MB
+				responseJson(response, BaseVO.FAILURE, "最大限制50MB以内");
+				return;
+			}
+			
+			String fileName = DateUtil.timeForUnix13()+"_"+StringUtil.getRandom09AZ(20);
+			File file = new File(TemplateTemporaryFolder.folderPath+fileName+".zip");
+			try {
+				multipartFile.transferTo(file);
+			} catch (IllegalStateException | IOException e1) {
+				e1.printStackTrace();
+				responseJson(response, BaseVO.FAILURE, e1.getMessage());
+				return;
+			}
+			
+			//将其解压到同文件夹中
+			try {
+				ZipUtil.unzip(TemplateTemporaryFolder.folderPath+fileName+".zip",TemplateTemporaryFolder.folderPath+fileName+"/");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			//既然已经解压出来了，那么删除掉zip文件
+			file.delete();
+			//判断一下解压出来的文件中，是否存在 template.wscso 这个模版文件
+			File wscsoFile = new File(TemplateTemporaryFolder.folderPath+fileName+"/template.wscso");
+			if(wscsoFile.exists()){
+				wscsoTemplateText = FileUtil.read(wscsoFile, FileUtil.UTF8);
+			}else{
+				//不存在，那就报错吧
+				responseJson(response, BaseVO.FAILURE, "template.wscso模版文件未发现！");
+				return;
+			}
+				
+			TemplateVO tvo = new TemplateVO();
+			//导入JSON，生成对象
+			tvo.importText(FileUtil.read(TemplateTemporaryFolder.folderPath+fileName+"/template.wscso", FileUtil.UTF8));
+			//v4.7版本以后，导出的都会有 tvo.template 对象
+			String templateName = tvo.getTemplate().getName();
+			//判断数据库中，是否已经有这个模版了
+			com.xnx3.wangmarket.admin.entity.Template template = sqlService.findAloneByProperty(com.xnx3.wangmarket.admin.entity.Template.class, "name", templateName);
+			if(template == null){
+				//为空，没有这个模版，这个是正常的，可以将模版资源文件导入
+				//将zip解压出来的文件，进行过滤，过滤掉不合法的后缀文件，将合法的文件后缀转移到新建立的模版文件夹中去
+				new TemplateUtil(templateName, new TemplateUtilFileMove() {
+					public void move(String path, InputStream inputStream) {
+						AttachmentFile.put(path, inputStream);
+					}
+				}).filterTemplateFile(new File(TemplateTemporaryFolder.folderPath+fileName+"/"));
+				//将这个模版模版信息记录入数据库
+				template = tvo.getTemplate();
+				template.setIscommon(com.xnx3.wangmarket.admin.entity.Template.ISCOMMON_NO); 	//用户自己导入的，默认是私有的，不加入公共模版库。除非通过模版中心来指定（模版中心属于授权版本）
+				template.setUserid(getUserId());
+				sqlService.save(template);
+				
+			}else{
+				//不为空，已经有这个模版了，那么就不可以导入资源文件，只导入 wscso 文件就可以了
+				System.out.println("已经有这个模版的资源文件了，忽略:"+template.getName());
+			}
+		}
+		
+		//将 wscso 模版文件导入
+		BaseVO vo = templateService.importTemplate(wscsoTemplateText, true, request);
+		if(vo.getResult() - BaseVO.SUCCESS == 0){
+			AliyunLog.addActionLog(getSiteId(), "本地导入模版文件成功！");
+		}else{
+			AliyunLog.addActionLog(getSiteId(), "本地导入模版文件失败！");
+		}
+		
+		responseJson(response, vo.getResult(), vo.getInfo());
+	}

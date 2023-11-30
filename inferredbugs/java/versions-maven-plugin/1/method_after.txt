@@ -1,0 +1,90 @@
+    public void execute()
+        throws MojoExecutionException, MojoFailureException
+    {
+
+        Set childModules = PomHelper.getAllChildModules( getProject(), getLog() );
+
+        PomHelper.removeMissingChildModules( getLog(), getProject(), childModules );
+
+        Iterator i = childModules.iterator();
+
+        MojoExecutionException pbe = null;
+
+        while ( i.hasNext() )
+        {
+            String modulePath = (String) i.next();
+
+            File moduleDir = new File( getProject().getBasedir(), modulePath );
+
+            File moduleProjectFile;
+
+            if ( moduleDir.isDirectory() )
+            {
+                moduleProjectFile = new File( moduleDir, "pom.xml" );
+            }
+            else
+            {
+                // i don't think this should ever happen... but just in case
+                // the module references the file-name
+                moduleProjectFile = moduleDir;
+            }
+
+            try
+            {
+                // the aim of this goal is to fix problems when the project cannot be parsed by Maven
+                // so we have to parse the file by hand!
+                StringBuffer childPom = readFile( moduleProjectFile );
+                ModifiedPomXMLEventReader pom = newModifiedPomXER( childPom );
+                Artifact parent = PomHelper.getProjectParent( pom, getHelper() );
+                if ( parent == null )
+                {
+                    getLog().info( "Module: " + modulePath + " does not have a parent" );
+                }
+                else if ( !getProject().getGroupId().equals( parent.getGroupId() )
+                    || !getProject().getArtifactId().equals( parent.getArtifactId() ) )
+                {
+                    getLog().info( "Module: " + modulePath + " does not use "
+                        + ArtifactUtils.versionlessKey( getProject().getArtifact() ) + " as its parent" );
+                }
+                else if ( getProject().getVersion().equals( parent.getVersion() ) )
+                {
+                    getLog().info( "Module: " + modulePath + " parent is "
+                        + ArtifactUtils.versionlessKey( getProject().getArtifact() ) + ":"
+                        + getProject().getVersion() );
+                }
+                else
+                {
+                    getLog().info( "Module: " + modulePath + " parent was "
+                        + ArtifactUtils.versionlessKey( getProject().getArtifact() ) + ":" + parent.getVersion()
+                        + ", now " + ArtifactUtils.versionlessKey( getProject().getArtifact() ) + ":"
+                        + getProject().getVersion() );
+                    process( moduleProjectFile );
+                }
+            }
+            catch ( XMLStreamException e )
+            {
+                getLog().debug( "Could not parse " + moduleProjectFile.getPath(), e );
+                if ( pbe == null )
+                {
+                    // save this until we get to the end.
+                    pbe = new MojoExecutionException( "Could not parse " + moduleProjectFile.getPath(), e );
+                }
+            }
+            catch ( IOException e )
+            {
+                getLog().debug( "Could not parse " + moduleProjectFile.getPath(), e );
+                if ( pbe == null )
+                {
+                    // save this until we get to the end.
+                    pbe = new MojoExecutionException( "Could not parse " + moduleProjectFile.getPath(), e );
+                }
+            }
+        }
+
+        if ( pbe != null )
+        {
+            // ok, now throw the first one to blow up.
+            throw pbe;
+        }
+
+    }

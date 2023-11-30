@@ -1,0 +1,21 @@
+    protected void processRequest(Request request) {
+        Page page = downloader.download(request, this);
+        if (page == null) {
+            sleep(site.getSleepTime());
+            onError(request);
+        }
+        // for cycle retry
+        if (page.isNeedCycleRetry()) {
+            extractAndAddRequests(page, true);
+            sleep(site.getSleepTime());
+            return;
+        }
+        pageProcessor.process(page);
+        extractAndAddRequests(page, spawnUrl);
+        if (!page.getResultItems().isSkip()) {
+            for (Pipeline pipeline : pipelines) {
+                pipeline.process(page.getResultItems(), this);
+            }
+        }
+        sleep(site.getSleepTime());
+    }

@@ -1,0 +1,41 @@
+    @Test
+    @SuppressWarnings("unchecked")
+    public void showsThatUserAlreadyHasMentor() throws IOException {
+        final Farm farm = new PropsFarm(new FkFarm());
+        final People people = new People(farm).bootstrap();
+        final String mentor = "yoda";
+        final String applicant = "luke";
+        people.touch(mentor);
+        people.touch(applicant);
+        people.invite(applicant, mentor, true);
+        MatcherAssert.assertThat(
+            new TkApp(farm).act(
+                new RqWithBody(
+                    new RqWithUser(
+                        farm,
+                        new RqFake("GET", "/join-post"),
+                        applicant
+                    ),
+                    "personality=INTJ-A&stackoverflow=187242"
+                )
+            ),
+            Matchers.allOf(
+                new HmRsStatus(HttpURLConnection.HTTP_SEE_OTHER),
+                new HmRsHeader("Location", "/join"),
+                new HmRsHeader(
+                    "Set-Cookie",
+                    Matchers.hasItems(
+                        Matchers.containsString(
+                            URLEncoder.encode(
+                                new FormattedText(
+                                    "You already have a mentor (@%s)",
+                                    mentor
+                                ).asString(),
+                                StandardCharsets.UTF_8.displayName()
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }

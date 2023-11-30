@@ -1,0 +1,163 @@
+   @Override
+			protected void sendSecureMessage(
+					final AsyncWrite msg,
+					final SecurityToken token,
+					final int requestId,
+					final int messageType,
+					final AtomicInteger sendSequenceNumber
+					)
+			{
+				assert(token!=null);
+				ByteBuffer chunks[], plaintexts[];
+				boolean concurrent;
+				try {
+					synchronized(msg) {
+						if (msg.isCanceled()) return;
+						msg.setQueued();
+					}
+					//Probably more efficient to check isTraceEnabled before executing ObjectUtils.printFieldsDeep
+					if (logger.isTraceEnabled())
+						logger.trace("sendSecureMessage: " + ObjectUtils.printFieldsDeep(msg.getMessage()));
+					SizeCalculationOutputStream calcBuf = new SizeCalculationOutputStream();
+					BinaryEncoder calc = new BinaryEncoder(calcBuf);
+					calc.setEncoderContext(encoderCtx);
+					calc.putMessage(msg.getMessage());
+					int len = calcBuf.getLength();
+
+					if (len>ctx.maxSendMessageSize && ctx.maxSendMessageSize!=0)
+						throw new ServiceResultException(StatusCodes.Bad_TcpMessageTooLarge);
+
+					SecurityPolicy policy = token.getSecurityPolicy();
+					MessageSecurityMode mode = token.getMessageSecurityMode();
+					SecurityAlgorithm symmEncryptAlgo = policy.getSymmetricEncryptionAlgorithm();
+					SecurityAlgorithm symmSignAlgo = policy.getSymmetricSignatureAlgorithm();
+					int cipherBlockSize = CryptoUtil.getCipherBlockSize(symmEncryptAlgo, null);
+					int signatureSize = CryptoUtil.getSignatureSize(symmSignAlgo, null);
+					int keySize = mode == MessageSecurityMode.SignAndEncrypt ? token.getRemoteEncryptingKey().length : 0;
+					int paddingSize = mode == MessageSecurityMode.SignAndEncrypt ? keySize > 2048 ? 2 : 1 : 0;
+
+					int maxPlaintextSize = ctx.maxSendChunkSize - 24 - paddingSize - signatureSize;
+					maxPlaintextSize -= (maxPlaintextSize + paddingSize + signatureSize + 8) % cipherBlockSize;
+					final int CORES = StackUtils.cores();
+
+					int optimalPayloadSize = (len+CORES-1) / CORES;
+					if (optimalPayloadSize > maxPlaintextSize)
+						optimalPayloadSize = maxPlaintextSize;
+					if (optimalPayloadSize < 4096)
+						optimalPayloadSize = 4096;
+					int optimalChunkSize = optimalPayloadSize + 24 + paddingSize + signatureSize;
+
+					ChunkFactory cf = new ChunkFactory(
+							optimalChunkSize,
+							8,
+							8,
+							8,
+							signatureSize,
+							cipherBlockSize,
+							mode,
+							keySize);
+
+					// Calculate chunk count
+					final int count = (len + cf.maxPlaintextSize-1) / cf.maxPlaintextSize;
+					if (count>ctx.maxSendChunkCount && ctx.maxSendChunkCount!=0)
+						throw new ServiceResultException(StatusCodes.Bad_TcpMessageTooLarge);
+					concurrent = (count > 1) && (CORES>0) && (mode != MessageSecurityMode.None);
+
+					// Allocate chunks
+					int bytesLeft = len;
+					plaintexts = new ByteBuffer[count];
+					chunks = new ByteBuffer[count];
+					for (int i=0; i<count; i++) {
+						plaintexts[i] = cf.allocate(bytesLeft);
+						chunks[i] = cf.expandToCompleteChunk(plaintexts[i]);
+						bytesLeft -= plaintexts[i].remaining();
+					}
+					assert(bytesLeft==0);
+
+					// Start write
+					synchronized(msg) {
+						if (msg.isCanceled()) return;
+						msg.setWriting();
+					}
+				} catch (ServiceResultException se) {
+					msg.setError(se);
+					return;
+				}
+				final ByteBuffer _chunks[] = chunks;
+				final ByteBuffer _plaintexts[] = plaintexts;
+				final int count = chunks.length;
+				final boolean parallel = concurrent;
+
+				int sequenceNumber = 0;
+				synchronized(this) {
+					sequenceNumber = sendSequenceNumber.getAndAdd(chunks.length);
+					startChunkSend(chunks);
+				}
+
+				// Add chunk headers
+				for (ByteBuffer chunk : chunks) {
+					boolean finalChunk = chunk == chunks[chunks.length-1];
+					chunk.rewind();
+					chunk.putInt( messageType | (finalChunk ? TcpMessageType.FINAL : TcpMessageType.CONTINUE) );
+					chunk.position(8);
+					chunk.putInt(token.getSecureChannelId());
+
+					// -- Security Header --
+					chunk.putInt(token.getTokenId());
+
+					// -- Sequence Header --
+					chunk.putInt(sequenceNumber++);
+					chunk.putInt(requestId);
+				}
+
+				// a Chunk-has-been-encoded handler
+				final AtomicInteger chunksComplete = new AtomicInteger();
+				ChunkListener completitionListener = new ChunkListener() {
+					@Override
+					public void onChunkComplete(ByteBuffer[] bufs, final int index) {
+						Runnable action = new Runnable() {
+							@Override
+							public void run() {
+								// Chunk contains message data, it needs to be encrypted and signed
+								//							try {
+								// Encrypt & sign
+								new ChunkSymmEncryptSigner(_chunks[index], _plaintexts[index], token).run();
+								_chunks[index].rewind();
+
+								// Write chunk
+								endChunkSend(_chunks[index]);
+
+								// All chunks are completed
+								if (chunksComplete.incrementAndGet()==count)
+									msg.setWritten();
+
+								//							} catch (ServiceResultException se) {
+								//								msg.setError(se);
+								//							}
+							}};
+							if (parallel && count>1) {
+								StackUtils.getNonBlockingWorkExecutor().execute(action);
+							} else {
+								action.run();
+							}
+					}
+				};
+
+				// Create encoder
+				ByteBufferArrayWriteable2 out = new ByteBufferArrayWriteable2(plaintexts, completitionListener);
+				out.order(ByteOrder.LITTLE_ENDIAN);
+
+				final BinaryEncoder enc = new BinaryEncoder(out);
+				enc.setEncoderContext(encoderCtx);
+
+				Runnable encoder = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							enc.putMessage(msg.getMessage());
+						} catch (ServiceResultException e) {
+							msg.setError( StackUtils.toServiceResultException(e) );
+						}
+					}};
+					StackUtils.getBlockingWorkExecutor().execute(encoder);
+			}

@@ -1,0 +1,218 @@
+ public static void main(String[] args) throws IOException, NoSuchAlgorithmException
+	{
+		String[] filteredArgs = filterEmptyArgs(args);
+		if (filteredArgs.length < 1)
+		{
+			youMustSpecifyACommandToRun();
+		}
+
+		Command command = Command.fromName(filteredArgs[0]);
+		if (command == null)
+		{
+			youMustSpecifyACommandToRun();
+		}
+
+		CommandLineParser cmdLineGnuParser = new DefaultParser();
+
+		Options options = constructOptions();
+		CommandLine commandLine;
+
+		boolean verbose = true;
+		CompareMode compareMode = CompareMode.FULL;
+		String message = "";
+		boolean useLastState = false;
+		int threadCount = Runtime.getRuntime().availableProcessors();
+		String fimRepositoryDirectory = null;
+		boolean alwaysYes = false;
+
+		try
+		{
+			String[] actionArgs = Arrays.copyOfRange(filteredArgs, 1, filteredArgs.length);
+			commandLine = cmdLineGnuParser.parse(options, actionArgs);
+			if (commandLine.hasOption("h"))
+			{
+				printUsage();
+				System.exit(0);
+			}
+			else
+			{
+				verbose = !commandLine.hasOption('q');
+				compareMode = commandLine.hasOption('f') ? CompareMode.FAST : CompareMode.FULL;
+				message = commandLine.getOptionValue('m', message);
+				threadCount = Integer.parseInt(commandLine.getOptionValue('t', "" + threadCount));
+				useLastState = commandLine.hasOption('l');
+				fimRepositoryDirectory = commandLine.getOptionValue('d');
+				alwaysYes = commandLine.hasOption('y');
+
+				if (command == Command.REMOVE_DUPLICATES && fimRepositoryDirectory == null)
+				{
+					System.out.println("The Fim repository directory must be provided");
+					printUsage();
+					System.exit(-1);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			printUsage();
+			System.exit(-1);
+		}
+
+		if (compareMode == CompareMode.FAST)
+		{
+			threadCount = 1;
+			System.out.println("Using fast compare mode. Thread count forced to 1");
+		}
+
+		if (threadCount < 1)
+		{
+			System.out.println("Thread count must be at least one");
+			System.exit(-1);
+		}
+
+		File baseDirectory = new File(".");
+		File stateDir = new File(StateGenerator.FIM_DIR, "states");
+
+		if (command == Command.INIT)
+		{
+			if (stateDir.exists())
+			{
+				System.out.println("fim repository already exist");
+				System.exit(0);
+			}
+		}
+		else
+		{
+			if (!stateDir.exists())
+			{
+				System.out.println("fim repository does not exist. Please run 'fim init' before.");
+				System.exit(-1);
+			}
+		}
+
+		State state;
+		State lastState;
+		State currentState;
+
+		StateGenerator generator = new StateGenerator(threadCount, compareMode);
+		StateManager manager = new StateManager(stateDir, compareMode);
+		StateComparator comparator = new StateComparator(compareMode);
+		DuplicateFinder finder = new DuplicateFinder();
+
+		switch (command)
+		{
+			case INIT:
+				fastCompareNotSupported(compareMode);
+
+				stateDir.mkdirs();
+				currentState = generator.generateState("Initial State", baseDirectory);
+				comparator.compare(null, currentState).displayChanges(verbose);
+				manager.createNewState(currentState);
+				break;
+
+			case COMMIT:
+				fastCompareNotSupported(compareMode);
+
+				lastState = manager.loadLastState();
+				currentState = generator.generateState(message, baseDirectory);
+				CompareResult result = comparator.compare(lastState, currentState).displayChanges(verbose);
+				if (result.somethingModified())
+				{
+					System.out.println("");
+					if (alwaysYes || confirmCommand("commit"))
+					{
+						manager.createNewState(currentState);
+					}
+					else
+					{
+						System.out.println("Nothing committed");
+					}
+				}
+				break;
+
+			case DIFF:
+				lastState = manager.loadLastState();
+				currentState = generator.generateState(message, baseDirectory);
+				comparator.compare(lastState, currentState).displayChanges(verbose);
+				break;
+
+			case FIND_DUPLICATES:
+				fastCompareNotSupported(compareMode);
+
+				System.out.println("Searching for duplicated files" + (useLastState ? " from the last committed State" : ""));
+				System.out.println("");
+				if (useLastState)
+				{
+					state = manager.loadLastState();
+				}
+				else
+				{
+					state = generator.generateState(message, baseDirectory);
+				}
+				finder.findDuplicates(state).displayDuplicates(verbose);
+				break;
+
+			case REMOVE_DUPLICATES:
+				fastCompareNotSupported(compareMode);
+
+				File repository = new File(fimRepositoryDirectory);
+				if (!repository.exists())
+				{
+					System.out.printf("Directory %s does not exist%n", fimRepositoryDirectory);
+					System.exit(-1);
+				}
+
+				if (repository.getCanonicalPath().equals(baseDirectory.getCanonicalPath()))
+				{
+					System.out.printf("Cannot remove duplicates from the current directory%n");
+					System.exit(-1);
+				}
+
+				File fimDir = new File(repository, StateGenerator.FIM_DIR);
+				if (!fimDir.exists())
+				{
+					System.out.printf("Directory %s is not a Fim repository%n", fimRepositoryDirectory);
+					System.exit(-1);
+				}
+
+				System.out.println("Searching for duplicated files using the " + fimRepositoryDirectory + " directory as master");
+				System.out.println("");
+
+				File otherStateDir = new File(fimDir, "states");
+				StateManager otherManager = new StateManager(otherStateDir, CompareMode.FULL);
+				State otherState = otherManager.loadLastState();
+				Map<String, FileState> otherHashes = new HashMap<>();
+				for (FileState otherFileState : otherState.getFileStates())
+				{
+					otherHashes.put(otherFileState.getHash(), otherFileState);
+				}
+
+				State localState = generator.generateState(message, baseDirectory);
+				for (FileState localFileState : localState.getFileStates())
+				{
+					FileState otherFileState = otherHashes.get(localFileState.getHash());
+					if (otherFileState != null)
+					{
+						System.out.printf("%s is a duplicate of %s/%s%n", localFileState.getFileName(), fimRepositoryDirectory, otherFileState.getFileName());
+						if (alwaysYes || confirmCommand("remove it"))
+						{
+							System.out.printf("  %s removed%n", localFileState.getFileName());
+							File localFile = new File(localFileState.getFileName());
+							localFile.delete();
+						}
+					}
+				}
+				break;
+
+			case RESET_DATES:
+				fastCompareNotSupported(compareMode);
+
+				lastState = manager.loadLastState();
+				manager.resetDates(lastState);
+				break;
+
+			case LOG:
+				manager.displayStatesLog();
+				break;
+		}
+	}

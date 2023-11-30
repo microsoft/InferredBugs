@@ -1,0 +1,24 @@
+ @Override
+	public void encodeChildren(FacesContext context) throws IOException {
+		if (!TRUE.equals(getApplicationAttribute(context, Socket.class.getName()))) {
+			throw new IllegalStateException(ERROR_ENDPOINT_NOT_ENABLED);
+		}
+
+		if (SocketFacesListener.register(context, this)) {
+			String channel = getChannel();
+
+			if (channel == null || !PATTERN_CHANNEL.matcher(channel).matches()) {
+				throw new IllegalArgumentException(format(ERROR_INVALID_CHANNEL, channel));
+			}
+
+			Integer port = getPort();
+			String host = (port != null ? ":" + port : "") + getRequestContextPath(context);
+			String channelId = getReference(SocketChannelManager.class).register(channel, getScope(), getUser());
+			String functions = getOnopen() + "," + getOnmessage() + "," + getOnclose();
+			String behaviors = getBehaviorScripts();
+			boolean connected = isConnected();
+
+			String script = format(SCRIPT_INIT, host, channelId, functions, behaviors, connected);
+			context.getResponseWriter().write(script);
+		}
+	}

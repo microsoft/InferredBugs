@@ -1,0 +1,36 @@
+    @Override
+    public synchronized LongValue acquireValueFor(CharSequence key) {
+        StringBuilder sb = Wires.acquireStringBuilder();
+        mappedBytes.reserve();
+        try {
+            mappedBytes.readPosition(0);
+            mappedBytes.readLimit(mappedBytes.realCapacity());
+            while (mappedWire.readDataHeader()) {
+                int header = mappedBytes.readInt();
+                if (Wires.isNotComplete(header))
+                    break;
+                long readPosition = mappedBytes.readPosition();
+                int length = Wires.lengthOf(header);
+                ValueIn valueIn = mappedWire.readEventName(sb);
+                if (StringUtils.equalsCaseIgnore(key, sb)) {
+                    return valueIn.int64ForBinding(null);
+                }
+                mappedBytes.readPosition(readPosition + length);
+            }
+            // not found
+            int safeLength = Maths.toUInt31(mappedBytes.realCapacity() - mappedBytes.readPosition());
+            mappedBytes.writeLimit(mappedBytes.realCapacity());
+            mappedBytes.writePosition(mappedBytes.readPosition());
+            long pos = recovery.writeHeader(mappedWire, Wires.UNKNOWN_LENGTH, safeLength, 10_000, null);
+            LongValue longValue = wireType.newLongReference().get();
+            mappedWire.writeEventName(key).int64forBinding(Long.MIN_VALUE, longValue);
+            mappedWire.updateHeader(pos, false);
+            return longValue;
+
+        } catch (StreamCorruptedException | EOFException e) {
+            throw new IORuntimeException(e);
+
+        } finally {
+            mappedBytes.release();
+        }
+    }

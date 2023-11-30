@@ -1,0 +1,15 @@
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testMutation() throws IOException, InterruptedException {
+    when(mockClient.mutateRowAsync(any(MutateRowRequest.class)))
+        .thenReturn(mockFuture);
+    BigtableBufferedMutator underTest = createMutator(new Configuration(false));
+    underTest.mutate(SIMPLE_PUT);
+    Assert.assertTrue(underTest.hasInflightRequests());
+    // Leave some time for the async worker to handle the request.
+    Thread.sleep(100);
+    verify(mockClient, times(1)).mutateRowAsync(any(MutateRowRequest.class));
+    Assert.assertTrue(underTest.hasInflightRequests());
+    completeCall();
+    Assert.assertFalse(underTest.hasInflightRequests());
+  }

@@ -1,0 +1,19 @@
+    @Override
+    public void buildVariablesFor(AbstractBuild build, Map<String, String> variables) {
+        final Executor executor = build.getExecutor();
+        if (executor != null && executor.getOwner() instanceof DockerComputer) {
+            final DockerComputer dockerComputer = (DockerComputer) executor.getOwner();
+            variables.put("DOCKER_CONTAINER_ID", dockerComputer.getContainerId());
+            variables.put("JENKINS_CLOUD_ID", dockerComputer.getCloudId());
+
+            final DockerCloud cloud = dockerComputer.getCloud();
+            if (cloud != null && cloud.isExposeDockerHost()) {
+                //replace http:// and https:// from docker-java to tcp://
+                String dockerHost = cloud.getDockerHost().getUri();
+                if (dockerHost.startsWith("unix:")) {
+                    dockerHost = "tcp:" + dockerHost.substring(5);
+                }
+                variables.put("DOCKER_HOST", dockerHost);
+            }
+        }
+    }

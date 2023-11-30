@@ -1,0 +1,35 @@
+    public void joinBranches(@Param(ScoreLangConstants.RUN_ENV) RunEnvironment runEnv,
+                             @Param(EXECUTION_RUNTIME_SERVICES) ExecutionRuntimeServices executionRuntimeServices,
+                             @Param(ScoreLangConstants.TASK_AGGREGATE_KEY) List<Output> taskAggregateValues,
+                             @Param(ScoreLangConstants.TASK_NAVIGATION_KEY) Map<String, ResultNavigation> taskNavigationValues,
+                             @Param(ScoreLangConstants.NODE_NAME_KEY) String nodeName) {
+        try {
+            List<Map<String, Serializable>> branchesContext = Lists.newArrayList();
+            Context flowContext = runEnv.getStack().popContext();
+            Map<String, Serializable> contextBeforeSplit = flowContext.getImmutableViewOfVariables();
+            List<String> branchesResult = Lists.newArrayList();
+
+            collectBranchesData(runEnv, executionRuntimeServices, nodeName, branchesContext, branchesResult);
+
+            Map<String, Serializable> publishValues =
+                    bindAggregateOutputs(
+                            runEnv,
+                            executionRuntimeServices,
+                            taskAggregateValues,
+                            (Serializable) taskNavigationValues,
+                            nodeName, (Serializable) branchesContext,
+                            contextBeforeSplit
+                    );
+
+            flowContext.putVariables(publishValues);
+
+            String asyncLoopResult = getAsyncLoopResult(branchesResult);
+
+            handleNavigationAndReturnValues(runEnv, executionRuntimeServices, taskNavigationValues, nodeName, publishValues, asyncLoopResult);
+
+            runEnv.getStack().pushContext(flowContext);
+        } catch (RuntimeException e) {
+            logger.error("There was an error running the end task execution step of: \'" + nodeName + "\'. Error is: " + e.getMessage());
+            throw new RuntimeException("Error running: \'" + nodeName + "\': " + e.getMessage(), e);
+        }
+    }

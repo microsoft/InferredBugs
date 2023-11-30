@@ -1,0 +1,82 @@
+    @Override
+    public void execute(Tuple input) {
+
+        // main thread in charge of acking and failing
+        // see
+        // https://github.com/nathanmarz/storm/wiki/Troubleshooting#nullpointerexception-from-deep-inside-storm
+
+        int acked = 0;
+        int failed = 0;
+        int emitted = 0;
+
+        // emit with or without anchors
+        // before acking
+        synchronized (emitQueue) {
+            for (Object[] toemit : this.emitQueue) {
+                String streamID = (String) toemit[0];
+                Tuple anchor = (Tuple) toemit[1];
+                Values vals = (Values) toemit[2];
+                if (anchor == null)
+                    _collector.emit(streamID, vals);
+                else
+                    _collector.emit(streamID, Arrays.asList(anchor), vals);
+            }
+            emitted = emitQueue.size();
+            emitQueue.clear();
+        }
+
+        // have a tick tuple to make sure we don't get starved
+        synchronized (ackQueue) {
+            for (Tuple toack : this.ackQueue) {
+                _collector.ack(toack);
+            }
+            acked = ackQueue.size();
+            ackQueue.clear();
+        }
+
+        synchronized (failQueue) {
+            for (Tuple toack : this.failQueue) {
+                _collector.fail(toack);
+            }
+            failed = failQueue.size();
+            failQueue.clear();
+        }
+
+        if (acked + failed + emitted > 0)
+            LOG.info("[Fetcher #" + taskIndex + "] Acked : " + acked
+                    + "\tFailed : " + failed + "\tEmitted : " + emitted);
+
+        if (isTickTuple(input)) {
+            _collector.ack(input);
+            return;
+        }
+
+        CountMetric metric = metricGauge.scope("activethreads");
+        metric.getValueAndReset();
+        metric.incrBy(this.activeThreads.get());
+
+        metric = metricGauge.scope("in queues");
+        metric.getValueAndReset();
+        metric.incrBy(this.fetchQueues.inQueues.get());
+
+        metric = metricGauge.scope("queues");
+        metric.getValueAndReset();
+        metric.incrBy(this.fetchQueues.queues.size());
+
+        LOG.info("[Fetcher #" + taskIndex + "] Threads : "
+                + this.activeThreads.get() + "\tqueues : "
+                + this.fetchQueues.queues.size() + "\tin_queues : "
+                + this.fetchQueues.inQueues.get());
+
+        String url = input.getStringByField("url");
+        // check whether this tuple has a url field
+        if (url == null) {
+            LOG.info("[Fetcher #" + taskIndex
+                    + "] Missing url field for tuple " + input);
+            // ignore silently
+            _collector.ack(input);
+            return;
+        }
+
+        fetchQueues.addFetchItem(input);
+    }

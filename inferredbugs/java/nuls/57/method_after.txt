@@ -1,0 +1,73 @@
+    @Override
+    @DbSession
+    public void save(CoinData coinData, Transaction tx) throws NulsException {
+        UtxoData utxoData = (UtxoData) coinData;
+
+        List<UtxoInputPo> inputPoList = new ArrayList<>();
+        List<UtxoOutput> spends = new ArrayList<>();
+        List<UtxoOutputPo> spendPoList = new ArrayList<>();
+        List<TxAccountRelationPo> txRelations = new ArrayList<>();
+        Set<String> addressSet = new HashSet<>();
+        lock.lock();
+        try {
+            processDataInput(utxoData, inputPoList, spends, spendPoList, addressSet);
+
+            List<UtxoOutputPo> outputPoList = new ArrayList<>();
+            for (int i = 0; i < utxoData.getOutputs().size(); i++) {
+                UtxoOutput output = utxoData.getOutputs().get(i);
+                output = ledgerCacheService.getUtxo(output.getKey());
+                if (output == null) {
+                    throw new NulsRuntimeException(ErrorCode.DATA_NOT_FOUND);
+                }
+                if (output.isConfirm() || OutPutStatusEnum.UTXO_SPENT == output.getStatus()) {
+                    Log.error("-----------------------------------save() output status is" + output.getStatus().name());
+                    throw new NulsRuntimeException(ErrorCode.DATA_ERROR, "use a not legal utxo");
+                }
+
+                if (OutPutStatusEnum.UTXO_UNCONFIRM_CONSENSUS_LOCK == output.getStatus()) {
+                    output.setStatus(OutPutStatusEnum.UTXO_CONFIRM_CONSENSUS_LOCK);
+                } else if (OutPutStatusEnum.UTXO_UNCONFIRM_TIME_LOCK == output.getStatus()) {
+                    output.setStatus(OutPutStatusEnum.UTXO_CONFIRM_TIME_LOCK);
+                } else if (OutPutStatusEnum.UTXO_UNCONFIRM_UNSPEND == output.getStatus()) {
+                    output.setStatus(OutPutStatusEnum.UTXO_CONFIRM_UNSPEND);
+                } else if (OutPutStatusEnum.UTXO_UNCONFIRM_SPEND == output.getStatus()) {
+                    output.setStatus(OutPutStatusEnum.UTXO_CONFIRM_SPEND);
+                }
+
+                UtxoOutputPo outputPo = UtxoTransferTool.toOutputPojo(output);
+                outputPoList.add(outputPo);
+                addressSet.add(Address.fromHashs(output.getAddress()).getBase58());
+            }
+
+            for (String address : addressSet) {
+                TxAccountRelationPo relationPo = new TxAccountRelationPo(tx.getHash().getDigestHex(), address);
+                txRelations.add(relationPo);
+            }
+
+            outputDataService.updateStatus(spendPoList);
+
+            inputDataService.save(inputPoList);
+
+            outputDataService.save(outputPoList);
+
+            relationDataService.save(txRelations);
+
+            afterSaveDatabase(spends, utxoData, tx);
+
+            for (String address : addressSet) {
+                UtxoTransactionTool.getInstance().calcBalance(address, true);
+            }
+        } catch (Exception e) {
+            //rollback
+//            Log.warn(e.getMessage(), e);
+//            for (UtxoOutput output : utxoData.getOutputs()) {
+//                ledgerCacheService.removeUtxo(output.getKey());
+//            }
+//            for (UtxoOutput spend : spends) {
+//                ledgerCacheService.updateUtxoStatus(spend.getKey(), UtxoOutput.UTXO_CONFIRM_LOCK, UtxoOutput.UTXO_SPENT);
+//            }
+            throw e;
+        } finally {
+            lock.unlock();
+        }
+    }

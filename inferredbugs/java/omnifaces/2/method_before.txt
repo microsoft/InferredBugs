@@ -1,0 +1,31 @@
+ @Override
+	public void processAction(ActionEvent event) throws AbortProcessingException {
+		FacesContext context = FacesContext.getCurrentInstance();
+		PartialViewContext partialViewContext = context.getPartialViewContext();
+
+		if (partialViewContext.isAjaxRequest()) {
+			Collection<String> renderIds = getRenderIds(partialViewContext);
+			Collection<String> executeIds = partialViewContext.getExecuteIds();
+
+			if (!renderIds.isEmpty() && !renderIds.containsAll(executeIds)) {
+				final Set<EditableValueHolder> inputs = new HashSet<EditableValueHolder>();
+
+				// First find all to be rendered inputs in the current view and add them to the set.
+				findAndAddEditableValueHolders(VisitContext.createVisitContext(
+					context, renderIds, VISIT_HINTS), context.getViewRoot(), inputs);
+
+				// Then find all executed inputs in the current form and remove them from the set.
+				findAndRemoveEditableValueHolders(VisitContext.createVisitContext(
+					context, executeIds, VISIT_HINTS), Components.getCurrentForm(), inputs);
+
+				// The set now contains inputs which are to be rendered, but which are not been executed. Reset them.
+				for (EditableValueHolder input : inputs) {
+					input.resetValue();
+				}
+			}
+		}
+
+		if (wrapped != null && event != null) {
+			wrapped.processAction(event);
+		}
+	}

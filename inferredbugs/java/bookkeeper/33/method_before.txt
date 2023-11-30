@@ -1,0 +1,43 @@
+    @Test
+    public void testReadWriteZero() throws IOException {
+        try {
+            // Create a ledger
+            lh = bkc.createLedger(digestType, ledgerPassword);
+            // bkc.initMessageDigest("SHA1");
+            ledgerId = lh.getId();
+            LOG.info("Ledger ID: " + lh.getId());
+            for (int i = 0; i < numEntriesToWrite; i++) {
+                lh.addEntry(new byte[0]);
+            }
+
+            /*
+             * Write a non-zero entry
+             */
+            ByteBuffer entry = ByteBuffer.allocate(4);
+            entry.putInt(rng.nextInt(maxInt));
+            entry.position(0);
+            entries.add(entry.array());
+            lh.addEntry(entry.array());
+
+            lh.close();
+            lh = bkc.openLedger(ledgerId, digestType, ledgerPassword);
+            LOG.debug("Number of entries written: " + lh.getLastAddConfirmed());
+            assertTrue("Verifying number of entries written", lh.getLastAddConfirmed() == numEntriesToWrite);
+
+            ls = lh.readEntries(0, numEntriesToWrite - 1);
+            int i = 0;
+            while (ls.hasMoreElements()) {
+                ByteBuffer result = ByteBuffer.wrap(ls.nextElement().getEntry());
+                LOG.debug("Length of result: " + result.capacity());
+
+                assertTrue("Checking if entry " + i + " has zero bytes", result.capacity() == 0);
+            }
+            lh.close();
+        } catch (BKException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to BookKeeper exception");
+        } catch (InterruptedException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to interruption");
+        }
+    }

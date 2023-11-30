@@ -1,0 +1,24 @@
+  public void send(PeerMessage message) throws IllegalStateException {
+    logger.trace("Sending msg {} to {}", message.getType(), this);
+    if (this.isConnected()) {
+      ByteBuffer data = message.getData();
+      data.rewind();
+      boolean writeTaskAdded = connectionManager.offerWrite(new WriteTask(socketChannel, data, new WriteListener() {
+        @Override
+        public void onWriteFailed(String message, Throwable e) {
+          logger.debug(message, e);
+          unbind(true);
+        }
+
+        @Override
+        public void onWriteDone() {
+        }
+      }), 1, TimeUnit.SECONDS);
+      if (!writeTaskAdded) {
+        unbind(true);
+      }
+    } else {
+      logger.info("Attempting to send a message to non-connected peer {}!", this);
+      unbind(true);
+    }
+  }

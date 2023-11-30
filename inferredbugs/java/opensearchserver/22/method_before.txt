@@ -1,0 +1,26 @@
+ @Override
+	protected void doRequest(ServletTransaction transaction)
+			throws ServletException {
+		try {
+			HttpServletRequest request = transaction.getServletRequest();
+			Client client = ClientCatalog
+					.getClient(request.getParameter("use"));
+			String report = request.getParameter("report");
+			String emails = request.getParameter("emails");
+			if (emails == null)
+				return;
+			HtmlEmail htmlEmail = client.getMailer().getHtmlEmail(emails, null);
+			StringWriter sw = new StringWriter();
+			PrintWriter pw = new PrintWriter(sw);
+			if ("statistics".equals(report)) {
+				htmlEmail.setSubject("OpenSearchServer statistics report");
+				doStatistics(client, request.getParameter("stat"), request
+						.getParameter("period"), pw);
+			}
+			htmlEmail.setHtmlMsg(sw.toString());
+			htmlEmail.send();
+			transaction.addXmlResponse("MailSent", emails);
+		} catch (Exception e) {
+			throw new ServletException(e);
+		}
+	}

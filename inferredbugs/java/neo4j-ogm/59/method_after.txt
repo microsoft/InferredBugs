@@ -1,0 +1,20 @@
+    public <T> Collection<T> loadAll(Collection<T> objects, SortOrder sortOrder, Pagination pagination, int depth) {
+
+        if (objects == null || objects.isEmpty()) {
+            return objects;
+        }
+
+        ClassInfo commonClassInfo = findCommonClassInfo(objects);
+
+        Set<Serializable> ids = new LinkedHashSet<>();
+        for (Object o : objects) {
+            FieldInfo idField;
+            if (commonClassInfo.hasPrimaryIndexField()) {
+                idField = commonClassInfo.primaryIndexField();
+            } else {
+                idField = commonClassInfo.identityField();
+            }
+            ids.add((Serializable) idField.readProperty(o));
+        }
+        return session.loadAll((Class<T>) commonClassInfo.getUnderlyingClass(), ids, sortOrder, pagination, depth);
+    }

@@ -1,0 +1,35 @@
+    @Override
+    public void onEvent(BlockEvent event, String fromId) {
+        Block block = event.getEventBody();
+        if (null == block) {
+            Log.warn("recieved a null blockEvent form " + fromId);
+            return;
+        }
+        //BlockLog.debug("download("+fromId+") block height:" + block.getHeader().getHeight() + ", preHash:" + block.getHeader().getPreHash() + " , hash:" + block.getHeader().getHash() + ", address:" + block.getHeader().getPackingAddress());
+//        if (BlockBatchDownloadUtils.getInstance().downloadedBlock(fromId, block)) {
+//            return;
+//        }
+
+        //blockCacheManager.addBlock(block, true, fromId);
+        for (Transaction tx : block.getTxs()) {
+            Transaction cachedTx = ConfirmingTxCacheManager.getInstance().getTx(tx.getHash());
+            if (null == cachedTx) {
+                cachedTx = ReceivedTxCacheManager.getInstance().getTx(tx.getHash());
+            }
+            if (null == cachedTx) {
+                cachedTx = OrphanTxCacheManager.getInstance().getTx(tx.getHash());
+            }
+            if (cachedTx != null && cachedTx.getStatus() != tx.getStatus()) {
+                tx.setStatus(cachedTx.getStatus());
+                if(!(tx instanceof AbstractCoinTransaction)){
+                    continue;
+                }
+                AbstractCoinTransaction coinTx = (AbstractCoinTransaction) tx;
+                AbstractCoinTransaction cachedCoinTx = (AbstractCoinTransaction) cachedTx;
+                coinTx.setCoinData(cachedCoinTx.getCoinData());
+//                Log.error("the transaction status is wrong!");
+            }
+        }
+        DownloadCacheHandler.receiveBlock(block);
+
+    }

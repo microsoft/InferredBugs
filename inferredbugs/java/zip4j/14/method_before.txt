@@ -1,0 +1,50 @@
+  @Override
+  protected void executeTask(RenameFilesTaskParameters taskParameters, ProgressMonitor progressMonitor) throws IOException {
+    Map<String, String> fileNamesMap = filterNonExistingEntriesAndAddSeparatorIfNeeded(taskParameters.fileNamesMap);
+    if (fileNamesMap.size() == 0) {
+      return;
+    }
+
+    File temporaryFile = getTemporaryFile(zipModel.getZipFile().getPath());
+    boolean successFlag = false;
+    try(RandomAccessFile inputStream = new RandomAccessFile(zipModel.getZipFile(), RandomAccessFileMode.WRITE.getValue());
+        CountingOutputStream outputStream = new CountingOutputStream(new SplitOutputStream(temporaryFile))) {
+
+      long currentFileCopyPointer = 0;
+
+      // Maintain a different list to iterate, so that when the file name is changed in the central directory
+      // we still have access to the original file names. If iterating on the original list from central directory,
+      // it might be that a file name has changed because of other file name, ex: if a directory name has to be changed
+      // and the file is part of that directory, by the time the file has to be changed, its name might have changed
+      // when changing the name of the directory. There is some overhead with this approach, but is safer.
+      List<FileHeader> allUnchangedFileHeaders = new ArrayList<>(zipModel.getCentralDirectory().getFileHeaders());
+
+      for (FileHeader fileHeader : allUnchangedFileHeaders) {
+        Map.Entry<String, String> fileNameMapForThisEntry = getCorrespondingEntryFromMap(fileHeader, fileNamesMap);
+        progressMonitor.setFileName(fileHeader.getFileName());
+
+        long lengthToCopy = HeaderUtil.getOffsetOfNextEntry(zipModel, fileHeader) - outputStream.getFilePointer();
+        if (fileNameMapForThisEntry == null) {
+          // copy complete entry without any changes
+          currentFileCopyPointer += copyFile(inputStream, outputStream, currentFileCopyPointer, lengthToCopy, progressMonitor);
+        } else {
+          String newFileName = getNewFileName(fileNameMapForThisEntry.getValue(), fileNameMapForThisEntry.getKey(), fileHeader.getFileName());
+          byte[] newFileNameBytes = newFileName.getBytes(charset);
+          int headersOffset = newFileNameBytes.length - fileHeader.getFileNameLength();
+
+          currentFileCopyPointer = copyEntryAndChangeFileName(newFileNameBytes, fileHeader, currentFileCopyPointer, lengthToCopy,
+              inputStream, outputStream, progressMonitor);
+
+          updateHeadersInZipModel(fileHeader, newFileName, newFileNameBytes, headersOffset);
+        }
+
+        verifyIfTaskIsCancelled();
+      }
+
+      headerWriter.finalizeZipFile(zipModel, outputStream, charset);
+      successFlag = true;
+    } finally {
+      cleanupFile(successFlag, zipModel.getZipFile(), temporaryFile);
+    }
+
+  }

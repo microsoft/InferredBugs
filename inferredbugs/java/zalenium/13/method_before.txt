@@ -1,0 +1,21 @@
+    public void executeCommand(String containerId, String[] command, boolean waitForExecution) {
+        try {
+            List<Task> tasks = dockerClient.listTasks();
+
+            pullSwarmExecImage();
+
+            for (Task task : CollectionUtils.emptyIfNull(tasks)) {
+                ContainerStatus containerStatus = task.status().containerStatus();
+
+                if (containerStatus != null && containerStatus.containerId().equals(containerId)) {
+                    startSwarmExecContainer(task, command, containerId);
+                    return;
+                }
+            }
+        } catch (DockerException | InterruptedException e) {
+            logger.warn("Error while executing comman on container {}", containerId);
+            ga.trackException(e);
+        }
+
+        logger.warn("Couldn't execute command on container {}", containerId);
+    }

@@ -1,0 +1,25 @@
+    @Override
+    public EntityAccess getPropertyWriter(final ClassInfo classInfo, String propertyName) {
+        if(propertyWriterCache.get(classInfo) == null) {
+            propertyWriterCache.put(classInfo,new HashMap<String, EntityAccess>());
+        }
+        EntityAccess writer = propertyWriterCache.get(classInfo).get(propertyName);
+        if(writer != null) {
+            return writer;
+        }
+
+        MethodInfo setterInfo = classInfo.propertySetter(propertyName);
+        EntityAccess propertyWriter = determinePropertyAccessor(classInfo, propertyName, setterInfo, new AccessorFactory<EntityAccess>() {
+            @Override
+            public EntityAccess makeMethodAccessor(MethodInfo methodInfo) {
+                return new MethodWriter(classInfo, methodInfo);
+            }
+
+            @Override
+            public EntityAccess makeFieldAccessor(FieldInfo fieldInfo) {
+                return new FieldWriter(classInfo, fieldInfo);
+            }
+        });
+        propertyWriterCache.get(classInfo).put(propertyName, propertyWriter);
+        return propertyWriter;
+    }

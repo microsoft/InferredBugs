@@ -1,0 +1,37 @@
+    @Autowired(type = PandaTypes.TYPES_LABEL)
+    @AutowiredParameters(skip = 3, value = {
+            @Type(with = Src.class, value = "return"),
+            @Type(with = Src.class, value = "name"),
+            @Type(with = Src.class, value = "*parameters")
+    })
+    boolean parse(ParserData data, LocalData local, ExtractorResult result, Tokens type, String method, Tokens parametersSource) {
+        MethodVisibility visibility = MethodVisibility.PUBLIC;
+        boolean isStatic = result.getIdentifiers().contains("static");
+
+        ModuleLoader registry = data.getComponent(PandaComponents.PANDA_SCRIPT).getModuleLoader();
+        ClassPrototypeReference returnType = registry.forClass(type.asString());
+
+        ParameterParser parameterParser = new ParameterParser();
+        List<Parameter> parameters = parameterParser.parse(data, parametersSource);
+        ClassPrototypeReference[] parameterTypes = ParameterUtils.toTypes(parameters);
+
+        MethodScope methodScope = local.allocateInstance(new MethodScope(method, parameters));
+        ParameterUtils.addAll(methodScope.getVariables(), parameters, 0);
+        data.setComponent(PandaComponents.SCOPE, methodScope);
+
+        ClassPrototype prototype = data.getComponent(ClassPrototypeComponents.CLASS_PROTOTYPE);
+        ClassPrototypeScope classScope = data.getComponent(ClassPrototypeComponents.CLASS_SCOPE);
+
+        PrototypeMethod prototypeMethod = PandaMethod.builder()
+                .prototype(prototype.getReference())
+                .parameterTypes(parameterTypes)
+                .methodName(method)
+                .visibility(visibility)
+                .returnType(returnType)
+                .isStatic(isStatic)
+                .methodBody(new PandaMethodCallback(methodScope))
+                .build();
+
+        prototype.getMethods().registerMethod(prototypeMethod);
+        return true;
+    }

@@ -1,0 +1,29 @@
+    @Test
+    public void testValuesInFlow() throws Exception {
+        // compile
+        URI resource = getClass().getResource("/yaml/formats/values_flow.sl").toURI();
+        URI operation = getClass().getResource("/yaml/formats/values_op.sl").toURI();
+
+        SlangSource dep = SlangSource.fromFile(operation);
+        Set<SlangSource> path = Sets.newHashSet(dep);
+        CompilationArtifact compilationArtifact = slang.compile(SlangSource.fromFile(resource), path);
+
+        // trigger
+        Map<String, Serializable> userInputs = new HashMap<>();
+        userInputs.put("input_no_expression", "input_no_expression_value");
+        userInputs.put("input_overridable", "i_should_not_be_assigned");
+        Map<String, Serializable> systemProperties = new HashMap<>();
+        systemProperties.put("user.sys.props.host", "localhost");
+
+        Map<String, StepData> steps = triggerWithData(compilationArtifact, userInputs, systemProperties).getTasks();
+
+        // verify
+        StepData flowData = steps.get(EXEC_START_PATH);
+        StepData taskData = steps.get(FIRST_STEP_PATH);
+
+        verifyFlowInputs(flowData);
+        verifyFlowOutputs(flowData);
+        verifyTaskInputs(taskData);
+        verifyTaskPublishValues(taskData);
+        verifyExecutableResult(flowData);
+    }

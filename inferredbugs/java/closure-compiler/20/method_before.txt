@@ -1,0 +1,26 @@
+  private void outputManifest() throws IOException {
+    String outputManifest = config.outputManifest;
+    if (Strings.isEmpty(outputManifest)) {
+      return;
+    }
+
+    JSModuleGraph graph = compiler.getModuleGraph();
+    if (shouldGenerateManifestPerModule()) {
+      // Generate per-module manifests.
+      Iterable<JSModule> modules = graph.getAllModules();
+      for (JSModule module : modules) {
+        Writer out = fileNameToOutputWriter(expandManifest(module));
+        printManifestTo(module.getInputs(), out);
+        out.close();
+      }
+    } else {
+      // Generate a single file manifest.
+      Writer out = fileNameToOutputWriter(expandManifest(null));
+      if (graph == null) {
+        printManifestTo(compiler.getInputsInOrder(), out);
+      } else {
+        printModuleGraphManifestTo(graph, out);
+      }
+      out.close();
+    }
+  }

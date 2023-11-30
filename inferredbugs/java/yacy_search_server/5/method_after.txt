@@ -1,0 +1,44 @@
+    public void run() {
+	serverLog.logSystem("PLASMA INDEXING", "started word cache management");
+	int check;
+	// permanently flush cache elements
+        while (!(terminate)) {
+	    if (hashScore.size() < 100) try {Thread.currentThread().sleep(10000);} catch (InterruptedException e) {}
+            while ((!(terminate)) && (cache != null) && (hashScore.size() > 0)) try {
+		check = hashScore.size();
+		flushSpecific(false);
+		//serverLog.logDebug("PLASMA INDEXING", "single flush. bevore=" + check + "; after=" + hashScore.size());
+                try {Thread.currentThread().sleep(10 + ((maxWords / 10) / (1 + hashScore.size())));} catch (InterruptedException e) {}
+            } catch (IOException e) {
+		serverLog.logError("PLASMA INDEXING", "PANIK! exception in main cache loop: " + e.getMessage());
+                e.printStackTrace();
+		terminate = true;
+                cache = null;
+	    }
+	}
+
+	serverLog.logSystem("PLASMA INDEXING", "CATCHED TERMINATION SIGNAL: start final flush");
+
+        // close all;
+	try {
+	    // first flush everything
+	    while ((hashScore.size() > 0) && (System.currentTimeMillis() < terminateUntil)) {
+                flushSpecific(false);
+            }
+
+	    // then close file cache:
+	    pic.close();
+	} catch (IOException e) {
+	    serverLog.logDebug("PLASMA INDEXING", "interrupted final flush: " + e.toString());
+	}
+        // report
+        if (hashScore.size() == 0)
+            serverLog.logSystem("PLASMA INDEXING", "finished final flush; flushed all words");
+        else
+            serverLog.logError("PLASMA INDEXING", "terminated final flush; " + hashScore.size() + " words lost");
+
+	// delete data
+	cache = null;
+	hashScore = null;
+	
+    }

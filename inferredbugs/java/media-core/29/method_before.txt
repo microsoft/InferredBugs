@@ -1,0 +1,36 @@
+    @Override
+    public String open(String sdp) throws MgcpConnectionException {
+        synchronized (this.stateLock) {
+            switch (this.state) {
+                case CLOSED:
+                case HALF_OPEN:
+                    // Update state
+                    this.state = MgcpConnectionState.OPEN;
+
+                    // Parse remote SDP
+                    try {
+                        this.remoteSdp = SessionDescriptionParser.parse(sdp);
+                    } catch (SdpException e) {
+                        throw new MgcpConnectionException(e.getMessage(), e);
+                    }
+
+                    // Open connection
+                    openConnection();
+                    
+                    if(log.isDebugEnabled()) {
+                        log.debug("Connection " + getHexIdentifier() + " state is " + this.state.name());
+                    }
+                    
+                    // Submit timer
+                    if (this.timeout > 0) {
+                        expireIn(this.timeout);
+                    }
+                    break;
+
+                default:
+                    throw new MgcpConnectionException(
+                            "Cannot open connection " + this.getHexIdentifier() + " because state is " + this.state.name());
+            }
+        }
+        return this.localSdp.toString();
+    }

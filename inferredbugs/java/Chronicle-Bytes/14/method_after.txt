@@ -1,0 +1,29 @@
+    @Override
+    public int peekVolatileInt() {
+        if (!bytesStore.inside(readPosition)) {
+            acquireNextByteStore(readPosition);
+        }
+
+        MappedBytesStore bytesStore = (MappedBytesStore) (BytesStore) this.bytesStore;
+        long address = bytesStore.address + bytesStore.translate(readPosition);
+        Memory memory = bytesStore.memory;
+
+        // are we inside a cache line?
+        if ((address & 63) <= 60) {
+            if (memory == null)
+                throw new NullPointerException();
+
+            for (int i = 0; i < 64; i++) {
+                int value = UnsafeMemory.UNSAFE.getIntVolatile(null, address);
+                if (value != 0 && value != 0x80000000)
+                    return value;
+            }
+        } else {
+            for (int i = 0; i < 32; i++) {
+                int value = memory.readVolatileInt(address);
+                if (value != 0)
+                    return value;
+            }
+        }
+        return 0;
+    }

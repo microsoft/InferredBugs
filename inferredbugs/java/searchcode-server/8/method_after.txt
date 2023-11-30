@@ -1,0 +1,43 @@
+    public synchronized boolean saveData(String key, String value) {
+        String existing = this.getDataByName(key);
+        boolean isNew = false;
+
+        Connection connection = null;
+        PreparedStatement preparedStatement = null;
+
+        try {
+            connection = this.dbConfig.getConnection();
+
+            if (existing != null) {
+                preparedStatement = connection.prepareStatement("UPDATE \"data\" SET \"key\" = ?, \"value\" = ? WHERE  \"key\" = ?");
+                preparedStatement.setString(1, key);
+                preparedStatement.setString(2, value);
+                preparedStatement.setString(3, key);
+            }
+            else {
+                isNew = true;
+                preparedStatement = connection.prepareStatement("INSERT INTO data(\"key\",\"value\") VALUES (?,?)");
+                preparedStatement.setString(1, key);
+                preparedStatement.setString(2, value);
+            }
+
+            preparedStatement.execute();
+        }
+        catch(SQLException ex) {
+            Singleton.getLogger().severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(preparedStatement);
+            Helpers.closeQuietly(connection);
+        }
+
+        // Update cache with new value
+        if (value != null) {
+            this.cache.put(key, value);
+        }
+        else {
+            this.cache.remove(key);
+        }
+
+        return isNew;
+    }

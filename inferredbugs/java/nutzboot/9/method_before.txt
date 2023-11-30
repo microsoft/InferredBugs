@@ -1,0 +1,27 @@
+    public void prepareBasic() throws Exception {
+    	if (this.ctx == null) {
+            ctx = AppContext.getDefault();
+        }
+        if (ctx.getMainClass() == null && mainClass != null)
+            ctx.setMainClass(mainClass);
+        // 检查ClassLoader的情况
+        if (ctx.getClassLoader() == null)
+            ctx.setClassLoader(NbApp.class.getClassLoader());
+        
+        if (ctx.getEnvHolder() == null) {
+            ctx.setEnvHolder(new SystemPropertiesEnvHolder());
+        }
+        
+        // 看看日志应该用哪个
+        String logAdapter = ctx.getEnvHolder().get("nutz.boot.base.LogAdapter");
+        if (!Strings.isBlank(logAdapter)) {
+            Logs.setAdapter((LogAdapter) ctx.getClassLoader().loadClass(logAdapter).newInstance());
+        }
+        log = Logs.get();
+        // 资源加载器
+        if (ctx.getResourceLoader() == null) {
+            ResourceLoader resourceLoader = new SimpleResourceLoader();
+            aware(resourceLoader);
+            ctx.setResourceLoader(resourceLoader);
+        }
+    }

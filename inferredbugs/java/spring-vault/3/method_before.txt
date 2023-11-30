@@ -1,0 +1,23 @@
+ @Test
+	void authenticationStepsShouldAuthenticatePushModeWithProvidedSecretId() {
+
+		String roleId = getRoleId("with-secret-id");
+		String secretId = "hello_world_two";
+
+		VaultResponse customSecretIdResponse = getVaultOperations().write(
+				"auth/approle/role/with-secret-id/custom-secret-id",
+				Collections.singletonMap("secret_id", secretId));
+
+		AppRoleAuthenticationOptions options = AppRoleAuthenticationOptions.builder()
+				.roleId(roleId).secretId(secretId).build();
+
+		AuthenticationStepsExecutor executor = new AuthenticationStepsExecutor(
+				AppRoleAuthentication.createAuthenticationSteps(options), prepare()
+						.getRestTemplate());
+
+		assertThat(executor.login()).isNotNull();
+
+		getVaultOperations().write(
+				"auth/approle/role/with-secret-id/secret-id-accessor/destroy",
+				customSecretIdResponse.getRequiredData());
+	}

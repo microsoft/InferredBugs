@@ -1,0 +1,43 @@
+ public static int createFragmentShader(GL3 gl, String filename) {
+
+		int fragShader = gl.glCreateShader(GL3.GL_FRAGMENT_SHADER);
+		if (fragShader == 0)
+			return 0;
+
+		String[] fragCode = new String[1];
+		fragCode[0] = "";
+		String line;
+
+		InputStream stream = loadShaderFile(filename);
+		if (stream == null) {
+			throw new RuntimeException("Fragment shader not found in classpath: \""+ filename +"\"");
+		}
+
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+
+			while ((line = reader.readLine()) != null) {
+				fragCode[0] += line + "\n";
+			}
+
+			gl.glShaderSource(fragShader, 1, fragCode, null);
+			gl.glCompileShader(fragShader);
+
+			// acquire compilation status
+			IntBuffer shaderStatus = IntBuffer.allocate(1);
+			gl.glGetShaderiv(fragShader, GL3.GL_COMPILE_STATUS, shaderStatus);
+
+			// check whether compilation was successful
+			if (shaderStatus.get() == GL.GL_FALSE) {
+				printShaderInfoLog(gl, fragShader);
+				throw new IllegalStateException("compilation error for shader ["
+						+ filename + "].");
+			}
+			printShaderInfoLog(gl, fragShader);
+
+			return fragShader;
+
+		} catch (IOException e) {
+			throw new RuntimeException("Failed reading fragment shader \"" + filename + "\".",e);
+		}
+
+	}

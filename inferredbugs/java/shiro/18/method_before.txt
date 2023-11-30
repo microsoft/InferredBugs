@@ -1,0 +1,47 @@
+    protected boolean executeLogin(ServletRequest request, ServletResponse response) {
+        if (log.isDebugEnabled()) {
+            log.debug("Attempting to authenticate Subject based on Http BASIC Authentication request...");
+        }
+
+        HttpServletRequest httpRequest = toHttp(request);
+        String authorizationHeader = httpRequest.getHeader(AUTHORIZATION_HEADER);
+
+        if (authorizationHeader != null && authorizationHeader.length() > 0) {
+            if (log.isDebugEnabled()) {
+                log.debug("Executing login with headers [" + authorizationHeader + "]");
+            }
+
+            String[] authTokens = authorizationHeader.split(" ");
+
+            if (authTokens[0].trim().equalsIgnoreCase(HttpServletRequest.BASIC_AUTH)) {
+                String encodedCredentials = authTokens[1];
+
+                String decodedCredentials = Base64.decodeToString(encodedCredentials);
+
+                String[] credentials = decodedCredentials.split(":");
+
+                if (credentials != null && credentials.length > 1) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Processing login request [" + credentials[0] + "]");
+                    }
+                    Subject subject = getSubject(request, response);
+                    UsernamePasswordToken usernamePasswordToken = new UsernamePasswordToken(credentials[0], credentials[1]);
+                    try {
+                        subject.login(usernamePasswordToken);
+                        if (log.isDebugEnabled()) {
+                            log.debug("Successfully logged in user [" + credentials[0] + "]");
+                        }
+                        return true;
+                    } catch (AuthenticationException ae) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Unable to log in subject [" + credentials[0] + "]", ae);
+                        }
+                    }
+                }
+            }
+        }
+
+        //always default to false.  If we've made it to this point in the code, that
+        //means the authentication attempt either never occured, or wasn't successful:
+        return false;
+    }

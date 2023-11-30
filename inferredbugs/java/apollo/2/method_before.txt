@@ -1,0 +1,14 @@
+    @Test
+    public void testBlockByAvailabilityOnAllServices() throws Exception {
+        ApolloTestClient apolloTestClient = Common.signupAndLogin();
+        ApolloTestAdminClient apolloTestAdminClient = Common.getAndLoginApolloTestAdminClient();
+
+        String availability = "BLOCK-ME-2";
+        Environment environment = ModelsGenerator.createAndSubmitEnvironment(availability, apolloTestClient);
+        Service service = ModelsGenerator.createAndSubmitService(apolloTestClient);
+
+        createAndSubmitBlocker(apolloTestAdminClient, "unconditional", "{}", null, null, null, availability);
+        DeployableVersion deployableVersion = ModelsGenerator.createAndSubmitDeployableVersion(apolloTestClient, service);
+        assertThatThrownBy(() -> ModelsGenerator.createAndSubmitDeployment(apolloTestClient, environment, service, deployableVersion)).isInstanceOf(Exception.class)
+                                                                                                                                         .hasMessageContaining("Deployment is currently blocked");
+    }

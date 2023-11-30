@@ -1,0 +1,30 @@
+    @Test
+    public void renderClaimXml() throws Exception {
+        final Farm farm = new FtFarm(new PropsFarm(new FkFarm()));
+        final long cid = 42L;
+        final ClaimOut claim = new ClaimOut().type("test").cid(cid);
+        claim.postTo(farm.find("@id='C00000000'").iterator().next());
+        MatcherAssert.assertThat(
+            XhtmlMatchers.xhtml(
+                new RsPrint(
+                    new TkApp(farm).act(
+                        new RqWithHeaders(
+                            new RqWithUser(
+                                farm,
+                                new RqFake(
+                                    "GET",
+                                    String.format(
+                                        "/footprint/C00000000/%d", cid
+                                    )
+                                )
+                            ),
+                            "Accept: application/xml"
+                        )
+                    )
+                ).printBody()
+            ),
+            XhtmlMatchers.hasXPaths(
+                String.format("/page/claim/cid[text() = %d]", cid)
+            )
+        );
+    }

@@ -1,0 +1,36 @@
+    @Override
+    protected void populateBuffer() {
+        if (scrollId == null) {
+            // scrollID is null because all the documents have been exhausted
+            if (hasStarted) {
+                Utils.sleep(10);
+                return;
+            }
+
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+            searchSourceBuilder.size(maxURLsPerBucket * maxBucketNum);
+            SearchRequest searchRequest = new SearchRequest(indexName);
+            searchRequest.source(searchSourceBuilder);
+            searchRequest.scroll(TimeValue.timeValueMinutes(5L));
+
+            if (shardID != -1) {
+                searchRequest.preference("_shards:" + shardID);
+            }
+
+            isInQuery.set(true);
+            client.searchAsync(searchRequest, RequestOptions.DEFAULT, this);
+
+            // dump query to log
+            LOG.debug("{} ES query {}", logIdprefix, searchRequest.toString());
+            return;
+        }
+
+        SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
+        scrollRequest.scroll(TimeValue.timeValueMinutes(5L));
+
+        isInQuery.set(true);
+        client.scrollAsync(scrollRequest, RequestOptions.DEFAULT, this);
+        // dump query to log
+        LOG.debug("{} ES query {}", logIdprefix, scrollRequest.toString());
+    }

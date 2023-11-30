@@ -1,0 +1,50 @@
+    @Test
+    public void testMerge() throws Exception {
+        File directory = new File("/tmp/HaloDBTestWithMerge/testMerge");
+        TestUtils.deleteDirectory(directory);
+
+        HaloDBOptions options = new HaloDBOptions();
+        options.maxFileSize = recordsPerFile * recordSize;
+        options.mergeThresholdPerFile = 0.5;
+        options.mergeThresholdFileNumber = 4;
+        options.isMergeDisabled = false;
+        options.mergeJobIntervalInSeconds = 2;
+        options.flushDataSizeBytes = 2048;
+
+        HaloDB db = HaloDB.open(directory, options);
+
+        Record[] records = insertAndUpdateRecords(numberOfRecords, db);
+
+        // wait for the merge jobs to complete.
+        Thread.sleep(10000);
+
+        Map<Long, List<Path>> map = Files.list(directory.toPath())
+            .filter(path -> HaloDBInternal.DATA_FILE_PATTERN.matcher(path.getFileName().toString()).matches())
+            .collect(Collectors.groupingBy(path -> path.toFile().length()));
+
+        // 4 data files of size 10K.
+        Assert.assertEquals(map.get(10 * 1024l).size(), 4);
+
+        //2 merged data files of size 20K.
+        Assert.assertEquals(map.get(20 * 1024l).size(), 2);
+
+        int sizeOfIndexEntry = IndexFileEntry.INDEX_FILE_HEADER_SIZE + 8;
+        Map<Long, List<Path>> indexFileSizemap = Files.list(directory.toPath())
+            .filter(path -> HaloDBInternal.INDEX_FILE_PATTERN.matcher(path.getFileName().toString()).matches())
+            .collect(Collectors.groupingBy(path -> path.toFile().length()));
+
+        // 4 index files of size 220 bytes.
+        Assert.assertEquals(indexFileSizemap.get(sizeOfIndexEntry * 10l).size(), 4);
+
+        // 2 index files of size 440 bytes.
+        Assert.assertEquals(indexFileSizemap.get(sizeOfIndexEntry * 20l).size(), 2);
+
+        for (Record r : records) {
+            byte[] actual = db.get(r.getKey());
+            Assert.assertArrayEquals("key -> " + Utils.bytesToLong(r.getKey()), actual, r.getValue());
+        }
+
+        db.close();
+
+        TestUtils.deleteDirectory(directory);
+    }

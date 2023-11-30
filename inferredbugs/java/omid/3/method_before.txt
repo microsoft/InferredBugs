@@ -1,0 +1,25 @@
+   @Test public void testMultiPutSameRow() throws Exception {
+      try{
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable table1 = new TransactionalTable(hbaseConf, TEST_TABLE);
+
+         int num=10;
+         TransactionState t=tm.beginTransaction();
+         for(int j=0;j<num;j++) {
+            byte[]data=Bytes.toBytes(j);
+            Put put=new Put(data);
+            put.add(Bytes.toBytes(TEST_FAMILY), Bytes.toBytes("value"), data);
+            table1.put(t,put);
+         }
+         int key=15;
+         Get g=new Get(Bytes.toBytes(key));
+         Result r=table1.get(t,g);
+         
+         assertTrue("Found a row that should not exist", r.isEmpty());
+
+         tm.tryCommit(t);
+      } catch (Exception e) {
+         LOG.error("Exception in test", e);
+         throw e;
+      }
+   }

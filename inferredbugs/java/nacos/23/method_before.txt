@@ -1,0 +1,40 @@
+    public List<Instance> updateIpAddresses(Service service, String action, boolean ephemeral, Instance... ips) throws NacosException {
+
+        Datum datum = consistencyService.get(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), ephemeral));
+
+        List<Instance> currentIPs = service.allIPs(ephemeral);
+        Map<String, Instance> currentInstances = new HashMap<>(currentIPs.size());
+
+        for (Instance instance : currentIPs) {
+            currentInstances.put(instance.toIPAddr(), instance);
+        }
+
+        Map<String, Instance> instanceMap = null;
+        if (datum != null) {
+            instanceMap = setValid(((Instances) datum.value).getInstanceList(), currentInstances);
+        }
+
+        for (Instance instance : ips) {
+            if (!service.getClusterMap().containsKey(instance.getClusterName())) {
+                Cluster cluster = new Cluster(instance.getClusterName(), service);
+                cluster.init();
+                service.getClusterMap().put(instance.getClusterName(), cluster);
+                Loggers.SRV_LOG.warn("cluster: {} not found, ip: {}, will create new cluster with default configuration.",
+                    instance.getClusterName(), instance.toJSON());
+            }
+
+            if (UtilsAndCommons.UPDATE_INSTANCE_ACTION_REMOVE.equals(action)) {
+                instanceMap.remove(instance.getDatumKey());
+            } else {
+                instanceMap.put(instance.getDatumKey(), instance);
+            }
+
+        }
+
+        if (instanceMap.size() <= 0 && UtilsAndCommons.UPDATE_INSTANCE_ACTION_ADD.equals(action)) {
+            throw new IllegalArgumentException("ip list can not be empty, service: " + service.getName() + ", ip list: "
+                + JSON.toJSONString(instanceMap.values()));
+        }
+
+        return new ArrayList<>(instanceMap.values());
+    }

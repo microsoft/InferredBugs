@@ -1,0 +1,55 @@
+    public Socket connectSocket(
+            final Socket socket,
+            final InetSocketAddress remoteAddress,
+            final InetSocketAddress localAddress,
+            final HttpParams params) throws IOException, UnknownHostException, ConnectTimeoutException {
+        if (remoteAddress == null) {
+            throw new IllegalArgumentException("Remote address may not be null");
+        }
+        if (params == null) {
+            throw new IllegalArgumentException("HTTP parameters may not be null");
+        }
+        Socket sock = socket != null ? socket : this.socketfactory.createSocket();
+        if (localAddress != null) {
+            sock.setReuseAddress(HttpConnectionParams.getSoReuseaddr(params));
+            sock.bind(localAddress);
+        }
+
+        int connTimeout = HttpConnectionParams.getConnectionTimeout(params);
+        int soTimeout = HttpConnectionParams.getSoTimeout(params);
+
+        try {
+            sock.setSoTimeout(soTimeout);
+            sock.connect(remoteAddress, connTimeout);
+        } catch (SocketTimeoutException ex) {
+            throw new ConnectTimeoutException("Connect to " + remoteAddress + " timed out");
+        }
+
+        String hostname;
+        if (remoteAddress instanceof HttpInetSocketAddress) {
+            hostname = ((HttpInetSocketAddress) remoteAddress).getHttpHost().getHostName();
+        } else {
+            hostname = remoteAddress.getHostName();
+        }
+
+        SSLSocket sslsock;
+        // Setup SSL layering if necessary
+        if (sock instanceof SSLSocket) {
+            sslsock = (SSLSocket) sock;
+        } else {
+            int port = remoteAddress.getPort();
+            sslsock = (SSLSocket) this.socketfactory.createSocket(sock, hostname, port, true);
+            prepareSocket(sslsock);
+        }
+        if (this.hostnameVerifier != null) {
+            try {
+                this.hostnameVerifier.verify(hostname, sslsock);
+                // verifyHostName() didn't blowup - good!
+            } catch (IOException iox) {
+                // close the socket before re-throwing the exception
+                try { sslsock.close(); } catch (Exception x) { /*ignore*/ }
+                throw iox;
+            }
+        }
+        return sslsock;
+    }

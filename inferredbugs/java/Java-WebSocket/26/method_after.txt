@@ -1,0 +1,73 @@
+ protected final void interruptableRun() {
+		try {
+			tryToConnect( new InetSocketAddress( uri.getHost(), getPort() ) );
+		} catch ( ClosedByInterruptException e ) {
+			onWebsocketError( null, e );
+			return;
+		} catch ( IOException e ) {//
+			onWebsocketError( conn, e );
+			return;
+		} catch ( SecurityException e ) {
+			onWebsocketError( conn, e );
+			return;
+		} catch ( UnresolvedAddressException e ) {
+			onWebsocketError( conn, e );
+			return;
+		}
+		conn = (WebSocketImpl) wf.createWebSocket( this, draft, channel.socket() );
+		ByteBuffer buff = ByteBuffer.allocate( WebSocket.RCVBUF );
+		try/*IO*/{
+			while ( !conn.isClosed() ) {
+				if( Thread.interrupted() ) {
+					conn.close( CloseFrame.NORMAL );
+				}
+				SelectionKey key = null;
+				SocketChannelIOHelper.batch( conn, channel );
+				selector.select();
+				Set<SelectionKey> keys = selector.selectedKeys();
+				Iterator<SelectionKey> i = keys.iterator();
+				while ( i.hasNext() ) {
+					key = i.next();
+					i.remove();
+					if( key.isReadable() && SocketChannelIOHelper.read( buff, this.conn, channel ) ) {
+						conn.decode( buff );
+					}
+					if( !key.isValid() ) {
+						continue;
+					}
+					if( key.isConnectable() ) {
+						try {
+							finishConnect();
+						} catch ( InterruptedException e ) {
+							conn.close( CloseFrame.NEVERCONNECTED );// report error to only
+							break;
+						} catch ( InvalidHandshakeException e ) {
+							conn.close( e ); // http error
+						}
+					}
+				}
+			}
+		} catch ( IOException e ) {
+			onError( e );
+			conn.close( CloseFrame.ABNORMAL_CLOSE );
+		} catch ( RuntimeException e ) {
+			// this catch case covers internal errors only and indicates a bug in this websocket implementation
+			onError( e );
+			conn.eot( e );
+		}
+
+		try {
+			selector.close();
+		} catch ( IOException e ) {
+			onError( e );
+		}
+		closelock.lock();
+		selector = null;
+		closelock.unlock();
+		try {
+			channel.close();
+		} catch ( IOException e ) {
+			onError( e );
+		}
+		channel = null;
+	}

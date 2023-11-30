@@ -1,0 +1,64 @@
+    @Override
+    public String downloadFromServer(RemoteUrl remoteUrl, String fileName, String localFileDir, String localFileDirTemp,
+                                     String copy2TargetDirPath, boolean enableLocalDownloadDirInClassPath,
+                                     int retryTimes, int retrySleepSeconds)
+            throws Exception {
+
+        // 目标地址文件
+        File localFile = null;
+
+        //
+        // 进行下载、mv、copy
+        //
+
+        try {
+
+            // 可重试的下载
+            File tmpFilePathUniqueFile = retryDownload(localFileDirTemp, fileName, remoteUrl, retryTimes,
+                    retrySleepSeconds);
+
+            // 将 tmp file copy localFileDir
+            localFile = transfer2SpecifyDir(tmpFilePathUniqueFile, localFileDir, fileName, false);
+
+            // mv 到指定目录
+            if (copy2TargetDirPath != null) {
+
+                //
+                if (enableLocalDownloadDirInClassPath || !copy2TargetDirPath.equals(ClassLoaderUtil.getClassPath
+                        ())) {
+                    localFile = transfer2SpecifyDir(tmpFilePathUniqueFile, copy2TargetDirPath, fileName, true);
+                }
+            }
+
+            LOGGER.debug("Move to: " + localFile.getAbsolutePath());
+
+        } catch (Exception e) {
+
+            LOGGER.warn("download file failed, using previous download file.", e);
+        }
+
+        //
+        // 判断是否下载失败
+        //
+
+        if (!localFile.exists()) {
+            throw new Exception("target file cannot be found! " + fileName);
+        }
+
+        //
+        // 下面为下载成功
+        //
+
+        // 返回相对路径
+        if (localFileDir != null) {
+            String relativePathString = OsUtil.getRelativePath(localFile, new File(localFileDir));
+            if (relativePathString != null) {
+                if (new File(relativePathString).isFile()) {
+                    return relativePathString;
+                }
+            }
+        }
+
+        // 否则, 返回全路径
+        return localFile.getAbsolutePath();
+    }

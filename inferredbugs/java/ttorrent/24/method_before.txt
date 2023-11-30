@@ -1,0 +1,24 @@
+  public void unbind(boolean force) {
+    if (!force) {
+      // Cancel all outgoing requests, and send a NOT_INTERESTED message to
+      // the peer.
+      this.cancelPendingRequests();
+      this.send(PeerMessage.NotInterestedMessage.craft());
+    }
+
+    PeerExchange exchangeCopy;
+    synchronized (this.exchangeLock) {
+      exchangeCopy = exchange;
+    }
+
+    if (exchangeCopy != null) {
+      exchangeCopy.close();
+    }
+
+    synchronized (this.exchangeLock) {
+      this.exchange = null;
+    }
+
+    this.firePeerDisconnected();
+    this.requestedPiece = null;
+  }

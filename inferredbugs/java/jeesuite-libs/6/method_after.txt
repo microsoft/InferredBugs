@@ -1,0 +1,21 @@
+ @Override
+	public void setRuning(String jobName, Date fireTime) {
+		updatingStatus = false;
+		try {			
+			JobConfig config = getConf(jobName,false);
+			config.setRunning(true);
+			config.setLastFireTime(fireTime);
+			config.setModifyTime(Calendar.getInstance().getTimeInMillis());
+			config.setErrorMsg(null);
+			//更新本地
+			schedulerConfgs.put(jobName, config);
+			try {			
+				if(zkAvailabled)zkClient.writeData(getPath(config), JsonUtils.toJson(config));
+			} catch (Exception e) {
+				checkZkAvailabled();
+				logger.warn(String.format("Job[{}] setRuning error...", jobName),e);
+			}
+		} finally {
+			updatingStatus = false;
+		}
+	}

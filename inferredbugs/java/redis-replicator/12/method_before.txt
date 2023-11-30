@@ -1,0 +1,97 @@
+    @Override
+    public void open() throws IOException {
+        for (int i = 0; i < configuration.getRetries() || configuration.getRetries() <= 0; i++) {
+            try {
+                connect();
+
+                if (configuration.getAuthPassword() != null) auth(configuration.getAuthPassword());
+
+                sendSlavePort();
+
+                sendSlaveIp();
+
+                sendSlaveCapa();
+
+                //reset retries
+                i = 0;
+
+                logger.info("PSYNC " + configuration.getMasterRunId() + " " + String.valueOf(configuration.getOffset()));
+                send("PSYNC".getBytes(), configuration.getMasterRunId().getBytes(), String.valueOf(configuration.getOffset()).getBytes());
+                final String reply = (String) reply();
+
+                SyncMode syncMode = trySync(reply);
+                //bug fix.
+                if (syncMode == SyncMode.PSYNC && connected.get()) {
+                    //heart beat send REPLCONF ACK ${slave offset}
+                    synchronized (this) {
+                        heartBeat = new Timer("heart beat");
+                        //bug fix. in this point closed by other thread. multi-thread issue
+                        heartBeat.schedule(new TimerTask() {
+                            @Override
+                            public void run() {
+                                try {
+                                    send("REPLCONF".getBytes(), "ACK".getBytes(), String.valueOf(configuration.getOffset()).getBytes());
+                                } catch (IOException e) {
+                                    //NOP
+                                }
+                            }
+                        }, configuration.getHeartBeatPeriod(), configuration.getHeartBeatPeriod());
+                        logger.info("heart beat started.");
+                    }
+                }
+                //sync command
+                while (connected.get()) {
+                    Object obj = replyParser.parse(new OffsetHandler() {
+                        @Override
+                        public void handle(long len) {
+                            configuration.addOffset(len);
+                        }
+                    });
+                    //command
+                    if (obj instanceof Object[]) {
+                        if (configuration.isVerbose() && logger.isDebugEnabled())
+                            logger.debug(Arrays.deepToString((Object[]) obj));
+
+                        Object[] command = (Object[]) obj;
+                        CommandName cmdName = CommandName.name((String) command[0]);
+                        Object[] params = new Object[command.length - 1];
+                        System.arraycopy(command, 1, params, 0, params.length);
+
+                        final CommandParser<? extends Command> operations;
+                        //if command do not register. ignore
+                        if ((operations = commands.get(cmdName)) == null) continue;
+
+                        //do command replyParser
+                        Command parsedCommand = operations.parse(cmdName, params);
+
+                        //submit event
+                        this.submitEvent(parsedCommand);
+                    } else {
+                        if (logger.isInfoEnabled()) logger.info("Redis reply:" + obj);
+                    }
+                }
+                //connected = false
+                break;
+            } catch (/*bug fix*/IOException e) {
+                //close socket manual
+                if (!connected.get()) {
+                    break;
+                }
+                logger.error("socket error", e);
+                //connect refused
+                //connect timeout
+                //read timeout
+                //connect abort
+                //server disconnect connection EOFException
+                close();
+                //retry psync in next loop.
+                logger.info("reconnect to redis-server. retry times:" + (i + 1));
+                try {
+                    Thread.sleep(configuration.getRetryTimeInterval());
+                } catch (InterruptedException e1) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        doCloseListener();
+    }

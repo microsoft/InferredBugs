@@ -1,0 +1,96 @@
+    public void encodePacket(Packet packet, ByteBuf buffer, ByteBufAllocator allocator, boolean binary, boolean jsonp) throws IOException {
+        ByteBuf buf = buffer;
+        if (!binary) {
+            buf = allocateBuffer(allocator);
+        }
+        byte type = toChar(packet.getType().getValue());
+        buf.writeByte(type);
+
+        switch (packet.getType()) {
+
+            case PONG: {
+                buf.writeBytes(packet.getData().toString().getBytes(CharsetUtil.UTF_8));
+                break;
+            }
+
+            case OPEN: {
+                ByteBufOutputStream out = new ByteBufOutputStream(buf);
+                if (jsonp) {
+                    jsonSupport.writeJsonpValue(out, packet.getData());
+                } else {
+                    jsonSupport.writeValue(out, packet.getData());
+                }
+                break;
+            }
+
+            case MESSAGE: {
+                byte subType = toChar(packet.getSubType().getValue());
+                buf.writeByte(subType);
+
+                if (packet.getSubType() == PacketType.CONNECT) {
+                    if (!packet.getNsp().isEmpty()) {
+                        buf.writeBytes(packet.getNsp().getBytes(CharsetUtil.UTF_8));
+                    }
+                } else {
+                    if (!packet.getNsp().isEmpty()) {
+                        buf.writeBytes(packet.getNsp().getBytes(CharsetUtil.UTF_8));
+                        buf.writeBytes(new byte[] {','});
+                    }
+                }
+
+                if (packet.getAckId() != null) {
+                    byte[] ackId = toChars(packet.getAckId());
+                    buf.writeBytes(ackId);
+                }
+
+                List<Object> values = new ArrayList<Object>();
+
+                if (packet.getSubType() == PacketType.EVENT
+                        || packet.getSubType() == PacketType.ERROR) {
+                    values.add(packet.getName());
+                }
+
+                if (packet.getSubType() == PacketType.EVENT
+                        || packet.getSubType() == PacketType.ACK
+                            || packet.getSubType() == PacketType.ERROR) {
+                    List<Object> args = packet.getData();
+                    values.addAll(args);
+                    ByteBufOutputStream out = new ByteBufOutputStream(buf);
+                    if (jsonp) {
+                        jsonSupport.writeJsonpValue(out, values);
+                    } else {
+                        if (binary) {
+                            // handling websocket encoding bug
+                            ByteBuf b = allocateBuffer(allocator);
+                            try {
+                                ByteBufOutputStream os = new ByteBufOutputStream(b);
+                                jsonSupport.writeValue(os, values);
+
+                                CharsetEncoder enc = CharsetUtil.ISO_8859_1.newEncoder();
+                                String str = b.toString(CharsetUtil.ISO_8859_1);
+                                if (enc.canEncode(str)) {
+                                    buf.writeBytes(str.getBytes(CharsetUtil.UTF_8));
+                                } else {
+                                    buf.writeBytes(b);
+                                }
+                            }
+                            finally {
+                                b.release();
+                            }
+                        } else {
+                            jsonSupport.writeValue(out, values);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+        if (!binary) {
+            buffer.writeByte(0);
+            int length = buf.writerIndex();
+            buffer.writeBytes(longToBytes(length));
+            buffer.writeByte(0xff);
+            buffer.writeBytes(buf);
+        }
+    }

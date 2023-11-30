@@ -1,0 +1,21 @@
+    @Override
+    public boolean isTerminated(ContainerCreationStatus container) {
+        List<String> termStates = Arrays.asList("complete", "failed", "shutdown", "rejected", "orphaned", "removed");
+        String containerId = container.getContainerId();
+
+        try {
+            List<Task> tasks = dockerClient.listTasks();
+            for (Task task : tasks) {
+                TaskStatus taskStatus = task.status();
+                ContainerStatus containerStatus = taskStatus.containerStatus();
+                if (containerStatus != null && containerStatus.containerId().equals(containerId)) {
+                    String state = taskStatus.state();
+                    return termStates.contains(state);
+                }
+            }
+            return false;
+        } catch (DockerException | InterruptedException e) {
+            logger.warn("Failed to fetch container status [" + container + "].", e);
+            return false;
+        }
+    }

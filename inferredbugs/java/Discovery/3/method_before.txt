@@ -1,0 +1,22 @@
+    @Override
+    public boolean apply(Server server, Map<String, String> metadata) {
+        GatewayStrategyContext context = GatewayStrategyContext.getCurrentContext();
+        String token = context.getExchange().getRequest().getHeaders().getFirst("token");
+        // String value = context.getExchange().getRequest().getQueryParams().getFirst("value");
+
+        // 执行完后，请手工清除上下文对象，否则可能会造成内存泄露
+        GatewayStrategyContext.clearCurrentContext();
+
+        String serviceId = server.getMetaInfo().getAppName().toLowerCase();
+
+        LOG.info("Gateway端负载均衡用户定制触发：serviceId={}, host={}, metadata={}, context={}", serviceId, server.toString(), metadata, context);
+
+        String filterToken = "abc";
+        if (StringUtils.isNotEmpty(token) && token.contains(filterToken)) {
+            LOG.info("过滤条件：当Token含有'{}'的时候，不能被Ribbon负载均衡到", filterToken);
+
+            return false;
+        }
+
+        return true;
+    }

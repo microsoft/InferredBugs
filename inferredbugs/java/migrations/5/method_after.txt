@@ -1,0 +1,26 @@
+  private ClassLoader getDriverClassLoader() {
+    File localDriverPath = getCustomDriverPath();
+    if (driverClassLoader != null) {
+      return driverClassLoader;
+    } else if (localDriverPath.exists()) {
+      try {
+        List<URL> urlList = new ArrayList<>();
+        File[] files = localDriverPath.listFiles();
+        if (files != null) {
+          for (File file : files) {
+            String filename = file.getCanonicalPath();
+            if (!filename.startsWith("/")) {
+              filename = "/" + filename;
+            }
+            urlList.add(new URL("jar:file:" + filename + "!/"));
+            urlList.add(new URL("file:" + filename));
+          }
+        }
+        URL[] urls = urlList.toArray(new URL[0]);
+        return new URLClassLoader(urls);
+      } catch (Exception e) {
+        throw new MigrationException("Error creating a driver ClassLoader. Cause: " + e, e);
+      }
+    }
+    return null;
+  }

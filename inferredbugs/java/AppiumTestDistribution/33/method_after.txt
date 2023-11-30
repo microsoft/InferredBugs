@@ -1,0 +1,92 @@
+    public boolean parallelExecution(String pack, List<String> tests) throws Exception {
+        String operSys = System.getProperty("os.name").toLowerCase();
+        File f = new File(System.getProperty("user.dir") + "/target/appiumlogs/");
+        if (!f.exists()) {
+            System.out.println("creating directory: " + "Logs");
+            boolean result = false;
+            try {
+                f.mkdir();
+                result = true;
+            } catch (SecurityException se) {
+                se.printStackTrace();
+            }
+        }
+
+        if (configurationManager.getProperty("ANDROID_APP_PATH") != null && deviceConf.getDevices() != null) {
+            devices = deviceConf.getDevices();
+            deviceCount = devices.size() / 4;
+            File adb_logs = new File(System.getProperty("user.dir") + "/target/adblogs/");
+            if (!adb_logs.exists()) {
+                System.out.println("creating directory: " + "ADBLogs");
+                boolean result = false;
+                try {
+                    adb_logs.mkdir();
+                    result = true;
+                } catch (SecurityException se) {
+                    se.printStackTrace();
+                }
+            }
+            createSnapshotFolderAndroid(deviceCount, "android");
+        }
+
+        if (operSys.contains("mac")) {
+            if (configurationManager.getProperty("IOS_APP_PATH") != null ) {
+                if (iosDevice.getIOSUDID() != null) {
+                    iosDevice.checkExecutePermissionForIOSDebugProxyLauncher();
+                    iOSdevices = iosDevice.getIOSUDIDHash();
+                    deviceCount += iOSdevices.size();
+                    createSnapshotFolderiOS(deviceCount, "iPhone");
+                }
+            }
+
+
+        }
+        if (deviceCount == 0) {
+            figlet("No Devices Connected");
+            System.exit(0);
+        }
+        System.out.println("***************************************************\n");
+        System.out.println("Total Number of devices detected::" + deviceCount + "\n");
+        System.out.println("***************************************************\n");
+        System.out.println("starting running tests in threads");
+
+        testcases = new ArrayList<Class>();
+
+        boolean hasFailures = false;
+        if (configurationManager.getProperty("FRAMEWORK").equalsIgnoreCase("testng")) {
+            // final String pack = "com.paralle.tests"; // Or any other package
+            PackageUtil.getClasses(pack).stream().forEach(s -> {
+                if (s.toString().contains("Test")) {
+                    testcases.add((Class) s);
+                }
+            });
+
+            if (configurationManager.getProperty("RUNNER").equalsIgnoreCase("distribute")) {
+                hasFailures = myTestExecutor
+                    .runMethodParallelAppium(tests, pack, deviceCount,
+                        "distribute");
+
+            }
+            if (configurationManager.getProperty("RUNNER").equalsIgnoreCase("parallel")) {
+                hasFailures = myTestExecutor
+                    .runMethodParallelAppium(tests, pack, deviceCount,
+                        "parallel");
+            }
+        }
+
+        if (configurationManager.getProperty("FRAMEWORK").equalsIgnoreCase("cucumber")) {
+            //addPluginToCucumberRunner();
+            if (configurationManager.getProperty("RUNNER").equalsIgnoreCase("distribute")) {
+                hasFailures = myTestExecutor.runMethodParallel(myTestExecutor
+                        .constructXmlSuiteDistributeCucumber(deviceCount,
+                                AppiumParallelTest.devices));
+            } else if (configurationManager.getProperty("RUNNER").equalsIgnoreCase("parallel")) {
+                //addPluginToCucumberRunner();
+                hasFailures = myTestExecutor.runMethodParallel(myTestExecutor
+                    .constructXmlSuiteForParallelCucumber(deviceCount,
+                        AppiumParallelTest.devices));
+                htmlReporter.generateReports();
+            }
+        }
+        return hasFailures;
+    }

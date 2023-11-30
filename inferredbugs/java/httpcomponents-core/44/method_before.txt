@@ -1,0 +1,35 @@
+    @Test
+    public void testDecodingWithSmallBuffer() throws Exception {
+        String s1 = "5\r\n01234\r\n5\r\n5678";
+        String s2 = "9\r\n6\r\nabcdef\r\n0\r\n\r\n";
+        ReadableByteChannel channel = new ReadableByteChannelMockup(
+                new String[] {s1, s2}, "US-ASCII");
+        HttpParams params = new BasicHttpParams();
+
+        SessionInputBuffer inbuf = new SessionInputBufferImpl(1024, 256, params);
+        HttpTransportMetricsImpl metrics = new HttpTransportMetricsImpl();
+        ChunkDecoder decoder = new ChunkDecoder(channel, inbuf, metrics);
+
+        ByteBuffer dst = ByteBuffer.allocate(1024);
+        ByteBuffer tmp = ByteBuffer.allocate(4);
+
+        int bytesRead = 0;
+        while (dst.hasRemaining() && !decoder.isCompleted()) {
+            int i = decoder.read(tmp);
+            if (i > 0) {
+                bytesRead += i;
+            }
+            tmp.flip();
+            dst.put(tmp);
+            tmp.compact();
+        }
+
+        Assert.assertEquals(16, bytesRead);
+        Assert.assertEquals("0123456789abcdef", convert(dst));
+        Assert.assertTrue(decoder.isCompleted());
+
+        dst.clear();
+        bytesRead = decoder.read(dst);
+        Assert.assertEquals(-1, bytesRead);
+        Assert.assertTrue(decoder.isCompleted());
+    }

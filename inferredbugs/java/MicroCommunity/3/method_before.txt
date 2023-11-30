@@ -1,0 +1,31 @@
+    @Override
+    public void soService(ServiceDataFlowEvent event) {
+
+
+        DataFlowContext dataFlowContext = event.getDataFlowContext();
+        AppService service = event.getAppService();
+        JSONObject data = dataFlowContext.getReqJson();
+
+        Assert.hasKeyAndValue(data,"page","请求报文中未包含page节点");
+        Assert.hasKeyAndValue(data,"rows","请求报文中未包含rows节点");
+        Assert.hasKeyAndValue(data,"storeId","请求报文中未包含storeId节点");
+        Assert.hasKeyAndValue(data,"name","请求报文中未包含name节点");
+        ResponseEntity<String> responseEntity = null;
+        //根据名称查询用户信息
+        responseEntity = super.callService(dataFlowContext,ServiceCodeConstant.SERVICE_CODE_QUERY_USER_BY_NAME,data);
+
+        if(responseEntity.getStatusCode() != HttpStatus.OK){
+            dataFlowContext.setResponseEntity(responseEntity);
+            return ;
+        }
+
+        JSONArray resultInfo = JSONObject.parseObject(responseEntity.getBody().toString()).getJSONArray("users");
+
+        if(resultInfo != null || resultInfo.size() < 1){
+            responseEntity = new ResponseEntity<String>(new JSONArray().toJSONString(),HttpStatus.OK);
+            dataFlowContext.setResponseEntity(responseEntity);
+            return ;
+        }
+
+
+    }

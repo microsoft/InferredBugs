@@ -1,0 +1,34 @@
+    public void _run() throws Exception {
+        Stopwatch sw = Stopwatch.begin();
+
+        // 各种预备操作
+        this.prepare();
+
+        if (printProcDoc) {
+            PropDocReader docReader = new PropDocReader(ctx);
+            docReader.load();
+            Logs.get().info("Configure Manual:\r\n" + docReader.toMarkdown());
+        }
+
+        // 依次启动
+        try {
+            ctx.init();
+
+            ctx.startServers();
+
+            if (ctx.getMainClass().getAnnotation(IocBean.class) != null)
+                ctx.getIoc().get(ctx.getMainClass());
+
+            sw.stop();
+            log.infof("NB started : %sms", sw.du());
+            synchronized (lock) {
+                lock.wait();
+            }
+        }
+        catch (Throwable e) {
+            log.error("something happen!!", e);
+        }
+        // 收尾
+        ctx.stopServers();
+        ctx.depose();
+    }

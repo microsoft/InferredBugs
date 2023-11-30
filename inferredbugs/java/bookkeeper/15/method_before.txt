@@ -1,0 +1,83 @@
+    void handleBookieFailure(InetSocketAddress addr, final int bookieIndex) {
+        InetSocketAddress newBookie;
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Handling failure of bookie: " + addr + " index: "
+                      + bookieIndex);
+        }
+
+        try {
+            newBookie = bk.bookieWatcher
+                        .getAdditionalBookie(metadata.currentEnsemble);
+        } catch (BKNotEnoughBookiesException e) {
+            LOG
+            .error("Could not get additional bookie to remake ensemble, closing ledger: "
+                   + ledgerId);
+            handleUnrecoverableErrorDuringAdd(e.getCode());
+            return;
+        }
+
+        final ArrayList<InetSocketAddress> newEnsemble = new ArrayList<InetSocketAddress>(
+            metadata.currentEnsemble);
+        newEnsemble.set(bookieIndex, newBookie);
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Changing ensemble from: " + metadata.currentEnsemble + " to: "
+                      + newEnsemble + " for ledger: " + ledgerId + " starting at entry: "
+                      + (lastAddConfirmed + 1));
+        }
+
+        final long newEnsembleStartEntry = lastAddConfirmed + 1;
+        metadata.addEnsemble(newEnsembleStartEntry, newEnsemble);
+
+        final class ChangeEnsembleCb implements GenericCallback<Void> {
+            @Override
+            public void operationComplete(final int rc, Void result) {
+
+                bk.mainWorkerPool.submitOrdered(ledgerId, new SafeRunnable() {
+                    @Override
+                    public void safeRun() {
+                        if (rc == BKException.Code.MetadataVersionException) {
+                            rereadMetadata(new GenericCallback<LedgerMetadata>() {
+                                @Override
+                                public void operationComplete(int newrc, LedgerMetadata newMeta) {
+                                    if (newrc != BKException.Code.OK) {
+                                        LOG.error("Error reading new metadata from ledger after changing ensemble, code=" + newrc);
+                                        handleUnrecoverableErrorDuringAdd(rc);
+                                    } else {
+                                        // a new ensemble is added only when the start entry is larger than zero
+                                        if (newEnsembleStartEntry > 0) {
+                                            metadata.getEnsembles().remove(newEnsembleStartEntry);
+                                        }
+                                        if (metadata.resolveConflict(newMeta)) {
+                                            metadata.addEnsemble(newEnsembleStartEntry, newEnsemble);
+                                            writeLedgerConfig(new ChangeEnsembleCb());
+                                            return;
+                                        } else {
+                                            LOG.error("Could not resolve ledger metadata conflict while changing ensemble to: "
+                                                      + newEnsemble + ", old meta data is \n" + new String(metadata.serialize())
+                                                      + "\n, new meta data is \n" + new String(newMeta.serialize()) + "\n ,closing ledger");
+                                            handleUnrecoverableErrorDuringAdd(rc);
+                                        }
+                                    }
+                                }
+                            });
+                            return;
+                        } else if (rc != BKException.Code.OK) {
+                            LOG.error("Could not persist ledger metadata while changing ensemble to: "
+                                    + newEnsemble + " , closing ledger");
+                            handleUnrecoverableErrorDuringAdd(rc);
+                            return;
+                        }
+
+                        for (PendingAddOp pendingAddOp : pendingAddOps) {
+                            pendingAddOp.unsetSuccessAndSendWriteRequest(bookieIndex);
+                        }
+                    }
+                });
+
+            }
+        };
+
+        writeLedgerConfig(new ChangeEnsembleCb());
+    }

@@ -1,0 +1,32 @@
+    public synchronized static ExtentReports getExtent() {
+        if (extent == null) {
+            try {
+                configFileManager = ConfigFileManager.getInstance();
+                extent = new ExtentReports();
+                extent.attachReporter(getHtmlReporter());
+                if (System.getProperty("ExtentX") != null && System.getProperty("ExtentX")
+                        .equalsIgnoreCase("true")) {
+                    extent.attachReporter(klovReporter());
+                }
+                extent.setSystemInfo("Selenium Java Version", "3.3.1");
+                String appiumVersion = null;
+                try {
+                    String command = "node "
+                            + configFileManager.getProperty("APPIUM_JS_PATH") + " -v";
+                    appiumVersion = commandPrompt.runCommand(command);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                extent.setSystemInfo("AppiumClient", "5.0.0-BETA6");
+                extent.setSystemInfo("AppiumServer", appiumVersion.replace("\n", ""));
+                extent.setSystemInfo("Runner", configFileManager.getProperty("RUNNER"));
+                extent.setSystemInfo("AppiumServerLogs","<a target=\"_parent\" href=" + "/appiumlogs/appiumlogs/"
+                        + ".txt" + ">AppiumServerLogs</a>");
+                return extent;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return extent;
+
+    }

@@ -1,0 +1,25 @@
+    public void createX509CertClient(PrivateKey privatekey, Certificate[] trustedCertificates) {
+        ObjectsInitializer initializer = new ObjectsInitializer();
+        // TODO security instance with certificate info
+        initializer.setInstancesForObject(LwM2mId.SECURITY, Security.noSec(
+                "coaps://" + server.getSecureAddress().getHostString() + ":" + server.getSecureAddress().getPort(),
+                12345));
+        initializer.setInstancesForObject(LwM2mId.SERVER, new Server(12345, LIFETIME, BindingMode.U, false));
+        initializer.setInstancesForObject(LwM2mId.DEVICE, new Device("Eclipse Leshan", MODEL_NUMBER, "12345", "U"));
+        List<LwM2mObjectEnabler> objects = initializer.createMandatory();
+        objects.add(initializer.create(2));
+
+        InetSocketAddress clientAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        DtlsConnectorConfig.Builder config = new DtlsConnectorConfig.Builder().setAddress(clientAddress);
+        // TODO we should read the config from the security object
+        config.setIdentity(privatekey, clientX509CertChain, false);
+        config.setTrustStore(trustedCertificates);
+
+        CoapServer coapServer = new CoapServer();
+        coapServer.addEndpoint(new CoapEndpoint(new DTLSConnector(config.build()), NetworkConfig.getStandard()));
+
+        LeshanClientBuilder builder = new LeshanClientBuilder(getCurrentEndpoint());
+        builder.setLocalAddress(clientAddress.getHostString(), clientAddress.getPort());
+        builder.setObjects(objects);
+        client = builder.build();
+    }

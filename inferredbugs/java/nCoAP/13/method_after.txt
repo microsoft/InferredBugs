@@ -1,0 +1,34 @@
+    public void shutdown() throws InterruptedException {
+
+        //remove all webServices
+        WebService[] services;
+        synchronized (this){
+            services = new WebService[registeredServices.values().size()];
+            registeredServices.values().toArray(services);
+        }
+
+        for(WebService service : services){
+            removeService(service.getPath());
+        }
+
+        //some time to send possible update notifications (404_NOT_FOUND) to observers
+        Thread.sleep(1000);
+
+        //Close the datagram datagramChannel (includes unbind)
+        ChannelFuture future = channel.close();
+
+        //Await the closure and let the factory release its external resource to finalize the shutdown
+        future.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                DatagramChannel closedChannel = (DatagramChannel) future.getChannel();
+                log.info("Server channel closed (port {}).", closedChannel.getLocalAddress().getPort());
+
+                channel.getFactory().releaseExternalResources();
+                log.info("External resources released, shutdown completed (port {}).",
+                        closedChannel.getLocalAddress().getPort());
+            }
+        });
+
+        future.awaitUninterruptibly();
+    }

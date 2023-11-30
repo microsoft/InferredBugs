@@ -1,0 +1,47 @@
+    private boolean stopUsingMysqldadmin() {
+        ResultMatchingListener shutdownListener = outputWatch.addListener(new ResultMatchingListener(": Shutdown complete"));
+        boolean retValue = false;
+        Reader stdErr = null;
+
+        try {
+            String cmd = Paths.get(getExecutable().getFile().baseDir().getAbsolutePath(), "bin", "mysqladmin").toString();
+
+            Process p = Runtime.getRuntime().exec(new String[]{
+                    cmd, "--no-defaults", "--protocol=tcp",
+                    format("-u%s", MysqldConfig.SystemDefaults.USERNAME),
+                    format("--port=%s", getConfig().getPort()),
+                    "shutdown"});
+
+            retValue = p.waitFor() == 0;
+
+            stdErr = new InputStreamReader(p.getErrorStream());
+
+            if (retValue) {
+                shutdownListener.waitForResult(getConfig().getTimeout());
+
+                if (!shutdownListener.isInitWithSuccess()) {
+                    logger.error("mysql shutdown failed. Expected to find in output: 'Shutdown complete', got: " + shutdownListener.getFailureFound());
+                    retValue = false;
+                } else {
+                    retValue = true;
+                }
+
+            } else {
+                String errOutput = CharStreams.toString(stdErr);
+
+                if (errOutput.contains("Can't connect to MySQL server on")) {
+                    logger.warn("mysql was already shutdown - no need to add extra shutdown hook - process does it out of the box.");
+                    retValue = true;
+                } else {
+                    logger.error("mysql shutdown failed with error code: " + p.waitFor() + " and message: " + errOutput);
+                }
+            }
+
+        } catch (InterruptedException | IOException e) {
+            logger.warn("Encountered error why shutting down process.", e);
+        } finally {
+            closeCloseables(stdErr);
+        }
+
+        return retValue;
+    }

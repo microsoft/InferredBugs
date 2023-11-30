@@ -1,0 +1,17 @@
+    @Test
+    public void testRecordLimit() throws Exception {
+        List<String> dataSource = Arrays.asList("foo", "bar", "baz");
+
+        JobReport jobReport = aNewJob()
+                .reader(new IterableRecordReader(dataSource))
+                .limit(2)
+                .processor(new RecordCollector())
+                .call();
+
+        assertThat(jobReport.getMetrics().getTotalCount()).isEqualTo(2);
+        assertThat(jobReport.getMetrics().getSuccessCount()).isEqualTo(2);
+
+        List<GenericRecord> records = (List<GenericRecord>) jobReport.getResult();
+
+        assertThat(records).extracting("payload").containsExactly("foo", "bar");
+    }

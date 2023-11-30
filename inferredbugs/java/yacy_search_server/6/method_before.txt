@@ -1,0 +1,50 @@
+    public boolean job() throws Exception {
+        // prepare for new connection
+        // idleThreadCheck();
+        this.switchboard.handleBusyState(this.theSessionPool.getNumActive() /*activeThreads.size() */);
+
+        log.logDebug(
+        "* waiting for connections, " + this.theSessionPool.getNumActive() + " sessions running, " +
+        this.theSessionPool.getNumIdle() + " sleeping");
+        
+        // list all connection (debug)
+        /*
+        if (activeThreads.size() > 0) {
+            Enumeration threadEnum = activeThreads.keys();
+            Session se;
+            long time;
+            while (threadEnum.hasMoreElements()) {
+                se = (Session) threadEnum.nextElement();
+                time = System.currentTimeMillis() - ((Long) activeThreads.get(se)).longValue();
+                log.logDebug("* ACTIVE SESSION (" + ((se.isAlive()) ? "alive" : "dead") + ", " + time + "): " + se.request);
+            }
+        }
+        */
+        
+        // wait for new connection
+        announceThreadBlockApply();
+        Socket controlSocket = this.socket.accept();
+        announceThreadBlockRelease();
+        if ((this.denyHost == null) || (this.denyHost.get((""+controlSocket.getInetAddress().getHostAddress())) == null)) {
+            //log.logDebug("* catched request from " + controlSocket.getInetAddress().getHostAddress());
+            controlSocket.setSoTimeout(this.timeout);
+            
+            Session connection = (Session) this.theSessionPool.borrowObject();
+            connection.execute(controlSocket);
+            
+            //try {Thread.currentThread().sleep(1000);} catch (InterruptedException e) {} // wait for debug
+            // activeThreads.put(connection, new Long(System.currentTimeMillis()));
+            //log.logDebug("* NEW SESSION: " + connection.request);
+            
+        } else {
+            System.out.println("ACCESS FROM " + controlSocket.getInetAddress().getHostAddress() + " DENIED");
+        }
+        // idle until number of maximal threads is (again) reached
+        //synchronized(this) {
+//        while ((maxSessions > 0) && (activeThreads.size() >= maxSessions)) try {
+//            log.logDebug("* Waiting for activeThreads=" + activeThreads.size() + " < maxSessions=" + maxSessions);
+//            Thread.currentThread().sleep(2000);
+//            idleThreadCheck();
+//        } catch (InterruptedException e) {}
+        return true;
+    }

@@ -1,0 +1,22 @@
+  @Override
+  public AccessToken refreshAccessToken() throws IOException {
+    Socket socket = new Socket("localhost", this.getAuthPort());
+    socket.setSoTimeout(READ_TIMEOUT_MS);
+    AccessToken token;
+    try {    
+      PrintWriter out =
+        new PrintWriter(socket.getOutputStream(), true);
+      out.println(GET_AUTH_TOKEN_REQUEST);
+    
+      BufferedReader input =
+          new BufferedReader(new InputStreamReader(socket.getInputStream()));
+      input.readLine(); // Skip over the first line
+      JsonParser parser = OAuth2Utils.JSON_FACTORY.createJsonParser(input);
+      List<Object> messageArray = (List<Object>) parser.parseArray(ArrayList.class, Object.class);
+      String accessToken = messageArray.get(ACCESS_TOKEN_INDEX).toString();
+      token =  new AccessToken(accessToken, null);
+    } finally {
+      socket.close();
+    }
+    return token;
+  }

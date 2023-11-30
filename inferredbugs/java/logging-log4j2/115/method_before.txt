@@ -1,0 +1,31 @@
+    @Override
+    public void stop() {
+        LOGGER.debug("Stopping LoggerContext[name={}, {}]...", getName(), this);
+        configLock.lock();
+        try {
+            if (this.isStopped()) {
+                return;
+            }
+
+            this.setStopping();
+            try {
+                Server.unregisterLoggerContext(getName()); // LOG4J2-406, LOG4J2-500
+            } catch (final Exception ex) {
+                LOGGER.error("Unable to unregister MBeans", ex);
+            }
+            if (shutdownCallback != null) {
+                shutdownCallback.cancel();
+                shutdownCallback = null;
+            }
+            final Configuration prev = configuration;
+            configuration = NULL_CONFIGURATION;
+            updateLoggers();
+            prev.stop();
+            externalContext = null;
+            LogManager.getFactory().removeContext(this);
+            this.setStopped();
+        } finally {
+            configLock.unlock();
+        }
+        LOGGER.debug("Stopped LoggerContext[name={}, {}]...", getName(), this);
+    }

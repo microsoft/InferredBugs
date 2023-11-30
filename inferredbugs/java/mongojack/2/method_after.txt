@@ -1,0 +1,20 @@
+    @Test
+    public void simpleDbRefShouldBeSavedAsDbRef() {
+        JacksonDBCollection<Owner, String> coll = getCollection(Owner.class, String.class);
+        JacksonDBCollection<Referenced, String> refColl = getCollection(Referenced.class, String.class);
+
+        refColl.insert(new Referenced("hello", 10));
+        coll.insert(new Owner(new DBRef<Referenced, String>("hello", refColl.getName())));
+        String id = coll.findOne()._id;
+
+        Owner saved = coll.findOneById(id);
+        assertThat(saved.ref, notNullValue());
+        assertThat(saved.ref.getId(), equalTo("hello"));
+        assertThat(saved.ref.getCollectionName(), equalTo(refColl.getName()));
+
+        // Try loading it
+        Referenced ref = saved.ref.fetch();
+        assertThat(ref, notNullValue());
+        assertThat(ref._id, equalTo("hello"));
+        assertThat(ref.i, equalTo(10));
+    }

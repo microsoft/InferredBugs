@@ -1,0 +1,55 @@
+    @Override
+    public void run() {
+        if (!stat.compareAndSet(STAT_INIT, STAT_RUNNING)
+                && !stat.compareAndSet(STAT_STOPPED, STAT_RUNNING)) {
+            throw new IllegalStateException("Spider is already running!");
+        }
+        checkComponent();
+        if (startUrls != null) {
+            for (String startUrl : startUrls) {
+                scheduler.push(new Request(startUrl), this);
+            }
+            startUrls.clear();
+        }
+        Request request = scheduler.poll(this);
+        //single thread
+        if (executorService == null) {
+            while (request != null && stat.compareAndSet(STAT_RUNNING, STAT_RUNNING)) {
+                processRequest(request);
+                request = scheduler.poll(this);
+            }
+        } else {
+            //multi thread
+            final AtomicInteger threadAlive = new AtomicInteger(0);
+            while (true && stat.compareAndSet(STAT_RUNNING, STAT_RUNNING)) {
+                if (request == null) {
+                    //when no request found but some thread is alive, sleep a while.
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                    }
+                } else {
+                    final Request requestFinal = request;
+                    threadAlive.incrementAndGet();
+                    executorService.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            processRequest(requestFinal);
+                            threadAlive.decrementAndGet();
+                        }
+                    });
+                }
+                request = scheduler.poll(this);
+                if (threadAlive.get() == 0) {
+                    request = scheduler.poll(this);
+                    if (request == null) {
+                        break;
+                    }
+                }
+            }
+            executorService.shutdown();
+        }
+        stat.compareAndSet(STAT_RUNNING, STAT_STOPPED);
+        //release some resources
+        destroy();
+    }

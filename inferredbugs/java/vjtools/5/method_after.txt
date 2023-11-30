@@ -1,0 +1,27 @@
+ private void init() throws IOException {
+		try {
+			perfData = PerfData.connect(Integer.parseInt(pid));
+			perfDataSupport = true;
+		} catch (Exception e) {
+			System.err.println("PerfData not support");
+		}
+
+		if (perfDataSupport) {
+			vmArgs = (String) perfData.findCounter("java.rt.vmArgs").getValue();
+		} else {
+			vmArgs = Utils.join(jmxClient.getRuntimeMXBean().getInputArguments(), " ");
+		}
+
+		Map<String, String> systemProperties_ = jmxClient.getRuntimeMXBean().getSystemProperties();
+		osUser = systemProperties_.get("user.name");
+		jvmVersion = systemProperties_.get("java.version");
+		jvmMajorVersion = getJavaMajorVersion();
+
+		permGenName = jvmMajorVersion >= 8 ? "metaspace" : "perm";
+
+		threadCpuTimeSupported = jmxClient.getThreadMXBean().isThreadCpuTimeSupported();
+		threadMemoryAllocatedSupported = jmxClient.getThreadMXBean().isThreadAllocatedMemorySupported();
+
+		processors = jmxClient.getOperatingSystemMXBean().getAvailableProcessors();
+		isLinux = jmxClient.getOperatingSystemMXBean().getName().toLowerCase(Locale.US).contains("linux");
+	}

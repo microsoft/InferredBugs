@@ -1,0 +1,161 @@
+ public static void main(String... args) throws IOException {
+
+		HashMap<Option, String> options = new HashMap<Option, String>();
+		LinkedList<String> others = new LinkedList<String>();
+
+		for (Option option : Option.values())
+			if (option.defaultValue != null)
+				options.put(option, option.defaultValue);
+
+		if (args != null && args.length > 0) {
+			Pattern valueGetter = Pattern.compile("^--\\w[\\w-]*\\w?(?:=(?:\"([^\"]*)\"|([^\\s]*)))$");
+
+			for (int i = 0; i < args.length; i++) {
+
+				if (args[i].matches("^--\\w[\\w-]*\\w?(=(\"[^\"]*\"|[^\\s]*))?$")) {
+					boolean found = false;
+					for (Option option : Option.values()) {
+						if (args[i].startsWith("--" + option.fullopts + "=")) {
+							Matcher m = valueGetter.matcher(args[i]);
+
+							if (m.matches()) {
+								options.put(option, m.group(1) == null ? m.group(2) : m.group(1));
+							}
+
+							found = true;
+							break;
+						}
+					}
+
+					if (!found) {
+						LOGGER.severe(
+								String.format("unknown option: %s%n", args[i].substring(0, args[i].indexOf('='))));
+						System.exit(1);
+					}
+				} else if (args[i].matches("^-\\w$")) {
+					boolean found = false;
+
+					for (Option option : Option.values()) {
+						if (args[i].equals("-" + option.shortopts)) {
+							options.put(option, args[++i]);
+							break;
+						}
+					}
+
+					if (!found) {
+						LOGGER.severe(String.format("unknown option: %s%n", args[i]));
+						System.exit(1);
+					}
+				} else {
+					others.addLast(args[i]);
+				}
+			}
+		} else {
+			usage();
+			System.exit(0);
+		}
+
+		LinkedList<String> errors = new LinkedList<String>();
+
+		if (others.size() == 0) {
+			errors.add("dgs file name missing.");
+		}
+
+		String imagePrefix;
+		OutputType outputType = null;
+		OutputPolicy outputPolicy = null;
+		Resolution resolution = null;
+		Quality quality = null;
+		String logo;
+		String stylesheet;
+
+		imagePrefix = options.get(Option.IMAGE_PREFIX);
+
+		try {
+			outputType = OutputType.valueOf(options.get(Option.IMAGE_TYPE));
+		} catch (IllegalArgumentException e) {
+			errors.add("bad image type: " + options.get(Option.IMAGE_TYPE));
+		}
+
+		try {
+			outputPolicy = OutputPolicy.valueOf(options.get(Option.OUTPUT_POLICY));
+		} catch (IllegalArgumentException e) {
+			errors.add("bad output policy: " + options.get(Option.OUTPUT_POLICY));
+		}
+
+		try {
+			quality = Quality.valueOf(options.get(Option.QUALITY));
+		} catch (IllegalArgumentException e) {
+			errors.add("bad quality: " + options.get(Option.QUALITY));
+		}
+
+		logo = options.get(Option.LOGO);
+		stylesheet = options.get(Option.STYLESHEET);
+
+		try {
+			resolution = Resolutions.valueOf(options.get(Option.IMAGE_RESOLUTION));
+		} catch (IllegalArgumentException e) {
+			Pattern p = Pattern.compile("^\\s*(\\d+)\\s*x\\s*(\\d+)\\s*$");
+			Matcher m = p.matcher(options.get(Option.IMAGE_RESOLUTION));
+
+			if (m.matches()) {
+				resolution = new CustomResolution(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+			} else {
+				errors.add("bad resolution: " + options.get(Option.IMAGE_RESOLUTION));
+			}
+		}
+
+		if (stylesheet != null && stylesheet.length() < 1024) {
+			File test = new File(stylesheet);
+
+			if (test.exists()) {
+				FileReader in = new FileReader(test);
+				char[] buffer = new char[128];
+				String content = "";
+
+				while (in.ready()) {
+					int c = in.read(buffer, 0, 128);
+					content += new String(buffer, 0, c);
+				}
+
+				stylesheet = content;
+				in.close();
+			}
+		}
+
+		{
+			File test = new File(others.peek());
+			if (!test.exists())
+				errors.add(String.format("file \"%s\" does not exist", others.peek()));
+		}
+
+		if (errors.size() > 0) {
+			LOGGER.info(String.format("error:%n"));
+
+			for (String error : errors)
+				LOGGER.info(String.format("- %s%n", error));
+
+			System.exit(1);
+		}
+
+		FileSourceDGS dgs = new FileSourceDGS();
+		FileSinkImages fsi = new FileSinkImages(imagePrefix, outputType, resolution, outputPolicy);
+
+		dgs.addSink(fsi);
+
+		if (logo != null)
+			fsi.addFilter(new AddLogoFilter(logo, 0, 0));
+
+		fsi.setQuality(quality);
+		if (stylesheet != null)
+			fsi.setStyleSheet(stylesheet);
+
+		boolean next = true;
+
+		dgs.begin(others.get(0));
+
+		while (next)
+			next = dgs.nextStep();
+
+		dgs.end();
+	}

@@ -1,0 +1,28 @@
+    private static String readInputStream(InputStream inStream, String charsetName) throws IOException {
+        byte[] buffer = new byte[bufferSize];
+        ByteArrayOutputStream outStream = new ByteArrayOutputStream(bufferSize);
+        int read;
+        while(true) {
+            read  = inStream.read(buffer);
+            if (read == -1) break;
+            outStream.write(buffer, 0, read);
+        }
+        ByteBuffer byteData = ByteBuffer.wrap(outStream.toByteArray());
+        
+        String docData;
+        if (charsetName == null) { // determine from http-equiv. safe parse as UTF-8
+            docData = Charset.forName(defaultCharset).decode(byteData).toString();
+            Document doc = Jsoup.parse(docData);
+            Element httpEquiv = doc.select("meta[http-equiv]").first();
+            if (httpEquiv != null) { // if not found, will keep utf-8 as best attempt
+                String foundCharset = getCharsetFromContentType(httpEquiv.attr("content"));
+                if (foundCharset != null && !foundCharset.equals(defaultCharset)) { // need to re-decode
+                    byteData.rewind();
+                    docData = Charset.forName(foundCharset).decode(byteData).toString();
+                }
+            }
+        } else { // specified by content type header (or by user on file load)
+            docData = Charset.forName(charsetName).decode(byteData).toString();
+        }
+        return docData;
+    }

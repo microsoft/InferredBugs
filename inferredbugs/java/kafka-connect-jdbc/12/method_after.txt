@@ -1,0 +1,35 @@
+  @Test
+  public void handleAllFieldsMappingSettingAndTheMappingsProvided() {
+    List<DbTableColumn> columns = Lists.newArrayList(
+        new DbTableColumn("col1", true, false, 1),
+        new DbTableColumn("col2", false, false, 1),
+        new DbTableColumn("col3", false, false, 1));
+    DbTable table = new DbTable("tableA", columns);
+
+    Map<String, FieldAlias> aliasMap = new HashMap<>();
+    aliasMap.put("f1", new FieldAlias("col3"));
+    FieldsMappings mappings = new FieldsMappings("tableA", "topic1", true, aliasMap);
+
+    FieldsMappings newMappings = PreparedStatementBuilderHelper.validateAndMerge(mappings, table, InsertModeEnum.INSERT);
+    assertEquals(newMappings.getTableName(), mappings.getTableName());
+    assertEquals(newMappings.getIncomingTopic(), mappings.getIncomingTopic());
+    assertEquals(newMappings.areAllFieldsIncluded(), false);
+
+    Map<String, FieldAlias> newAliasMap = newMappings.getMappings();
+    assertEquals(4, newAliasMap.size()); //+ the specific mapping
+    assertTrue(newAliasMap.containsKey("col1"));
+    assertEquals(newAliasMap.get("col1").getName(), "col1");
+    assertEquals(newAliasMap.get("col1").isPrimaryKey(), true);
+
+    assertTrue(newAliasMap.containsKey("col2"));
+    assertEquals(newAliasMap.get("col2").getName(), "col2");
+    assertEquals(newAliasMap.get("col2").isPrimaryKey(), false);
+
+    assertTrue(newAliasMap.containsKey("col3"));
+    assertEquals(newAliasMap.get("col3").getName(), "col3");
+    assertEquals(newAliasMap.get("col3").isPrimaryKey(), false);
+
+    assertTrue(newAliasMap.containsKey("f1"));
+    assertEquals(newAliasMap.get("f1").getName(), "col3");
+    assertEquals(newAliasMap.get("f1").isPrimaryKey(), false);
+  }

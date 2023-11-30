@@ -1,0 +1,57 @@
+    public static void main0(String[] args, RPCHook rpcHook) {
+        System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
+
+        //PackageConflictDetect.detectFastjson();
+
+        initCommand();
+
+        try {
+            initLogback();
+            switch (args.length) {
+                case 0:
+                    printHelp();
+                    break;
+                case 2:
+                    if (args[0].equals("help")) {
+                        SubCommand cmd = findSubCommand(args[1]);
+                        if (cmd != null) {
+                            Options options = ServerUtil.buildCommandlineOptions(new Options());
+                            options = cmd.buildCommandlineOptions(options);
+                            if (options != null) {
+                                ServerUtil.printCommandLineHelp("mqadmin " + cmd.commandName(), options);
+                            }
+                        } else {
+                            System.out.printf("The sub command %s not exist.%n", args[1]);
+                        }
+                        break;
+                    }
+                case 1:
+                default:
+                    SubCommand cmd = findSubCommand(args[0]);
+                    if (cmd != null) {
+                        String[] subargs = parseSubArgs(args);
+
+                        Options options = ServerUtil.buildCommandlineOptions(new Options());
+                        final CommandLine commandLine =
+                            ServerUtil.parseCmdLine("mqadmin " + cmd.commandName(), subargs, cmd.buildCommandlineOptions(options),
+                                new PosixParser());
+                        if (null == commandLine) {
+                            System.exit(-1);
+                            return;
+                        }
+
+                        if (commandLine.hasOption('n')) {
+                            String namesrvAddr = commandLine.getOptionValue('n');
+                            System.setProperty(MixAll.NAMESRV_ADDR_PROPERTY, namesrvAddr);
+                        }
+
+                        cmd.execute(commandLine, options, rpcHook);
+                    } else {
+                        System.out.printf("The sub command %s not exist.%n", args[0]);
+                    }
+                    break;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }

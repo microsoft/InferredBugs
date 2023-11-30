@@ -1,0 +1,37 @@
+    public boolean readOne() {
+        for (; ; ) {
+
+            try (DocumentContext context = in.readingDocument()) {
+                if (!context.isPresent())
+                    return false;
+                if (context.isMetaData()) {
+                    StringBuilder sb = Wires.acquireStringBuilder();
+
+                    long r = context.wire().bytes().readPosition();
+                    try {
+                        context.wire().readEventName(sb);
+
+                        for (String s : metaIgnoreList) {
+                            // we wish to ignore our system meta data field
+                            if (s.contentEquals(sb))
+                                return false;
+                        }
+                    } finally {
+                        // roll back position to where is was before we read the SB
+                        context.wire().bytes().readPosition(r);
+                    }
+
+                    wireParser.accept(context.wire());
+
+                    return true;
+                }
+                if (!context.isData())
+                    continue;
+                MessageHistory history = messageHistory;
+                history.reset(context.sourceId(), context.index());
+                wireParser.accept(context.wire());
+            }
+            return true;
+        }
+
+    }

@@ -1,0 +1,26 @@
+    void handleQueueMemberStatusEvent(QueueMemberStatusEvent event)
+    {
+    	AsteriskQueueImpl queue = getInternalQueueByName(event.getQueue());
+
+        if (queue == null)
+        {
+            logger.error("Ignored QueueMemberStatusEvent for unknown queue " + event.getQueue());
+            return;
+        }
+
+        AsteriskQueueMemberImpl member = queue.getMemberByLocation(event.getLocation());
+        if (member == null)
+        {
+            logger.error("Ignored QueueMemberStatusEvent for unknown member " + event.getLocation());
+            return;
+        }
+
+        updateQueue(queue.getName());
+
+        member.stateChanged(QueueMemberState.valueOf(event.getStatus()));
+        member.penaltyChanged(event.getPenalty());
+        member.lastCallChanged(event.getLastCall());
+        member.callsTakenChanged(event.getCallsTaken());
+
+        queue.fireMemberStateChanged(member);
+    }

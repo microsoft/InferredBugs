@@ -1,0 +1,59 @@
+    @Override
+    public void onEvent(SmallBlockEvent event, String fromId) {
+        ValidateResult result = event.getEventBody().verify();
+        if (result.isFailed()) {
+            return;
+        }
+        temporaryCacheManager.cacheSmallBlock(event.getEventBody());
+        downloadDataUtils.removeSmallBlock(event.getEventBody().getBlockHash().getDigestHex());
+        GetTxGroupRequest request = new GetTxGroupRequest();
+        GetTxGroupParam param = new GetTxGroupParam();
+        param.setBlockHash(event.getEventBody().getBlockHash());
+        for (NulsDigestData hash : event.getEventBody().getTxHashList()) {
+            if (!receivedTxCacheManager.txExist(hash) && !orphanTxCacheManager.txExist(hash)) {
+                param.addHash(hash);
+            }
+        }
+        if (param.getTxHashList().isEmpty()) {
+            BlockHeader header = temporaryCacheManager.getBlockHeader(event.getEventBody().getBlockHash().getDigestHex());
+            if (null == header) {
+                return;
+            }
+            Block block = new Block();
+            block.setHeader(header);
+            List<Transaction> txs = new ArrayList<>();
+            for (NulsDigestData txHash : event.getEventBody().getTxHashList()) {
+                Transaction tx = receivedTxCacheManager.getTx(txHash);
+
+                if (null == tx) {
+                    tx = orphanTxCacheManager.getTx(txHash);
+                }
+                if (null == tx) {
+                    throw new NulsRuntimeException(ErrorCode.DATA_ERROR);
+                }
+                txs.add(tx);
+            }
+            block.setTxs(txs);
+            ValidateResult<RedPunishData> vResult = block.verify();
+            if (null == vResult || (vResult.isFailed() && vResult.getErrorCode() != ErrorCode.ORPHAN_TX)) {
+                if (vResult.getLevel() == SeverityLevelEnum.FLAGRANT_FOUL) {
+                    RedPunishData data = vResult.getObject();
+                    ConsensusMeetingRunner.putPunishData(data);
+                    networkService.blackNode(fromId, NodePo.BLACK);
+                } else {
+                    networkService.removeNode(fromId, NodePo.YELLOW);
+                }
+                return;
+            }
+
+            blockManager.addBlock(block, false, fromId);
+            downloadDataUtils.removeTxGroup(block.getHeader().getHash().getDigestHex());
+
+            BlockHeaderEvent headerEvent = new BlockHeaderEvent();
+            headerEvent.setEventBody(header);
+            eventBroadcaster.broadcastHashAndCacheAysn(headerEvent, false, fromId);
+            return;
+        }
+        request.setEventBody(param);
+        this.eventBroadcaster.sendToNode(request, fromId);
+    }

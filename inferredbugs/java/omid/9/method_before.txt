@@ -1,0 +1,22 @@
+   public Set<Long> raiseLargestDeletedTransaction(long id) {
+      if (firstUncommitedAbsolute > getAbsolutePosition(id))
+         return Collections.emptySet();
+      int maxBucket = getRelativePosition(id);
+      Set<Long> aborted = new TreeSet<Long>();
+      for (int i = firstUncommitedBucket; i != maxBucket ; i = (int)((i+1) % BKT_NUMBER)) {
+         Bucket bucket = buckets[i];
+         if (bucket != null) {
+            aborted.addAll(bucket.abortAllUncommited());
+            buckets[i] = null;
+         }
+      }
+      
+      Bucket bucket = buckets[maxBucket];
+      if (bucket != null) {
+         aborted.addAll(bucket.abortUncommited(id));
+      }
+      
+      increaseFirstUncommitedBucket();
+      
+      return aborted;
+   }

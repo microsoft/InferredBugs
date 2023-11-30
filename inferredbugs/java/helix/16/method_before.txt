@@ -1,0 +1,29 @@
+  @Override
+  public void process(ClusterEvent event) throws Exception
+  {
+//    ClusterManager manager = event.getAttribute("clustermanager");
+//    if (manager == null)
+//    {
+//      throw new StageException("ClusterManager attribute value is null");
+//    }
+    ClusterDataCache cache = event.getAttribute("ClusterDataCache");
+
+    Map<String, ResourceGroup> resourceGroupMap = event
+        .getAttribute(AttributeName.RESOURCE_GROUPS.toString());
+    MessageGenerationOutput messageGenOutput = event
+        .getAttribute(AttributeName.MESSAGES_ALL.toString());
+    MessageSelectionStageOutput output = new MessageSelectionStageOutput();
+    for (String resourceGroupName : resourceGroupMap.keySet())
+    {
+      ResourceGroup resourceGroup = resourceGroupMap.get(resourceGroupName);
+      StateModelDefinition stateModelDef = cache.getStateModelDef(resourceGroup.getStateModelDefRef());
+      for (ResourceKey resource : resourceGroup.getResourceKeys())
+      {
+        List<Message> messages = messageGenOutput.getMessages(
+            resourceGroupName, resource);
+        List<Message> selectedMessages = selectMessages(messages, stateModelDef);
+        output.addMessages(resourceGroupName, resource, selectedMessages);
+      }
+    }
+    event.addAttribute(AttributeName.MESSAGES_SELECTED.toString(), output);
+  }

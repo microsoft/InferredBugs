@@ -1,0 +1,44 @@
+  @Override
+  public int send(final Criteria recipientCriteria, final Message message,
+      AsyncCallback callbackOnReply)
+  {
+
+    Map<InstanceType, List<Message>> generateMessage = generateMessage(
+        recipientCriteria, message);
+    int totalMessageCount = 0;
+    String correlationId = null;
+    if (callbackOnReply != null)
+    {
+      correlationId = UUID.randomUUID().toString();
+      for (List<Message> messages : generateMessage.values())
+      {
+        totalMessageCount += messages.size();
+        callbackOnReply.setMessagesSent(messages);
+      }
+      _asyncCallbackService.registerAsyncCallback(correlationId, callbackOnReply);
+    }
+
+    for (InstanceType receiverType : generateMessage.keySet())
+    {
+      List<Message> list = generateMessage.get(receiverType);
+      for (Message tempMessage : list)
+      {
+        if(correlationId != null)
+        {
+          tempMessage.setCorrelationId(correlationId);
+        }
+        if (receiverType == InstanceType.CONTROLLER)
+        {
+          _manager.getDataAccessor().setControllerProperty(ControllerPropertyType.MESSAGES,
+              tempMessage.getRecord(), CreateMode.PERSISTENT);
+        }
+        if (receiverType == InstanceType.PARTICIPANT)
+        {
+          _manager.getDataAccessor().setInstanceProperty(message.getTgtName(),
+              InstancePropertyType.MESSAGES, tempMessage.getId(),
+              tempMessage.getRecord());
+        }
+      }
+    }
+    return totalMessageCount;
+  }

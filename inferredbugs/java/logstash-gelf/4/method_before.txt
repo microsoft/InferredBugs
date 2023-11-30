@@ -1,0 +1,23 @@
+    public ByteBuffer[] toUDPBuffers() {
+
+        byte[] messageBytes = gzipMessage(toJsonByteArray("_"));
+
+        if (messageBytes.length > maximumMessageSize) {
+            // calculate the length of the datagrams array
+            int datagrams_length = messageBytes.length / maximumMessageSize;
+            // In case of a remainder, due to the integer division, add a extra datagram
+            if (messageBytes.length % maximumMessageSize != 0) {
+                datagrams_length++;
+            }
+
+            ByteBuffer targetBuffer = ByteBuffer.allocate(messageBytes.length + (datagrams_length * 12));
+
+            return sliceDatagrams(ByteBuffer.wrap(messageBytes), datagrams_length, targetBuffer);
+        }
+
+        ByteBuffer[] datagrams = new ByteBuffer[1];
+        datagrams[0] = ByteBuffer.allocate(messageBytes.length);
+        datagrams[0].put(messageBytes);
+        datagrams[0].flip();
+        return datagrams;
+    }

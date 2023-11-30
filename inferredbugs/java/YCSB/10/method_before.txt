@@ -1,0 +1,72 @@
+  @Override
+  public void init() throws DBException {
+    Properties props = getProperties();
+
+    String url = props.getProperty(URL_PROPERTY);
+    String user = props.getProperty(USER_PROPERTY, USER_PROPERTY_DEFAULT);
+    String password = props.getProperty(PASSWORD_PROPERTY, PASSWORD_PROPERTY_DEFAULT);
+    Boolean newdb = Boolean.parseBoolean(props.getProperty(NEWDB_PROPERTY, NEWDB_PROPERTY_DEFAULT));
+    String remoteStorageType = props.getProperty(STORAGE_TYPE_PROPERTY);
+    Boolean dotransactions = Boolean.parseBoolean(
+        props.getProperty(DO_TRANSACTIONS_PROPERTY, DO_TRANSACTIONS_PROPERTY_DEFAULT));
+
+    if (url == null) {
+      throw new DBException(String.format("Required property \"%s\" missing for OrientDBClient", URL_PROPERTY));
+    }
+
+    log.info("OrientDB loading database url = " + url);
+
+    // If using a remote database, use the OServerAdmin interface to connect
+    if (url.startsWith(OEngineRemote.NAME)) {
+      isRemote = true;
+      if (remoteStorageType == null) {
+        throw new DBException("When connecting to a remote OrientDB instance, " +
+          "specify a database storage type (plocal or memory) with " + STORAGE_TYPE_PROPERTY);
+      }
+
+      try {
+        OServerAdmin server = new OServerAdmin(url).connect(user, password);
+
+        if (server.existsDatabase()) {
+          if (newdb && !dotransactions) {
+            log.info("OrientDB dropping and recreating fresh db on remote server.");
+            server.dropDatabase(remoteStorageType);
+            server.createDatabase(server.getURL(), ORIENTDB_DOCUMENT_TYPE, remoteStorageType);
+          }
+        } else {
+          log.info("OrientDB database not found, creating fresh db");
+          server.createDatabase(server.getURL(), ORIENTDB_DOCUMENT_TYPE, remoteStorageType);
+        }
+
+        server.close();
+        db = new ODatabaseDocumentTx(url).open(user, password);
+      } catch (IOException | OException e) {
+        throw new DBException(String.format("Error interfacing with %s", url), e);
+      }
+    } else {
+      try {
+        db = new ODatabaseDocumentTx(url);
+        if (db.exists()) {
+          db.open(user, password);
+          if (newdb && !dotransactions) {
+            log.info("OrientDB dropping and recreating fresh db.");
+            db.drop();
+            db.create();
+          }
+        } else {
+          log.info("OrientDB database not found, creating fresh db");
+          db.create();
+        }
+      } catch (ODatabaseException e) {
+        throw new DBException(String.format("Error interfacing with %s", url), e);
+      }
+    }
+
+    log.info("OrientDB connection created with " + url);
+    dictionary = db.getMetadata().getIndexManager().getDictionary();
+    if (!db.getMetadata().getSchema().existsClass(CLASS)) {
+      db.getMetadata().getSchema().createClass(CLASS);
+    }
+
+    db.declareIntent(new OIntentMassiveInsert());
+  }

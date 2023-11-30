@@ -1,0 +1,28 @@
+    private void onEvent(PathChildrenCacheEvent event, InstanceEventType instanceEventType) throws Exception {
+        String childPath = event.getData().getPath();
+        String applicationJson = childPath.substring(childPath.lastIndexOf("/") + 1);
+        ApplicationEntity applicationEntity = ZookeeperApplicationEntityFactory.fromJson(applicationJson);
+
+        List<String> applicationJsonList = invoker.getChildNameList(client, path);
+        List<ApplicationEntity> applicationEntityList = ZookeeperApplicationEntityFactory.fromJson(applicationJsonList);
+
+        InstanceEvent instanceEvent = null;
+        switch (applicationType) {
+            case SERVICE:
+                instanceEvent = new ServiceInstanceEvent(instanceEventType, interfaze, applicationEntity, applicationEntityList);
+                if (executorContainer != null) {
+                    ConsistencyExecutor consistencyExecutor = executorContainer.getConsistencyExecutor();
+                    if (consistencyExecutor != null) {
+                        consistencyExecutor.consist((ServiceInstanceEvent) instanceEvent);
+                    }
+                }
+                break;
+            case REFERENCE:
+                instanceEvent = new ReferenceInstanceEvent(instanceEventType, interfaze, applicationEntity, applicationEntityList);
+                break;
+        }
+
+        EventControllerFactory.getAsyncController(instanceEvent.toString()).post(instanceEvent);
+
+        LOG.info("Watched {} {} - interface={}, {}", applicationType.toString(), instanceEventType.toString(), interfaze, applicationEntity.toString());
+    }

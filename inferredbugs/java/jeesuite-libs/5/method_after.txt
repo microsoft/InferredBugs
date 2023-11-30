@@ -1,0 +1,32 @@
+ private void resetCorrectOffsets() {
+		consumer.pause(consumer.assignment());
+		Map<String, List<PartitionInfo>> topicInfos = consumer.listTopics();
+		Set<String> topics = topicInfos.keySet();
+		
+		List<String> expectTopics = new ArrayList<>(topicHandlers.keySet());
+		
+		List<PartitionInfo> patitions = null;
+		for (String topic : topics) {
+			if(!expectTopics.contains(topic))continue;
+			
+			patitions = topicInfos.get(topic);
+			for (PartitionInfo partition : patitions) {
+				try {						
+					//期望的偏移
+					long expectOffsets = consumerContext.getLatestProcessedOffsets(topic, partition.partition());
+					//
+					TopicPartition topicPartition = new TopicPartition(topic, partition.partition());
+					OffsetAndMetadata metadata = consumer.committed(new TopicPartition(partition.topic(), partition.partition()));
+					if(expectOffsets >= 0){						
+						if(expectOffsets < metadata.offset()){	
+							consumer.seek(topicPartition, expectOffsets);
+							logger.info("seek Topic[{}] partition[{}] from {} to {}",topic, partition.partition(),metadata.offset(),expectOffsets);
+						}
+					}
+				} catch (Exception e) {
+					logger.warn("try seek topic["+topic+"] partition["+partition.partition()+"] offsets error");
+				}
+			}
+		}
+		consumer.resume(consumer.assignment());
+	}

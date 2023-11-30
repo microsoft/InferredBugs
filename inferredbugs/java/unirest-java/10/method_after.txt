@@ -1,0 +1,22 @@
+ @Test
+	public void testMultipartInputStreamContentType() throws JSONException, URISyntaxException, FileNotFoundException {
+		FileInputStream stream = new FileInputStream(new File(getClass().getResource("/image.jpg").toURI()));
+		MultipartBody request = Unirest.post(MockServer.HOST + "/post")
+            .header("accept", ContentType.MULTIPART_FORM_DATA.toString())
+			.field("name", "Mark")
+			.field("file", stream, ContentType.APPLICATION_OCTET_STREAM, "image.jpg");
+
+		HttpResponse<JsonNode> jsonResponse = request
+			.asJson();
+
+		assertEquals(200, jsonResponse.getStatus());
+
+		FormCapture json = TestUtils.read(jsonResponse, FormCapture.class);
+		json.assertHeader("Accept", ContentType.MULTIPART_FORM_DATA.toString());
+		json.assertQuery("name", "Mark");
+		assertEquals("application/octet-stream", json.getFile("image.jpg").type);
+
+
+//		assertTrue(json.getObject().getJSONObject("files").getString("type").contains("application/octet-stream"));
+//		assertEquals("Mark", json.getObject().getJSONObject("form").getString("name"));
+	}

@@ -1,0 +1,51 @@
+    @Test
+    public void testConnectionRetries3() throws SQLException
+    {
+        HikariConfig config = new HikariConfig();
+        config.setMinimumIdle(0);
+        config.setMaximumPoolSize(2);
+        config.setConnectionTimeout(2800);
+        config.setConnectionTestQuery("VALUES 1");
+        config.setDataSourceClassName("com.zaxxer.hikari.mocks.StubDataSource");
+
+        HikariDataSource ds = new HikariDataSource(config);
+
+        final Connection connection1 = ds.getConnection();
+        final Connection connection2 = ds.getConnection();
+        Assert.assertNotNull(connection1);
+        Assert.assertNotNull(connection2);
+
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+        scheduler.schedule(new Runnable() {
+            public void run()
+            {
+                try
+                {
+                    connection1.close();
+                }
+                catch (Exception e)
+                {
+                    e.printStackTrace(System.err);
+                }
+            }
+        }, 800, TimeUnit.MILLISECONDS);
+
+        long start = System.currentTimeMillis();
+        try
+        {
+            Connection connection3 = ds.getConnection();
+            connection3.close();
+
+            long elapsed = System.currentTimeMillis() - start;
+            Assert.assertTrue("Waited too long to get a connection.", (elapsed >= 700) && (elapsed < 950));
+        }
+        catch (SQLException e)
+        {
+            Assert.fail("Should not have timed out.");
+        }
+        finally
+        {
+            scheduler.shutdownNow();
+            ds.shutdown();
+        }
+    }

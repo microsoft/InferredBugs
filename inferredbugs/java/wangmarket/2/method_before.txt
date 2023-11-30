@@ -1,0 +1,31 @@
+ public static UploadFileVO put(String path,InputStream inputStream){
+		UploadFileVO vo = new UploadFileVO();
+		
+		if(isMode(MODE_ALIYUN_OSS)){
+			PutResult pr = OSSUtil.put(path, inputStream);
+			vo = PutResultToUploadFileVO(pr);
+		}else if(isMode(MODE_LOCAL_FILE)){
+			directoryInit(path);
+			File file = new File(localFilePath+path);
+			OutputStream os;
+			try {
+				os = new FileOutputStream(file);
+				int bytesRead = 0;
+				byte[] buffer = new byte[8192];
+				while ((bytesRead = inputStream.read(buffer, 0, 8192)) != -1) {
+					os.write(buffer, 0, bytesRead);
+				}
+				os.close();
+				inputStream.close();
+				
+				vo.setFileName(file.getName());
+				vo.setInfo("success");
+				vo.setPath(path);
+				vo.setUrl(AttachmentFile.netUrl()+path);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		return vo;
+	}

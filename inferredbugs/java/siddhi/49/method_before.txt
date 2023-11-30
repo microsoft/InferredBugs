@@ -1,0 +1,32 @@
+    @Override
+    public void run() {
+        while (!inactive) {
+            while (!paused) {
+                // The time, in milliseconds, spent waiting in poll if data is not available. If 0, returns
+                // immediately with any records that are available now. Must not be negative
+                ConsumerRecords<byte[], byte[]> records = consumer.poll(200);
+                for (ConsumerRecord record : records) {
+                    String event = record.value().toString();
+                    if (log.isDebugEnabled()) {
+                        log.debug("Event received in Kafka Event Adaptor: " + event + ", offSet: " + record.offset() +
+                                ", key: " + record.key() + ", topic: " + record.topic() + ", partition: " + record
+                                .partition());
+                    }
+                    topicOffsetMap.get(record.topic()).put(record.partition(), record.offset());
+                    sourceEventListener.onEvent(event);
+                }
+                try {
+                    if (!records.isEmpty()) {
+                        consumer.commitAsync();
+                    }
+                } catch (CommitFailedException e) {
+                    log.error("Kafka commit failed for topic kafka_result_topic", e);
+                }
+            }
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException ignore) {
+            }
+        }
+        consumer.close();
+    }

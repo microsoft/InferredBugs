@@ -1,0 +1,42 @@
+    public XmlSuite constructXmlSuiteForDistribution(String pack, List<String> tests,
+        Map<String, List<Method>> methods, int deviceCount) {
+        ArrayList<String> items = new ArrayList<>();
+        try {
+            prop.load(new FileInputStream("config.properties"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (prop.getProperty("LISTENERS") != null) {
+            Collections.addAll(items, prop.getProperty("LISTENERS").split("\\s*,\\s*"));
+        }
+        XmlSuite suite = new XmlSuite();
+        suite.setName("TestNG Forum");
+        suite.setThreadCount(deviceCount);
+        suite.setParallel(ParallelMode.CLASSES);
+        suite.setVerbose(2);
+        items.add("com.appium.manager.AppiumParallelTest");
+        items.add("com.appium.utils.RetryListener");
+        suite.setListeners(items);
+        if (prop.getProperty("LISTENERS") != null) {
+            suite.setListeners(items);
+        }
+        XmlTest test = new XmlTest(suite);
+        test.setName("TestNG Test");
+        List<XmlClass> xmlClasses = new ArrayList<>();
+        for (String className : methods.keySet()) {
+            if (className.contains("Test")) {
+                if (tests.size() == 0) {
+                    xmlClasses.add(createClass(className, methods.get(className)));
+                } else {
+                    for (String s : tests) {
+                        if (pack.concat("." + s).equals(className)) {
+                            xmlClasses.add(createClass(className, methods.get(className)));
+                        }
+                    }
+                }
+
+            }
+        }
+        test.setXmlClasses(xmlClasses);
+        return suite;
+    }

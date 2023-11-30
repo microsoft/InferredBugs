@@ -1,0 +1,33 @@
+    @Test
+    public void testValuesInFlow() throws Exception {
+        // compile
+        URI resource = getClass().getResource("/yaml/formats/values_flow.sl").toURI();
+        URI operation1 = getClass().getResource("/yaml/formats/values_op.sl").toURI();
+        URI operation2 = getClass().getResource("/yaml/noop.sl").toURI();
+
+        SlangSource dep1 = SlangSource.fromFile(operation1);
+        SlangSource dep2 = SlangSource.fromFile(operation2);
+        Set<SlangSource> path = Sets.newHashSet(dep1, dep2);
+        CompilationArtifact compilationArtifact = slang.compile(SlangSource.fromFile(resource), path);
+
+        // trigger
+        Map<String, Serializable> userInputs = new HashMap<>();
+        userInputs.put("input_no_expression", "input_no_expression_value");
+        userInputs.put("input_overridable", "i_should_not_be_assigned");
+        Map<String, Serializable> systemProperties = new HashMap<>();
+        systemProperties.put("user.sys.props.host", "localhost");
+
+        Map<String, StepData> steps = triggerWithData(compilationArtifact, userInputs, systemProperties).getTasks();
+
+        // verify
+        StepData flowData = steps.get(EXEC_START_PATH);
+        StepData taskData = steps.get(FIRST_STEP_PATH);
+        StepData oneLinerTaskData = steps.get(SECOND_STEP_KEY);
+
+        verifyFlowInputs(flowData);
+        verifyFlowOutputs(flowData);
+        verifyTaskInputs(taskData);
+        verifyTaskPublishValues(taskData);
+        verifyOneLinerInputs(oneLinerTaskData);
+        verifyExecutableResult(flowData);
+    }

@@ -1,0 +1,63 @@
+    void syncForDead(Address addressDead) {
+        MemberImpl member = getNextMemberBeforeSync(addressDead, true, 1);
+        if (DEBUG) {
+            log(addressDead + " is dead and its backup was " + member);
+        }
+        Address addressNewOwner = (member == null) ? thisAddress : member.getAddress();
+
+        Collection<Q> queues = mapQueues.values();
+        for (Q q : queues) {
+            List<Block> lsBlocks = q.lsBlocks;
+            for (Block block : lsBlocks) {
+                if (block.address.equals(addressDead)) {
+                    // set the new owner
+                    block.address = addressNewOwner;
+                    block.resetAddIndex();
+                    if (lsMembers.size() > 1) {
+                        if (addressNewOwner.equals(thisAddress)) {
+                            // I am the new owner so backup to next member
+                            int indexUpto = block.size() - 1;
+                            if (DEBUG) {
+                                log("IndexUpto " + indexUpto);
+                            }
+                            if (indexUpto > -1) {
+                                executeLocally(new BlockBackupSyncRunner(new BlockBackupSync(q, block,
+                                        indexUpto)));
+                            }
+                        }
+                    }
+                } else if (block.address.equals(thisAddress)) {
+                    // If I am/was the owner of this block
+                    // did my backup change..
+                    // if so backup to the new next
+                    if (lsMembers.size() > 1) {
+                        MemberImpl memberBackupWas = getNextMemberBeforeSync(thisAddress, true, 1);
+                        if (memberBackupWas == null
+                                || memberBackupWas.getAddress().equals(addressDead)) {
+                            int indexUpto = block.size() - 1;
+                            if (indexUpto > -1) {
+                                executeLocally(new BlockBackupSyncRunner(new BlockBackupSync(q, block,
+                                        indexUpto)));
+                            }
+                        }
+                    }
+                }
+            }
+            // packetalidate the dead member's scheduled actions
+            List<ScheduledPollAction> scheduledPollActions = q.lsScheduledPollActions;
+            for (ScheduledPollAction scheduledAction : scheduledPollActions) {
+                if (addressDead.equals(scheduledAction.request.caller)) {
+                    scheduledAction.setValid(false);
+                    ClusterManager.get().deregisterScheduledAction(scheduledAction);
+                }
+            }
+            List<ScheduledOfferAction> scheduledOfferActions = q.lsScheduledOfferActions;
+            for (ScheduledOfferAction scheduledAction : scheduledOfferActions) {
+                if (addressDead.equals(scheduledAction.request.caller)) {
+                    scheduledAction.setValid(false);
+                    ClusterManager.get().deregisterScheduledAction(scheduledAction);
+                }
+            }
+        }
+        doResetBlockSizes();
+    }

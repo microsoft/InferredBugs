@@ -1,0 +1,41 @@
+    public static Driver driver( URI uri, AuthToken authToken, Config config )
+    {
+        // Break down the URI into its constituent parts
+        String scheme = uri.getScheme();
+        BoltServerAddress address = BoltServerAddress.from( uri );
+
+        // Make sure we have some configuration to play with
+        if ( config == null )
+        {
+            config = Config.defaultConfig();
+        }
+
+        // Construct security plan
+        SecurityPlan securityPlan;
+        try
+        {
+            securityPlan = createSecurityPlan( address, config );
+        }
+        catch ( GeneralSecurityException | IOException ex )
+        {
+            throw new ClientException( "Unable to establish SSL parameters", ex );
+        }
+
+        ConnectionPool connectionPool = createConnectionPool( authToken, securityPlan, config );
+
+        switch ( scheme.toLowerCase() )
+        {
+        case "bolt":
+            return new DirectDriver( address, connectionPool, securityPlan, config.logging() );
+        case "bolt+routing":
+            return new RoutingDriver(
+                    config.routingSettings(),
+                    address,
+                    connectionPool,
+                    securityPlan,
+                    Clock.SYSTEM,
+                    config.logging() );
+        default:
+            throw new ClientException( format( "Unsupported URI scheme: %s", scheme ) );
+        }
+    }

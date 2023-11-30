@@ -1,0 +1,64 @@
+    private Object getWithProperty(Object ctx) {
+        assert debug("\n  ** ENTER -> {with}");
+
+        if (first) {
+            assert debug("ALOAD 1");
+            mv.visitVarInsn(ALOAD, 1);
+            first = false;
+        }
+
+        String root = new String(expr, 0, cursor - 1).trim();
+
+        int start = cursor + 1;
+        int[] res = balancedCaptureWithLineAccounting(expr, cursor, '{');
+        cursor = res[0];
+        (pCtx = getParserContext()).incrementLineCount(res[1]);
+
+        this.returnType = ctx != null ? ctx.getClass() : null;
+
+        for (WithStatementPair aPvp : parseWithExpressions(root, subset(expr, start, cursor++ - start))) {
+            assert debug("DUP");
+            mv.visitInsn(DUP);
+            if (aPvp.getParm() == null) {
+                // Execute this interpretively now.
+                MVEL.eval(aPvp.getValue(), ctx, variableFactory);
+
+                addSubstatement((ExecutableStatement) subCompileExpression(aPvp.getValue().toCharArray()));
+            }
+            else {
+                // Execute interpretively.
+                MVEL.setProperty(ctx, aPvp.getParm(), MVEL.eval(aPvp.getValue(), ctx, variableFactory));
+                compiledInputs.add(((ExecutableStatement) MVEL.compileSetExpression(aPvp.getParm(),
+                        getReturnType(ingressType, aPvp.getParm(), pCtx), pCtx)));
+
+                assert debug("ALOAD 0");
+                mv.visitVarInsn(ALOAD, 0);
+
+                assert debug("GETFIELD p" + (compiledInputs.size() - 1));
+                mv.visitFieldInsn(GETFIELD, className, "p" + (compiledInputs.size() - 1), "L" + NAMESPACE + "compiler/ExecutableStatement;");
+
+                assert debug("ALOAD 1");
+                mv.visitVarInsn(ALOAD, 1);
+
+                assert debug("ALOAD 2");
+                mv.visitVarInsn(ALOAD, 2);
+
+                assert debug("ALOAD 3");
+                mv.visitVarInsn(ALOAD, 3);
+
+                addSubstatement((ExecutableStatement) subCompileExpression(aPvp.getValue().toCharArray()));
+
+                assert debug("INVOKEINTERFACE Accessor.setValue");
+                mv.visitMethodInsn(INVOKEINTERFACE, NAMESPACE + "compiler/ExecutableStatement",
+                        "setValue",
+                        "(Ljava/lang/Object;Ljava/lang/Object;L"
+                                + NAMESPACE + "integration/VariableResolverFactory;Ljava/lang/Object;)Ljava/lang/Object;");
+
+                assert debug("POP");
+                mv.visitInsn(POP);
+            }
+        }
+
+        return ctx;
+
+    }

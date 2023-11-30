@@ -1,0 +1,43 @@
+    static private SourceSnippet readFromInputStream(InputStream is,
+                                                        URI source,
+                                                        int lineFrom,
+                                                        int lineTo) throws IOException {
+        if (lineTo <= 0) {
+            throw new IllegalArgumentException("lineTo was <= 0");
+        }
+        
+        // just zero this out
+        if (lineFrom < 0) {
+            lineFrom = 0;
+        }
+        
+        if (lineTo < lineFrom) {
+            throw new IllegalArgumentException("lineTo was < lineFrom");
+        }
+        
+        BufferedReader in = new BufferedReader(
+                new InputStreamReader(is));
+        
+        List<String> lines = new ArrayList<>();
+  
+        int i = 0;
+        String line;
+        while ((line = in.readLine()) != null) {
+            i++;                        // lines index are 1-based
+            if (i >= lineFrom) {
+                if (i <= lineTo) {
+                    lines.add(line);
+                } else {
+                    break;
+                }
+            }
+        }
+        
+        if (lines.isEmpty()) {
+            return null;
+        }
+        
+        // since file may not contain enough lines for requested lineTo -- 
+        // we caclulate the actual range here by number read "from" line.
+        return new SourceSnippet(source, lines, lineFrom, lineFrom + lines.size());
+    }

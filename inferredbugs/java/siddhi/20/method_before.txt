@@ -1,0 +1,89 @@
+    @Override
+    protected void process(ComplexEventChunk<StreamEvent> streamEventChunk, Processor nextProcessor,
+                           StreamEventCloner streamEventCloner, ComplexEventPopulater complexEventPopulater) {
+        ComplexEventChunk<StreamEvent> complexEventChunk = new ComplexEventChunk<StreamEvent>(false);
+        try {
+            while (streamEventChunk.hasNext()) {
+
+
+                StreamEvent event = streamEventChunk.next();
+
+                if(event.getType() != ComplexEvent.Type.TIMER) {
+
+                    streamEventChunk.remove(); //We might have the rest of the events linked to this event forming a chain.
+
+                    long timestamp = (Long) timestampExecutor.execute(event);
+
+                    if (expireFlag) {
+                        if (timestamp < lastSentTimeStamp) {
+                            continue;
+                        }
+                    }
+
+                    ArrayList<StreamEvent> eventList = eventTreeMap.get(timestamp);
+                    if (eventList == null) {
+                        eventList = new ArrayList<StreamEvent>();
+                    }
+                    eventList.add(event);
+                    eventTreeMap.put(timestamp, eventList);
+
+                    if (timestamp > greatestTimestamp) {
+
+                        greatestTimestamp = timestamp;
+                        long minTimestamp = eventTreeMap.firstKey();
+
+                        if ((greatestTimestamp - minTimestamp) > k) {
+                            if ((greatestTimestamp - minTimestamp) < MAX_K) {
+                                k = greatestTimestamp - minTimestamp;
+                            } else {
+                                k = MAX_K;
+                            }
+                        }
+
+                        lock.lock();
+                        Iterator<Map.Entry<Long, ArrayList<StreamEvent>>> entryIterator = eventTreeMap.entrySet().iterator();
+                        while (entryIterator.hasNext()) {
+                            Map.Entry<Long, ArrayList<StreamEvent>> entry = entryIterator.next();
+                            ArrayList<StreamEvent> list = expiredEventTreeMap.get(entry.getKey());
+
+                            if (list != null) {
+                                list.addAll(entry.getValue());
+                            } else {
+                                expiredEventTreeMap.put(entry.getKey(), entry.getValue());
+                            }
+                        }
+                        eventTreeMap = new TreeMap<Long, ArrayList<StreamEvent>>();
+
+                        entryIterator =  expiredEventTreeMap.entrySet().iterator();
+                        while (entryIterator.hasNext()) {
+                            Map.Entry<Long, ArrayList<StreamEvent>> entry = entryIterator.next();
+
+                            if (entry.getKey() + k <= greatestTimestamp) {
+                                entryIterator.remove();
+                                ArrayList<StreamEvent> timeEventList = entry.getValue();
+                                lastSentTimeStamp = entry.getKey();
+
+                                for (StreamEvent aTimeEventList : timeEventList) {
+                                    complexEventChunk.add(aTimeEventList);
+                                }
+                            }
+                        }
+                        lock.unlock();
+                    }
+                } else {
+                    onTimerEvent(expiredEventTreeMap, nextProcessor);
+                    lastScheduledTimestamp = lastScheduledTimestamp + TIMER_DURATION;
+                    scheduler.notifyAt(lastScheduledTimestamp);
+                }
+
+
+
+            }
+        } catch (ArrayIndexOutOfBoundsException ec) {
+//            This happens due to user specifying an invalid field index.
+            throw new ExecutionPlanCreationException("The very first parameter must be an Integer with a valid " +
+                    " field index (0 to (fieldsLength-1)).");
+        }
+
+        nextProcessor.process(complexEventChunk);
+    }

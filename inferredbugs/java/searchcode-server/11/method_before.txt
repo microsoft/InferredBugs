@@ -1,0 +1,26 @@
+    public synchronized void deleteRepoByName(String repositoryName) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = this.dbConfig.getConnection();
+            stmt = conn.prepareStatement("delete from repo where name=?;");
+
+            stmt.setString(1, repositoryName);
+
+            stmt.execute();
+
+            this.cache.remove(repositoryName);
+            this.genericCache.remove(this.repoCountCacheKey);
+            this.genericCache.remove(this.repoAllRepoCacheKey);
+        }
+        catch(SQLException ex) {
+            LOGGER.severe(" caught a " + ex.getClass() + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(rs);
+            Helpers.closeQuietly(stmt);
+            Helpers.closeQuietly(conn);
+        }
+    }

@@ -1,0 +1,170 @@
+    @Override
+    public void writeImage(BufferedImage src, OutputStream os, Map params)
+            throws ImageWriteException, IOException {
+        // make copy of params; we'll clear keys as we consume them.
+        params = (params == null) ? new HashMap() : new HashMap(params);
+
+        // clear format key.
+        if (params.containsKey(PARAM_KEY_FORMAT))
+            params.remove(PARAM_KEY_FORMAT);
+        
+        PixelDensity pixelDensity = (PixelDensity) params.remove(PARAM_KEY_PIXEL_DENSITY);
+
+        if (params.size() > 0) {
+            Object firstKey = params.keySet().iterator().next();
+            throw new ImageWriteException("Unknown parameter: " + firstKey);
+        }
+
+        final PaletteFactory paletteFactory = new PaletteFactory();
+        final SimplePalette palette = paletteFactory
+                .makePaletteSimple(src, 256);
+        final int bitCount;
+        final boolean hasTransparency = paletteFactory.hasTransparency(src);
+        if (palette == null) {
+            if (hasTransparency)
+                bitCount = 32;
+            else
+                bitCount = 24;
+        } else if (palette.length() <= 2)
+            bitCount = 1;
+        else if (palette.length() <= 16)
+            bitCount = 4;
+        else
+            bitCount = 8;
+
+        BinaryOutputStream bos = new BinaryOutputStream(os, BYTE_ORDER_INTEL);
+
+        int scanline_size = (bitCount * src.getWidth() + 7) / 8;
+        if ((scanline_size % 4) != 0)
+            scanline_size += 4 - (scanline_size % 4); // pad scanline to 4 byte
+                                                      // size.
+        int t_scanline_size = (src.getWidth() + 7) / 8;
+        if ((t_scanline_size % 4) != 0)
+            t_scanline_size += 4 - (t_scanline_size % 4); // pad scanline to 4
+                                                          // byte size.
+        int imageSize = 40 + 4 * (bitCount <= 8 ? (1 << bitCount) : 0)
+                + src.getHeight() * scanline_size + src.getHeight()
+                * t_scanline_size;
+
+        // ICONDIR
+        bos.write2Bytes(0); // reserved
+        bos.write2Bytes(1); // 1=ICO, 2=CUR
+        bos.write2Bytes(1); // count
+
+        // ICONDIRENTRY
+        int iconDirEntryWidth = src.getWidth();
+        int iconDirEntryHeight = src.getHeight();
+        if (iconDirEntryWidth > 255 || iconDirEntryHeight > 255) {
+            iconDirEntryWidth = 0;
+            iconDirEntryHeight = 0;
+        }
+        bos.write(iconDirEntryWidth);
+        bos.write(iconDirEntryHeight);
+        bos.write((bitCount >= 8) ? 0 : (1 << bitCount));
+        bos.write(0); // reserved
+        bos.write2Bytes(1); // color planes
+        bos.write2Bytes(bitCount);
+        bos.write4Bytes(imageSize);
+        bos.write4Bytes(22); // image offset
+
+        // BITMAPINFOHEADER
+        bos.write4Bytes(40); // size
+        bos.write4Bytes(src.getWidth());
+        bos.write4Bytes(2 * src.getHeight());
+        bos.write2Bytes(1); // planes
+        bos.write2Bytes(bitCount);
+        bos.write4Bytes(0); // compression
+        bos.write4Bytes(0); // image size
+        bos.write4Bytes(pixelDensity == null ? 0 : (int)Math.round(pixelDensity.horizontalDensityMetres())); // x pixels per meter
+        bos.write4Bytes(pixelDensity == null ? 0 : (int)Math.round(pixelDensity.horizontalDensityMetres())); // y pixels per meter
+        bos.write4Bytes(0); // colors used, 0 = (1 << bitCount) (ignored)
+        bos.write4Bytes(0); // colors important
+
+        if (palette != null) {
+            for (int i = 0; i < (1 << bitCount); i++) {
+                if (i < palette.length()) {
+                    int argb = palette.getEntry(i);
+                    bos.write(0xff & argb);
+                    bos.write(0xff & (argb >> 8));
+                    bos.write(0xff & (argb >> 16));
+                    bos.write(0);
+                } else {
+                    bos.write(0);
+                    bos.write(0);
+                    bos.write(0);
+                    bos.write(0);
+                }
+            }
+        }
+
+        int bit_cache = 0;
+        int bits_in_cache = 0;
+        int row_padding = scanline_size - (bitCount * src.getWidth() + 7) / 8;
+        for (int y = src.getHeight() - 1; y >= 0; y--) {
+            for (int x = 0; x < src.getWidth(); x++) {
+                int argb = src.getRGB(x, y);
+                if (bitCount < 8) {
+                    int rgb = 0xffffff & argb;
+                    int index = palette.getPaletteIndex(rgb);
+                    bit_cache <<= bitCount;
+                    bit_cache |= index;
+                    bits_in_cache += bitCount;
+                    if (bits_in_cache >= 8) {
+                        bos.write(0xff & bit_cache);
+                        bit_cache = 0;
+                        bits_in_cache = 0;
+                    }
+                } else if (bitCount == 8) {
+                    int rgb = 0xffffff & argb;
+                    int index = palette.getPaletteIndex(rgb);
+                    bos.write(0xff & index);
+                } else if (bitCount == 24) {
+                    bos.write(0xff & argb);
+                    bos.write(0xff & (argb >> 8));
+                    bos.write(0xff & (argb >> 16));
+                } else if (bitCount == 32) {
+                    bos.write(0xff & argb);
+                    bos.write(0xff & (argb >> 8));
+                    bos.write(0xff & (argb >> 16));
+                    bos.write(0xff & (argb >> 24));
+                }
+            }
+
+            if (bits_in_cache > 0) {
+                bit_cache <<= (8 - bits_in_cache);
+                bos.write(0xff & bit_cache);
+                bit_cache = 0;
+                bits_in_cache = 0;
+            }
+
+            for (int x = 0; x < row_padding; x++)
+                bos.write(0);
+        }
+
+        int t_row_padding = t_scanline_size - (src.getWidth() + 7) / 8;
+        for (int y = src.getHeight() - 1; y >= 0; y--) {
+            for (int x = 0; x < src.getWidth(); x++) {
+                int argb = src.getRGB(x, y);
+                int alpha = 0xff & (argb >> 24);
+                bit_cache <<= 1;
+                if (alpha == 0)
+                    bit_cache |= 1;
+                bits_in_cache++;
+                if (bits_in_cache >= 8) {
+                    bos.write(0xff & bit_cache);
+                    bit_cache = 0;
+                    bits_in_cache = 0;
+                }
+            }
+
+            if (bits_in_cache > 0) {
+                bit_cache <<= (8 - bits_in_cache);
+                bos.write(0xff & bit_cache);
+                bit_cache = 0;
+                bits_in_cache = 0;
+            }
+
+            for (int x = 0; x < t_row_padding; x++)
+                bos.write(0);
+        }
+    }

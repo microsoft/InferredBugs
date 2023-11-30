@@ -1,0 +1,47 @@
+    @Test
+    void customRegistryTest() {
+        // given
+        class Amount {
+            @NotNull
+            @Digits(integer = 12, fraction = 3)
+            protected BigDecimal amount;
+        }
+        class DiscountEffect {
+            @Digits(integer = 6, fraction = 4)
+            protected BigDecimal percentage;
+            protected Amount amount;
+            @Digits(integer = 12, fraction = 3)
+            protected BigDecimal quantity;
+            @NotNull
+            @DecimalMax("65535")
+            @DecimalMin("1")
+            protected Integer size;
+        }
+        class Discount {
+            @NotNull
+            @Size(min = 1)
+            @Valid
+            protected List<DiscountEffect> discountEffects;
+        }
+
+        CustomRandomizerRegistry registry = new CustomRandomizerRegistry();
+        registry.registerRandomizer(BigDecimal.class, new BigDecimalRangeRandomizer(new Double(5d), new Double(10d), Integer.valueOf(3)));
+        registry.registerRandomizer(Integer.class, new IntegerRangeRandomizer(5, 10));
+        EasyRandomParameters parameters = new EasyRandomParameters()
+                .randomizerRegistry(registry);
+        EasyRandom easyRandom = new EasyRandom(parameters);
+
+        // when
+        Discount discount = easyRandom.nextObject(Discount.class);
+
+        // then
+        assertThat(discount.discountEffects)
+                .isNotEmpty()
+                .allSatisfy(discountEffect -> {
+                    assertThat(discountEffect).isNotNull();
+                    assertThat(discountEffect.percentage).isBetween(new BigDecimal("5.000"), new BigDecimal("10.000"));
+                    assertThat(discountEffect.quantity).isBetween(new BigDecimal("5.000"), new BigDecimal("10.000"));
+                    assertThat(discountEffect.amount.amount).isBetween(new BigDecimal("5.000"), new BigDecimal("10.000"));
+                    assertThat(discountEffect.size).isBetween(5, 10);
+                });
+    }

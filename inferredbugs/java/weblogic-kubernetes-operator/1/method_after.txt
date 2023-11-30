@@ -1,0 +1,20 @@
+  @Override
+  public void run() {
+    if (status.get() == NOT_COMPLETE) {
+      // Clear the interrupted status, if present
+      Thread.interrupted();
+      
+      final Fiber oldFiber = CURRENT_FIBER.get();
+      CURRENT_FIBER.set(this);
+      Container oldContainer = ContainerResolver.getDefault().enterContainer(owner.getContainer());
+      try {
+        // doRun returns true to indicate an early exit from fiber processing
+        if (!doRun(next)) {
+            completionCheck();
+        }
+      } finally {
+        ContainerResolver.getDefault().exitContainer(oldContainer);
+        CURRENT_FIBER.set(oldFiber);
+      }
+    }
+  }

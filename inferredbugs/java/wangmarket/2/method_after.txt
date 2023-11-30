@@ -1,0 +1,44 @@
+ public static UploadFileVO put(String path,InputStream inputStream){
+		UploadFileVO vo = new UploadFileVO();
+		
+		//判断文件大小是否超出最大限制的大小
+		int lengthKB = 0;
+		try {
+			lengthKB = (int) Math.ceil(inputStream.available()/1024);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		vo = verifyFileMaxLength(lengthKB);
+		if(vo.getResult() - UploadFileVO.FAILURE == 0){
+			return vo;
+		}
+		vo.setSize(lengthKB);
+		
+		if(isMode(MODE_ALIYUN_OSS)){
+			PutResult pr = OSSUtil.put(path, inputStream);
+			vo = PutResultToUploadFileVO(pr);
+		}else if(isMode(MODE_LOCAL_FILE)){
+			directoryInit(path);
+			File file = new File(localFilePath+path);
+			OutputStream os;
+			try {
+				os = new FileOutputStream(file);
+				int bytesRead = 0;
+				byte[] buffer = new byte[8192];
+				while ((bytesRead = inputStream.read(buffer, 0, 8192)) != -1) {
+					os.write(buffer, 0, bytesRead);
+				}
+				os.close();
+				inputStream.close();
+				
+				vo.setFileName(file.getName());
+				vo.setInfo("success");
+				vo.setPath(path);
+				vo.setUrl(AttachmentFile.netUrl()+path);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		return vo;
+	}

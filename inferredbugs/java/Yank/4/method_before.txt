@@ -1,0 +1,34 @@
+  public static <T> List<T> queryColumnListSQL(String poolName, String sql, String columnName, Class<T> type, Object[] params) {
+
+    List<T> returnList = null;
+
+    Connection con = null;
+
+    try {
+      con = DB_CONNECTION_MANAGER.getConnection(poolName);
+
+      if (con == null) {
+        throw new ConnectionException(poolName);
+      }
+
+      con.setAutoCommit(false);
+
+      ColumnListHandler<T> resultSetHandler = new ColumnListHandler<T>(columnName);
+
+      returnList = new QueryRunner().query(con, sql, resultSetHandler, params);
+
+      con.commit();
+
+    } catch (Exception e) {
+      logger.error(QUERY_EXCEPTION_MESSAGE, e);
+      try {
+        con.rollback();
+      } catch (SQLException e2) {
+        logger.error(ROLLBACK_EXCEPTION_MESSAGE, e2);
+      }
+    } finally {
+      DB_CONNECTION_MANAGER.freeConnection(con);
+    }
+
+    return returnList;
+  }

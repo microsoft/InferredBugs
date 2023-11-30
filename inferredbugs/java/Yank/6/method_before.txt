@@ -1,0 +1,31 @@
+  public static int[] executeBatchSQL(String poolName, String sql, Object[][] params) {
+
+    int[] returnIntArray = null;
+
+    Connection con = null;
+
+    try {
+      con = DB_CONNECTION_MANAGER.getConnection(poolName);
+
+      if (con == null) {
+        throw new ConnectionException(poolName);
+      }
+
+      con.setAutoCommit(false);
+
+      returnIntArray = new QueryRunner().batch(con, sql, params);
+
+      con.commit();
+    } catch (Exception e) {
+      logger.error(QUERY_EXCEPTION_MESSAGE, e);
+      try {
+        con.rollback();
+      } catch (SQLException e1) {
+        logger.error(ROLLBACK_EXCEPTION_MESSAGE, e1);
+      }
+    } finally {
+      DB_CONNECTION_MANAGER.freeConnection(con);
+    }
+
+    return returnIntArray;
+  }

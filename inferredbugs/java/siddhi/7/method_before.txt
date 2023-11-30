@@ -1,0 +1,24 @@
+    @Override
+    protected void process(ComplexEventChunk<StreamEvent> streamEventChunk, Processor nextProcessor, StreamEventCloner streamEventCloner, ComplexEventPopulater complexEventPopulater) {
+        while (streamEventChunk.hasNext()) {
+            ComplexEvent complexEvent = streamEventChunk.next();
+
+            Object[] inputData = new Object[attributeExpressionLength-paramPosition];
+            double xDash = ((Number) attributeExpressionExecutors[paramPosition-1].execute(complexEvent)).doubleValue();
+            for (int i = paramPosition; i < attributeExpressionLength; i++) {
+                inputData[i-paramPosition] = attributeExpressionExecutors[i].execute(complexEvent);
+            }
+            Object[] temp = regressionCalculator.calculateLinearRegression(inputData);
+            Object[] outputData = new Object[temp.length+1];
+            System.arraycopy(temp, 0, outputData, 0, temp.length);
+            outputData[temp.length] = ((Number) temp[temp.length-2]).doubleValue() + ((Number) temp[temp.length-1]).doubleValue() * xDash;
+
+
+            if (outputData == null) {
+                streamEventChunk.remove();
+            } else {
+                complexEventPopulater.populateComplexEvent(complexEvent, outputData);
+            }
+        }
+        nextProcessor.process(streamEventChunk);
+    }

@@ -1,0 +1,70 @@
+    public void requestReceived(final NHttpServerConnection conn) {
+        HttpContext context = conn.getContext();
+        HttpRequest request = conn.getHttpRequest();
+
+        HttpVersion ver = request.getRequestLine().getHttpVersion();
+        if (!ver.lessEquals(HttpVersion.HTTP_1_1)) {
+            // Downgrade protocol version if greater than HTTP/1.1 
+            ver = HttpVersion.HTTP_1_1;
+        }
+
+        final ServerConnState connState = (ServerConnState) context.getAttribute(CONN_STATE);
+
+        connState.resetInput();
+        connState.setRequest(request);
+        connState.setInputState(ServerConnState.REQUEST_RECEIVED);
+
+        if (request instanceof HttpEntityEnclosingRequest) {
+            HttpEntityEnclosingRequest entityReq = (HttpEntityEnclosingRequest) request;
+            
+            if (entityReq.expectContinue()) {
+                try {
+                    HttpResponse ack = this.responseFactory.newHttpResponse(
+                            ver, HttpStatus.SC_CONTINUE, context);
+                    ack.getParams().setDefaults(this.params);
+                    if (this.expectationVerifier != null) {
+                        this.expectationVerifier.verify(request, ack, context);
+                    }
+                    conn.submitResponse(ack);
+                } catch (HttpException ex) {
+                    shutdownConnection(conn);
+                    if (this.eventListener != null) {
+                        this.eventListener.fatalProtocolException(ex);
+                    }
+                    return;
+                }
+            }
+            
+            // Create a wrapper entity instead of the original one
+            if (entityReq.getEntity() != null) {
+                entityReq.setEntity(new BufferedContent(
+                        entityReq.getEntity(), 
+                        connState.getInbuffer()));
+            }
+        }
+        
+        this.executor.execute(new Runnable() {
+            
+            public void run() {
+                try {
+                    HttpContext context = new HttpExecutionContext(conn.getContext());
+                    context.setAttribute(HttpExecutionContext.HTTP_CONNECTION, conn);
+                    handleRequest(connState, context);
+                    commitResponse(connState, conn);
+                    
+                } catch (IOException ex) {
+                    shutdownConnection(conn);
+                    if (eventListener != null) {
+                        eventListener.fatalIOException(ex);
+                    }
+                } catch (HttpException ex) {
+                    shutdownConnection(conn);
+                    if (eventListener != null) {
+                        eventListener.fatalProtocolException(ex);
+                    }
+                }
+            }
+            
+        });
+
+    }

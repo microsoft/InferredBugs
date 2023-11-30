@@ -1,0 +1,59 @@
+    @Override
+    public double getCpuTemperature() {
+        // Initialize
+        double tempC = 0d;
+        // If Open Hardware Monitor identifier is set, we couldn't get through
+        // normal WMI, and got ID from OHM at least once so go directly to OHM
+        if (this.tempIdentifierStr != null) {
+            double[] vals = wmiGetValuesForKeys("/namespace:\\\\root\\OpenHardwareMonitor PATH Sensor",
+                    this.tempIdentifierStr, "Temperature", "Parent,SensorType,Value");
+            if (vals.length > 0) {
+                double sum = 0;
+                for (double val : vals) {
+                    sum += val;
+                }
+                tempC = sum / vals.length;
+            }
+            return tempC;
+        }
+        // This branch is used the first time and all subsequent times if
+        // successful (tempIdenifierStr == null)
+        // Try to get value using initial or updated successful values
+        int tempK = 0;
+        if (this.wmiTempPath == null) {
+            this.wmiTempPath = "Temperature";
+            this.wmiTempProperty = "CurrentReading";
+            tempK = wmiGetValue(this.wmiTempPath, this.wmiTempProperty);
+            if (tempK < 0) {
+                this.wmiTempPath = "/namespace:\\\\root\\cimv2 PATH Win32_TemperatureProbe";
+                tempK = wmiGetValue(this.wmiTempPath, this.wmiTempProperty);
+            }
+            if (tempK < 0) {
+                this.wmiTempPath = "/namespace:\\\\root\\wmi PATH MSAcpi_ThermalZoneTemperature";
+                this.wmiTempProperty = "CurrentTemperature";
+                tempK = wmiGetValue(this.wmiTempPath, this.wmiTempProperty);
+            }
+        } else {
+            // We've successfully read a previous time, or failed both here and
+            // with OHM
+            tempK = wmiGetValue(this.wmiTempPath, this.wmiTempProperty);
+        }
+        // Convert K to C and return result
+        if (tempK > 0) {
+            tempC = (tempK / 10d) - 273.15;
+        }
+        if (tempC <= 0d) {
+            // Unable to get temperature via WMI. Future attempts will be
+            // attempted via Open Hardware Monitor WMI if successful
+            String[] cpuIdentifiers = wmiGetStrValuesForKey("/namespace:\\\\root\\OpenHardwareMonitor PATH Hardware",
+                    "CPU", "HardwareType,Identifier");
+            if (cpuIdentifiers.length > 0) {
+                this.tempIdentifierStr = cpuIdentifiers[0];
+            }
+            // If not null, recurse and get value via OHM
+            if (this.tempIdentifierStr != null) {
+                return getCpuTemperature();
+            }
+        }
+        return tempC;
+    }

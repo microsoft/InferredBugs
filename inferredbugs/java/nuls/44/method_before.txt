@@ -1,0 +1,54 @@
+    private PocMeetingRound calcNextRound(BlockHeader bestBlockHeader, long bestHeight, BlockRoundData bestRoundData) {
+        PocMeetingRound round = new PocMeetingRound();
+        round.setIndex(bestRoundData.getRoundIndex() + 1);
+        round.setStartTime(bestRoundData.getRoundEndTime());
+
+
+        long calcHeight = 0L;
+        if (bestRoundData.getPackingIndexOfRound() == bestRoundData.getConsensusMemberCount() || NulsContext.getInstance().getBestHeight() <= bestHeight) {
+            calcHeight = bestHeight - PocConsensusConstant.CONFIRM_BLOCK_COUNT;
+        } else {
+            Block bestBlock = NulsContext.getInstance().getBestBlock();
+            if (null == bestBlock) {
+                throw new NulsRuntimeException(ErrorCode.DATA_ERROR, "best block is null");
+            }
+            BlockRoundData localBestRoundData = new BlockRoundData(bestBlock.getHeader().getExtend());
+            if (localBestRoundData.getRoundIndex() == bestRoundData.getRoundIndex() && localBestRoundData.getPackingIndexOfRound() != localBestRoundData.getConsensusMemberCount()) {
+                throw new NulsRuntimeException(ErrorCode.FAILED, "The next round of information is not yet available.");
+            } else if (localBestRoundData.getRoundIndex() == bestRoundData.getRoundIndex() && localBestRoundData.getPackingIndexOfRound() == localBestRoundData.getConsensusMemberCount()) {
+                return calcNextRound(bestBlock.getHeader(), bestBlock.getHeader().getHeight(), localBestRoundData);
+            } else {
+                Block nextRoundFirstBlock = getBlockService().getRoundFirstBlockFromDb(round.getIndex());
+                if (null == nextRoundFirstBlock) {
+                    long height = bestHeight + 1;
+                    while (true) {
+                        Block block = getBlockService().getBlock(height);
+                        height++;
+                        BlockRoundData blockRoundData = new BlockRoundData(block.getHeader().getExtend());
+                        if (blockRoundData.getRoundIndex() == round.getIndex()) {
+                            nextRoundFirstBlock = block;
+                            break;
+                        }
+                    }
+                }
+                calcHeight = nextRoundFirstBlock.getHeader().getHeight() - PocConsensusConstant.CONFIRM_BLOCK_COUNT - 1;
+            }
+        }
+
+        List<PocMeetingMember> memberList = getMemberList(calcHeight, round, bestBlockHeader);
+
+        Collections.sort(memberList);
+
+        round.setMemberList(memberList);
+
+        round.setMemberCount(memberList.size());
+        while (round.getEndTime() < TimeService.currentTimeMillis()) {
+            long time = TimeService.currentTimeMillis() - round.getStartTime();
+            long roundTime = round.getEndTime() - round.getStartTime();
+            long index = time / roundTime;
+            long startTime = round.getStartTime() + index * roundTime;
+            round.setStartTime(startTime);
+            round.setIndex(bestRoundData.getRoundIndex() + index);
+        }
+        return round;
+    }

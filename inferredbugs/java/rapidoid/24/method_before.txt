@@ -1,0 +1,41 @@
+ public Future<byte[]> post(String uri, Map<String, String> headers, Map<String, String> data,
+			Map<String, String> files, Callback<byte[]> callback) {
+
+		headers = U.safe(headers);
+		data = U.safe(data);
+		files = U.safe(files);
+
+		HttpPost req = new HttpPost(uri);
+
+		MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+
+		for (Entry<String, String> entry : files.entrySet()) {
+			String filename = entry.getValue();
+			File file = IO.file(filename);
+			builder = builder.addBinaryBody(entry.getKey(), file, ContentType.DEFAULT_BINARY, filename);
+		}
+
+		for (Entry<String, String> entry : data.entrySet()) {
+			builder = builder.addTextBody(entry.getKey(), entry.getValue(), ContentType.DEFAULT_TEXT);
+		}
+
+		ByteArrayOutputStream stream = new ByteArrayOutputStream();
+		try {
+			builder.build().writeTo(stream);
+		} catch (IOException e) {
+			throw U.rte(e);
+		}
+
+		byte[] bytes = stream.toByteArray();
+		NByteArrayEntity entity = new NByteArrayEntity(bytes, ContentType.MULTIPART_FORM_DATA);
+
+		for (Entry<String, String> e : headers.entrySet()) {
+			req.addHeader(e.getKey(), e.getValue());
+		}
+
+		req.setEntity(entity);
+
+		Log.debug("Starting HTTP POST request", "request", req.getRequestLine());
+
+		return execute(client, req, callback);
+	}

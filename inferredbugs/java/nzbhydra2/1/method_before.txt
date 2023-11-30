@@ -1,0 +1,43 @@
+    public void testExecute() throws Exception {
+        MockWebServer server = new MockWebServer();
+        Release draftReleaseResponse = new Release();
+        draftReleaseResponse.setUploadUrl(server.url("/repos/theotherp/nzbhydra2/releases/1/assets").toString());
+        draftReleaseResponse.setUrl(server.url("/repos/theotherp/nzbhydra2/releases/1").toString());
+        draftReleaseResponse.setDraft(true);
+
+        ArrayList<Asset> assets = new ArrayList<>();
+        assets.add(new Asset());
+        assets.add(new Asset());
+        draftReleaseResponse.setAssets(assets);
+        Release effectiveReleaseResponse = new Release();
+
+        effectiveReleaseResponse.setDraft(false);
+        MockResponse releaseMockResponse = new MockResponse()
+                .setResponseCode(200)
+                .setBody(objectMapper.writeValueAsString(draftReleaseResponse));
+        server.enqueue(releaseMockResponse);
+        server.enqueue(new MockResponse().setResponseCode(200)); //Windows asset upload
+        server.enqueue(new MockResponse().setResponseCode(200)); //Linux asset upload
+        server.enqueue(new MockResponse().setResponseCode(200).setBody(objectMapper.writeValueAsString(effectiveReleaseResponse))); //Setting the release effective
+
+        HttpUrl url = server.url("/repos/theotherp/nzbhydra2/releases");
+
+        //Here the magic happens
+        executePlugin(url);
+
+        //Creating the release
+        verifyDraftReleaseIsCreated(server);
+
+        //Uploading the assets
+        RecordedRequest windowsAssetUploadRequest = server.takeRequest(2, TimeUnit.SECONDS);
+        assertTrue(windowsAssetUploadRequest.getPath(), windowsAssetUploadRequest.getPath().endsWith("releases/1/assets?name=windowsAsset.txt"));
+        RecordedRequest linuxAssetUploadRequest = server.takeRequest(2, TimeUnit.SECONDS);
+        assertTrue(linuxAssetUploadRequest.getPath(), linuxAssetUploadRequest.getPath().endsWith("releases/1/assets?name=linuxAsset.txt"));
+
+        //Setting it effective
+        RecordedRequest setEffectiveRequest = server.takeRequest(2, TimeUnit.SECONDS);
+        assertTrue(setEffectiveRequest.getPath(), setEffectiveRequest.getPath().endsWith("releases/1"));
+        String body = new String(setEffectiveRequest.getBody().readByteArray());
+        Release bodyJson = objectMapper.readValue(body, Release.class);
+        assertFalse(bodyJson.isDraft());
+    }

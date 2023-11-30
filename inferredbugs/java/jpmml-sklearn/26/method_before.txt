@@ -1,0 +1,65 @@
+ @Override
+	public List<Feature> encodeFeatures(List<String> ids, List<Feature> features, SkLearnEncoder encoder){
+		int[] shape = getComponentsShape();
+
+		int numberOfComponents = shape[0];
+		int numberOfFeatures = shape[1];
+
+		if(ids.size() != numberOfFeatures || features.size() != numberOfFeatures){
+			throw new IllegalArgumentException();
+		}
+
+		String id = String.valueOf(PCA.SEQUENCE.getAndIncrement());
+
+		List<? extends Number> components = getComponents();
+		List<? extends Number> mean = getMean();
+
+		Boolean whiten = getWhiten();
+
+		List<? extends Number> explainedVariance = (whiten ? getExplainedVariance() : null);
+
+		ids.clear();
+
+		List<Feature> result = new ArrayList<>();
+
+		for(int i = 0; i < numberOfComponents; i++){
+			List<? extends Number> component = MatrixUtil.getRow(components, numberOfComponents, numberOfFeatures, i);
+
+			Apply apply = new Apply("sum");
+
+			for(int j = 0; j < numberOfFeatures; j++){
+				Feature feature = features.get(j);
+
+				// "($name[i] - mean[i]) * component[i]"
+				Expression expression = (feature.toContinuousFeature()).ref();
+
+				Number meanValue = mean.get(j);
+				if(!ValueUtil.isZero(meanValue)){
+					expression = PMMLUtil.createApply("-", expression, PMMLUtil.createConstant(meanValue));
+				}
+
+				Number componentValue = component.get(j);
+				if(!ValueUtil.isOne(componentValue)){
+					expression = PMMLUtil.createApply("*", expression, PMMLUtil.createConstant(componentValue));
+				}
+
+				apply.addExpressions(expression);
+			}
+
+			if(whiten){
+				Number explainedVarianceValue = explainedVariance.get(i);
+
+				if(!ValueUtil.isOne(explainedVarianceValue)){
+					apply = PMMLUtil.createApply("/", apply, PMMLUtil.createConstant(Math.sqrt(ValueUtil.asDouble(explainedVarianceValue))));
+				}
+			}
+
+			DerivedField derivedField = encoder.createDerivedField(createName(id, i), apply);
+
+			ids.add((derivedField.getName()).getValue());
+
+			result.add(new ContinuousFeature(encoder, derivedField));
+		}
+
+		return result;
+	}

@@ -1,0 +1,23 @@
+  @Test
+  public void testSave() {
+    final SqlLine beeLine = new SqlLine();
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    try {
+      SqlLine.Status status = begin(beeLine, os, false,
+          "-e", "!save");
+      assertThat(status, equalTo(SqlLine.Status.OK));
+      final DispatchCallback dc = new DispatchCallback();
+
+      assertThat(os.toString("UTF8"),
+          containsString("Saving preferences to"));
+      os.reset();
+      beeLine.runCommands(dc, "!set");
+      assertThat(os.toString("UTF8"),
+          allOf(containsString("autoCommit"),
+              not(containsString("Unknown property:"))));
+      os.reset();
+    } catch (Exception e) {
+      // fail
+      throw new RuntimeException(e);
+    }
+  }

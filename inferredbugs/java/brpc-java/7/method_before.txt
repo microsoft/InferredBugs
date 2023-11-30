@@ -1,0 +1,50 @@
+    private void parseRpcExporterAnnotation(RpcExporter rpcExporter,
+                                            ConfigurableListableBeanFactory beanFactory,
+                                            Object bean) {
+        Class<?> serviceClass = AopUtils.getTargetClass(bean);
+        Class<?>[] interfaces = ClassUtils.getAllInterfacesForClass(serviceClass);
+        if (interfaces.length != 1) {
+            throw new RuntimeException("service interface num must equal 1, " + serviceClass.getName());
+        }
+        Class<?> serviceInterface = interfaces[0];
+        BrpcConfig brpcConfig = getServiceConfig(beanFactory, serviceInterface);
+
+        // if there are multi service on one port, the first service configs effect only.
+        Integer port = brpcConfig.getServer().getPort();
+        RpcServiceExporter rpcServiceExporter = portMappingExporters.get(port);
+        if (rpcServiceExporter == null) {
+            rpcServiceExporter = new RpcServiceExporter();
+            portMappingExporters.put(port, rpcServiceExporter);
+            rpcServiceExporter.setServicePort(port);
+            rpcServiceExporter.copyFrom(brpcConfig.getServer());
+            if (brpcConfig.getNaming() != null) {
+                rpcServiceExporter.setNamingServiceUrl(brpcConfig.getNaming().getNamingServiceUrl());
+            }
+        }
+
+        // interceptor
+        if (brpcConfig.getServer() != null
+                && StringUtils.isNoneBlank(brpcConfig.getServer().getInterceptorBeanName())) {
+            Interceptor interceptor = beanFactory.getBean(
+                    brpcConfig.getServer().getInterceptorBeanName(), Interceptor.class);
+            if (rpcServiceExporter.getInterceptors() != null) {
+                rpcServiceExporter.getInterceptors().add(interceptor);
+            } else {
+                rpcServiceExporter.setInterceptors(Arrays.asList(interceptor));
+            }
+        }
+
+        // naming options
+        rpcServiceExporter.getServiceNamingOptions().put(bean, brpcConfig.getNaming());
+
+        if (brpcConfig.getServer() != null && brpcConfig.getServer().isUseSharedThreadPool()) {
+            rpcServiceExporter.getCustomOptionsServiceMap().put(brpcConfig.getServer(), bean);
+        } else {
+            rpcServiceExporter.getRegisterServices().add(bean);
+        }
+
+        if (protobufRpcAnnotationResolverListener != null) {
+            protobufRpcAnnotationResolverListener.onRpcExporterAnnotationParsered(
+                    rpcExporter, port, bean, rpcServiceExporter.getRegisterServices());
+        }
+    }

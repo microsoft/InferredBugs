@@ -1,0 +1,41 @@
+    public static String getArchName() {
+        String osArch = System.getProperty("os.arch");
+        if(osArch.startsWith("arm")) {
+            // Java 1.8 introduces a system property to determine armel or armhf
+            if(System.getProperty("sun.arch.abi") != null && System.getProperty("sun.arch.abi").startsWith("gnueabihf")) {
+                return translateArchNameToFolderName("armhf");
+            }
+            // For java7, we stil need to if run some shell commands to determine ABI of JVM
+            if(System.getProperty("os.name").contains("Linux")) {
+                String javaHome = System.getProperty("java.home");
+                try {
+                    // determine if first JVM found uses ARM hard-float ABI
+                    int exitCode = Runtime.getRuntime().exec("which readelf").waitFor();
+                    if(exitCode == 0) {
+                        String[] cmdarray = {"/bin/sh", "-c", "find '" + javaHome +
+                                "' -name 'libjvm.so' | head -1 | xargs readelf -A | " +
+                                "grep 'Tag_ABI_VFP_args: VFP registers'"};
+                        exitCode = Runtime.getRuntime().exec(cmdarray).waitFor();
+                        if (exitCode == 0) {
+                            return translateArchNameToFolderName("armhf");
+                        }
+                    } else {
+                        System.err.println("WARNING! readelf not found. Cannot check if running on an armhf system, " +
+                                "armel architecture will be presumed.");
+                    }
+                }
+                catch(IOException e) {
+                    // ignored: fall back to "arm" arch (soft-float ABI)
+                }
+                catch(InterruptedException e) {
+                    // ignored: fall back to "arm" arch (soft-float ABI)
+                }
+            }
+        }
+        else {
+            String lc = osArch.toLowerCase(Locale.US);
+            if(archMapping.containsKey(lc))
+                return archMapping.get(lc);
+        }
+        return translateArchNameToFolderName(osArch);
+    }

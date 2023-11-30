@@ -1,0 +1,25 @@
+    @Override
+    public Result query(String cypher, Map<String, ?> parameters, boolean readOnly) {
+        validateQuery(cypher, parameters, readOnly);
+
+        //If readOnly=true, just execute the query. If false, execute the query and return stats as well
+        if(readOnly) {
+            return new QueryResult(executeAndMap(null, cypher, parameters, new MapRowModelMapper()),null);
+        }
+        else {
+            String url  = session.ensureTransaction().url();
+            RowModelQueryWithStatistics parameterisedStatement = new RowModelQueryWithStatistics(cypher, parameters);
+            try (Neo4jResponse<RowQueryStatisticsResult> response = session.requestHandler().execute(parameterisedStatement, url)) {
+                RowQueryStatisticsResult result = response.next();
+                RowModelMapper rowModelMapper = new MapRowModelMapper();
+                Collection rowResult = new LinkedHashSet();
+                for (Iterator<Object> iterator = result.getRows().iterator(); iterator.hasNext(); ) {
+                    List next =  (List) iterator.next();
+                    rowModelMapper.mapIntoResult(rowResult, next.toArray(), response.columns());
+                }
+                return new QueryResult(rowResult, result.getStats());
+
+            }
+        }
+
+    }

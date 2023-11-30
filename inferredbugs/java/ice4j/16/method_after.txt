@@ -1,0 +1,79 @@
+    protected void checkListStatesUpdated()
+    {
+        boolean allListsEnded = true;
+        boolean atLeastOneListSucceeded = false;
+
+        if (getState().isEstablished())
+        {
+            return;
+        }
+
+        List<IceMediaStream> streams = getStreams();
+
+        for (IceMediaStream stream : streams)
+        {
+            CheckListState checkListState = stream.getCheckList().getState();
+
+            if (checkListState == CheckListState.RUNNING)
+            {
+                allListsEnded = false;
+                break;
+            }
+            else if (checkListState == CheckListState.COMPLETED)
+            {
+                logger.info("CheckList of stream " + stream.getName() +
+                        " is COMPLETED");
+                atLeastOneListSucceeded = true;
+            }
+        }
+
+
+        if (!allListsEnded)
+        {
+            return;
+        }
+
+        if (!atLeastOneListSucceeded)
+        {
+            //all lists ended but none succeeded. No love today ;(
+            if (logger.isLoggable(Level.INFO))
+            {
+                if (connCheckClient.isAlive()
+                    || connCheckServer.isAlive())
+                {
+                    logger.info("Suspicious ICE connectivity failure. Checks" +
+                        " failed but the remote end was able to reach us.");
+                }
+
+                logger.info("ICE state is FAILED");
+            }
+
+            terminate(IceProcessingState.FAILED);
+            return;
+        }
+
+        //Once the state of each check list is Completed:
+        //The agent sets the state of ICE processing overall to Completed.
+        if (getState() != IceProcessingState.RUNNING)
+        {
+            //Oh, seems like we already did this.
+            return;
+        }
+
+        // The race condition in which another thread enters COMPLETED right
+        // under our nose here has been observed (and not in a single instance)
+        // So check that we did indeed just trigger the change.
+        if (!setState(IceProcessingState.COMPLETED))
+        {
+            return;
+        }
+
+        // keep ICE running (answer STUN Binding requests, send STUN Binding
+        // indications or requests)
+        scheduleStunKeepAlive();
+
+        scheduleTermination();
+
+        //print logs for the types of addresses we chose.
+        logCandTypes();
+    }

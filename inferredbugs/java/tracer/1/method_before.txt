@@ -1,0 +1,15 @@
+    @Test
+    public void shouldAddHeader() throws IOException {
+        driver.addExpectation(onRequestTo("/")
+                        .withHeader("X-Trace-ID", "16c38974-7530-11e5-bb35-10ddb1ee7671")
+                        .withHeader("X-Request-ID", "2e7a3324-7530-11e5-ad30-10ddb1ee7671"),
+                giveResponse("Hello, world!", "text/plain"));
+
+        try (CloseableHttpResponse response = client.execute(new HttpGet(driver.getBaseUrl()))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            final byte[] bytes = new byte[(int) response.getEntity().getContentLength()];
+            new DataInputStream(response.getEntity().getContent()).readFully(bytes);
+            assertThat(new String(bytes, UTF_8), is("Hello, world!"));
+        }
+
+    }

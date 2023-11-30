@@ -1,0 +1,32 @@
+  void sendData()
+  {
+    ConcurrentHashMap<String, ZNRecordUpdate> updateCache  = null;
+    
+    synchronized(_dataBufferRef)
+    {
+      updateCache = _dataBufferRef.getAndSet(new ConcurrentHashMap<String, ZNRecordUpdate>());
+    }
+    
+    if(updateCache != null)
+    {
+      List<String> paths = new ArrayList<String>();
+      List<DataUpdater<ZNRecord>> updaters = new ArrayList<DataUpdater<ZNRecord>>();
+      List<ZNRecord> vals = new ArrayList<ZNRecord>();
+      for(ZNRecordUpdate holder : updateCache.values())
+      {
+        paths.add(holder.getPath());
+        updaters.add(holder.getZNRecordUpdater());
+        vals.add(holder.getRecord());
+      }
+      // Batch write the accumulated updates into zookeeper
+      if(paths.size() > 0)
+      {
+        _manager.getHelixDataAccessor().updateChildren(paths, updaters, BaseDataAccessor.Option.PERSISTENT);
+      }
+      LOG.info("Updating " + vals.size() + " records");
+    }
+    else
+    {
+      LOG.warn("null _dataQueueRef. Should be in the beginning only");
+    }
+  }

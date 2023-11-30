@@ -1,0 +1,16 @@
+    public static void main(String[] args) {
+        ZhihuConfiguration configuration = new ZhihuConfiguration();
+        String pipelinePath = configuration.getMemberPath();
+
+        Spider spider = Spider.create(new ZhihuMemberPageProcessor())
+                .setScheduler(new FixedFileCacheQueueScheduler(pipelinePath))
+                .addPipeline(new ZhihuMemberPipeline(pipelinePath))
+                .thread(20);
+
+        ZhihuMemberUrlTokenGetter getter = new ZhihuMemberUrlTokenGetter();
+        for (String token : getter.getUrlTokens()) {
+            spider.addUrl(generateMemberUrl(token));
+        }
+
+        spider.run();
+    }

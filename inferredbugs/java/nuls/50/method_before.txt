@@ -1,0 +1,57 @@
+    public void requestTxGroup(NulsDigestData blockHash, String nodeId) {
+        GetTxGroupRequest request = new GetTxGroupRequest();
+        GetTxGroupParam data = new GetTxGroupParam();
+        data.setBlockHash(blockHash);
+        List<NulsDigestData> txHashList = new ArrayList<>();
+
+        SmallBlock smb = temporaryCacheManager.getSmallBlock(blockHash.getDigestHex());
+        for (NulsDigestData txHash : smb.getTxHashList()) {
+            boolean exist = txCacheManager.txExist(txHash);
+            if (!exist) {
+                txHashList.add(txHash);
+            }
+        }
+        if (txHashList.isEmpty()) {
+            BlockHeader header = temporaryCacheManager.getBlockHeader(smb.getBlockHash().getDigestHex());
+            if (null == header) {
+                return;
+            }
+            Block block = new Block();
+            block.setHeader(header);
+            List<Transaction> txs = new ArrayList<>();
+            for (NulsDigestData txHash : smb.getTxHashList()) {
+                Transaction tx = txCacheManager.getTx(txHash);
+                if (null == tx) {
+                    throw new NulsRuntimeException(ErrorCode.DATA_ERROR);
+                }
+                txs.add(tx);
+            }
+            block.setTxs(txs);
+            ValidateResult<RedPunishData> vResult = block.verify();
+            if (null == vResult || vResult.isFailed()) {
+                if (vResult.getLevel() == SeverityLevelEnum.FLAGRANT_FOUL) {
+                    RedPunishData redPunishData = vResult.getObject();
+                    ConsensusMeetingRunner.putPunishData(redPunishData);
+                }
+                return;
+            }
+            blockManager.addBlock(block, false,nodeId);
+            AssembledBlockNotice notice = new AssembledBlockNotice();
+            notice.setEventBody(header);
+            eventBroadcaster.publishToLocal(notice);
+            return;
+        }
+        data.setTxHashList(txHashList);
+        request.setEventBody(data);
+        tgRequest.put(blockHash.getDigestHex(), System.currentTimeMillis());
+        Integer value = tgRequestCount.get(blockHash.getDigestHex());
+        if (null == value) {
+            value = 0;
+        }
+        tgRequestCount.put(blockHash.getDigestHex(), 1 + value);
+        if (StringUtils.isBlank(nodeId)) {
+            eventBroadcaster.broadcastAndCache(request, false);
+        } else {
+            eventBroadcaster.sendToNode(request, nodeId);
+        }
+    }

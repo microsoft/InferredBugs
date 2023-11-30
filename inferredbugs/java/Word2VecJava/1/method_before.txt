@@ -1,0 +1,49 @@
+  public static Word2VecModel fromBinFile(File file, ByteOrder byteOrder)
+      throws IOException {
+
+    try (FileInputStream fis = new FileInputStream(file);) {
+      DataInput in = (byteOrder == ByteOrder.BIG_ENDIAN) ?
+          new DataInputStream(fis) : new SwappedDataInputStream(fis);
+
+      StringBuilder sb = new StringBuilder();
+      char c = (char) in.readByte();
+      while (c != '\n') {
+        sb.append(c);
+        c = (char) in.readByte();
+      }
+      String firstLine = sb.toString();
+      int index = firstLine.indexOf(' ');
+      Preconditions.checkState(index != -1,
+          "Expected a space in the first line of file '%s': '%s'",
+          file.getAbsolutePath(), firstLine);
+
+      int vocabSize = Integer.parseInt(firstLine.substring(0, index));
+      int layerSize = Integer.parseInt(firstLine.substring(index + 1));
+
+      List<String> vocabs = Lists.newArrayList();
+      List<Double> vectors = Lists.newArrayList();
+
+      for (int lineno = 0; lineno < vocabSize; lineno++) {
+        sb = new StringBuilder();
+        c = (char) in.readByte();
+        while (c != ' ') {
+          // ignore newlines in front of words (some binary files have newline,
+          // some don't)
+          if (c != '\n') {
+            sb.append(c);
+          }
+          c = (char) in.readByte();
+        }
+        vocabs.add(sb.toString());
+
+        for (int i = 0; i < layerSize; i++) {
+          vectors.add((double) in.readFloat());
+        }
+      }
+
+      return fromThrift(new Word2VecModelThrift()
+          .setLayerSize(layerSize)
+          .setVocab(vocabs)
+          .setVectors(vectors));
+    }
+  }

@@ -1,0 +1,74 @@
+ @Override
+	public void execute(JobExecutionContext context)
+			throws JobExecutionException {
+		try {
+			String name = context.getJobDetail().getName();
+			
+			if(name.indexOf(PublicConst.JOBTASKNAMETYPE)>-1){
+				TestJobs job = new TestJobs();
+				String id=name.substring(0,name.indexOf(PublicConst.JOBTASKNAMETYPE));
+				System.out.println("执行命令中。。。");
+				for (int i = 0; i < QueueListener.list.size(); i++) {
+					job = QueueListener.list.get(i);
+					if (id.equals("" + job.getId())) {
+						break;
+					}else{
+						job=null;
+					}
+				}
+				if(null!=job){
+					toRunTask(job.getPlanproj(), job.getId(),job.getTaskName(),job.getClientip(),job.getClientpath());	
+					System.out.println("调用程序结束。。。");
+				}else{
+					System.out.println("没有定时任务需要启动。。。");
+				}
+			}else if(name.indexOf(PublicConst.JOBCLIENTNAMETYPE)>-1){
+				TestClient tc = new TestClient();
+				String id=name.substring(0,name.indexOf(PublicConst.JOBCLIENTNAMETYPE));
+				for (int i = 0; i < QueueListener.listen_Clientlist.size(); i++) {
+					tc = QueueListener.listen_Clientlist.get(i);
+					if (id.equals("" + tc.getId())) {
+						if(null!=tc){
+							String clientip=tc.getClientip();
+							try{
+							Map<String, Object> params = new HashMap<String, Object>(0);
+							String result=HttpRequest.httpClientGet("http://"+clientip+":"+PublicConst.CLIENTPORT+"/getclientstatus", params);
+							if("success".equals(result)){
+								if(tc.getStatus()!=0){
+									tc.setStatus(0);
+									QueueListener.listen_Clientlist.set(i, tc);
+									Query query = session.createQuery("update TestClient t set t.status =0  where id="+tc.getId());
+									query.executeUpdate();
+								}
+							}else{
+								log.error("【IP:"+tc.getClientip()+"】检查客户端异常！");
+								if(tc.getStatus()!=1){
+									tc.setStatus(1);
+									QueueListener.listen_Clientlist.set(i, tc);
+									Query query = session.createQuery("update TestClient t set t.status =1  where id="+tc.getId());
+									query.executeUpdate();
+									log.error("【IP:"+tc.getClientip()+"】客户端异常，修改客户端状态！");
+								}
+							}
+							}catch (RuntimeException e) {
+								log.error(e);
+								log.error("【IP:"+tc.getClientip()+"】检查客户端异常(RemoteException)！");
+								if(tc.getStatus()!=1){
+									tc.setStatus(1);
+									QueueListener.listen_Clientlist.set(i, tc);
+									Query query = session.createQuery("update TestClient t set t.status =1  where id="+tc.getId());
+									query.executeUpdate();
+									log.error("【IP:"+tc.getClientip()+"】客户端异常(RemoteException)，修改客户端状态！");
+								}
+								break;
+							}
+						}
+						break;
+					}
+				}
+			}
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}

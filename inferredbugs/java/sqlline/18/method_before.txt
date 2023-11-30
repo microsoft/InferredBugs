@@ -1,0 +1,56 @@
+  @Test
+  public void testExecutionException(@Mocked final JDBCDatabaseMetaData meta,
+      @Mocked final JDBCResultSet resultSet) {
+    try {
+      new Expectations() {
+        {
+          // prevent calls to functions that also call resultSet.next
+          meta.getDatabaseProductName();
+          result = "hsqldb";
+          // prevent calls to functions that also call resultSet.next
+          meta.getSQLKeywords();
+          result = "";
+          // prevent calls to functions that also call resultSet.next
+          meta.getDatabaseProductVersion();
+          result = "1.0";
+          // Generate an exception on a call to resultSet.next
+          resultSet.next();
+          result = new SQLException("Generated Exception.");
+        }
+      };
+      SqlLine sqlLine = new SqlLine();
+      ByteArrayOutputStream os = new ByteArrayOutputStream();
+      PrintStream sqllineOutputStream =
+          new PrintStream(os, false, StandardCharsets.UTF_8.name());
+      sqlLine.setOutputStream(sqllineOutputStream);
+      sqlLine.setErrorStream(sqllineOutputStream);
+      String[] args = {
+          "-d",
+          "org.hsqldb.jdbcDriver",
+          "-u",
+          "jdbc:hsqldb:res:scott",
+          "-n",
+          "SCOTT",
+          "-p",
+          "TIGER"
+      };
+      DispatchCallback callback = new DispatchCallback();
+      sqlLine.initArgs(args, callback);
+      // If sqlline is not initialized, handleSQLException will print
+      // the entire stack trace.
+      // To prevent that, forcibly set init to true.
+      FieldReflection.setFieldValue(
+          sqlLine.getClass().getDeclaredField("initComplete"), sqlLine, true);
+      sqlLine.getConnection();
+      sqlLine.runCommands(callback,
+          "CREATE TABLE rsTest ( a int);",
+          "insert into rsTest values (1);",
+          "insert into rsTest values (2);",
+          "select a from rsTest; ");
+      String output = os.toString("UTF8");
+      assertThat(output, containsString("Generated Exception"));
+    } catch (Throwable t) {
+      // fail
+      throw new RuntimeException(t);
+    }
+  }

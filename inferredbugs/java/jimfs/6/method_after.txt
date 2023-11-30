@@ -1,0 +1,25 @@
+  public JimfsPath toRealPath(
+      JimfsPath path, PathService pathService, Set<? super LinkOption> options) throws IOException {
+    checkNotNull(path);
+    checkNotNull(options);
+
+    store.readLock().lock();
+    try {
+      DirectoryEntry entry = lookUp(path, options)
+          .requireExists(path);
+
+      List<Name> names = new ArrayList<>();
+      names.add(entry.name());
+      while (!entry.file().isRootDirectory()) {
+        entry = entry.directory().entryInParent();
+        names.add(entry.name());
+      }
+
+      // names are ordered last to first in the list, so get the reverse view
+      List<Name> reversed = Lists.reverse(names);
+      Name root = reversed.remove(0);
+      return pathService.createPath(root, reversed);
+    } finally {
+      store.readLock().unlock();
+    }
+  }

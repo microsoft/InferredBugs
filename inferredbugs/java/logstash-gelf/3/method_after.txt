@@ -1,0 +1,39 @@
+    protected boolean connect() throws IOException {
+
+        if (isConnected()) {
+            return false;
+        }
+
+        Closer.close(channel());
+        setChannel(createSocketChannel(readTimeoutMs, keepAlive));
+
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(getHost(), getPort());
+        if (channel().connect(inetSocketAddress)) {
+            return true;
+        }
+
+        long connectTimeoutLeft = TimeUnit.MILLISECONDS.toNanos(connectTimeoutMs);
+        long waitTimeoutMs = 10;
+        long waitTimeoutNs = TimeUnit.MILLISECONDS.toNanos(waitTimeoutMs);
+        boolean connected;
+        try {
+            while (!(connected = channel().finishConnect())) {
+                Thread.sleep(waitTimeoutMs);
+                connectTimeoutLeft -= waitTimeoutNs;
+
+                if (connectTimeoutLeft <= 0) {
+                    break;
+                }
+            }
+
+            if (!connected) {
+                throw new ConnectException("Connection timed out. Cannot connect to " + inetSocketAddress + " within "
+                        + TimeUnit.NANOSECONDS.toMillis(connectTimeoutLeft) + "ms");
+            }
+
+            return connected;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Connection interrupted", e);
+        }
+    }

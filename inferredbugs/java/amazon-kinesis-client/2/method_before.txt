@@ -1,0 +1,53 @@
+    public void run() {
+        if (shutdown) {
+            return;
+        }
+
+        try {
+            initialize();
+            LOG.info("Initialization complete. Starting worker loop.");
+        } catch (RuntimeException e1) {
+            LOG.error("Unable to initialize after " + MAX_INITIALIZATION_ATTEMPTS + " attempts. Shutting down.", e1);
+            shutdown();
+        }
+
+        while (!shouldShutdown()) {
+            try {
+                boolean foundCompletedShard = false;
+                Set<ShardInfo> assignedShards = new HashSet<ShardInfo>();
+                for (ShardInfo shardInfo : getShardInfoForAssignments()) {
+                    ShardConsumer shardConsumer = createOrGetShardConsumer(shardInfo, recordProcessorFactory);
+                    if (shardConsumer.isShutdown()
+                            && shardConsumer.getShutdownReason().equals(ShutdownReason.TERMINATE)) {
+                        foundCompletedShard = true;
+                    } else {
+                        shardConsumer.consumeShard();
+                    }
+                    assignedShards.add(shardInfo);
+                }
+
+                if (foundCompletedShard) {
+                    controlServer.syncShardAndLeaseInfo(null);
+                }
+
+                // clean up shard consumers for unassigned shards
+                cleanupShardConsumers(assignedShards);
+
+                wlog.info("Sleeping ...");
+                Thread.sleep(idleTimeInMilliseconds);
+            } catch (Exception e) {
+                LOG.error(String.format("Worker.run caught exception, sleeping for %s milli seconds!",
+                        String.valueOf(idleTimeInMilliseconds)),
+                        e);
+                try {
+                    Thread.sleep(idleTimeInMilliseconds);
+                } catch (InterruptedException ex) {
+                    LOG.info("Worker: sleep interrupted after catching exception ", ex);
+                }
+            }
+            wlog.resetInfoLogging();
+        }
+
+        finalShutdown();
+        LOG.info("Worker loop is complete. Exiting from worker.");
+    }

@@ -1,0 +1,36 @@
+    @Test
+    public void testSync() throws Exception {
+        RedisReplicator replicator = new RedisReplicator(RedisReplicatorTest.class.getClassLoader().getResourceAsStream("dump.rdb"));
+        replicator.addRdbFilter(new RdbFilter() {
+            @Override
+            public boolean accept(KeyValuePair<?> kv) {
+                return kv.getKey().startsWith("SESSION");
+            }
+        });
+        replicator.addRdbListener(new RdbListener() {
+            @Override
+            public void handle(Replicator replicator, KeyValuePair<?> kv) {
+                System.out.println(kv);
+            }
+        });
+
+        replicator.open();
+        replicator.close();
+
+        //socket
+        replicator = new RedisReplicator("127.0.0.1", 6379);
+        replicator.addRdbListener(new RdbListener() {
+            @Override
+            public void handle(Replicator replicator, KeyValuePair<?> kv) {
+                System.out.println(kv);
+            }
+        });
+        replicator.addCommandListener(new CommandListener() {
+            @Override
+            public void handle(Replicator replicator, Command command) {
+                System.out.println(command);
+            }
+        });
+        replicator.open();
+
+    }

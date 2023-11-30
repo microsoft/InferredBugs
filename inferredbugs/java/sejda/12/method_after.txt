@@ -1,0 +1,19 @@
+    @Test
+    public void roundTripWriteAndRead() throws TaskException, IOException {
+        List<String> strings = Arrays.asList("ગુજરાતી ਪੰਜਾਬੀ தமிழ்",
+                "ਹਰਜੋਤ ਸਿੰਘ ភាសាខ្មែរ latin ąćęłńóśźż ทดสอบ വീട मानक हिन्दी ് జ উ ☗⦄✸▃ ");
+
+        for(String str: strings) {
+            PDDocument doc = new PDDocument();
+            PDPage page = new PDPage();
+            new PageTextWriter(doc).write(page, new Point(10, 10), str, getStandardType1Font(StandardType1Font.HELVETICA), 10.0d, Color.BLACK);
+            doc.addPage(page);
+            PDDocumentHandler handler = new PDDocumentHandler(doc);
+            File tmp = IOUtils.createTemporaryPdfBuffer();
+            handler.savePDDocument(tmp);
+
+            PDDocument doc2 = PDFParser.parse(SeekableSources.seekableSourceFrom(tmp));
+            String text = new PdfTextExtractorByArea().extractTextFromArea(doc2.getPage(0), new Rectangle(0, 0, 1000, 1000));
+            assertEquals(noWhitespace(str), noWhitespace(text));
+        }
+    }

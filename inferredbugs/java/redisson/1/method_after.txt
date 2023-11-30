@@ -1,0 +1,21 @@
+    @Override
+    public boolean compareAndSet(long expect, long update) {
+        RedisConnection<String, Object> conn = connectionManager.connection();
+        try {
+            while (true) {
+                conn.watch(getName());
+                Long value = ((Number) conn.get(getName())).longValue();
+                if (value != expect) {
+                    conn.discard();
+                    return false;
+                }
+                conn.multi();
+                conn.set(getName(), update);
+                if (conn.exec().size() == 1) {
+                    return true;
+                }
+            }
+        } finally {
+            connectionManager.release(conn);
+        }
+    }

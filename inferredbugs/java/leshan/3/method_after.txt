@@ -1,0 +1,24 @@
+    @SuppressWarnings("unchecked")
+    private void loadFromFile() {
+        try {
+            File file = new File(filename);
+            if (file.exists()) {
+                try (InputStreamReader in = new InputStreamReader(new FileInputStream(file))) {
+                    Map<String, BootstrapConfig> config = gson.fromJson(in, gsonType);
+                    bootstrapByEndpoint.putAll(config);
+                }
+            } else {
+                // TODO temporary code for retro compatibility: remove it later.
+                if (DEFAULT_FILE.equals(filename)) {
+                    file = new File("data/bootstrap.data");// old bootstrap configurations default filename
+                    if (file.exists()) {
+                        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(file))) {
+                            bootstrapByEndpoint.putAll((Map<String, BootstrapConfig>) in.readObject());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Could not load bootstrap infos from file", e);
+        }
+    }

@@ -1,0 +1,17 @@
+  @Override
+  public void onClose(Status status, Metadata trailers) {
+    try (NonThrowingCloseable s = TRACER.withSpan(operationSpan)) {
+      synchronized (callLock) {
+        call = null;
+      }
+      rpcTimerContext.close();
+      // OK
+      if (status.isOk()) {
+        if (onOK(trailers)) {
+          finalizeStats(status);
+        }
+      } else {
+        onError(status, trailers);
+      }
+    }
+  }

@@ -1,0 +1,27 @@
+    private void executeValidWorkflowAndExtractCheckValues() {
+        ConfigHandler configHandler = new ConfigHandler();
+        TransportHandler transportHandler = configHandler.initializeTransportHandler(config);
+        TlsContext tlsContext = configHandler.initializeTlsContext(config);
+        WorkflowExecutor workflowExecutor = configHandler.initializeWorkflowExecutor(transportHandler, tlsContext);
+
+        WorkflowTrace trace = tlsContext.getWorkflowTrace();
+
+        workflowExecutor.executeWorkflow();
+        transportHandler.closeConnection();
+
+        List<HandshakeMessage> clientKeyExchangeList = trace
+                .getActuallyRecievedHandshakeMessagesOfType(HandshakeMessageType.CLIENT_KEY_EXCHANGE);
+        if (clientKeyExchangeList.isEmpty()) {
+            //TODO
+            throw new WorkflowExecutionException("Could not retrieve ECDH PublicKey");
+        } else {
+            ECDHClientKeyExchangeMessage message = (ECDHClientKeyExchangeMessage) trace
+                .getActuallyRecievedHandshakeMessagesOfType(HandshakeMessageType.CLIENT_KEY_EXCHANGE).get(0);
+        
+            // get public point base X and Y coordinates
+            BigInteger x = message.getPublicKeyBaseX().getValue();
+            BigInteger y = message.getPublicKeyBaseY().getValue();
+            checkPoint = new Point(x, y);
+            checkPMS = message.getPremasterSecret().getValue();
+        }
+    }

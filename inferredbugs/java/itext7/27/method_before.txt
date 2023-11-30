@@ -1,0 +1,82 @@
+    @Override
+    public LayoutResult layout(LayoutContext layoutContext) {
+        LayoutArea area = layoutContext.getArea();
+        Rectangle layoutBox = area.getBBox();
+        occupiedArea = new LayoutArea(area.getPageNumber(), new Rectangle(layoutBox.getX(), layoutBox.getY() + layoutBox.getHeight(), 0, 0));
+
+        width = getPropertyAsFloat(Property.WIDTH);
+        Float angle = getPropertyAsFloat(Property.IMAGE_ROTATION_ANGLE);
+
+        PdfXObject xObject = ((Image) (getModelElement())).getXObject();
+        if (xObject instanceof PdfImageXObject) {
+            imageWidth = ((PdfImageXObject)xObject).getWidth();
+            imageHeight = ((PdfImageXObject)xObject).getHeight();
+        } else {
+            imageWidth = xObject.getPdfObject().getAsArray(PdfName.BBox).getAsFloat(2);
+            imageHeight = xObject.getPdfObject().getAsArray(PdfName.BBox).getAsFloat(3);
+        }
+
+        width = width == null ? imageWidth : width;
+        height = width / imageWidth * imageHeight;
+
+        fixedXPosition = getPropertyAsFloat(Property.X);
+        fixedYPosition = getPropertyAsFloat(Property.Y);
+
+        Float horizontalScaling = getPropertyAsFloat(Property.HORIZONTAL_SCALING);
+        Float verticalScaling = getPropertyAsFloat(Property.VERTICAL_SCALING);
+
+        AffineTransform t = new AffineTransform();
+
+        if (xObject instanceof PdfFormXObject && width != imageWidth) {
+            horizontalScaling *= width / imageWidth;
+            verticalScaling *= height / imageHeight;
+        }
+
+        if (horizontalScaling != 1) {
+            if (xObject instanceof PdfFormXObject) {
+                t.scale(horizontalScaling, 1);
+            }
+            width *= horizontalScaling;
+        }
+        if (verticalScaling != 1) {
+            if (xObject instanceof PdfFormXObject) {
+                t.scale(1, verticalScaling);
+            }
+            height *= verticalScaling;
+        }
+
+        float imageItselfScaledWidth = width;
+        float imageItselfScaledHeight = height;
+
+        if (angle != null) {
+            t.rotate(angle);
+            adjustPositionAfterRotation(angle);
+        }
+
+        getMatrix(t, imageItselfScaledWidth, imageItselfScaledHeight);
+
+        if (width > layoutBox.getWidth()){
+            return new LayoutResult(LayoutResult.NOTHING, occupiedArea, null, this);
+        }
+        if (height > layoutBox.getHeight()){
+            return new LayoutResult(LayoutResult.NOTHING, occupiedArea, null, this);
+        }
+
+        occupiedArea.getBBox().moveDown(height);
+        occupiedArea.getBBox().setHeight(height);
+        occupiedArea.getBBox().setWidth(width);
+
+        Float mx = getProperty(Property.X_DISTANCE);
+        Float my = getProperty(Property.Y_DISTANCE);
+        if (mx != null && my != null) {
+            translateImage(mx, my, t);
+            getMatrix(t, imageItselfScaledWidth, imageItselfScaledHeight);
+        }
+
+        if (fixedXPosition != null && fixedYPosition != null) {
+            occupiedArea.getBBox().setWidth(0);
+            occupiedArea.getBBox().setHeight(0);
+        }
+
+        return new LayoutResult(LayoutResult.FULL, occupiedArea, null, null);
+    }

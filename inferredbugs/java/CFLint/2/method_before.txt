@@ -1,0 +1,35 @@
+ @Override	
+	public void expression(final CFExpression expression, final Context context, final BugList bugs) {
+		String repeatThreshold = getParameter("maximum");
+		int threshold = REPEAT_THRESHOLD;
+
+		if (repeatThreshold != null) {
+			threshold = Integer.parseInt(repeatThreshold);
+		}
+
+		if (expression instanceof CFLiteral) {
+			CFLiteral literal = (CFLiteral) expression;
+			String name = literal.Decompile(0).replace("'","");
+			int count = 1;
+
+			if (isCommon(name)) {
+				return;
+			}
+
+			if (literals.get(name) == null) {
+				literals.put(name, count);
+				done.put(name, false);
+			}
+			else {
+				count = literals.get(name);
+				count++;
+				literals.put(name, count);
+			}
+
+			if (count > threshold && !done.get(name)) {
+				int lineNo = literal.getLine() + context.startLine() - 1;
+				magicValue(name, lineNo, context, bugs);
+				done.put(name, true);
+			}
+		}
+	}

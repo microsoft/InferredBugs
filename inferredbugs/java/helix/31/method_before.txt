@@ -1,0 +1,118 @@
+  protected void handleNewSession()
+  {
+    boolean isConnected = _zkClient.waitUntilConnected(CONNECTIONTIMEOUT, TimeUnit.MILLISECONDS);
+    while (!isConnected)
+    {
+      logger.error("Could NOT connect to zk server in " + CONNECTIONTIMEOUT + "ms. zkServer: "
+          + _zkConnectString + ", expiredSessionId: " + _sessionId + ", clusterName: "
+          + _clusterName);
+      isConnected = _zkClient.waitUntilConnected(CONNECTIONTIMEOUT, TimeUnit.MILLISECONDS);
+    }
+
+    ZkConnection zkConnection = ((ZkConnection) _zkClient.getConnection());
+    
+    synchronized (this)
+    {
+      _sessionId = Long.toHexString(zkConnection.getZookeeper().getSessionId());
+    }
+    _baseDataAccessor.reset();
+
+    // reset all handlers so they have a chance to unsubscribe zk changes from zkclient
+    // abandon all callback-handlers added in expired session
+    resetHandlers();
+    _handlers = new ArrayList<CallbackHandler>();
+
+    logger.info("Handling new session, session id:" + _sessionId + ", instance:"
+        + _instanceName + ", instanceTye: " + _instanceType + ", cluster: " + _clusterName);
+
+    logger.info(zkConnection.getZookeeper());
+
+    if (!ZKUtil.isClusterSetup(_clusterName, _zkClient))
+    {
+      throw new HelixException("Initial cluster structure is not set up for cluster:"
+          + _clusterName);
+    }
+    // Read cluster config and see if instance can auto join the cluster
+    boolean autoJoin = false;
+    try
+    {
+      ConfigScope scope =
+          new ConfigScopeBuilder().forCluster(getClusterName())
+                                  .build();
+      autoJoin = Boolean.parseBoolean(getConfigAccessor().get(scope, ALLOW_PARTICIPANT_AUTO_JOIN));
+      logger.info("Auto joining " + _clusterName +" is true");
+    }
+    catch(Exception e)
+    {
+    }
+    if (!ZKUtil.isInstanceSetup(_zkClient, _clusterName, _instanceName, _instanceType))
+    {
+      if(!autoJoin)
+      {
+        throw new HelixException("Initial cluster structure is not set up for instance:"
+          + _instanceName + " instanceType:" + _instanceType);
+      }
+      else
+      {
+        logger.info("Auto joining instance " + _instanceName);
+        InstanceConfig instanceConfig = new InstanceConfig(_instanceName);
+        String hostName = _instanceName;
+        String port = "";
+        int lastPos = _instanceName.lastIndexOf("_");
+        if (lastPos > 0)
+        {
+          hostName = _instanceName.substring(0, lastPos);
+          port = _instanceName.substring(lastPos + 1);
+        }
+        instanceConfig.setHostName(hostName);
+        instanceConfig.setPort(port);
+        instanceConfig.setInstanceEnabled(true);
+        getClusterManagmentTool().addInstance(_clusterName, instanceConfig);
+      }
+    }
+
+    if (_instanceType == InstanceType.PARTICIPANT
+        || _instanceType == InstanceType.CONTROLLER_PARTICIPANT)
+    {
+      handleNewSessionAsParticipant();
+    }
+
+    if (_instanceType == InstanceType.CONTROLLER
+        || _instanceType == InstanceType.CONTROLLER_PARTICIPANT)
+    {
+      addControllerMessageListener(_messagingService.getExecutor());
+      MessageHandlerFactory defaultControllerMsgHandlerFactory =
+          new DefaultControllerMessageHandlerFactory();
+      _messagingService.getExecutor()
+                       .registerMessageHandlerFactory(defaultControllerMsgHandlerFactory.getMessageType(),
+                                                      defaultControllerMsgHandlerFactory);
+      MessageHandlerFactory defaultSchedulerMsgHandlerFactory =
+          new DefaultSchedulerMessageHandlerFactory(this);
+      _messagingService.getExecutor()
+                       .registerMessageHandlerFactory(defaultSchedulerMsgHandlerFactory.getMessageType(),
+                                                      defaultSchedulerMsgHandlerFactory);
+      MessageHandlerFactory defaultParticipantErrorMessageHandlerFactory =
+          new DefaultParticipantErrorMessageHandlerFactory(this);
+      _messagingService.getExecutor()
+                       .registerMessageHandlerFactory(defaultParticipantErrorMessageHandlerFactory.getMessageType(),
+                                                      defaultParticipantErrorMessageHandlerFactory);
+
+      // create a new leader-election handler for a new session
+      if (_leaderElectionHandler != null) {
+    	  _leaderElectionHandler.reset();
+      }
+      _leaderElectionHandler =
+            createCallBackHandler(new Builder(_clusterName).controller(),
+                                  new DistClusterControllerElection(_zkConnectString),
+                                  new EventType[] { EventType.NodeChildrenChanged,
+                                      EventType.NodeDeleted, EventType.NodeCreated },
+                                  ChangeType.CONTROLLER);
+    }
+
+    if (_instanceType == InstanceType.PARTICIPANT
+        || _instanceType == InstanceType.CONTROLLER_PARTICIPANT
+        || (_instanceType == InstanceType.CONTROLLER && isLeader()))
+    {
+      initHandlers();
+    }
+  }

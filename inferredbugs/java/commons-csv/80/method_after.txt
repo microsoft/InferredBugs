@@ -1,0 +1,32 @@
+    @Test
+    @Ignore
+    public void testBackslashEscapingOld() throws IOException {
+        final String code =
+                "one,two,three\n"
+                        + "on\\\"e,two\n"
+                        + "on\"e,two\n"
+                        + "one,\"tw\\\"o\"\n"
+                        + "one,\"t\\,wo\"\n"
+                        + "one,two,\"th,ree\"\n"
+                        + "\"a\\\\\"\n"
+                        + "a\\,b\n"
+                        + "\"a\\\\,b\"";
+        final String[][] res = {
+                {"one", "two", "three"},
+                {"on\\\"e", "two"},
+                {"on\"e", "two"},
+                {"one", "tw\"o"},
+                {"one", "t\\,wo"},  // backslash in quotes only escapes a delimiter (",")
+                {"one", "two", "th,ree"},
+                {"a\\\\"},     // backslash in quotes only escapes a delimiter (",")
+                {"a\\", "b"},  // a backslash must be returnd
+                {"a\\\\,b"}    // backslash in quotes only escapes a delimiter (",")
+        };
+        final CSVParser parser = CSVParser.parseString(code);
+        final List<CSVRecord> records = parser.getRecords();
+        assertEquals(res.length, records.size());
+        assertTrue(records.size() > 0);
+        for (int i = 0; i < res.length; i++) {
+            assertArrayEquals(res[i], records.get(i).values());
+        }
+    }

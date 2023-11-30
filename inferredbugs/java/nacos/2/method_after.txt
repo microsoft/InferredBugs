@@ -1,0 +1,77 @@
+    @RequestMapping("/updateClusterConf")
+    public JSONObject updateClusterConf(HttpServletRequest request) throws IOException {
+
+        JSONObject result = new JSONObject();
+
+        String ipSpliter = ",";
+
+        String ips = BaseServlet.optional(request, "ips", "");
+        String action = BaseServlet.required(request, "action");
+
+        if (SwitchEntry.ACTION_ADD.equals(action)) {
+
+            List<String> oldList = FileUtils.readLines(UtilsAndCommons.getConfFile(), "UTF-8");
+            StringBuilder sb = new StringBuilder();
+            for (String ip : oldList) {
+                sb.append(ip).append("\r\n");
+            }
+            for (String ip : ips.split(ipSpliter)) {
+                sb.append(ip).append("\r\n");
+            }
+
+            Loggers.SRV_LOG.info("UPDATE-CLUSTER", "new ips:" + sb.toString());
+            FileUtils.writeStringToFile(UtilsAndCommons.getConfFile(), sb.toString(), "UTF-8");
+            return result;
+        }
+
+        if (SwitchEntry.ACTION_REPLACE.equals(action)) {
+
+            StringBuilder sb = new StringBuilder();
+            for (String ip : ips.split(ipSpliter)) {
+                sb.append(ip).append("\r\n");
+            }
+            Loggers.SRV_LOG.info("UPDATE-CLUSTER", "new ips:" + sb.toString());
+            FileUtils.writeStringToFile(UtilsAndCommons.getConfFile(), sb.toString(), "UTF-8");
+            return result;
+        }
+
+        if (SwitchEntry.ACTION_DELETE.equals(action)) {
+
+            Set<String> removeIps = new HashSet<>();
+            for (String ip : ips.split(ipSpliter)) {
+                removeIps.add(ip);
+            }
+
+            List<String> oldList = FileUtils.readLines(UtilsAndCommons.getConfFile(), "UTF-8");
+
+            Iterator<String> iterator = oldList.iterator();
+
+            while (iterator.hasNext()) {
+
+                String ip = iterator.next();
+                if (removeIps.contains(ip)) {
+                    iterator.remove();
+                }
+            }
+
+            StringBuilder sb = new StringBuilder();
+            for (String ip : oldList) {
+                sb.append(ip).append("\r\n");
+            }
+
+            FileUtils.writeStringToFile(UtilsAndCommons.getConfFile(), sb.toString(), "UTF-8");
+
+            return result;
+        }
+
+        if (SwitchEntry.ACTION_VIEW.equals(action)) {
+
+            List<String> oldList = FileUtils.readLines(UtilsAndCommons.getConfFile(), "UTF-8");
+            result.put("list", oldList);
+
+            return result;
+        }
+
+        throw new InvalidParameterException("action is not qualified, action: " + action);
+
+    }

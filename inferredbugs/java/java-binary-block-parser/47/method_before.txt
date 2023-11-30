@@ -1,0 +1,88 @@
+  public JBBPOut Bin(final Object object) throws IOException {
+    if (this.processCommands) {
+
+      Field[] orderedFields = null;
+
+      final Map<Class<?>, Field[]> fieldz;
+      if (cachedFields == null) {
+        fieldz = new HashMap<Class<?>, Field[]>();
+        cachedFields = fieldz;
+      }
+      else {
+        fieldz = cachedFields;
+        synchronized (fieldz) {
+          orderedFields = fieldz.get(object.getClass());
+        }
+      }
+
+      if (orderedFields == null) {
+        // find out the order of fields and fields which should be serialized
+        final List<Class<?>> listOfClassHierarchy = new ArrayList<Class<?>>();
+
+        final class OrderedField implements Comparable<OrderedField> {
+
+          final int order;
+          final Field field;
+
+          OrderedField(final int order, final Field field) {
+            this.order = order;
+            this.field = field;
+          }
+
+          public int compareTo(final OrderedField o) {
+            return this.order < o.order ? -1 : 1;
+          }
+        }
+
+        final List<OrderedField> fields = new ArrayList<OrderedField>();
+
+        Class<?> current = object.getClass();
+        while (current != java.lang.Object.class) {
+          listOfClassHierarchy.add(current);
+          current = current.getSuperclass();
+        }
+        for (int i = listOfClassHierarchy.size() - 1; i >= 0; i--) {
+          final Class<?> clazzToProcess = listOfClassHierarchy.get(i);
+          final Bin clazzAnno = clazzToProcess.getAnnotation(Bin.class);
+          for (final Field f : clazzToProcess.getDeclaredFields()) {
+            f.setAccessible(true);
+            if (Modifier.isTransient(f.getModifiers())) {
+              continue;
+            }
+            Bin fieldAnno = f.getAnnotation(Bin.class);
+            fieldAnno = fieldAnno == null ? clazzAnno : fieldAnno;
+            if (fieldAnno == null) {
+              continue;
+            }
+
+            fields.add(new OrderedField(fieldAnno.order(), f));
+          }
+        }
+
+        Collections.sort(fields);
+
+        orderedFields = new Field[fields.size()];
+        for (int i = 0; i < fields.size(); i++) {
+          orderedFields[i] = fields.get(i).field;
+        }
+
+        synchronized (fieldz) {
+          fieldz.put(object.getClass(), orderedFields);
+        }
+      }
+
+      for (final Field f : orderedFields) {
+        Bin binAnno = f.getAnnotation(Bin.class);
+        if (binAnno == null) {
+          binAnno = f.getDeclaringClass().getAnnotation(Bin.class);
+          if (binAnno == null) {
+            throw new JBBPException("Can't find any Bin annotation to use for " + f + " field");
+          }
+        }
+
+        writeObjectField(object, f, binAnno);
+      }
+    }
+
+    return this;
+  }

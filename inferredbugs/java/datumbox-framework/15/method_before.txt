@@ -1,0 +1,37 @@
+    @Override
+    protected void filterFeatures(Dataframe newData) {
+        ModelParameters modelParameters = kb().getModelParameters();
+        
+        //convert data into matrix
+        Map<Object, Integer> featureIds= modelParameters.getFeatureIds();
+        
+        Map<Integer, Integer> recordIdsReference = new HashMap<>();
+        MatrixDataframe matrixDataset = MatrixDataframe.parseDataset(newData, recordIdsReference, featureIds);
+        RealMatrix X = matrixDataset.getX();
+        
+        RealMatrix components = new BlockRealMatrix(modelParameters.getComponents());
+        
+        
+        //multiplying the data with components
+        X = X.multiply(components);
+        
+        for(Map.Entry<Integer, Record> e : newData.entries()) {
+            Integer rId = e.getKey();
+            Record r = e.getValue();
+            int rowId = recordIdsReference.get(rId);
+            
+            AssociativeArray xData = new AssociativeArray();
+            int componentId=0;
+            for(double value : X.getRow(rowId)) {
+                xData.put(componentId, value);
+                ++componentId;
+            }
+            
+            newData._unsafe_set(rId, new Record(xData, r.getY(), r.getYPredicted(), r.getYPredictedProbabilities()));
+        }
+        
+        //recordIdsReference = null;
+        //matrixDataset = null;
+        
+        newData.recalculateMeta(); //call the recalculate because we used _unsafe_set()
+    }

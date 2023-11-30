@@ -1,0 +1,34 @@
+    @Test
+    @Ignore
+    // TODO fix test
+    public void testMaxIdleTime() throws InterruptedException {
+        TestScheduler s = new TestScheduler();
+        AtomicInteger count = new AtomicInteger();
+        AtomicInteger disposed = new AtomicInteger();
+        MemberFactory<Integer, NonBlockingPool<Integer>> memberFactory = pool -> new NonBlockingMember<Integer>(pool,
+                null);
+        Pool<Integer> pool = NonBlockingPool.factory(() -> count.incrementAndGet()) //
+                .healthy(n -> true) //
+                .disposer(n -> {
+                }) //
+                .maxSize(3) //
+                .maxIdleTime(1, TimeUnit.MINUTES) //
+                .returnToPoolDelayAfterHealthCheckFailure(1, TimeUnit.SECONDS) //
+                .disposer(n -> disposed.incrementAndGet()) //
+                .memberFactory(memberFactory) //
+                .scheduler(s) //
+                .build();
+        TestSubscriber<Member<Integer>> ts = pool //
+                .member() //
+                .repeat() //
+                .doOnNext(m -> m.checkin()) //
+                .doOnNext(System.out::println) //
+                .doOnRequest(t -> System.out.println("test request=" + t)) //
+                .test(1);
+        s.triggerActions();
+        ts.assertValueCount(1);
+        assertEquals(0, disposed.get());
+        s.advanceTimeBy(1, TimeUnit.MINUTES);
+        s.triggerActions();
+        assertEquals(1, disposed.get());
+    }

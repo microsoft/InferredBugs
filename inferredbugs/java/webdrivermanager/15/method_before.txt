@@ -1,0 +1,37 @@
+    private List<URL> filterCandidateUrls(Architecture arch, String version,
+            boolean getLatest) throws IOException {
+        List<URL> urls = getDrivers();
+        List<URL> candidateUrls;
+        log.trace("All URLs: {}", urls);
+
+        boolean continueSearchingVersion;
+        do {
+            // Get the latest or concrete version
+            candidateUrls = getLatest ? getLatest(urls, getDriverName())
+                    : getVersion(urls, getDriverName(), version);
+            log.trace("Candidate URLs: {}", candidateUrls);
+            if (versionToDownload == null
+                    || this.getClass().equals(EdgeDriverManager.class)) {
+                break;
+            }
+
+            // Filter by architecture and OS
+            candidateUrls = filter(candidateUrls, arch);
+
+            // Exception for phantomjs 2.5.0 in Linux
+            if (IS_OS_LINUX && getDriverName().contains("phantomjs")) {
+                candidateUrls = filterByDistro(candidateUrls, getDistroName(),
+                        "2.5.0");
+            }
+
+            // Find out if driver version has been found or not
+            continueSearchingVersion = candidateUrls.isEmpty() && getLatest;
+            if (continueSearchingVersion) {
+                log.trace("No valid binary found for {} {}", getDriverName(),
+                        versionToDownload);
+                urls = removeFromList(urls, versionToDownload);
+                versionToDownload = null;
+            }
+        } while (continueSearchingVersion);
+        return candidateUrls;
+    }

@@ -1,0 +1,14 @@
+    Optional<Map<ChunkReference, Chunk>>
+            fetch(HttpClient httpClient, ChunkKeyEncryptionKeys keks, Map<Integer, StorageHostChunkList> containers,
+                    Asset asset) {
+        Map<ChunkReference, Chunk> map = new HashMap<>();
+        for (Map.Entry<Integer, StorageHostChunkList> entry : containers.entrySet()) {
+            Optional<Map<ChunkReference, Chunk>> chunks = keks.apply(entry.getValue())
+                    .flatMap(kek -> fetch(httpClient, kek, entry.getValue(), entry.getKey()));
+            if (!chunks.isPresent()) {
+                return Optional.empty();
+            }
+            map.putAll(chunks.get());
+        }
+        return Optional.of(map);
+    }

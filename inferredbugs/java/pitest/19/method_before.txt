@@ -1,0 +1,63 @@
+  public static void main(final String[] args) {
+
+    enablePowerMockSupport();
+
+    Socket s = null;
+    Reporter r = null;
+    try {
+      final int port = Integer.valueOf(args[0]);
+
+      s = new Socket("localhost", port);
+
+      final SafeDataInputStream dis = new SafeDataInputStream(
+          s.getInputStream());
+
+      final SlaveArguments paramsFromParent = dis.read(SlaveArguments.class);
+
+      Log.setVerbose(paramsFromParent.isVerbose());
+
+      final F3<String, ClassLoader,byte[], Boolean> hotswap = new F3<String, ClassLoader, byte[], Boolean>() {
+
+        public Boolean apply(final String clazzName, ClassLoader loader, final byte[] b) {
+           Class<?> clazz;
+          try {
+            clazz = Class.forName(clazzName, false,
+                 loader);
+            return HotSwapAgent.hotSwap(clazz, b);
+          } catch (ClassNotFoundException e) {
+            throw Unchecked.translateCheckedException(e);
+          }
+   
+        }
+
+      };
+
+      r = new DefaultReporter(s.getOutputStream());
+      addMemoryWatchDog(r);
+
+      final ClassLoader loader = IsolationUtils.getContextClassLoader();
+      final MutationTestWorker worker = new MutationTestWorker(hotswap,
+          paramsFromParent.config.createMutator(new ClassloaderByteArraySource(
+              loader)), loader);
+
+      final List<TestUnit> tests = findTestsForTestClasses(loader,
+          paramsFromParent.testClasses, paramsFromParent.pitConfig);
+
+      worker.run(paramsFromParent.mutations, r, new TimeOutDecoratedTestSource(
+          paramsFromParent.timeoutStrategy, tests, r));
+
+    } catch (final Exception ex) {
+      LOG.log(Level.WARNING, "Error during mutation test", ex);
+      if (r != null) {
+        r.done(ExitCode.UNKNOWN_ERROR);
+      }
+      safelyCloseSocket(s);
+    } finally {
+      if (r != null) {
+        r.done(ExitCode.OK);
+      }
+
+      safelyCloseSocket(s);
+    }
+
+  }

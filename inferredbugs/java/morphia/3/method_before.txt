@@ -1,0 +1,32 @@
+ Object fromDb(DBObject dbObject, final Object entity, EntityCache cache) {
+		// check the history key (a key is the namespace + id)
+		
+		if (dbObject.containsField(ID_KEY) && getMappedClass(entity).getIdField() != null
+				&& getMappedClass(entity).getEntityAnnotation() != null) {
+			Key key = new Key(entity.getClass(), dbObject.get(ID_KEY));
+			Object cachedInstance = cache.getEntity(key);
+			if (cachedInstance != null)
+				return cachedInstance;
+			else
+				cache.putEntity(key, entity); // to avoid stackOverflow in
+												// recursive refs
+		}
+
+		MappedClass mc = getMappedClass(entity);
+		
+		dbObject = (BasicDBObject) mc.callLifecycleMethods(PreLoad.class, entity, dbObject, this);
+		try {
+			for (MappedField mf : mc.getPersistenceFields()) {
+				readMappedField(dbObject, mf, entity, cache);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+
+		if (dbObject.containsField(ID_KEY) && getMappedClass(entity).getIdField() != null) {
+			Key key = new Key(entity.getClass(), dbObject.get(ID_KEY));
+			cache.putEntity(key, entity);
+		}
+		mc.callLifecycleMethods(PostLoad.class, entity, dbObject, this);
+		return entity;
+	}

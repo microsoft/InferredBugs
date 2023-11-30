@@ -1,0 +1,17 @@
+    private static void main(Config config) throws IOException {
+        MarketDataServer marketData = marketData(config);
+
+        MarketReportServer marketReport = marketReport(config);
+
+        List<String> instruments = config.getStringList("instruments");
+
+        MatchingEngine engine = new MatchingEngine(instruments, marketData, marketReport);
+
+        int orderEntryPort = Configs.getPort(config, "order-entry.port");
+
+        OrderEntryServer orderEntry = OrderEntryServer.create(orderEntryPort, engine);
+
+        marketData.version();
+
+        new Events(marketData, marketReport, orderEntry).run();
+    }

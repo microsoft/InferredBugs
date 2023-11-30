@@ -1,0 +1,19 @@
+    @Override
+    public GlobalMatrixAuthorizationStrategy configure(Object config) throws Exception {
+        Map map = (Map) config;
+        Collection o = (Collection<?>)map.get("grantedPermissions");
+        Configurator<GroupPermissionDefinition> permissionConfigurator = Configurator.lookup(GroupPermissionDefinition.class);
+        Map<Permission,Set<String>> grantedPermissions = new HashMap<>();
+        for(Object entry : o) {
+            GroupPermissionDefinition gpd = permissionConfigurator.configure(entry);
+            //We transform the linear list to a matrix (Where permission is the key instead)
+            gpd.grantPermission(grantedPermissions);
+        }
+
+        //TODO: Once change is in place for GlobalMatrixAuthentication. Switch away from reflection
+        GlobalMatrixAuthorizationStrategy gms = new GlobalMatrixAuthorizationStrategy();
+        Field f = gms.getClass().getDeclaredField("grantedPermissions");
+        f.setAccessible(true);
+        f.set(gms, grantedPermissions);
+        return gms;
+    }

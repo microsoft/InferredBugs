@@ -1,0 +1,59 @@
+    public static void main(String[] args) throws Exception {
+        Config config = new Config();
+        new JCommander(config, args);
+
+        Configuration hbaseConfig = HBaseConfiguration.create();
+
+        final KeyGenerator keygen;
+        if (config.fullRandomAlgo) {
+            keygen = new FullRandomKeyGenerator();
+        } else if (config.badRandomAlgo) {
+            keygen = new BadRandomKeyGenerator();
+        } else if (config.bucketingAlgo) {
+            keygen = new BucketKeyGenerator();
+        } else if (config.seqAlgo) {
+            keygen = new SeqKeyGenerator();
+        } else {
+            keygen = null;
+            assert (false);
+        }
+        CommitTable commitTable = new HBaseCommitTable(hbaseConfig,
+                                                       COMMIT_TABLE_DEFAULT_NAME, keygen);
+        CommitTable.Writer writer = commitTable.getWriter().get();
+
+        MetricRegistry metrics = new MetricRegistry();
+        if (config.graphite != null) {
+            String parts[] = config.graphite.split(":");
+            String host = parts[0];
+            Integer port = Integer.valueOf(parts[1]);
+
+            final Graphite graphite = new Graphite(new InetSocketAddress(host, port));
+            final GraphiteReporter reporter = GraphiteReporter.forRegistry(metrics)
+                    .prefixedWith("omid-hbase." + keygen.getClass().getSimpleName())
+                    .convertRatesTo(TimeUnit.SECONDS)
+                    .convertDurationsTo(TimeUnit.MILLISECONDS)
+                    .filter(MetricFilter.ALL)
+                    .build(graphite);
+            reporter.start(10, TimeUnit.SECONDS);
+        }
+        final ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
+                .convertRatesTo(TimeUnit.SECONDS)
+                .convertDurationsTo(TimeUnit.MILLISECONDS)
+                .build();
+        reporter.start(10, TimeUnit.SECONDS);
+
+        Timer flushTimer = metrics.timer("flush");
+        Meter commitsMeter = metrics.meter("commits");
+        int i = 0;
+        long ts = 0;
+        while (true) {
+            writer.addCommittedTransaction(ts++, ts++);
+            if (i++ == config.batchSize) {
+                commitsMeter.mark(i);
+                long start = System.nanoTime();
+                writer.flush().get();
+                flushTimer.update((System.nanoTime() - start), TimeUnit.NANOSECONDS);
+                i = 0;
+            }
+        }
+    }

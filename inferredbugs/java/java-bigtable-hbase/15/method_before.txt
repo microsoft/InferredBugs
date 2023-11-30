@@ -1,0 +1,22 @@
+  public void awaitCompletion() throws InterruptedException {
+    boolean performedWarning = false;
+
+    lock.lock();
+    try {
+      while (!isFlushed()) {
+        flushedCondition.await(finishWaitMillis, TimeUnit.MILLISECONDS);
+
+        long now = clock.nanoTime();
+        if (now >= noSuccessWarningDeadlineNanos) {
+          logNoSuccessWarning(now);
+          resetNoSuccessWarningDeadline();
+          performedWarning = true;
+        }
+      }
+      if (performedWarning) {
+        LOG.info("awaitCompletion() completed");
+      }
+    } finally {
+      lock.unlock();
+    }
+  }

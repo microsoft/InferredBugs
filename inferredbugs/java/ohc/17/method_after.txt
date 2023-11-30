@@ -1,0 +1,19 @@
+    OffHeapMap(OHCacheBuilder builder, AtomicLong freeCapacity)
+    {
+        this.freeCapacity = freeCapacity;
+
+        int hts = builder.getHashTableSize();
+        if (hts <= 0)
+            hts = 8192;
+        if (hts < 256)
+            hts = 256;
+        table = Table.create((int) Util.roundUpToPowerOf2(hts, MAX_TABLE_SIZE));
+        if (table == null)
+            throw new RuntimeException("unable to allocate off-heap memory for segment");
+
+        float lf = builder.getLoadFactor();
+        if (lf <= .0d)
+            lf = .75f;
+        this.loadFactor = lf;
+        threshold = (long) ((double) table.size() * loadFactor);
+    }

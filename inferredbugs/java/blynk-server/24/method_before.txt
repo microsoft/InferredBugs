@@ -1,0 +1,20 @@
+    @GET
+    @Path("{token}/isAppConnected")
+    @Metric(HTTP_IS_APP_CONNECTED)
+    public Response isAppConnected(@PathParam("token") String token) {
+        TokenValue tokenValue = tokenManager.getTokenValueByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return Response.badRequest("Invalid token.");
+        }
+
+        final User user = tokenValue.user;
+        final int dashId = tokenValue.dashId;
+
+        final DashBoard dashBoard = user.profile.getDashById(dashId);
+
+        final Session session = sessionDao.userSession.get(new UserKey(user));
+
+        return ok(dashBoard.isActive && session.isAppConnected());
+    }

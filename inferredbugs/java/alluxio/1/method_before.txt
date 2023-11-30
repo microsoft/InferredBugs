@@ -1,0 +1,33 @@
+  private void recoveryFromLog() {
+    MasterLogReader reader;
+    synchronized (mDatasets) {
+      File file = new File(Config.MASTER_CHECKPOINT_FILE);
+      if (!file.exists()) {
+        LOG.info("Master Checkpoint file " + Config.MASTER_CHECKPOINT_FILE + " does not exist.");
+      } else {
+        reader = new MasterLogReader(Config.MASTER_CHECKPOINT_FILE);
+        while (reader.hasNext()) {
+          DatasetInfo dataset = reader.getNextDatasetInfo();
+          mDatasets.put(dataset.mId, dataset);
+          mDatasetPathToId.put(dataset.mPath, dataset.mId);
+        }
+      }
+
+      file = new File(Config.MASTER_LOG_FILE);
+      if (!file.exists()) {
+        LOG.info("Master Log file " + Config.MASTER_LOG_FILE + " does not exist.");
+      } else {
+        reader = new MasterLogReader(Config.MASTER_LOG_FILE);
+        while (reader.hasNext()) {
+          DatasetInfo dataset = reader.getNextDatasetInfo();
+          if (dataset.mId > 0) {
+            mDatasets.put(dataset.mId, dataset);
+            mDatasetPathToId.put(dataset.mPath, dataset.mId);
+          } else {
+            mDatasets.remove(-dataset.mId);
+            mDatasetPathToId.remove(dataset.mPath);
+          }
+        }
+      }
+    }
+  }

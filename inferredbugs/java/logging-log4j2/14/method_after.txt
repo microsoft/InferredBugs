@@ -1,0 +1,73 @@
+    @Test
+    public void testReconnect() throws Exception {
+
+        List<String> list = new ArrayList<String>();
+        TestSocketServer server = new TestSocketServer(list);
+        server.start();
+        Thread.sleep(300);
+
+        //System.err.println("Initializing logger");
+        final Logger logger = LogManager.getLogger(SocketReconnectTest.class);
+
+        String message = "Log #1";
+        logger.error(message);
+        String expectedHeader = "Header";
+
+        String msg = null;
+        String header = null;
+        for (int i = 0; i < 5; ++i) {
+            Thread.sleep(100);
+            if (list.size() > 1) {
+                header = list.get(0);
+                msg = list.get(1);
+                break;
+            }
+        }
+        assertNotNull("No header", header);
+        assertEquals(expectedHeader, header);
+        assertNotNull("No message", msg);
+        assertEquals(message, msg);
+
+        server.shutdown();
+        server.join();
+
+        list.clear();
+
+        message = "Log #2";
+        boolean exceptionCaught = false;
+
+        for (int i = 0; i < 5; ++i) {
+            try {
+                logger.error(message);
+            } catch (final AppenderRuntimeException e) {
+                exceptionCaught = true;
+                break;
+                // System.err.println("Caught expected exception");
+            }
+        }
+        assertTrue("No Exception thrown", exceptionCaught);
+        message = "Log #3";
+
+
+        server = new TestSocketServer(list);
+        server.start();
+        Thread.sleep(300);
+
+        msg = null;
+        header = null;
+        logger.error(message);
+        for (int i = 0; i < 5; ++i) {
+            Thread.sleep(100);
+            if (list.size() > 1) {
+                header = list.get(0);
+                msg = list.get(1);
+                break;
+            }
+        }
+        assertNotNull("No header", header);
+        assertEquals(expectedHeader, header);
+        assertNotNull("No message", msg);
+        assertEquals(message, msg);
+        server.shutdown();
+        server.join();
+    }

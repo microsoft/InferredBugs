@@ -1,0 +1,64 @@
+    public ConsoleReader getConsoleReader(InputStream inputStream)
+        throws IOException
+    {
+        Terminal terminal = Terminal.setupTerminal();
+
+        if (inputStream != null) {
+            // ### NOTE:  fix for sf.net bug 879425.
+            reader =
+                new ConsoleReader(
+                    inputStream,
+                    new PrintWriter(System.out));
+        } else {
+            reader = new ConsoleReader();
+        }
+
+        // setup history
+        ByteArrayInputStream historyBuffer = null;
+
+        if (new File(opts.getHistoryFile()).isFile()) {
+            try {
+                // save the current contents of the history buffer. This gets
+                // around a bug in JLine where setting the output before the
+                // input will clobber the history input, but setting the
+                // input before the output will cause the previous commands
+                // to not be saved to the buffer.
+                FileInputStream historyIn =
+                    new FileInputStream(
+                        opts.getHistoryFile());
+                ByteArrayOutputStream hist = new ByteArrayOutputStream();
+                int n;
+                while ((n = historyIn.read()) != -1) {
+                    hist.write(n);
+                }
+                historyIn.close();
+
+                historyBuffer = new ByteArrayInputStream(hist.toByteArray());
+            } catch (Exception e) {
+                handleException(e);
+            }
+        }
+
+        try {
+            // now set the output for the history
+            PrintWriter historyOut =
+                new PrintWriter(new FileWriter(
+                        opts.getHistoryFile()));
+            reader.getHistory().setOutput(historyOut);
+        } catch (Exception e) {
+            handleException(e);
+        }
+
+        try {
+            // now load in the previous history
+            if (historyBuffer != null) {
+                reader.getHistory().load(historyBuffer);
+            }
+        } catch (Exception e) {
+            handleException(e);
+        }
+
+        reader.addCompletor(new SQLLineCompletor());
+
+        return reader;
+    }

@@ -1,0 +1,41 @@
+    @Override
+    public void start() {
+        this.stop = false;
+
+        this.thread = new Thread(() -> {
+            while (!this.stop) {
+                final List<AnnounceRequest> availables = this.delayQueue.getAvailables();
+                for (final AnnounceRequest req : availables) {
+                    this.announcerExecutor.execute(req);
+                    try {
+                        this.lock.writeLock().lock();
+                        this.currentlySeedingAnnouncer.removeIf(an -> an.equals(req.getAnnouncer())); // remove the last recorded event
+                        this.currentlySeedingAnnouncer.add(req.getAnnouncer());
+                    } finally {
+                        this.lock.writeLock().unlock();
+                    }
+                }
+
+                try {
+                    Thread.sleep(1000);
+                } catch (final InterruptedException ignored) {
+                }
+            }
+        });
+        for (int i = 0; i < this.appConfiguration.getSimultaneousSeed(); i++) {
+            try {
+                this.lock.writeLock().lock();
+
+                this.addTorrent();
+            } catch (final NoMoreTorrentsFileAvailableException ignored) {
+                break;
+            } finally {
+                this.lock.writeLock().unlock();
+            }
+        }
+
+        this.thread.setName("client-orchestrator-thread");
+
+        this.thread.start();
+        this.torrentFileProvider.registerListener(this);
+    }

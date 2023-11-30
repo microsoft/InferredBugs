@@ -1,0 +1,31 @@
+    @Test
+    public void shouldRunAllQueuedCallbacks() throws Exception {
+        
+        final AtomicInteger count = new AtomicInteger(); 
+        final CountDownLatch latch = new CountDownLatch(1000);
+
+        for(int i = 0; i < 20; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final Queue<Runnable> queries = new LinkedList<>();
+                    for(int j = 0; j < 50; j++) {
+                        queries.add(() -> pool.query("INSERT INTO CP_TEST VALUES($1)", asList(UUID.randomUUID()), result -> {
+                            latch.countDown();
+                            count.incrementAndGet();
+                            if(!queries.isEmpty()) {
+                                queries.poll().run();
+                            }
+                        }, err));
+                    }
+                    queries.poll().run();
+                }
+            }).start();
+        }
+        assertTrue(latch.await(5L, TimeUnit.SECONDS));
+        assertEquals(1000, count.get());
+
+        ResultHolder result = new ResultHolder();
+        pool.query("SELECT COUNT(*) FROM CP_TEST", result, result.errorHandler());
+        assertEquals(count.get(), result.result().row(0).getLong(0).longValue());
+    }

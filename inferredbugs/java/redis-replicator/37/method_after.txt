@@ -1,0 +1,34 @@
+    @Override
+    public Event applyZSetZipList(RedisInputStream in, DB db, int version) throws IOException {
+        /*
+         * |<zlbytes>| <zltail>| <zllen>| <entry> ...<entry> | <zlend>|
+         * | 4 bytes | 4 bytes | 2bytes | zipListEntry ...   | 1byte  |
+         */
+        BaseRdbParser parser = new BaseRdbParser(in);
+        KeyStringValueZSet o12 = new KeyStringValueZSet();
+        byte[] key = parser.rdbLoadEncodedStringObject().first();
+        ByteArray aux = parser.rdbLoadPlainStringObject();
+        RedisInputStream stream = new RedisInputStream(new ByteArrayInputStream(aux));
+
+        Set<ZSetEntry> zset = new LinkedHashSet<>();
+        int zlbytes = BaseRdbParser.LenHelper.zlbytes(stream);
+        int zltail = BaseRdbParser.LenHelper.zltail(stream);
+        int zllen = BaseRdbParser.LenHelper.zllen(stream);
+        while (zllen > 0) {
+            byte[] element = BaseRdbParser.StringHelper.zipListEntry(stream);
+            zllen--;
+            double score = Double.valueOf(new String(BaseRdbParser.StringHelper.zipListEntry(stream), CHARSET));
+            zllen--;
+            zset.add(new ZSetEntry(new String(element, CHARSET), score, element));
+        }
+        int zlend = BaseRdbParser.LenHelper.zlend(stream);
+        if (zlend != 255) {
+            throw new AssertionError("zlend expect 255 but " + zlend);
+        }
+        o12.setValueRdbType(RDB_TYPE_ZSET_ZIPLIST);
+        o12.setValue(zset);
+        o12.setDb(db);
+        o12.setKey(new String(key, CHARSET));
+        o12.setRawKey(key);
+        return o12;
+    }

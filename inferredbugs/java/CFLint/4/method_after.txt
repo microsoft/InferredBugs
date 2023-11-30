@@ -1,0 +1,95 @@
+ private void execute() throws IOException, TransformerException, JAXBException {
+		final CFLint cflint = new CFLint(loadConfig(configfile));
+		cflint.setVerbose(verbose);
+		cflint.setLogError(logerror);
+		cflint.setQuiet(quiet);
+		cflint.setShowProgress(showprogress);
+		cflint.setProgressUsesThread(progressUsesThread);
+		if(extensions != null && extensions.trim().length() > 0){
+			try{
+				cflint.setAllowedExtensions(Arrays.asList(extensions.trim().split(",")));
+			}catch(Exception e){
+				System.err.println("Unable to use extensions (" + extensions + ") using default instead. " + e.getMessage());
+			}
+		}
+		CFLintFilter filter = CFLintFilter.createFilter(verbose);
+		if(filterFile != null){
+			File ffile = new File(filterFile);
+			if(ffile.exists()){
+				FileInputStream fis = new FileInputStream(ffile);
+				byte b[] = new byte[fis.available()];
+				fis.read(b);
+				filter = CFLintFilter.createFilter(new String(b),verbose);
+			}
+		}
+
+		if (excludeCodes != null && excludeCodes.length > 0) {
+			filter.excludeCode(excludeCodes);
+		}
+		if (includeCodes != null && includeCodes.length > 0) {
+			filter.includeCode(includeCodes);
+		}
+		cflint.getBugs().setFilter(filter);
+		for (final String scanfolder : folder) {
+			cflint.scan(scanfolder);
+		}
+		if (stdIn) {
+			StringBuilder source = new StringBuilder();
+			Scanner scanner = new Scanner(System.in);
+			while (scanner.hasNextLine()) {
+				String nextLine = scanner.nextLine();
+				source.append(nextLine);
+				source.append(System.lineSeparator());
+			}
+			scanner.close();
+			cflint.process(source.toString(), stdInFile);
+		}
+		if (xmlOutput) {
+			Writer xmlwriter = stdOut ? new OutputStreamWriter(System.out) : new FileWriter(xmlOutFile);
+			if ("findbugs".equalsIgnoreCase(xmlstyle)) {
+				if(verbose) {
+					display("Writing XML findbugs style" + (stdOut ? "." : " to " + xmlOutFile));
+				}
+				new XMLOutput().outputFindBugs(cflint.getBugs(), xmlwriter);
+			} else {
+				if(verbose) {
+					display("Writing XML" + (stdOut ? "." : " to " + xmlOutFile));
+				}
+				new XMLOutput().output(cflint.getBugs(), xmlwriter);
+			}
+		}
+		if (textOutput) {
+			if(textOutFile != null){
+				if(verbose) {
+					display("Writing text" + (stdOut ? "." : " to " + textOutFile));
+				}
+			}
+			Writer textwriter = stdOut || textOutFile==null ? new OutputStreamWriter(System.out) : new FileWriter(textOutFile);
+			new TextOutput().output(cflint.getBugs(), textwriter);
+
+		}
+		if (htmlOutput) {
+			try {
+				if(verbose) {
+					display("Writing HTML" + (stdOut ? "." : " to " + htmlOutFile));
+				}
+				Writer htmlwriter = stdOut ? new OutputStreamWriter(System.out) : new FileWriter(htmlOutFile);
+				new HTMLOutput(htmlStyle).output(cflint.getBugs(), htmlwriter);
+			} catch (final TransformerException e) {
+				throw new IOException(e);
+			}
+		}
+		if (jsonOutput) {
+			if(verbose) {
+				display("Writing JSON" + (stdOut ? "." : " to " + jsonOutFile));
+			}
+			Writer jsonwriter = stdOut ? new OutputStreamWriter(System.out) : new FileWriter(jsonOutFile);
+			new JSONOutput().output(cflint.getBugs(), jsonwriter);
+		}
+		if (includeCodes != null) {
+			cflint.getBugs().getFilter().includeCode(includeCodes);
+		}
+		if (excludeCodes != null) {
+			cflint.getBugs().getFilter().excludeCode(excludeCodes);
+		}
+	}

@@ -1,0 +1,22 @@
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        SocketChannel channel = (SocketChannel) ctx.channel();
+        String nodeId = IpUtil.getNodeId(channel.remoteAddress());
+        Log.debug(" ---------------------- server channelInactive ------------------------- " + nodeId);
+
+        String channelId = ctx.channel().id().asLongText();
+        NioChannelMap.remove(channelId);
+        Node node = networkService.getNode(nodeId);
+
+        if (node != null) {
+            if (channelId.equals(node.getChannelId())) {
+//                System.out.println("------------ sever channelInactive remove node-------------" + node.getId());
+                networkService.removeNode(nodeId);
+            } else {
+                Log.info("--------------server channel id different----------------------");
+                Log.info("--------node:" + node.getId() + ",type:" + node.getType());
+                Log.info(node.getChannelId());
+                Log.info(channelId);
+            }
+        }
+    }

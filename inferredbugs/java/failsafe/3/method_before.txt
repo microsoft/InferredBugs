@@ -1,0 +1,37 @@
+  public void testRetryForResult() {
+    // Given retry for null
+    inv = new AsyncExecution(callable, new RetryPolicy().retryWhen(null), scheduler, future, null);
+
+    // When / Then
+    assertFalse(inv.complete(null));
+    assertTrue(inv.retryFor(null));
+    inv.prepare();
+    assertFalse(inv.retryFor(1));
+
+    // Then
+    assertEquals(inv.getExecutions(), 2);
+    assertTrue(inv.isComplete());
+    assertEquals(inv.getLastResult(), Integer.valueOf(1));
+    assertNull(inv.getLastFailure());
+    verifyScheduler(1);
+    verify(future).complete(1, null, true);
+
+    // Given 2 max retries
+    inv = new AsyncExecution(callable, new RetryPolicy().retryWhen(null).withMaxRetries(1), scheduler, future, null);
+
+    // When / Then
+    resetMocks();
+    assertFalse(inv.complete(null));
+    inv.prepare();
+    assertTrue(inv.retryFor(null));
+    inv.prepare();
+    assertFalse(inv.retryFor(null));
+
+    // Then
+    assertEquals(inv.getExecutions(), 2);
+    assertTrue(inv.isComplete());
+    assertNull(inv.getLastResult());
+    assertNull(inv.getLastFailure());
+    verifyScheduler(1);
+    verify(future).complete(null, null, false);
+  }

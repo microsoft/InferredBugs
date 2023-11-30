@@ -1,0 +1,65 @@
+  @Override
+  int run(final Namespace options, final HeliosClient client, final PrintStream out,
+          final boolean json, final BufferedReader stdin)
+      throws ExecutionException, InterruptedException {
+    final boolean full = options.getBoolean(fullArg.getDest());
+    final boolean quiet = options.getBoolean(quietArg.getDest());
+    final String pattern = options.getString(patternArg.getDest());
+    final boolean deployed = options.getBoolean(deployedArg.getDest());
+
+    final Map<JobId, Job> jobs;
+    if (pattern == null) {
+      jobs = client.jobs().get();
+    } else {
+      jobs = client.jobs(pattern).get();
+    }
+
+    if (!Strings.isNullOrEmpty(pattern) && jobs.isEmpty()) {
+      if (json) {
+        out.println(Json.asPrettyStringUnchecked(jobs));
+      } else if (!quiet) {
+        out.printf("job pattern %s matched no jobs%n", pattern);
+      }
+      return 1;
+    }
+
+    final Map<JobId, JobStatus> jobStatuses = getJobStatuses(client, jobs, deployed);
+
+    final Set<JobId> sortedJobIds = Sets.newTreeSet(jobStatuses.keySet());
+
+    if (json) {
+      if (quiet) {
+        out.println(Json.asPrettyStringUnchecked(sortedJobIds));
+      } else {
+        final Map<JobId, Job> filteredJobs = Maps.newHashMap();
+        for (final Entry<JobId, Job> entry : jobs.entrySet()) {
+          if (jobStatuses.containsKey(entry.getKey())) {
+            filteredJobs.put(entry.getKey(), entry.getValue());
+          }
+        }
+        out.println(Json.asPrettyStringUnchecked(filteredJobs));
+      }
+    } else {
+      if (quiet) {
+        for (final JobId jobId : sortedJobIds) {
+          out.println(jobId);
+        }
+      } else {
+        final Table table = table(out);
+        table.row("JOB ID", "NAME", "VERSION", "HOSTS", "COMMAND", "ENVIRONMENT");
+
+        for (final JobId jobId : sortedJobIds) {
+          final Job job = jobs.get(jobId);
+          final String command = on(' ').join(escape(job.getCommand()));
+          final String env = Joiner.on(" ").withKeyValueSeparator("=").join(job.getEnv());
+          final JobStatus status = jobStatuses.get(jobId);
+          table.row(full ? jobId : jobId.toShortString(), jobId.getName(), jobId.getVersion(),
+                    status != null ? status.getDeployments().keySet().size() : 0,
+                    command, env);
+        }
+        table.print();
+      }
+    }
+
+    return 0;
+  }

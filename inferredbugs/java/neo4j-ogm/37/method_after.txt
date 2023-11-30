@@ -1,0 +1,48 @@
+    @Override
+    public RelationalWriter getIterableWriter(ClassInfo classInfo, Class<?> parameterType, String relationshipType, String relationshipDirection) {
+        if(!iterableWriterCache.containsKey(classInfo)) {
+            iterableWriterCache.put(classInfo, new HashMap<DirectedRelationshipForType, RelationalWriter>());
+        }
+        DirectedRelationshipForType directedRelationshipForType = new DirectedRelationshipForType(relationshipType,relationshipDirection, parameterType);
+        if(iterableWriterCache.get(classInfo).containsKey(directedRelationshipForType)) {
+            return iterableWriterCache.get(classInfo).get(directedRelationshipForType);
+        }
+
+        //1st find a method annotated with type and direction
+        MethodInfo methodInfo = getIterableSetterMethodInfo(classInfo, parameterType, relationshipType, relationshipDirection, STRICT_MODE);
+        if (methodInfo != null) {
+            MethodWriter methodWriter =  new MethodWriter(classInfo, methodInfo);
+            cacheIterableMethodWriter(classInfo, parameterType, relationshipType, relationshipDirection, directedRelationshipForType, methodInfo, methodWriter);
+            return methodWriter;
+        }
+
+        //2nd find a field annotated with type and direction
+        FieldInfo fieldInfo = getIterableFieldInfo(classInfo, parameterType, relationshipType, relationshipDirection, STRICT_MODE);
+        if (fieldInfo != null) {
+            FieldWriter fieldWriter = new FieldWriter(classInfo, fieldInfo);
+            cacheIterableFieldWriter(classInfo, parameterType, relationshipType, relationshipDirection, directedRelationshipForType, fieldInfo, fieldWriter);
+            return fieldWriter;
+        }
+
+        //If relationshipDirection=INCOMING, we should have found an annotated field already
+
+        if(!relationshipDirection.equals(Relationship.INCOMING)) {
+            //3rd find a method with implied type and direction
+            methodInfo = getIterableSetterMethodInfo(classInfo, parameterType, relationshipType, relationshipDirection, INFERRED_MODE);
+            if (methodInfo != null) {
+                MethodWriter methodWriter = new MethodWriter(classInfo, methodInfo);
+                cacheIterableMethodWriter(classInfo, parameterType, relationshipType, relationshipDirection, directedRelationshipForType, methodInfo, methodWriter);
+                return methodWriter;
+            }
+
+            //4th find a field with implied type and direction
+            fieldInfo = getIterableFieldInfo(classInfo, parameterType, relationshipType, relationshipDirection, INFERRED_MODE);
+            if (fieldInfo != null) {
+                FieldWriter fieldWriter = new FieldWriter(classInfo, fieldInfo);
+                cacheIterableFieldWriter(classInfo, parameterType, relationshipType, relationshipDirection, directedRelationshipForType, fieldInfo, fieldWriter);
+                return fieldWriter;
+            }
+        }
+        iterableWriterCache.get(classInfo).put(directedRelationshipForType, null);
+        return null;
+    }

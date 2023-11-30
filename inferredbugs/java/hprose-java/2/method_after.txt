@@ -1,0 +1,38 @@
+    public final void send() {
+        if (packet == null) {
+            packet = outqueue.poll();
+            if (packet == null) {
+                return;
+            }
+        }
+        try {
+            for (;;) {
+                while (packet.writeLength < packet.totalLength) {
+                    setTimeout(handler.getWriteTimeout(), TimeoutType.WRITE_TIMEOUT);
+                    long n = channel.write(packet.buffers);
+                    if (n < 0) {
+                        close();
+                        return;
+                    }
+                    if (n == 0) {
+                        // key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+                        timeoutClose();
+                        return;
+                    }
+                    packet.writeLength += n;
+                }
+                clearTimeout();
+                handler.onSended(this, packet.buffers[1], packet.id);
+                synchronized (outqueue) {
+                    packet = outqueue.poll();
+                    if (packet == null) {
+                        key.interestOps(SelectionKey.OP_READ);
+                        return;
+                    }
+                }
+            }
+        }
+        catch (Exception e) {
+            close();
+        }
+    }

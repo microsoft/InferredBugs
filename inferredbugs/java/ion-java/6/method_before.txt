@@ -1,0 +1,20 @@
+    @Test
+    public void testFlushingUnlockedSymtab()
+    throws Exception
+    {
+        iw = makeWriter();
+        iw.writeSymbol("force a local symtab");
+        SymbolTable symtab = iw.getSymbolTable();
+        symtab.intern("fred_1");
+        symtab.intern("fred_2");
+
+        iw.writeSymbol("fred_1");
+        // This would cause an appended LST to be written before the next value.
+        iw.flush();
+        IonReader reader = IonReaderBuilder.standard().build(myOutputStream.toByteArray());
+        assertEquals(IonType.SYMBOL, reader.next());
+        assertEquals("force a local symtab", reader.stringValue());
+        assertEquals(IonType.SYMBOL, reader.next());
+        assertEquals("fred_1", reader.stringValue());
+        assertNull(reader.next());
+    }

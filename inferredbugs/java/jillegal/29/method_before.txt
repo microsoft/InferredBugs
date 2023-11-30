@@ -1,0 +1,32 @@
+ @SuppressWarnings("deprecation")
+	protected void init(int estimatedStringCount, int estimatedStringLength) {
+		try {
+			this.estimatedStringCount = estimatedStringCount;
+			this.estimatedStringLength = estimatedStringLength;
+			
+			charArrayIndexScale = JvmUtil.arrayIndexScale(char.class);
+			charArrayIndexStartOffset = JvmUtil.arrayBaseOffset(char.class);
+			valueArrayOffsetInString = JvmUtil.getUnsafe().fieldOffset(String.class.getDeclaredField("value"));
+			stringSize = (int) JvmUtil.sizeOf(String.class);
+			int estimatedStringSize = (int) (stringSize + JvmUtil.sizeOfArray(char.class, estimatedStringLength));
+			allocationSize = (estimatedStringSize * estimatedStringCount) + JvmUtil.OBJECT_ADDRESS_SENSIVITY; // Extra memory for possible aligning
+			allocationStartAddress = directMemoryService.allocateMemory(allocationSize); 
+			allocationEndAddress = allocationStartAddress + allocationSize;
+			// Allocated objects must start aligned as address size from start address of allocated address
+			stringsStartAddress = allocationStartAddress;
+			long addressMod = stringsStartAddress % JvmUtil.OBJECT_ADDRESS_SENSIVITY;
+			if (addressMod != 0) {
+				stringsStartAddress += (JvmUtil.OBJECT_ADDRESS_SENSIVITY - addressMod);
+			}
+			currentAddress = stringsStartAddress;
+			sampleStr = new String();
+			sampleStrAddress = JvmUtil.addressOf(sampleStr);
+			sampleCharArray = new char[0];
+			init();
+			makeAvaiable();
+		}
+		catch (Throwable t) {
+			logger.error("Error occured while initializing \"StringOffHeapPool\"", t);
+			throw new IllegalStateException(t);
+		}	
+	}

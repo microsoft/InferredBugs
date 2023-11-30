@@ -1,0 +1,46 @@
+    @Test
+    public void testBatchUpdatePersistentVerticesAllTypes() {
+
+        Assume.assumeTrue(this.sqlgGraph.features().vertex().properties().supportsFloatValues());
+
+        Vertex v1 = this.sqlgGraph.addVertex(T.label, "Person", "name", "a");
+        Vertex v2 = this.sqlgGraph.addVertex(T.label, "Person", "surname", "b");
+        this.sqlgGraph.tx().commit();
+        assertEquals("a", this.sqlgGraph.traversal().V(v1.id()).next().value("name"));
+        assertEquals("b", this.sqlgGraph.traversal().V(v2.id()).next().value("surname"));
+
+        this.sqlgGraph.tx().rollback();
+        this.sqlgGraph.tx().normalBatchModeOn();
+        v1.property("name", "aa");
+        v1.property("boolean", true);
+        v1.property("short", (short) 1);
+        v1.property("integer", 1);
+        v1.property("long", 1L);
+        v1.property("float", 1F);
+        v1.property("double", 1D);
+
+        v2.property("surname", "bb");
+        v2.property("boolean", false);
+        v2.property("short", (short) 2);
+        v2.property("integer", 2);
+        v2.property("long", 2L);
+        v2.property("float", 2F);
+        v2.property("double", 2D);
+        this.sqlgGraph.tx().commit();
+
+        assertEquals("aa", this.sqlgGraph.traversal().V(v1.id()).next().value("name"));
+        assertEquals(true, this.sqlgGraph.traversal().V(v1.id()).next().value("boolean"));
+        assertEquals((short) 1, this.sqlgGraph.traversal().V(v1.id()).next().<Short>value("short").shortValue());
+        assertEquals(1, this.sqlgGraph.traversal().V(v1.id()).next().<Integer>value("integer").intValue());
+        assertEquals(1L, this.sqlgGraph.traversal().V(v1.id()).next().<Long>value("long").longValue(), 0);
+        assertEquals(1F, this.sqlgGraph.traversal().V(v1.id()).next().<Float>value("float").floatValue(), 0);
+        assertEquals(1D, this.sqlgGraph.traversal().V(v1.id()).next().<Double>value("double").doubleValue(), 0);
+
+        assertEquals("bb", this.sqlgGraph.traversal().V(v2.id()).next().value("surname"));
+        assertEquals(false, this.sqlgGraph.traversal().V(v2.id()).next().value("boolean"));
+        assertEquals((short) 2, this.sqlgGraph.traversal().V(v2.id()).next().<Short>value("short").shortValue());
+        assertEquals(2, this.sqlgGraph.traversal().V(v2.id()).next().<Integer>value("integer").intValue());
+        assertEquals(2L, this.sqlgGraph.traversal().V(v2.id()).next().<Long>value("long").longValue(), 0);
+        assertEquals(2F, this.sqlgGraph.traversal().V(v2.id()).next().<Float>value("float").floatValue(), 0);
+        assertEquals(2D, this.sqlgGraph.traversal().V(v2.id()).next().<Double>value("double").doubleValue(), 0);
+    }

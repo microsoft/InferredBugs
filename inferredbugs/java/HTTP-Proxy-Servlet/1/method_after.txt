@@ -1,0 +1,61 @@
+  private void executeProxyRequest(
+      HttpMethod httpMethodProxyRequest,
+      HttpServletRequest httpServletRequest,
+      HttpServletResponse httpServletResponse)
+      throws IOException, ServletException {
+
+    if (doLog) {
+      log("proxy: "+httpServletRequest.getRequestURI()+" -- "+httpMethodProxyRequest.getURI());
+    }
+
+    // Create a default HttpClient
+    HttpClient httpClient = new HttpClient();
+    httpMethodProxyRequest.setFollowRedirects(false);
+    // Execute the request
+    int intProxyResponseCode = httpClient.executeMethod(httpMethodProxyRequest);
+
+    // Check if the proxy response is a redirect
+    // The following code is adapted from org.tigris.noodle.filters.CheckForRedirect
+    // Hooray for open source software
+    if (intProxyResponseCode >= HttpServletResponse.SC_MULTIPLE_CHOICES /* 300 */
+        && intProxyResponseCode < HttpServletResponse.SC_NOT_MODIFIED /* 304 */) {
+      String stringStatusCode = Integer.toString(intProxyResponseCode);
+      String stringLocation = httpMethodProxyRequest.getResponseHeader(STRING_LOCATION_HEADER).getValue();
+      if (stringLocation == null) {
+        throw new ServletException("Recieved status code: " + stringStatusCode
+            + " but no " + STRING_LOCATION_HEADER + " header was found in the response");
+      }
+      // Modify the redirect to go to this proxy servlet rather that the proxied host
+      String stringMyHostName = httpServletRequest.getServerName();
+      if (httpServletRequest.getServerPort() != 80) {
+        stringMyHostName += ":" + httpServletRequest.getServerPort();
+      }
+      stringMyHostName += httpServletRequest.getContextPath();
+      httpServletResponse.sendRedirect(stringLocation.replace(getProxyHostAndPort() + this.stringProxyPath, stringMyHostName));
+      return;
+    } else if (intProxyResponseCode == HttpServletResponse.SC_NOT_MODIFIED) {
+      // 304 needs special handling.  See:
+      // http://www.ics.uci.edu/pub/ietf/http/rfc1945.html#Code304
+      // We get a 304 whenever passed an 'If-Modified-Since'
+      // header and the data on disk has not changed; server
+      // responds w/ a 304 saying I'm not going to send the
+      // body because the file has not changed.
+      httpServletResponse.setIntHeader(STRING_CONTENT_LENGTH_HEADER_NAME, 0);
+      httpServletResponse.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+      return;
+    }
+
+    // Pass the response code back to the client
+    httpServletResponse.setStatus(intProxyResponseCode);
+
+    // Pass response headers back to the client
+    Header[] headerArrayResponse = httpMethodProxyRequest.getResponseHeaders();
+    for (Header header : headerArrayResponse) {
+      httpServletResponse.setHeader(header.getName(), header.getValue());
+    }
+
+    // Send the content to the client
+    InputStream inputStreamProxyResponse = httpMethodProxyRequest.getResponseBodyAsStream();
+    OutputStream outputStreamClientResponse = httpServletResponse.getOutputStream();
+    Streams.copy(inputStreamProxyResponse,outputStreamClientResponse,false);//copy; don't close streams
+  }

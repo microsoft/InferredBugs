@@ -1,0 +1,32 @@
+  public static List<Object[]> queryGenericObjectArrayListSQL(String poolName, String sql, Object[] params) {
+
+    List<Object[]> returnList = null;
+
+    Connection con = null;
+
+    try {
+      con = DB_CONNECTION_MANAGER.getConnection(poolName);
+
+      if (con == null) {
+        throw new ConnectionException(poolName);
+      }
+
+      con.setAutoCommit(false);
+
+      ArrayListHandler resultSetHandler = new ArrayListHandler();
+      returnList = new QueryRunner().query(con, sql, resultSetHandler, params);
+
+      con.commit();
+    } catch (Exception e) {
+      logger.error(QUERY_EXCEPTION_MESSAGE, e);
+      try {
+        con.rollback();
+      } catch (SQLException e1) {
+        logger.error(ROLLBACK_EXCEPTION_MESSAGE, e1);
+      }
+    } finally {
+      DB_CONNECTION_MANAGER.freeConnection(con);
+    }
+
+    return returnList;
+  }

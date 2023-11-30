@@ -1,0 +1,24 @@
+  @Test (groups = {"integrationTest"})
+  public void testFileBasedClusterManager() throws Exception
+  {
+    List<FileBasedClusterManager.DBParam> dbParams = new ArrayList<FileBasedClusterManager.DBParam>();
+    dbParams.add(new FileBasedClusterManager.DBParam("BizFollow", 1));
+    dbParams.add(new FileBasedClusterManager.DBParam("BizProfile", 1));
+    dbParams.add(new FileBasedClusterManager.DBParam("EspressoDB", 10));
+    dbParams.add(new FileBasedClusterManager.DBParam("MailboxDB", 128));
+    dbParams.add(new FileBasedClusterManager.DBParam("MyDB", 8));
+    dbParams.add(new FileBasedClusterManager.DBParam("schemata", 1));
+    String[] nodesInfo =
+    { "localhost:8900", "localhost:8901", "localhost:8902", "localhost:8903",
+        "localhost:8904" };
+    
+    String file = "/tmp/clusterView.json";
+    int replica = 0;
+    // ClusterViewSerializer serializer = new ClusterViewSerializer(file);
+    ClusterView view = FileBasedClusterManager.generateStaticConfigClusterView(nodesInfo, dbParams, replica);
+    view.setExternalView(new LinkedList<ZNRecord>());
+    ClusterViewSerializer.serialize(view, new File(file));
+    ClusterView restoredView = ClusterViewSerializer.deserialize(new File(file));
+    
+    VerifyClusterViews(view, restoredView);
+  }

@@ -1,0 +1,15 @@
+    Optional<Chunk>
+            decrypt(BoundedInputStream bis, byte[] chunkEncryptionKey, byte[] checksum, int index) throws IOException {
+        unwrapKey(chunkEncryptionKey, index)
+                .map(u -> {
+                    logger.debug("-- decrypt() - key unwrapped: 0x{} chunk: 0x{}",
+                            Hex.toHexString(u), Hex.toHexString(checksum));
+                    return cipherInputStreams.apply(u, bis);
+                })
+                .<IORunnable>map(u -> () -> store(u, checksum))
+                .orElse(() -> {
+                    logger.warn("-- decrypt() - key unwrap failed chunk: 0x{}", Hex.toHexString(checksum));
+                })
+                .run();
+        return store.chunk(checksum);
+    }

@@ -1,0 +1,19 @@
+    public int run() throws Throwable {
+        ClassLoader jenkins = createJenkinsWarClassLoader();
+        ClassLoader setup = createSetupClassLoader(jenkins);
+
+        Thread.currentThread().setContextClassLoader(setup);    // or should this be 'jenkins'?
+
+        try {
+            Class<?> c = setup.loadClass("io.jenkins.jenkinsfile.runner.App");
+            return ((IApp) c.newInstance()).run(this);
+        } catch (ClassNotFoundException e) {
+            if (setup instanceof URLClassLoader) {
+                throw new ClassNotFoundException(e.getMessage() + " not found in " + appRepo + ","
+                        + new File(warDir, "WEB-INF/lib") + " " + Arrays.toString(((URLClassLoader) setup).getURLs()),
+                        e);
+            } else {
+                throw e;
+            }
+        }
+    }

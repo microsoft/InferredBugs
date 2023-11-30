@@ -1,0 +1,32 @@
+  private static KubernetesClient getKubernetesClient(Config config, String id) {
+    try {
+      final HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
+      final JsonFactory jsonFactory = Utils.getDefaultJsonFactory();
+      final GoogleCredential credential =
+          GoogleCredential.getApplicationDefault(httpTransport, jsonFactory)
+              .createScoped(ContainerScopes.all());
+      final Container gke = new Container.Builder(httpTransport, jsonFactory, credential)
+          .setApplicationName(SERVICE_NAME)
+          .build();
+
+      final String projectKey = GKE_CLUSTER_PREFIX + id + GKE_CLUSTER_PROJECT_ID;
+      final String zoneKey = GKE_CLUSTER_PREFIX + id + GKE_CLUSTER_ZONE;
+      final String clusterIdKey = GKE_CLUSTER_PREFIX + id + GKE_CLUSTER_ID;
+
+      final Cluster cluster = gke.projects().zones().clusters()
+          .get(config.getString(projectKey),
+               config.getString(zoneKey),
+               config.getString(clusterIdKey)).execute();
+
+      final io.fabric8.kubernetes.client.Config kubeConfig = new ConfigBuilder()
+          .withMasterUrl("https://" + cluster.getEndpoint())
+          .withCaCertData(cluster.getMasterAuth().getClusterCaCertificate())
+          .withClientCertData(cluster.getMasterAuth().getClientCertificate())
+          .withClientKeyData(cluster.getMasterAuth().getClientKey())
+          .build();
+
+      return new AutoAdaptableKubernetesClient(kubeConfig).inNamespace(KUBERNETES_NAMESPACE);
+    } catch (GeneralSecurityException | IOException e) {
+      throw Throwables.propagate(e);
+    }
+  }

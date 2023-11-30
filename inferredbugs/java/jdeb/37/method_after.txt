@@ -1,0 +1,40 @@
+    private PackageDescriptor createPackageDescriptor(File file, BigInteger pDataSize) throws IOException, ParseException {
+        FilteredConfigurationFile controlFile = new FilteredConfigurationFile(file.getName(), new FileInputStream(file), resolver);
+        PackageDescriptor packageDescriptor = new PackageDescriptor(new ByteArrayInputStream(controlFile.toString().getBytes()));
+        
+        if (packageDescriptor.get("Date") == null) {
+            // Mon, 26 Mar 2007 11:44:04 +0200 (RFC 2822)
+            SimpleDateFormat fmt = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
+            packageDescriptor.set("Date", fmt.format(new Date()));
+        }
+
+        if (packageDescriptor.get("Distribution") == null) {
+            packageDescriptor.set("Distribution", "unknown");
+        }
+
+        if (packageDescriptor.get("Urgency") == null) {
+            packageDescriptor.set("Urgency", "low");
+        }
+
+        packageDescriptor.set("Installed-Size", pDataSize.divide(BigInteger.valueOf(1024)).toString());
+
+        // override the Version if the DEBVERSION environment variable is defined
+        final String debVersion = System.getenv("DEBVERSION");
+        if (debVersion != null) {
+            packageDescriptor.set("Version", debVersion);
+            console.info("Using version'" + debVersion + "' from the environment variables.");
+        }
+
+
+        // override the Maintainer field if the DEBFULLNAME and DEBEMAIL environment variables are defined
+        final String debFullName = System.getenv("DEBFULLNAME");
+        final String debEmail = System.getenv("DEBEMAIL");
+
+        if (debFullName != null && debEmail != null) {
+            final String maintainer = debFullName + " <" + debEmail + ">";
+            packageDescriptor.set("Maintainer", maintainer);
+            console.info("Using maintainer '" + maintainer + "' from the environment variables.");
+        }
+        
+        return packageDescriptor;
+    }

@@ -1,0 +1,33 @@
+    @Override
+    public List<Word> segImpl(String text) {
+        //文本长度
+        final int textLen = text.length();
+        //开始虚拟节点，注意值的长度只能为1
+        Node start = new Node("S", 0);
+        start.score = 1F;
+        //结束虚拟节点
+        Node end = new Node("END", textLen+1);
+        //以文本中每一个字的位置（从1开始）作为二维数组的横坐标
+        //以每一个字开始所能切分出来的所有的词的顺序作为纵坐标（从0开始）
+        Node[][] dag = new Node[textLen+2][0];
+        dag[0] = new Node[] { start };
+        dag[textLen+1] = new Node[] { end };
+        for(int i=0; i<textLen; i++){
+            dag[i+1] = fullSeg(text, i);
+        }
+        dump(dag);
+        //标注路径
+        int following = 0;
+        Node node = null;
+        for (int i = 0; i < dag.length - 1; i++) {
+            for (int j = 0; j < dag[i].length; j++) {
+                node = dag[i][j];
+                following = node.getFollowing();
+                for (int k = 0; k < dag[following].length; k++) {
+                    dag[following][k].setPrevious(node);
+                }
+            }
+        }
+        dump(dag);
+        return toWords(end);
+    }

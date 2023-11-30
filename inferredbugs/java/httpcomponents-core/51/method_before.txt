@@ -1,0 +1,26 @@
+    @Test
+    public void testEndOfStreamConditionReadingLastChunk() throws Exception {
+        String s = "10\r\n1234567890123456\r\n" +
+                "5\r\n12345\r\n5\r\n12345";
+        ReadableByteChannel channel = new ReadableByteChannelMockup(
+                new String[] {s}, "US-ASCII");
+        HttpParams params = new BasicHttpParams();
+
+        SessionInputBuffer inbuf = new SessionInputBufferImpl(1024, 256, params);
+        HttpTransportMetricsImpl metrics = new HttpTransportMetricsImpl();
+        ChunkDecoder decoder = new ChunkDecoder(channel, inbuf, metrics);
+
+        ByteBuffer dst = ByteBuffer.allocate(1024);
+
+        int bytesRead = 0;
+        while (dst.hasRemaining() && !decoder.isCompleted()) {
+            int i = decoder.read(dst);
+            if (i > 0) {
+                bytesRead += i;
+            }
+        }
+
+        Assert.assertEquals(26, bytesRead);
+        Assert.assertEquals("12345678901234561234512345", convert(dst));
+        Assert.assertTrue(decoder.isCompleted());
+    }

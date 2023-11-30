@@ -1,0 +1,47 @@
+ void processWorkList(ItemCollection activityEntity) throws Exception {
+		// get processID
+		int iProcessID = activityEntity.getItemValueInteger("numprocessid");
+		// get Modelversion
+		String sModelVersion = activityEntity
+				.getItemValueString("$modelversion");
+
+		// if a query is defined in the activityEntity then use the EQL
+		// statement
+		// to query the items. Otherwise use standard method
+		// getWorklistByProcessID()
+		String sQuery = activityEntity.getItemValueString("txtscheduledview");
+
+		// get all workitems...
+		Collection<ItemCollection> worklist = null;
+		if (sQuery != null && !"".equals(sQuery)) {
+			logger.fine("[WorkflowSchedulerService] Query=" + sQuery);
+			worklist = entityService.findAllEntities(sQuery, 0, -1);
+		} else {
+			logger.fine("[WorkflowSchedulerService] get WorkList for ProcessID:"
+					+ iProcessID);
+			worklist = workflowService.getWorkListByProcessID(iProcessID, 0,
+					-1, null, 0);
+		}
+		logger.fine("[WorkflowSchedulerService] " + worklist.size()
+				+ " workitems found");
+		iScheduledWorkItems += worklist.size();
+		for (ItemCollection workitem : worklist) {
+			// verify processID
+			if (iProcessID == workitem.getItemValueInteger("$processid")) {
+				// verify modelversion
+				if (sModelVersion.equals(workitem
+						.getItemValueString("$modelversion"))) {
+					// verify due date
+					if (workItemInDue(workitem, activityEntity)) {
+
+						int iActivityID = activityEntity
+								.getItemValueInteger("numActivityID");
+						workitem.replaceItemValue("$activityid", iActivityID);
+						processWorkitem(workitem);
+						iProcessWorkItems++;
+
+					}
+				}
+			}
+		}
+	}

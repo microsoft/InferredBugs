@@ -1,0 +1,32 @@
+    @Override
+    public String pay(final String target, final Cash amount,
+        final String details) throws IOException {
+        final Props props = new Props(this.farm);
+        final Coinbase base = new CoinbaseBuilder().withApiKey(
+            props.get("//coinbase/key"), props.get("//coinbase/secret")
+        ).build();
+        this.fund(base, props.get("//coinbase/account"));
+        final Transaction trn = new Transaction();
+        trn.setTo(target);
+        trn.setAmount(
+            Money.parse(
+                String.format(
+                    "USD %.2f",
+                    amount.exchange(Currency.USD).decimal().doubleValue()
+                )
+            )
+        );
+        trn.setNotes(details);
+        trn.setInstantBuy(true);
+        try {
+            return base.sendMoney(trn).getId();
+        } catch (final CoinbaseException ex) {
+            throw new IOException(
+                String.format(
+                    "Failed to send %s to %s: %s",
+                    trn.getAmount(), trn.getTo(), trn.getNotes()
+                ),
+                ex
+            );
+        }
+    }

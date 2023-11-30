@@ -1,0 +1,23 @@
+    public void connected(final IOSession session) {
+
+        SSLIOSession sslSession = createSSLIOSession(
+                session, 
+                this.sslcontext,
+                this.sslHandler); 
+        
+        NHttpClientIOTarget conn = createConnection(
+                sslSession);
+        
+        session.setAttribute(NHTTP_CONN, conn);
+        session.setAttribute(SSL_SESSION, sslSession);
+        
+        Object attachment = session.getAttribute(IOSession.ATTACHMENT_KEY);
+        this.handler.connected(conn, attachment);
+
+        try {
+            sslSession.bind(SSLMode.CLIENT, this.params);
+        } catch (SSLException ex) {
+            this.handler.exception(conn, ex);
+            sslSession.shutdown();
+        }
+    }

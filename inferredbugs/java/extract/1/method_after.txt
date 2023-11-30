@@ -1,0 +1,65 @@
+ public CommandLine parse(final String[] args) throws ParseException, IllegalArgumentException {
+		final CommandLine cmd = super.parse(args);
+
+		final String[] files = cmd.getArgs();
+
+		if (files.length > 1) {
+			throw new IllegalArgumentException("Only one dump file path may be passed at a time.");
+		}
+
+		final Report report = ReportFactory.createReport(cmd, ReportType.REDIS);
+		final OutputStream output;
+
+		// Write to stdout if no path is specified.
+		if (0 == files.length) {
+			logger.info("No path given. Writing to standard output.");
+			output = System.out;
+		} else {
+			try {
+				output = new FileOutputStream(files[0]);
+			} catch (FileNotFoundException e) {
+				throw new RuntimeException("Unable to open dump file for writing.", e);
+			}
+		}
+
+		ExtractionResult match = null;
+
+		if (cmd.hasOption("reporter-status")) {
+			match = ExtractionResult.get(((Number) cmd.getParsedOptionValue("reporter-status")));
+
+			if (null == match) {
+				throw new IllegalArgumentException(String.format("%s is not a valid report status.",
+					cmd.getOptionValue("reporter-status")));
+			}
+		}
+
+		final ProgressBar progressBar = ConsoleProgressBar.on(System.err)
+			.withFormat("[:bar] :percent% :elapsed/:total ETA: :eta")
+			.withTotalSteps(report.size());
+
+		final ObjectMapper mapper = new ObjectMapper();
+		final SimpleModule module = new SimpleModule();
+
+		module.addSerializer(Report.class, new ReportSerializer(progressBar, match));
+		mapper.registerModule(module);
+
+		try (
+			final JsonGenerator jsonGenerator = new JsonFactory()
+				.setCodec(mapper)
+				.createGenerator(output, JsonEncoding.UTF8)
+		) {
+			jsonGenerator.useDefaultPrettyPrinter();
+			jsonGenerator.writeObject(report);
+			jsonGenerator.writeRaw('\n');
+		} catch (IOException e) {
+			throw new RuntimeException("Unable to output JSON.", e);
+		}
+
+		try {
+			report.close();
+		} catch (IOException e) {
+			throw new RuntimeException("Exception while closing report.", e);
+		}
+
+		return cmd;
+	}

@@ -1,0 +1,20 @@
+ @Override
+	public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
+
+		if (setup.hasMetadata()) { // and setup.metadataMimeType() is Announcement metadata
+			String annoucementMetadata = Metadata.decodeAnnouncement(setup.sliceMetadata());
+			List<String> tags = Collections.singletonList(annoucementMetadata);
+			registry.register(tags, sendingSocket);
+
+			List<MonoProcessor<RSocket>> processors = this.registry.getPendingRequests(tags);
+			if (!CollectionUtils.isEmpty(processors)) {
+				processors.forEach(processor -> {
+					processor.log("resume-pending-request");
+					processor.onNext(sendingSocket);
+					processor.onComplete();
+				});
+			}
+		}
+
+		return Mono.just(proxyRSocket);
+	}

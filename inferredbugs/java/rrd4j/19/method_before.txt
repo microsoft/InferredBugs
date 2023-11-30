@@ -1,0 +1,26 @@
+    @Test
+    public void basicUsage() throws IOException {
+
+        // OSGi metadata is only added for Java8+, so skip this test on Java 7
+        String javaVersion = System.getProperty("java.version");
+        assumeThat(javaVersion, not(startsWith((("1.7")))));
+
+        RrdDef rrdDef = new RrdDef(temp.newFile().getAbsolutePath(), 300);
+        rrdDef.addArchive(AVERAGE, 0.5, 1, 600); // 1 step, 600 rows
+        rrdDef.addArchive(AVERAGE, 0.5, 6, 700); // 6 steps, 700 rows
+        rrdDef.addDatasource("inbytes", DsType.GAUGE, 600, Double.NaN, Double.NaN);
+        rrdDef.addArchive(MAX, 0.5, 1, 600);
+
+        Random rnd = new Random();
+
+        // due to sun.misc usually not being exported, default to the FILE backend
+        try (RrdDb rrdDb = new RrdDb(rrdDef, new RrdMemoryBackendFactory())) {
+            long time = System.currentTimeMillis() / 1000;
+            Sample sample = rrdDb.createSample();
+            for ( int i = 0 ; i < 10; i++ ) {
+                sample.setTime(time + i * 1000);
+                sample.setValue("inbytes", rnd.nextDouble());
+                sample.update();
+            }
+        }
+    }

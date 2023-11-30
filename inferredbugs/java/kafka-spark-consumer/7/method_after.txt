@@ -1,0 +1,40 @@
+ private void run() {
+
+		
+		Properties props = new Properties();
+		props.put("zookeeper.hosts", "10.252.5.131");
+		props.put("zookeeper.port", "2181");
+		props.put("zookeeper.broker.path", "/brokers");
+		props.put("kafka.topic", "valid_subpub");
+		props.put("kafka.consumer.id", "valid_subpub");		
+		props.put("zookeeper.consumer.connection", "10.252.5.113:2182");
+		props.put("zookeeper.consumer.path", "/kafka-new");
+		
+		SparkConf _sparkConf = new SparkConf().setAppName("KafkaReceiver")
+				.set("spark.streaming.receiver.writeAheadLog.enable", "false");;
+
+		JavaStreamingContext ssc = new JavaStreamingContext(_sparkConf,
+				new Duration(10000));
+		
+		//Specify number of Receivers you need. 
+		//It should be less than or equal to number of Partitions of your topic
+		
+		int numberOfReceivers = 2;
+
+		JavaDStream<MessageAndMetadata> unionStreams = ReceiverLauncher.launch(ssc, props, numberOfReceivers);
+
+		unionStreams
+				.foreachRDD(new Function2<JavaRDD<MessageAndMetadata>, Time, Void>() {
+
+					@Override
+					public Void call(JavaRDD<MessageAndMetadata> rdd,
+							Time time) throws Exception {
+
+						System.out.println("Number of records in this Batch is " + rdd.count());
+						return null;
+					}
+				});
+		
+		ssc.start();
+		ssc.awaitTermination();
+	}

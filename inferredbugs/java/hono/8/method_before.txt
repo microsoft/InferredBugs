@@ -1,0 +1,22 @@
+    @Test
+    public void testDownstreamDisconnectTriggersReconnect(final TestContext ctx) {
+
+        final ProtonConnection connectionToCreate = mock(ProtonConnection.class);
+        when(connectionToCreate.getRemoteContainer()).thenReturn("server");
+        // expect the connection factory to be invoked twice
+        // first on initial connection
+        // second on re-connect attempt
+        DisconnectHandlerProvidingConnectionFactory connectionFactory = new DisconnectHandlerProvidingConnectionFactory(connectionToCreate, 2);
+
+        // GIVEN an client connected to a server
+        final Async connected = ctx.async();
+        HonoClientImpl client = new HonoClientImpl(vertx, connectionFactory);
+        client.connect(new ProtonClientOptions().setReconnectAttempts(1), ctx.asyncAssertSuccess(ok -> connected.complete()));
+        connected.await(200);
+
+        // WHEN the downstream connection fails
+        connectionFactory.getDisconnectHandler().handle(connectionToCreate);
+
+        // THEN the adapter tries to reconnect to the downstream container
+        connectionFactory.await(1, TimeUnit.SECONDS);
+    }

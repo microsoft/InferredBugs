@@ -1,0 +1,30 @@
+    @Test
+    public void testChecksumV6() throws IOException, InterruptedException {
+        Replicator redisReplicator = new RedisReplicator(
+                RedisSocketReplicatorTest.class.getClassLoader().getResourceAsStream("dumpV6.rdb"), FileType.RDB,
+                Configuration.defaultSetting());
+        final AtomicInteger acc = new AtomicInteger(0);
+        final AtomicLong atomicChecksum = new AtomicLong(0);
+        redisReplicator.addRdbListener(new RdbListener.Adaptor() {
+            @Override
+            public void handle(Replicator replicator, KeyValuePair<?> kv) {
+                acc.incrementAndGet();
+            }
+
+            @Override
+            public void postFullSync(Replicator replicator, long checksum) {
+                super.postFullSync(replicator, checksum);
+                atomicChecksum.compareAndSet(0, checksum);
+            }
+        });
+        redisReplicator.addCloseListener(new CloseListener() {
+            @Override
+            public void handle(Replicator replicator) {
+                System.out.println("close testChecksumV6");
+                assertEquals(132, acc.get());
+                assertEquals(-3409494954737929802L, atomicChecksum.get());
+            }
+        });
+        redisReplicator.open();
+
+    }

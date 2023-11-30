@@ -1,0 +1,136 @@
+  public static void main(String[] args) {
+    String[] splashArgs = new String[]{
+      "splash", "#", "#" + Settings.SikuliVersionIDE, "", "#", "#... starting - please wait ..."};
+
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+        @Override
+        public void run() {
+          log(lvl, "final cleanup");
+          if (isRunning != null) {
+            try {
+              isRunningFile.close();
+            } catch (IOException ex) {
+            }
+            isRunning.delete();
+          }
+          FileManager.cleanTemp();
+        }
+    });
+
+    if (System.getProperty("sikuli.FromCommandLine") == null) {
+      String[] userOptions = collectOptions("IDE", args);
+      if (userOptions == null) {
+        System.exit(0);
+      }
+      if (userOptions.length > 0) {
+        for (String e : userOptions) {
+          log(lvl, "arg: " + e);
+        }
+        args = userOptions;
+      }
+    }
+
+    start = (new Date()).getTime();
+
+    ScriptRunner.initScriptingSupport();
+		IDESupport.initIDESupport();
+
+    CommandArgs cmdArgs = new CommandArgs("IDE");
+    cmdLine = cmdArgs.getCommandLine(CommandArgs.scanArgs(args));
+
+    if (cmdLine == null) {
+      Debug.error("Did not find any valid option on command line!");
+      System.exit(1);
+    }
+
+    if (cmdLine.hasOption("h")) {
+      cmdArgs.printHelp();
+      System.exit(0);
+    }
+
+    if (cmdLine.hasOption("c")) {
+      System.setProperty("sikuli.console", "false");
+    }
+
+    if (cmdLine.hasOption(CommandArgsEnum.LOGFILE.shortname())) {
+      cmdValue = cmdLine.getOptionValue(CommandArgsEnum.LOGFILE.longname());
+      if (!Debug.setLogFile(cmdValue == null ? "" : cmdValue)) {
+        System.exit(1);
+      }
+    }
+
+    if (cmdLine.hasOption(CommandArgsEnum.USERLOGFILE.shortname())) {
+      cmdValue = cmdLine.getOptionValue(CommandArgsEnum.USERLOGFILE.longname());
+      if (!Debug.setUserLogFile(cmdValue == null ? "" : cmdValue)) {
+        System.exit(1);
+      }
+    }
+
+    if (cmdLine.hasOption(CommandArgsEnum.DEBUG.shortname())) {
+      cmdValue = cmdLine.getOptionValue(CommandArgsEnum.DEBUG.longname());
+      if (cmdValue == null) {
+        Debug.setDebugLevel(3);
+        Debug.setLogFile("");
+        Settings.LogTime = true;
+      } else {
+        Debug.setDebugLevel(cmdValue);
+      }
+    }
+
+    if (cmdLine.hasOption(CommandArgsEnum.LOAD.shortname())) {
+      loadScripts = cmdLine.getOptionValues(CommandArgsEnum.LOAD.longname());
+      log(lvl, "requested to load: " + loadScripts);
+      if (loadScripts[0].endsWith(".skl")) {
+        log(lvl, "Switching to ScriptRunner to run " + loadScripts[0]);
+        ScriptRunner.runscript(args);
+      }
+    }
+
+    if (cmdLine.hasOption(CommandArgsEnum.RUN.shortname())
+            || cmdLine.hasOption(CommandArgsEnum.TEST.shortname())
+            || cmdLine.hasOption(CommandArgsEnum.INTERACTIVE.shortname())) {
+      log(lvl, "Switching to ScriptRunner with option -r, -t or -i");
+      ScriptRunner.runscript(args);
+    }
+
+    new File(Settings.BaseTempPath).mkdirs();
+    isRunning = new File(Settings.BaseTempPath, "sikuli-ide-isrunning");
+    try {
+      isRunning.createNewFile();
+      isRunningFile = new FileOutputStream(isRunning);
+      if (null == isRunningFile.getChannel().tryLock()) {
+        splashArgs[5] = "Terminating on FatalError: IDE already running";
+        splash = new SplashFrame(splashArgs);
+        log(-1, splashArgs[5]);
+        Sikulix.pause(3);
+        System.exit(1);
+      }
+    } catch (Exception ex) {
+      splashArgs[5] = "Terminating on FatalError: cannot access IDE lock ";
+      splash = new SplashFrame(splashArgs);
+      log(-1, splashArgs[5] + "\n" + isRunning.getAbsolutePath());
+      Sikulix.pause(3);
+      System.exit(1);
+    }
+
+    Settings.setArgs(cmdArgs.getUserArgs(), cmdArgs.getSikuliArgs());
+    Settings.showJavaInfo();
+    Settings.printArgs();
+
+    initNativeSupport();
+    try {
+      UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+      //UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+    } catch (Exception e) {
+      log(-1, "Problem loading UIManager!\nError: %s", e.getMessage());
+    }
+
+    if (nativeSupport != null) {
+      nativeSupport.initApp(Debug.getDebugLevel() > 2 ? true : false);
+      try {
+        Thread.sleep(1000);
+      } catch (InterruptedException ie) {
+      }
+    }
+    SikuliIDE.getInstance(args);
+  }

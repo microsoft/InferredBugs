@@ -1,0 +1,32 @@
+ void findTarget(final String patFilename, final Location initOffset) {
+		Thread thread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+        Region screenUnion = Region.create(0, 0, 1, 1);
+				Finder f = new Finder(_simg, screenUnion);
+				try {
+					f.find(patFilename);
+					if (f.hasNext()) {
+//TODO rewrite completely for ScreenUnion
+            Screen s = (Screen) screenUnion.getScreen();
+            s.setAsScreenUnion();
+						_match = f.next();
+            s.setAsScreen();
+						if (initOffset != null) {
+							setTarget(initOffset.x, initOffset.y);
+						} else {
+							setTarget(0, 0);
+						}
+					}
+					_img = ImageIO.read(new File(patFilename));
+				} catch (IOException e) {
+					Debug.error(me + "Can't load " + patFilename);
+				}
+				synchronized (PatternPaneTargetOffset.this) {
+					_finding = false;
+				}
+				repaint();
+			}
+		});
+		thread.start();
+	}

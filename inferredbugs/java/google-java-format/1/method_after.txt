@@ -1,0 +1,24 @@
+  private void importOrdering(String sortArg, String outputResourceName)
+      throws IOException, UsageException {
+    Path tmpdir = testFolder.newFolder().toPath();
+    Path path = tmpdir.resolve("Foo.java");
+
+    String inputResourceName = "com/google/googlejavaformat/java/testimports/A.input";
+    String input = getResource(inputResourceName);
+    String expectedOutput = getResource(outputResourceName);
+    Files.write(path, input.getBytes(StandardCharsets.UTF_8));
+
+    StringWriter out = new StringWriter();
+    StringWriter err = new StringWriter();
+    Main main = new Main(new PrintWriter(out, true), new PrintWriter(err, true), System.in);
+    String[] args =
+        sortArg != null
+            ? new String[] {sortArg, "-i", path.toString()}
+            : new String[] {"-i", path.toString()};
+    main.format(args);
+
+    assertThat(err.toString()).isEmpty();
+    assertThat(out.toString()).isEmpty();
+    String output = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+    assertThat(output).isEqualTo(expectedOutput);
+  }

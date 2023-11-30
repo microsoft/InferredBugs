@@ -1,0 +1,25 @@
+    private TypeParsingResult parseComputedType(AnnotationTree annotationTree, FieldParsingContext context, TypeName sourceType) {
+        final CodecInfo codecInfo = codecFactory.createCodec(sourceType, annotationTree, context, Optional.empty());
+        final TypeName rawTargetType = getRawType(codecInfo.targetType);
+        final TypedMap computed = extractTypedMap(annotationTree, Computed.class).get();
+        final String alias = computed.getTyped("alias");
+
+        CodeBlock extractor = context.buildExtractor
+                ? CodeBlock.builder().add("gettableData$$ -> gettableData$$.$L", TypeUtils.gettableDataGetter(rawTargetType, alias)).build()
+                : NO_GETTER;
+
+        CodeBlock typeCode = CodeBlock.builder().add("new $T<$T, $T, $T>($L, $L, $L)",
+                COMPUTED_PROPERTY,
+                context.entityRawType,
+                sourceType,
+                codecInfo.targetType,
+                context.fieldInfoCode,
+                extractor,
+                codecInfo.codecCode)
+                .build();
+
+        final ParameterizedTypeName propertyType = genericType(COMPUTED_PROPERTY, context.entityRawType, codecInfo.sourceType, codecInfo.targetType);
+
+        return new TypeParsingResult(context, annotationTree.hasNext() ? annotationTree.next() : annotationTree,
+                sourceType, codecInfo.targetType, propertyType, typeCode);
+    }

@@ -1,0 +1,25 @@
+  protected void commitFiles(File sourceRoot, String destinationRoot) throws IOException {
+    File[] files = sourceRoot.listFiles();
+    if (files == null) {
+      throw new IOException("Failed to commit files from " + sourceRoot + " to " + destinationRoot + " since source is not a valid directory.");
+    }
+    for (File file : files) {
+      // Skip non files
+      if (!file.isFile()) {
+        continue;
+      }
+      File targetFile = new File(destinationRoot + "/" + file.getName());
+      // If target file already exists, delete it
+      if (targetFile.exists()) {
+        if (!targetFile.delete()) {
+          throw new IOException("Failed to overwrite file in destination root: " + targetFile.getAbsolutePath());
+        }
+      }
+      // Move file to destination
+      if (!file.renameTo(targetFile)) {
+        LOG.info("Committing " + file.getAbsolutePath() + " to " + targetFile.getAbsolutePath());
+        throw new IOException("Failed to rename source file: " + file.getAbsolutePath()
+            + " to destination file: " + targetFile.getAbsolutePath());
+      }
+    }
+  }

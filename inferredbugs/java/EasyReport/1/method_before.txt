@@ -1,0 +1,24 @@
+ @RequestMapping(value = { "/{uid}" })
+	public ModelAndView index(@PathVariable String uid, HttpServletRequest request) {
+		ModelAndView modelAndView = new ModelAndView("report/chart");
+
+		try {
+			ReportingPo po = reportingService.getByUid(uid);
+			Map<String, Object> buildinParams = generationService.getBuildInParameters(request.getParameterMap(), po.getDataRange());
+			List<HtmlFormElement> formElements = generationService.getFormElements(po, buildinParams, 0);
+			EasyUIQueryFormView formView = new EasyUIQueryFormView();
+			modelAndView.addObject("uid", uid);
+			modelAndView.addObject("id", po.getId());
+			modelAndView.addObject("name", po.getName());
+			modelAndView.addObject("comment", po.getComment().trim());
+			modelAndView.addObject("formHtmlText", formView.getFormHtmlText(formElements));
+		} catch (QueryParamsException | TemplatePraseException ex) {
+			modelAndView.addObject("message", ex.getMessage());
+			this.logException("查询参数生成失败", ex);
+		} catch (Exception ex) {
+			modelAndView.addObject("message", "查询参数生成失败！请联系管理员.");
+			this.logException("查询参数生成失败", ex);
+		}
+
+		return modelAndView;
+	}

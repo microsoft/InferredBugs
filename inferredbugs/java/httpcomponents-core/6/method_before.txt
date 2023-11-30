@@ -1,0 +1,92 @@
+    private void handleRequest(
+            final ServerConnState connState,
+            final HttpContext context) throws HttpException, IOException {
+
+        HttpRequest request = connState.getRequest();
+        context.setAttribute(HttpExecutionContext.HTTP_REQUEST, request);
+
+        HttpVersion ver = request.getRequestLine().getHttpVersion();
+
+        if (!ver.lessEquals(HttpVersion.HTTP_1_1)) {
+            // Downgrade protocol version if greater than HTTP/1.1 
+            ver = HttpVersion.HTTP_1_1;
+        }
+
+        HttpResponse response;
+
+        if (request instanceof HttpEntityEnclosingRequest) {
+            HttpEntityEnclosingRequest entityReq = (HttpEntityEnclosingRequest) request;
+            
+            if (entityReq.expectContinue()) {
+                response = this.responseFactory.newHttpResponse(
+                        ver, 
+                        HttpStatus.SC_CONTINUE, 
+                        context);
+                response.getParams().setDefaults(this.params);
+                if (this.expectationVerifier != null) {
+                    try {
+                        this.expectationVerifier.verify(request, response, context);
+                    } catch (HttpException ex) {
+                        handleException(connState, ex ,context);
+                        return;
+                    }
+                }
+            
+                if (response.getStatusLine().getStatusCode() < 200) {
+                    // Send 1xx response indicating the server expections
+                    // have been met
+                    waitForOutput(connState, ServerConnState.READY);
+                    connState.setResponse(response);
+                    synchronized (connState) {
+                        waitForOutput(connState, ServerConnState.RESPONSE_SENT);
+                        connState.resetOutput();
+                    }
+                } else {
+                    // The request does not meet the server expections
+                    context.setAttribute(HttpExecutionContext.HTTP_RESPONSE, response);
+                    this.httpProcessor.process(response, context);
+                    connState.setResponse(response);
+                    return;
+                }
+            }
+
+            // Create a wrapper entity instead of the original one
+            if (entityReq.getEntity() != null) {
+                entityReq.setEntity(new BufferedContent(
+                        entityReq.getEntity(), 
+                        connState.getInbuffer()));
+            }
+        }
+
+        response = this.responseFactory.newHttpResponse(
+                ver, 
+                HttpStatus.SC_OK, 
+                context);
+        response.getParams().setDefaults(this.params);
+
+        context.setAttribute(HttpExecutionContext.HTTP_RESPONSE, response);
+        
+        try {
+
+            this.httpProcessor.process(request, context);
+
+            HttpRequestHandler handler = null;
+            if (this.handlerResolver != null) {
+                String requestURI = request.getRequestLine().getUri();
+                handler = this.handlerResolver.lookup(requestURI);
+            }
+            if (handler != null) {
+                handler.handle(request, response, context);
+            } else {
+                response.setStatusCode(HttpStatus.SC_NOT_IMPLEMENTED);
+            }
+
+        } catch (HttpException ex) {
+            handleException(connState, ex ,context);
+            return;
+        }
+
+        this.httpProcessor.process(response, context);
+        
+        connState.setResponse(response);
+    }

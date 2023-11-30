@@ -1,0 +1,90 @@
+    private void drawMoveStatistics(Graphics2D g, int posX, int posY, int width, int height) {
+        if (width < 0 || height < 0)
+            return; // we don't have enough space
+
+        double lastWR;
+        if (Lizzie.board.getData().moveNumber == 0)
+            lastWR = 50;
+        else
+            lastWR = Lizzie.board.getHistory().getPrevious().winrate;
+
+        Leelaz.WinrateStats stats = Lizzie.leelaz.getWinrateStats();
+        double curWR = stats.maxWinrate;
+        if (isPlayingAgainstLeelaz && playerIsBlack == !Lizzie.board.getHistory().getData().blackToPlay)
+            curWR = -100;
+
+        if (curWR < 0) {
+            curWR = 100 - lastWR;
+        }
+        double whiteWR, blackWR;
+        if (Lizzie.board.getData().blackToPlay) {
+            blackWR = curWR;
+        } else {
+            blackWR = 100 - curWR;
+        }
+
+        whiteWR = 100 - blackWR;
+
+        // Background rectangle
+        g.setColor(new Color(0, 0, 0, 130));
+        g.fillRect(posX, posY, width, height);
+
+        // border. does not include bottom edge
+        int strokeRadius = 3;
+        g.setStroke(new BasicStroke(2 * strokeRadius));
+        g.drawLine(posX + strokeRadius, posY + strokeRadius, posX - strokeRadius + width, posY + strokeRadius);
+        g.drawLine(posX + strokeRadius, posY + 3 * strokeRadius, posX + strokeRadius, posY - strokeRadius + height);
+        g.drawLine(posX - strokeRadius + width, posY + 3 * strokeRadius, posX - strokeRadius + width, posY - strokeRadius + height);
+
+        // resize the box now so it's inside the border
+        posX += 2 * strokeRadius;
+        posY += 2 * strokeRadius;
+        width -= 4 * strokeRadius;
+        height -= 4 * strokeRadius;
+
+        // Title
+        Font font = OpenSansRegularBase.deriveFont(Font.PLAIN, (int) (Math.min(width, height) * 0.2));
+        strokeRadius = 2;
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.WHITE);
+        g.setFont(font);
+
+        // Last move
+        if (lastWR < 0)
+            // In case leelaz didnt have time to calculate
+            g.drawString(resourceBundle.getString("LizzieFrame.display.lastMove") + ": ?%", posX + 2 * strokeRadius, posY + height - 2 * strokeRadius);
+        else
+            g.drawString(resourceBundle.getString("LizzieFrame.display.lastMove") + String.format(": %.1f%%", 100 - lastWR - curWR), posX + 2 * strokeRadius,
+                    posY + height - 2 * strokeRadius);// - font.getSize());
+
+
+        int maxBarwidth = (int) (width);
+        int barWidthB = (int) (blackWR * maxBarwidth / 100);
+        int barWidthW = (int) (whiteWR * maxBarwidth / 100);
+        int barPosY = posY + height / 3;
+        int barPosxB = (int) (posX);
+        int barPosxW = barPosxB + barWidthB;
+        int barHeight = height / 3;
+
+        // Draw winrate bars
+        g.fillRect(barPosxW, barPosY, barWidthW, barHeight);
+        g.setColor(Color.BLACK);
+        g.fillRect(barPosxB, barPosY, barWidthB, barHeight);
+
+        // Show percentage above bars
+        g.setColor(Color.WHITE);
+        g.drawString(String.format("%.1f%%", blackWR), barPosxB + 2 * strokeRadius, posY + barHeight - 2 * strokeRadius);
+        String winString = String.format("%.1f%%", whiteWR);
+        int sw = g.getFontMetrics().stringWidth(winString);
+        g.drawString(winString, barPosxB + maxBarwidth - sw - 2 * strokeRadius, posY + barHeight - 2 * strokeRadius);
+
+        g.setColor(Color.GRAY);
+        Stroke oldstroke = g.getStroke();
+        Stroke dashed = new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0,
+                new float[]{4}, 0);
+        g.setStroke(dashed);
+
+        int middleX = barPosxB + (int) (maxBarwidth / 2);
+        g.drawLine(middleX, barPosY, middleX, barPosY + barHeight);
+        g.setStroke(oldstroke);
+    }

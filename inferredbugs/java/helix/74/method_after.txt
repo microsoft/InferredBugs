@@ -1,0 +1,22 @@
+  private BestPossibleStateOutput compute(ClusterEvent event, Map<String, Resource> resourceMap,
+      CurrentStateOutput currentStateOutput) {
+    ClusterDataCache cache = event.getAttribute(AttributeName.ClusterDataCache.name());
+    Map<String, Resource> restOfResources = new HashMap<>(resourceMap);
+    BestPossibleStateOutput output = new BestPossibleStateOutput();
+    final List<String> failureResources = new ArrayList<>();
+    // Queues only for Workflows
+    scheduleWorkflows(resourceMap, cache, restOfResources, failureResources);
+
+    // Current rest of resources including: jobs + only current state left over ones
+    Iterator<Resource> itr = restOfResources.values().iterator();
+    while (itr.hasNext()) {
+      Resource resource = itr.next();
+      if (!computeResourceBestPossibleState(event, cache, currentStateOutput, resource, output)) {
+        failureResources.add(resource.getResourceName());
+        LogUtil.logWarn(logger, _eventId,
+            "Failed to calculate best possible states for " + resource.getResourceName());
+      }
+    }
+
+    return output;
+  }

@@ -1,0 +1,66 @@
+ @Override
+	public ExactRelation rewriteWithSubsampledErrorBounds() {
+		ExactRelation r = rewriteWithPartition();
+//		List<SelectElem> selectElems = r.selectElemsWithAggregateSource();
+		List<SelectElem> selectElems = ((AggregatedRelation) r).getAggList();
+		
+		// another wrapper to combine all subsampled aggregations.
+		List<SelectElem> finalAgg = new ArrayList<SelectElem>();
+		
+		for (int i = 0; i < selectElems.size() - 1; i++) {	// excluding the last one which is psize
+			SelectElem e = selectElems.get(i);
+			ColNameExpr est = new ColNameExpr(e.getAlias(), r.getAliasName());
+			ColNameExpr psize = new ColNameExpr(partitionSizeAlias, r.getAliasName());
+			
+			// average estimate
+//			Expr meanEst = BinaryOpExpr.from(
+//							FuncExpr.sum(BinaryOpExpr.from(est, psize, "*")),
+//							FuncExpr.sum(psize), "/");
+			Expr meanEst = FuncExpr.avg(est);
+			Expr originalAggExpr = elems.get(i).getExpr(); 
+			if (originalAggExpr instanceof FuncExpr) {
+				if (((FuncExpr) originalAggExpr).getFuncName().equals(FuncExpr.FuncName.COUNT)
+					|| ((FuncExpr) originalAggExpr).getFuncName().equals(FuncExpr.FuncName.COUNT_DISTINCT)) {
+					meanEst = FuncExpr.round(meanEst);
+				}
+			}
+			finalAgg.add(new SelectElem(meanEst, e.getAlias()));
+
+			// error estimation
+			finalAgg.add(new SelectElem(
+					BinaryOpExpr.from(
+							BinaryOpExpr.from(FuncExpr.stddev(est), FuncExpr.sqrt(FuncExpr.avg(psize)), "*"),
+							FuncExpr.sqrt(FuncExpr.sum(psize)),
+							"/"),
+					e.getAlias() + errColSuffix()));
+		}
+		
+		/*
+		 * Example input query:
+		 * select category, avg(col)
+		 * from t
+		 * group by category
+		 * 
+		 * Transformed query:
+		 * select category, sum(est * psize) / sum(psize) AS final_est
+		 * from (
+		 *   select category, avg(col) AS est, count(*) as psize
+		 *   from t
+		 *   group by category, verdict_partition) AS vt1
+		 * group by category
+		 * 
+		 * where t1 was obtained by rewriteWithPartition().
+		 */ 
+		if (source instanceof ApproxGroupedRelation) {
+			List<ColNameExpr> groupby = ((ApproxGroupedRelation) source).getGroupby();
+			List<ColNameExpr> groupbyInNewSource = new ArrayList<ColNameExpr>();
+			for (ColNameExpr g : groupby) {
+				groupbyInNewSource.add(new ColNameExpr(g.getCol(), r.getAliasName()));
+			}
+			r = new GroupedRelation(vc, r, groupbyInNewSource);
+		}
+		
+		r = new AggregatedRelation(vc, r, finalAgg);
+		r.setAliasName(getAliasName());
+		return r;
+	}

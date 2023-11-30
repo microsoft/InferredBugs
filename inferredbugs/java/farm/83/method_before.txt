@@ -1,0 +1,25 @@
+    @Test
+    public void setsEstimatesOnAssign() throws Exception {
+        final Project project = new FkProject();
+        final PropsFarm farm = new PropsFarm();
+        new Ledger(farm, project).bootstrap().add(
+            new Ledger.Transaction(
+                new Cash.S("$1000"),
+                "assets", "cash",
+                "income", "sponsor",
+                "There is some funding just arrived"
+            )
+        );
+        final String login = "dmarkov";
+        new Rates(project).bootstrap().set(login, new Cash.S("$50"));
+        final String job = "gh:yegor256/0pdd#19";
+        final Wbs wbs = new Wbs(project).bootstrap();
+        wbs.add(job);
+        wbs.role(job, "REV");
+        final Orders orders = new Orders(farm, project).bootstrap();
+        orders.assign(job, login, "0");
+        MatcherAssert.assertThat(
+            new Estimates(farm, project).bootstrap().get(job),
+            Matchers.equalTo(new Cash.S("$12.50"))
+        );
+    }

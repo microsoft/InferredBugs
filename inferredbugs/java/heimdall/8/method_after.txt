@@ -1,0 +1,21 @@
+    public void cacheInterceptor(String cacheName, Long timeToLive, List<String> headers, List<String> queryParams) {
+
+        RedissonClient redisson = (RedissonClient) BeanManager.getBean(RedissonClient.class);
+
+        RequestContext context = RequestContext.getCurrentContext();
+
+        if (shouldCache(context, headers, queryParams)) {
+            RBucket<ApiResponse> rBucket = redisson.getBucket(createCacheKey(context, cacheName, headers, queryParams));
+
+            if (rBucket.get() == null) {
+                context.put(CACHE_BUCKET, rBucket);
+                context.put(CACHE_TIME_TO_LIVE, timeToLive);
+            } else {
+                ApiResponse response = rBucket.get();
+
+                helper.call().response().header().addAll(response.getHeaders());
+                helper.call().response().setBody(response.getBody());
+                helper.call().response().setStatus(response.getStatus());
+            }
+        }
+    }

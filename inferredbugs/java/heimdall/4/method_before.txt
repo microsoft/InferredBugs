@@ -1,0 +1,33 @@
+    private boolean validatePlan(Set<String> pathsAllowed, Set<String> pathsNotAllowed, String inboundURL, HttpServletRequest req, Long referenceId) {
+
+        if ((inboundURL != null && !inboundURL.isEmpty()) &&
+                !isHostValidToInboundURL(req, inboundURL)) {
+            return false;
+        }
+
+        if (listContainURI(req.getRequestURI(), pathsNotAllowed)) {
+            return false;
+        }
+
+        if (req.getHeader("client_id") != null) {
+            final App app = appRepository.findByClientId(req.getHeader("client_id"));
+
+            final Plan plan = app.getPlans()
+                    .stream()
+                    .filter(p -> p.getId().equals(referenceId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (plan == null) return false;
+        }
+
+        if (pathsAllowed != null) {
+
+            for (String path : pathsAllowed) {
+
+                if (req.getRequestURI().contains(path)) return true;
+            }
+        }
+
+        return false;
+    }

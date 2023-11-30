@@ -1,0 +1,19 @@
+    @Test
+    @SuppressWarnings("unchecked")
+    public void integrationTest() throws Exception {
+        String dataSource = "foo" + LINE_SEPARATOR + "" + LINE_SEPARATOR + "bar" + LINE_SEPARATOR + "" + LINE_SEPARATOR;
+
+        JobReport jobReport = aNewJob()
+                .reader(new StringRecordReader(dataSource))
+                .filter(new EmptyRecordFilter())
+                .processor(new RecordCollector())
+                .call();
+
+        assertThat(jobReport).isNotNull();
+        assertThat(jobReport.getMetrics().getTotalCount()).isEqualTo(4);
+        assertThat(jobReport.getMetrics().getFilteredCount()).isEqualTo(2);
+        assertThat(jobReport.getMetrics().getSuccessCount()).isEqualTo(2);
+
+        List<StringRecord> records = (List<StringRecord>) jobReport.getResult();
+        assertThat(records).extracting("payload").containsExactly("foo", "bar");
+    }

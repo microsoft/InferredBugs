@@ -1,0 +1,38 @@
+ public ClassLoader compile() {
+		// 获得classPath
+		final List<File> classPath = getClassPath();
+		final URL[] urLs = URLUtil.getURLs(classPath.toArray(new File[0]));
+		final URLClassLoader ucl = URLClassLoader.newInstance(urLs, this.parentClassLoader);
+		if (sourceCodeMap.isEmpty() && sourceFileList.isEmpty()) {
+			// 没有需要编译的源码
+			return ucl;
+		}
+
+		// 没有需要编译的源码文件返回加载zip或jar包的类加载器
+
+		// 创建编译器
+		final JavaFileManager javaFileManager = new JavaClassFileManager(ucl, CompilerUtil.getFileManager());
+
+		// classpath
+		final List<String> options = new ArrayList<>();
+		if (false == classPath.isEmpty()) {
+			final List<String> cp = classPath.stream().map(File::getAbsolutePath).collect(Collectors.toList());
+			options.add("-cp");
+			options.addAll(cp);
+		}
+
+		// 编译文件
+		final DiagnosticCollector<? super JavaFileObject> diagnosticCollector = new DiagnosticCollector<>();
+		final List<JavaFileObject> javaFileObjectList = getJavaFileObject();
+		final CompilationTask task = CompilerUtil.getTask(javaFileManager, diagnosticCollector, options, javaFileObjectList);
+		try{
+			if (task.call()) {
+				// 加载编译后的类
+				return javaFileManager.getClassLoader(StandardLocation.CLASS_OUTPUT);
+			}
+		} finally {
+			IoUtil.close(javaFileManager);
+		}
+		//编译失败,收集错误信息
+		throw new CompilerException(DiagnosticUtil.getMessages(diagnosticCollector));
+	}

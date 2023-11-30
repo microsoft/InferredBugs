@@ -1,0 +1,30 @@
+    @Override
+    public long appendMessage(MimeMessage message,
+                              Flags flags,
+                              Date receivedDate) {
+        final long uid = nextUid.getAndIncrement();
+
+        try {
+            message.setFlags(flags, true);
+            message.setFlag(Flags.Flag.RECENT, true);
+        } catch (MessagingException e) {
+            throw new IllegalStateException("Can not set flags", e);
+        }
+        StoredMessage storedMessage = new StoredMessage(message,
+                receivedDate, uid);
+
+        int newMsn;
+        synchronized (mailMessages) {
+            mailMessages.add(storedMessage);
+            newMsn = mailMessages.size();
+        }
+
+        // Notify all the listeners of the new message
+        synchronized (_mailboxListeners) {
+            for (FolderListener _mailboxListener : _mailboxListeners) {
+                _mailboxListener.added(newMsn);
+            }
+        }
+
+        return uid;
+    }

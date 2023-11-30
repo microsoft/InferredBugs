@@ -1,0 +1,43 @@
+ @Override
+	public void onReceive(Object msg) {
+         if (msg instanceof DataBusProtocol.PartialDataRequest) {// Fetch partial parameters
+            DataBusProtocol.PartialDataRequest req = (DataBusProtocol.PartialDataRequest)msg;
+            Matrix data = model.getMatrix(req.matrixName).localCache;
+            KeyCollection rows = req.rows;
+            KeyCollection cols = req.cols;
+
+            log("partial data request received: " + req.matrixName + ", " + req.rows + ", " + rows);
+             if (rows instanceof KeyList) {
+                 log("keylist size = " + rows.size());
+             }
+            Matrix result = data.subMatrix(rows, cols);
+
+            log("send data: " + result + ", row size = " + result.getRowKeys().size());
+            getSender().tell(new DataBusProtocol.Data(req.matrixName, result), getSelf());
+
+        } else if (msg instanceof DataBusProtocol.FetchDataRequest) { // Fetch parameters of one layer
+            DataBusProtocol.FetchDataRequest req = (DataBusProtocol.FetchDataRequest)msg;
+
+             Matrix data = model.getMatrix(req.matrixName).localCache;
+             log("data request received: " + data.getRowKeys());
+            getSender().tell(new DataBusProtocol.Data(req.matrixName, data), getSelf());
+
+        } else if (msg instanceof DataBusProtocol.PushDataRequest) {
+            log("update push request received.");
+            DataBusProtocol.PushDataRequest req = (DataBusProtocol.PushDataRequest)msg;
+
+            for (DataBusProtocol.Data update : req.dataList) {
+                if (req.replace) {
+                    log("replacing local cache: " + update.data);
+                    model.getMatrix(update.matrixName).setLocalCache(update.data);
+                }
+                else {
+                    log("merge begin");
+                    model.mergeUpdate(this.parameterServerIndex, update.matrixName, update.data);
+                    log("merge done");
+                }
+            }
+             // Always return successful current now
+             getSender().tell(new DataBusProtocol.PushDataResponse(true), getSelf());
+        } else unhandled(msg);
+	}

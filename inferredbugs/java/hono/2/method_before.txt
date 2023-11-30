@@ -1,0 +1,21 @@
+    private void sendTelemetryData(final LinkWrapper link, final ProtonDelivery delivery, final Message msg) {
+        if (!delivery.remotelySettled()) {
+            LOG.trace("received un-settled telemetry message on link [{}]", link.getLinkId());
+        }
+        final ResourceIdentifier messageAddress = ResourceIdentifier.fromString(MessageHelper.getAnnotation(msg, APP_PROPERTY_RESOURCE_ID));
+        checkDeviceExists(messageAddress, deviceExists -> {
+            if (deviceExists) {
+                vertx.runOnContext(run -> {
+                    final String messageId = UUID.randomUUID().toString();
+                    final AmqpMessage amqpMessage = AmqpMessage.of(msg, delivery);
+                    vertx.sharedData().getLocalMap(dataAddress).put(messageId, amqpMessage);
+                    sendAtMostOnce(link, messageId, delivery);
+                });
+            } else {
+                LOG.debug("Device {}/{} does not exist, rejecting message.",
+                        messageAddress.getTenantId(), messageAddress.getDeviceId());
+                ProtonHelper.rejected(delivery, true);
+                onLinkDetach(link);
+            }
+        });
+    }

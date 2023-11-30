@@ -1,0 +1,89 @@
+    Result<V> putIfAbsent(K key, V value, Function<ByteBuffer, V> transformer) {
+        if (key == null || value == null) {
+            throw new NullPointerException();
+        }
+
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
+        Chunk.LookUp lookUp = c.lookUp(key);
+        if (lookUp != null && lookUp.valueSlice != null) {
+            if (transformer == null) {
+                return Result.withFlag(false);
+            }
+            AbstractMap.SimpleEntry<ValueUtils.ValueResult, V> res = ValueUtils.transform(lookUp.valueSlice,
+                    transformer);
+            if (res.getKey() == SUCCESS) {
+                return Result.withValue(res.getValue());
+            }
+            return putIfAbsent(key, value, transformer);
+        }
+
+        // if chunk is frozen or infant, we can't add to it
+        // we need to help rebalancer first, then proceed
+        Chunk.State state = c.state();
+        if (state == Chunk.State.INFANT) {
+            // the infant is already connected so rebalancer won't add this put
+            rebalance(c.creator());
+            return putIfAbsent(key, value, transformer);
+        }
+        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
+            rebalance(c);
+            return putIfAbsent(key, value, transformer);
+        }
+
+
+        int ei;
+        long oldReference = DELETED_VALUE;
+
+        // Is there already an entry associated with this key?
+        if (lookUp != null) {
+            // There's an entry for this key, but it isn't linked to any value (in which case valueReference is
+            // DELETED_VALUE)
+            // or it's linked to a deleted value that is referenced by valueReference (a valid one)
+            ei = lookUp.entryIndex;
+            assert ei > 0;
+            oldReference = lookUp.valueReference;
+        } else {
+            ei = c.allocateEntryAndKey(key);
+            if (ei == -1) {
+                rebalance(c);
+                return putIfAbsent(key, value, transformer);
+            }
+            int prevEi = c.linkEntry(ei, key);
+            if (prevEi != ei) {
+                // some other thread linked its entry with the same key.
+                oldReference = c.getValueReference(prevEi);
+                if (oldReference != DELETED_VALUE) {
+                    if (transformer == null) {
+                        return Result.withFlag(false);
+                    }
+                    AbstractMap.SimpleEntry<ValueUtils.ValueResult, V> res =
+                            ValueUtils.transform(c.buildValueSlice(oldReference), transformer);
+                    if (res.getKey() == SUCCESS) {
+                        return Result.withValue(res.getValue());
+                    }
+                    return putIfAbsent(key, value, transformer);
+                } else {
+                    // both threads compete for the put
+                    ei = prevEi;
+                }
+            }
+        }
+
+        long newValueReference = c.writeValue(value); // write value in place
+
+        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, newValueReference, oldReference, null);
+
+        // publish put
+        if (!c.publish()) {
+            c.releaseValue(newValueReference);
+            rebalance(c);
+            return putIfAbsent(key, value, transformer);
+        }
+
+        if (!finishAfterPublishing(opData, c)) {
+            c.releaseValue(newValueReference);
+            return putIfAbsent(key, value, transformer);
+        }
+
+        return transformer != null ? Result.withValue(null) : Result.withFlag(true);
+    }

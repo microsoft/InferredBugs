@@ -1,0 +1,67 @@
+    public synchronized void download(URL url, String version, String export,
+            List<String> driverName) throws IOException {
+        File targetFile = new File(getTarget(version, url));
+        File binary = null;
+
+        // Check if binary exists
+        boolean download = !targetFile.getParentFile().exists()
+                || (targetFile.getParentFile().exists()
+                        && targetFile.getParentFile().list().length == 0)
+                || override;
+
+        if (download) {
+            File temporaryFile = new File(targetFile.getParentFile(),
+                    randomUUID().toString());
+            log.info("Downloading {} to {}", url, temporaryFile);
+            WdmHttpClient.Get get = new WdmHttpClient.Get(url)
+                    .addHeader("User-Agent", "Mozilla/5.0")
+                    .addHeader("Connection", "keep-alive");
+
+            try {
+                copyInputStreamToFile(httpClient.execute(get).getContent(),
+                        temporaryFile);
+            } catch (IOException e) {
+                temporaryFile.delete();
+                throw e;
+            }
+
+            log.info("Renaming {} to {}", temporaryFile, targetFile);
+            temporaryFile.renameTo(targetFile);
+
+            if (!export.contains("edge")) {
+                binary = extract(targetFile, export);
+            } else {
+                binary = targetFile;
+            }
+
+            if (targetFile.getName().toLowerCase().endsWith(".msi")) {
+                binary = extractMsi(targetFile);
+            }
+
+        } else {
+            // Check if existing binary is valid
+            Collection<File> listFiles = listFiles(targetFile.getParentFile(),
+                    null, true);
+            for (File file : listFiles) {
+                for (String s : driverName) {
+                    if (file.getName().startsWith(s) && file.canExecute()) {
+                        binary = file;
+                        log.debug(
+                                "Using binary driver previously downloaded {}",
+                                binary);
+                        download = false;
+                        break;
+                    } else {
+                        download = true;
+                    }
+                }
+                if (!download) {
+                    break;
+                }
+            }
+        }
+
+        if (export != null && binary != null) {
+            browserManager.exportDriver(export, binary.toString());
+        }
+    }

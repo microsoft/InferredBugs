@@ -1,0 +1,26 @@
+  private void incrementalCompile( Set<Object> drivers )
+  {
+    for( Object driver: drivers )
+    {
+      //noinspection unchecked
+      Set<IFile> files = ((Collection<File>)ReflectUtil.method( driver, "getResourceFiles" ).invoke() ).stream().map( (File f) -> ManifoldHost.getFileSystem().getIFile( f ) )
+        .collect( Collectors.toSet() );
+      for( ITypeManifold tm : ManifoldHost.instance().getCurrentModule().getTypeManifolds() )
+      {
+        for( IFile file: files )
+        {
+          Set<String> types = Arrays.stream( tm.getTypesForFile( file ) ).collect( Collectors.toSet() );
+          if( types.size() > 0 )
+          {
+            ReflectUtil.method( driver, "mapTypesToFile", Set.class, File.class ).invoke( types, file.toJavaFile() );
+            for( String fqn : types )
+            {
+              // This call surfaces the type in the compiler.  If compiling in "static" mode, this means
+              // the type will be compiled to disk.
+              IDynamicJdk.instance().getTypeElement( _tp.getContext(), (JCTree.JCCompilationUnit)_tp.getCompilationUnit(), fqn );
+            }
+          }
+        }
+      }
+    }
+  }

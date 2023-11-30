@@ -1,0 +1,26 @@
+    private List<RuntimeException> validateModelWithDependencies(
+            Executable executable,
+            Map<String, Executable> dependencies,
+            Set<Executable> verifiedExecutables,
+            List<RuntimeException> errors) {
+        //validate that all required & non private parameters with no default value of a reference are provided
+        if(!SlangTextualKeys.FLOW_TYPE.equals(executable.getType()) || verifiedExecutables.contains(executable)){
+            return errors;
+        }
+        verifiedExecutables.add(executable);
+
+        Flow flow = (Flow) executable;
+        Collection<Step> steps = flow.getWorkflow().getSteps();
+        Set<Executable> flowReferences = new HashSet<>();
+
+        for (Step step : steps) {
+            Executable reference = dependencies.get(step.getRefId());
+            errors.addAll(validateStepAgainstItsDependency(flow, step, dependencies));
+            flowReferences.add(reference);
+        }
+
+        for (Executable reference : flowReferences) {
+            validateModelWithDependencies(reference, dependencies, verifiedExecutables, errors);
+        }
+        return errors;
+    }

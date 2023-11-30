@@ -1,0 +1,21 @@
+ @Override
+	public Home createHome(BridgeSettings bridgeSettings) {
+		fhemMap = null;
+		validFhem = bridgeSettings.getBridgeSettingsDescriptor().isValidFhem();
+		log.info("FHEM Home created." + (validFhem ? "" : " No FHEMs configured."));
+		if(validFhem) {
+			fhemMap = new HashMap<String,FHEMInstance>();
+	        httpClient = HTTPHome.getHandler();
+			Iterator<NamedIP> theList = bridgeSettings.getBridgeSettingsDescriptor().getFhemaddress().getDevices().iterator();
+			while(theList.hasNext() && validFhem) {
+				NamedIP aFhem = theList.next();
+		      	try {
+		      		fhemMap.put(aFhem.getName(), new FHEMInstance(aFhem));
+				} catch (Exception e) {
+			        log.error("Cannot get FHEM (" + aFhem.getName() + ") setup, Exiting with message: " + e.getMessage(), e);
+			        validFhem = false;
+				}
+			}
+        }
+		return this;
+	}

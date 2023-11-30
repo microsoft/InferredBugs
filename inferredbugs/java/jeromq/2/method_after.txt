@@ -1,0 +1,41 @@
+    public boolean send(Msg msg_, int flags_) {
+        //  Drop the message if required. If we are at the end of the message
+        //  switch back to non-dropping mode.
+        if (dropping) {
+
+            more = msg_.has_more();
+            dropping = more;
+
+            msg_.close ();
+            return true;
+        }
+
+        while (active > 0) {
+            if (pipes.get(current).write (msg_))
+                break;
+
+            assert (!more);
+            active--;
+            if (current < active)
+                Utils.swap (pipes, current, active);
+            else
+                current = 0;
+        }
+
+        //  If there are no pipes we cannot send the message.
+        if (active == 0) {
+            ZError.errno(ZError.EAGAIN);
+            return false;
+        }
+
+        //  If it's final part of the message we can fluch it downstream and
+        //  continue round-robinning (load balance).
+        more = msg_.has_more();
+        if (!more) {
+            pipes.get(current).flush ();
+            if (active > 1)
+                current = (current + 1) % active;
+        }
+
+        return true;
+    }

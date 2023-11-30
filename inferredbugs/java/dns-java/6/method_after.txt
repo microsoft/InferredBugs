@@ -1,0 +1,21 @@
+  private void resolve() throws Exception {
+    final DnsSrvResolver srvResolver = new FakeResolver(
+        "horse.sto3.spotify.net", LookupResult.create("localhost", 1, 0, 0, 0));
+
+    final AtomicReference<Set<LookupResult>> hosts = new AtomicReference<Set<LookupResult>>();
+    final CountDownLatch latch = new CountDownLatch(1);
+
+    final ChangeNotifier.Listener<LookupResult> listener = new FakeListener(hosts, latch);
+
+    DnsSrvWatcher<LookupResult> watcher = DnsSrvWatchers.newBuilder(srvResolver)
+        .polling(1, TimeUnit.MILLISECONDS)
+        .build();
+    final ChangeNotifier<LookupResult> notifier = watcher.watch("horse.sto3.spotify.net");
+
+    // since I set fire to true I'd expect being notified either right away or after a millisecond
+    notifier.setListener(listener, true);
+    latch.await();
+    notifier.close();
+    watcher.close();
+    assertThat(hosts.get(), contains(is(LookupResult.create("localhost", 1, 0, 0, 0))));
+  }

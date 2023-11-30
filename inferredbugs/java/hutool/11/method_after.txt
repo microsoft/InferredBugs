@@ -1,0 +1,22 @@
+ @Override
+	public byte[] decrypt(byte[] data, KeyType keyType) {
+		final Key key = getKeyByType(keyType);
+		lock.lock();
+		try {
+			cipher.init(Cipher.DECRYPT_MODE, key);
+
+			if(this.decryptBlockSize < 0){
+				// 在引入BC库情况下，自动获取块大小
+				final int blockSize = this.cipher.getBlockSize();
+				if(blockSize > 0){
+					this.decryptBlockSize = blockSize;
+				}
+			}
+
+			return doFinal(data, this.decryptBlockSize < 0 ? data.length : this.decryptBlockSize);
+		} catch (Exception e) {
+			throw new CryptoException(e);
+		} finally {
+			lock.unlock();
+		}
+	}

@@ -1,0 +1,69 @@
+    @Override
+    public TSOState buildState() 
+    throws LoggerException { 
+        try{
+            CountDownLatch latch = new CountDownLatch(1);
+            
+            this.zk = new ZooKeeper(config.getZkServers(), 
+                                            Integer.parseInt(System.getProperty("SESSIONTIMEOUT", Integer.toString(10000))), 
+                                            new LoggerWatcher(latch));
+            
+            latch.await();
+        } catch (Exception e) {
+            LOG.error("Exception while starting zookeeper client", e);
+            this.zk = null;
+            throw LoggerException.create(Code.ZKOPFAILED);
+        }
+        
+        LOG.info("Creating bookkeeper client");
+        
+        try{
+            bk = new BookKeeper(new ClientConfiguration(), this.zk);    
+        } catch (Exception e) {
+            LOG.error("Error while creating bookkeeper object", e);
+            return null;
+        }
+        
+        
+        /*
+         * Create ZooKeeper lock
+         */
+              
+        Context ctx = new Context();
+        ctx.config = this.config;
+        
+        zk.create(LoggerConstants.OMID_LOCK_PATH, 
+                                        new byte[0], 
+                                        Ids.OPEN_ACL_UNSAFE, 
+                                        CreateMode.EPHEMERAL, 
+                                        new LockCreateCallback(),
+                                        ctx);
+        
+        new BookKeeperStateLogger(zk).initialize(new LoggerInitCallback(){
+            public void loggerInitComplete(int rc, StateLogger sl, Object ctx){                
+                if(rc == Code.OK){
+                    if(LOG.isDebugEnabled()){
+                        LOG.debug("Logger is ok.");
+                    }
+                    ((Context) ctx).setLogger(sl); 
+                } else {
+                    LOG.error("Error when initializing logger: " + LoggerException.getMessage(rc));
+                }
+            }
+        
+        }, ctx);
+        
+        try{
+            synchronized(ctx){
+                if(!ctx.isReady()){
+                    // TODO make configurable maximum waiting
+                    ctx.wait();
+                }           
+            }
+        } catch (InterruptedException e) {
+            LOG.error("Interrupted while waiting for state to build up.", e);
+            ctx.setState(null);
+        }
+        
+        return ctx.state;
+    }

@@ -1,0 +1,44 @@
+    @Test
+    public void testLazyLoading() throws Exception {
+        final AtomicBoolean requestWasSent = new AtomicBoolean(false);
+
+        TestableConnectionProvider provider = new TestableConnectionProvider() {
+            @Override
+            public void sendRequest(URL url, Session session) {
+                requestWasSent.set(true);
+                assertThat(url, is(locationUrl));
+            }
+
+            @Override
+            public JSON readJsonResponse() {
+                return getJSON("updateAuthorizationResponse");
+            }
+
+            @Override
+            public void handleRetryAfter(String message) throws AcmeException {
+                // Just do nothing
+            }
+        };
+
+        Login login = provider.createLogin();
+
+        provider.putTestChallenge("http-01", Http01Challenge::new);
+        provider.putTestChallenge("dns-01", Dns01Challenge::new);
+
+        Authorization auth = new Authorization(login, locationUrl);
+
+        // Lazy loading
+        assertThat(requestWasSent.get(), is(false));
+        assertThat(auth.getDomain(), is("example.org"));
+        assertThat(requestWasSent.get(), is(true));
+
+        // Subsequent queries do not trigger another load
+        requestWasSent.set(false);
+        assertThat(auth.getDomain(), is("example.org"));
+        assertThat(auth.getStatus(), is(Status.VALID));
+        assertThat(auth.isWildcard(), is(false));
+        assertThat(auth.getExpires(), is(parseTimestamp("2016-01-02T17:12:40Z")));
+        assertThat(requestWasSent.get(), is(false));
+
+        provider.close();
+    }

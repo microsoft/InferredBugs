@@ -1,0 +1,30 @@
+    private JSONObject responseFor(String path, String ip_address)
+            throws GeoIP2Exception {
+        DefaultHttpClient httpclient = new DefaultHttpClient();
+        String uri = "https://" + host;
+        if (host.startsWith("localhost")) {
+            uri = "http://" + host;
+        }
+        uri = uri + "/geoip/v2.0/" + path + "/" + ip_address;
+        HttpGet httpget = new HttpGet(uri);
+        httpget.addHeader("Accept", "application/json");
+        httpget.addHeader(BasicScheme.authenticate(
+                new UsernamePasswordCredentials(userId, licenseKey), "UTF-8",
+                false));
+        HttpResponse response = null;
+        try {
+            response = httpclient.execute(httpget);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            httpclient.getConnectionManager().shutdown();
+        }
+
+        int status = response.getStatusLine().getStatusCode();
+        if (status == 200) {
+            return handleSuccess(response, uri);
+        } else {
+            handleErrorStatus(response, status, uri);
+        }
+        return null;
+    }

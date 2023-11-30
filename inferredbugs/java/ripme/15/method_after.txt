@@ -1,0 +1,63 @@
+    @Override
+    public List<String> getURLsFromPage(Document doc) {
+        List<String> result = new ArrayList<>();
+        if (theme1.contains(getHost())) {
+            Element elem = doc.select("div.comic-table > div#comic > a > img").first();
+            // If doc is the last page in the comic then elem.attr("src") returns null
+            // because there is no link <a> to the next page
+            if (elem == null) {
+                elem = doc.select("div.comic-table > div#comic > img").first();
+            }
+            // Check if this is a site where we can get the page number from the title
+            if (url.toExternalForm().contains("buttsmithy.com")) {
+                // Set the page title
+                pageTitle = doc.select("meta[property=og:title]").attr("content");
+                pageTitle = pageTitle.replace(" ", "");
+                pageTitle = pageTitle.replace("P", "p");
+            }
+            if (url.toExternalForm().contains("www.totempole666.com")) {
+                String postDate = doc.select("span.post-date").first().text().replaceAll("/", "_");
+                String postTitle = doc.select("h2.post-title").first().text().replaceAll("#", "");
+                pageTitle = postDate + "_" + postTitle;
+            }
+            if (url.toExternalForm().contains("themonsterunderthebed.net")) {
+                pageTitle = doc.select("title").first().text().replaceAll("#", "");
+                pageTitle = pageTitle.replace("“", "");
+                pageTitle = pageTitle.replace("”", "");
+                pageTitle = pageTitle.replace("The Monster Under the Bed", "");
+                pageTitle = pageTitle.replace("–", "");
+                pageTitle = pageTitle.replace(",", "");
+                pageTitle = pageTitle.replace(" ", "");
+            }
+
+            result.add(elem.attr("src"));
+        }
+
+        // freeadultcomix gets it own if because it needs to add http://freeadultcomix.com to the start of each link
+        // TODO review the above comment which no longer applies -- see if there's a refactoring we should do here.
+        if (url.toExternalForm().contains("freeadultcomix.com")) {
+            for (Element elem : doc.select("div.single-post > p > img.aligncenter")) {
+                result.add(elem.attr("src"));
+            }
+        }
+
+        if (url.toExternalForm().contains("comics-xxx.com")) {
+            for (Element elem : doc.select("div.single-post > center > p > img")) {
+                result.add(elem.attr("src"));
+            }
+        }
+
+        if (url.toExternalForm().contains("shipinbottle.pepsaga.com")) {
+            for (Element elem : doc.select("div#comic > div.comicpane > a > img")) {
+                result.add(elem.attr("src"));
+            }
+        }
+
+        if (url.toExternalForm().contains("8muses.download")) {
+            for (Element elem : doc.select("div.popup-gallery > figure > a")) {
+                result.add(elem.attr("href"));
+            }
+        }
+
+        return result;
+    }

@@ -1,0 +1,16 @@
+  @SuppressWarnings("unchecked")
+  @Override
+  public void run() {
+    // restart the clock.
+    lastResponseMs = clock.currentTimeMillis();
+    this.rowMerger = new RowMerger(rowObserver);
+    synchronized (callLock) {
+      super.run();
+      // pre-fetch one more result, for performance reasons.
+      adapter = new CallToStreamObserverAdapter<ReadRowsRequest>(call);
+      adapter.request(1);
+      if (rowObserver instanceof ClientResponseObserver) {
+        ((ClientResponseObserver<ReadRowsRequest, FlatRow>) rowObserver).beforeStart(adapter);
+      }
+    }
+  }

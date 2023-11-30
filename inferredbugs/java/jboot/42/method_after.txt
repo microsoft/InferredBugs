@@ -1,0 +1,23 @@
+    public <T> T get(Class<T> clazz, String prefix, String file) {
+
+        /**
+         * 开发模式下，热加载会导致由于Config是不同的 ClassLoader，
+         * 如果走缓存会Class转化异常
+         */
+        if (isDevMode()) {
+            return createConfigObject(clazz, prefix, file);
+        }
+
+        Object configObject = configCache.get(clazz.getName() + prefix);
+
+        if (configObject == null) {
+            synchronized (clazz) {
+                if (configObject == null) {
+                    configObject = createConfigObject(clazz, prefix, file);
+                    configCache.put(clazz.getName() + prefix, configObject);
+                }
+            }
+        }
+
+        return (T) configObject;
+    }

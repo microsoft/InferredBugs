@@ -1,0 +1,26 @@
+    private List<Method> retrieveMethods(TypeElement element, boolean implementationRequired) {
+        List<Method> methods = new ArrayList<Method>();
+
+        MapperPrism mapperPrism = implementationRequired ? MapperPrism.getInstanceOn( element ) : null;
+
+        for ( ExecutableElement executable : methodsIn( element.getEnclosedElements() ) ) {
+            Method method = getMethod( element, executable, implementationRequired );
+            if ( method != null ) {
+                methods.add( method );
+            }
+        }
+
+        //Add all methods of used mappers in order to reference them in the aggregated model
+        if ( implementationRequired ) {
+            for ( TypeMirror usedMapper : mapperPrism.uses() ) {
+                methods.addAll(
+                    retrieveMethods(
+                        (TypeElement) ( (DeclaredType) usedMapper ).asElement(),
+                        false
+                    )
+                );
+            }
+        }
+
+        return methods;
+    }

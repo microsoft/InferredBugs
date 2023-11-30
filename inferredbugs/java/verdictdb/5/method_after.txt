@@ -1,0 +1,63 @@
+ @Override
+	public ExactRelation rewriteWithSubsampledErrorBounds() {
+		ExactRelation r = rewriteWithPartition(true);
+		
+		// construct a new list of select elements. the last element is __vpart, which should be omitted.
+		// newElems and newAggs hold almost the same info; just replicate them to follow the structure
+		// of AggregatedRelation-ProjectedRelation.
+		List<SelectElem> newElems = new ArrayList<SelectElem>();
+		List<Expr> newAggs = new ArrayList<Expr>();
+		List<SelectElem> elems = ((ProjectedRelation) r).getSelectElems();
+		for (int i = 0; i < elems.size() - 1; i++) {
+			SelectElem elem = elems.get(i);
+			if (!elem.isagg()) {
+				newElems.add(new SelectElem(ColNameExpr.from(elem.getAlias()), elem.getAlias()));
+			} else {
+				if (elem.getAlias().equals(partitionSizeAlias)) {
+					continue;
+				}
+				
+				ColNameExpr est = new ColNameExpr(elem.getAlias(), r.getAliasName());
+				ColNameExpr psize = new ColNameExpr(partitionSizeAlias, r.getAliasName());
+				
+				// average estimate
+				Expr averaged = null;
+				if (elem.getExpr().isCountDistinct()) {
+					// for count-distinct (i.e., universe samples), weighted average should not be used.
+					averaged = FuncExpr.round(FuncExpr.avg(est));
+				} else {
+					// weighted average
+					averaged = BinaryOpExpr.from(FuncExpr.sum(BinaryOpExpr.from(est, psize, "*")),
+		                    					  FuncExpr.sum(psize), "/");
+					if (elem.getExpr().isCount()) {
+						averaged = FuncExpr.round(averaged);
+					}
+				}
+				newElems.add(new SelectElem(averaged, elem.getAlias()));
+				newAggs.add(averaged);
+				
+				// error estimation
+				// scale by sqrt(subsample size) / sqrt(sample size)
+				Expr error = BinaryOpExpr.from(
+								BinaryOpExpr.from(FuncExpr.stddev(est), FuncExpr.sqrt(FuncExpr.avg(psize)), "*"),
+								FuncExpr.sqrt(FuncExpr.sum(psize)),
+								"/");
+				error = BinaryOpExpr.from(error, ConstantExpr.from(confidenceIntervalMultiplier()), "*");
+				newElems.add(new SelectElem(error, Relation.errorBoundColumn(elem.getAlias())));
+				newAggs.add(error);
+			}
+		}
+		
+		// this extra aggregation stage should be grouped by non-agg elements except for __vpart
+		List<Expr> newGroupby = new ArrayList<Expr>();
+		for (SelectElem elem : elems) {
+			if (!elem.isagg() && !elem.getAlias().equals(partitionColumnName())) {
+				newGroupby.add(ColNameExpr.from(elem.getAlias()));
+			}
+		}
+		r = new GroupedRelation(vc, r, newGroupby);
+		r = new AggregatedRelation(vc, r, newAggs);
+		r = new ProjectedRelation(vc, r, newElems);
+		
+		return r;
+	}

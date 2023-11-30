@@ -1,0 +1,55 @@
+    private boolean testExecuteWorkflow(TlsConfig config) {
+
+        // TODO ugly
+        ConfigHandler configHandler = new ConfigHandler();
+        TransportHandler transportHandler = configHandler.initializeTransportHandler(config);
+
+        TlsContext tlsContext = configHandler.initializeTlsContext(config);
+        WorkflowExecutor workflowExecutor = configHandler.initializeWorkflowExecutor(transportHandler, tlsContext);
+        try {
+            workflowExecutor.executeWorkflow();
+        } catch (Exception E) {
+            E.printStackTrace();
+        }
+        transportHandler.closeConnection();
+        boolean result = isWorkflowTraceReasonable(tlsContext.getWorkflowTrace());
+        if (!result) {
+            LOGGER.log(Level.INFO, "Failed vanilla execution");
+            return result;
+        }
+        tlsContext.getWorkflowTrace().reset();
+        WorkflowTrace trace = tlsContext.getWorkflowTrace();
+        tlsContext = configHandler.initializeTlsContext(config);
+        tlsContext.setWorkflowTrace(trace);
+        transportHandler = configHandler.initializeTransportHandler(config);
+        workflowExecutor = configHandler.initializeWorkflowExecutor(transportHandler, tlsContext);
+        try {
+            workflowExecutor.executeWorkflow();
+        } catch (Exception E) {
+            E.printStackTrace();
+        }
+        transportHandler.closeConnection();
+        result = isWorkflowTraceReasonable(tlsContext.getWorkflowTrace());
+        if (!result) {
+            LOGGER.log(Level.INFO, "Failed reset execution");
+            return result;
+        }
+        tlsContext.getWorkflowTrace().reset();
+        tlsContext.getWorkflowTrace().makeGeneric();
+        trace = tlsContext.getWorkflowTrace();
+        tlsContext = configHandler.initializeTlsContext(config);
+        tlsContext.setWorkflowTrace(trace);
+        transportHandler = configHandler.initializeTransportHandler(config);
+        workflowExecutor = configHandler.initializeWorkflowExecutor(transportHandler, tlsContext);
+        try {
+            workflowExecutor.executeWorkflow();
+        } catch (Exception E) {
+            E.printStackTrace();
+        }
+        transportHandler.closeConnection();
+        result = isWorkflowTraceReasonable(tlsContext.getWorkflowTrace());
+        if (!result) {
+            LOGGER.log(Level.INFO, "Failed reset&generic execution");
+        }
+        return result;
+    }

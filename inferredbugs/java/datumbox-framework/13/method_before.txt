@@ -1,0 +1,57 @@
+    @Override
+    protected void predictDataset(Dataframe newData) {
+        Map<List<Object>, Double> similarities = knowledgeBase.getModelParameters().getSimilarities();
+        
+        //generate recommendation for each record in the list
+        for(Map.Entry<Integer, Record> e : newData.entries()) {
+            Integer rId = e.getKey();
+            Record r = e.getValue();
+            Map<Object, Object> recommendations = new HashMap<>();
+            
+            Map<Object, Double> simSums = new HashMap<>();
+            for(Map.Entry<Object, Object> entry : r.getX().entrySet()) {
+                Object row = entry.getKey();
+                Double score = TypeInference.toDouble(entry.getValue());
+                
+                //Since we can't use 2D Maps due to mongo, we are forced to loop
+                //the whole similarities map which is very inefficient.
+                for(Map.Entry<List<Object>, Double> entry2 : similarities.entrySet()) {
+                    List<Object> tpk = entry2.getKey();
+                    if(!tpk.get(0).equals(row)) {
+                        continue; //filter the irrelevant two pair key combinations that do not include the row
+                    }
+                    
+                    Object column = tpk.get(1);
+                    if(r.getX().containsKey(column)) {
+                        continue; // they already rated this
+                    }
+                    
+                    Double previousRecValue = TypeInference.toDouble(recommendations.get(column));
+                    Double previousSimsumValue = simSums.get(column);
+                    if(previousRecValue==null) {
+                        previousRecValue=0.0;
+                        previousSimsumValue=0.0;
+                    }
+                    
+                    Double similarity = entry2.getValue();
+                    
+                    recommendations.put(column, previousRecValue+similarity*score);
+                    simSums.put(column, previousSimsumValue+similarity);
+                }
+            }
+            
+            for(Map.Entry<Object, Object> entry : recommendations.entrySet()) {
+                Object column = entry.getKey();
+                Double score = TypeInference.toDouble(entry.getValue());
+                
+                recommendations.put(column, score/simSums.get(column));
+            }
+            simSums = null;
+            
+            if(!recommendations.isEmpty()) {
+                //sort recommendation by popularity
+                recommendations = MapFunctions.sortNumberMapByValueDescending(recommendations);
+                newData._unsafe_set(rId, new Record(r.getX(), r.getY(), recommendations.keySet().iterator().next(), new AssociativeArray(recommendations)));
+            }
+        }
+    }

@@ -1,0 +1,25 @@
+  private List<TorrentFile> parseFiles(Map<String, BEValue> infoTable, boolean torrentContainsManyFiles, String name) throws InvalidBEncodingException {
+    if (!torrentContainsManyFiles) {
+      final BEValue md5Sum = infoTable.get(MD5_SUM);
+      return Collections.singletonList(new TorrentFile(
+              Collections.singletonList(name),
+              getRequiredValueOrThrowException(infoTable, FILE_LENGTH).getLong(),
+              md5Sum == null ? null : md5Sum.getString()
+      ));
+    }
+
+    List<TorrentFile> result = new ArrayList<TorrentFile>();
+    for (BEValue file : infoTable.get(FILES).getList()) {
+      Map<String, BEValue> fileInfo = file.getMap();
+      List<String> path = new ArrayList<String>();
+      for (BEValue pathElement : fileInfo.get(FILE_PATH).getList()) {
+        path.add(pathElement.getString());
+      }
+      final BEValue md5Sum = infoTable.get(MD5_SUM);
+      result.add(new TorrentFile(
+              path,
+              fileInfo.get(FILE_LENGTH).getLong(),
+              md5Sum == null ? null : md5Sum.getString()));
+    }
+    return result;
+  }

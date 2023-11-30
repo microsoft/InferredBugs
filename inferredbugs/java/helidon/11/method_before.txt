@@ -1,0 +1,17 @@
+    @Override
+    protected Optional<Instant> dataStamp() {
+        try {
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod(HEAD_METHOD);
+
+            if (connection.getLastModified() != 0) {
+                return Optional.of(Instant.ofEpochMilli(connection.getLastModified()));
+            }
+        } catch (IOException ex) {
+            LOGGER.log(Level.FINE, ex, () -> "Configuration at url '" + url + "' HEAD is not accessible.");
+        }
+        Optional<Instant> timestamp = Optional.of(Instant.MAX);
+        LOGGER.finer("Missing HEAD '" + url + "' response header 'Last-Modified'. Used time '"
+                             + timestamp + "' as a content timestamp.");
+        return timestamp;
+    }

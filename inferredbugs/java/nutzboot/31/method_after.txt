@@ -1,0 +1,24 @@
+    public void prepareStarterClassList() throws Exception {
+        HashSet<String> classNames = new HashSet<>();
+        Enumeration<URL> _en = ctx.getClassLoader().getResources("META-INF/nutz/org.nutz.boot.starter.NbStarter");
+        while (_en.hasMoreElements()) {
+            URL url = _en.nextElement();
+            log.debug("Found " + url);
+            try (InputStream ins = url.openStream()) {
+                InputStreamReader reader = new InputStreamReader(ins);
+                String tmp = Streams.readAndClose(reader);
+                if (!Strings.isBlank(tmp)) {
+                    for (String _tmp : Strings.splitIgnoreBlank(tmp, "[\n]")) {
+                        String className = _tmp.trim();
+                        if (!classNames.add(className))
+                            continue;
+                        Class<?> klass = ctx.getClassLoader().loadClass(className);
+                        if (!klass.getPackage().getName().startsWith(NbApp.class.getPackage().getName()) && klass.getAnnotation(IocBean.class) != null) {
+                            starterIocLoader.addClass(klass);
+                        }
+                        starterClasses.add(klass);
+                    }
+                }
+            }
+        }
+    }

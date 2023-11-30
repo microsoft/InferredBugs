@@ -1,0 +1,173 @@
+    public void onlineZooKeeperServers() {
+        Integer taskId = zkServerPortMap.get(myHostname);
+        if ((taskId != null) && (taskId.intValue() == taskPartition)) {
+            File zkDirFile = new File(this.zkDir);
+            try {
+                if (LOG.isInfoEnabled()) {
+                    LOG.info("onlineZooKeeperServers: Trying to delete old " +
+                             "directory " + this.zkDir);
+                }
+                FileUtils.deleteDirectory(zkDirFile);
+            } catch (IOException e) {
+                LOG.warn("onlineZooKeeperServers: Failed to delete " +
+                         "directory " + this.zkDir);
+            }
+            generateZooKeeperConfigFile(
+                new ArrayList<String>(zkServerPortMap.keySet()));
+            ProcessBuilder processBuilder = new ProcessBuilder();
+            List<String> commandList = new ArrayList<String>();
+            String javaHome = System.getProperty("java.home");
+            if (javaHome == null) {
+                throw new IllegalArgumentException(
+                    "onlineZooKeeperServers: java.home is not set!");
+            }
+            commandList.add(javaHome + "/bin/java");
+            commandList.add(conf.get(GiraphJob.ZOOKEEPER_JAVA_OPTS,
+                        GiraphJob.ZOOKEEPER_JAVA_OPTS_DEFAULT));
+            commandList.add("-cp");
+            Path fullJarPath = new Path(conf.get(GiraphJob.ZOOKEEPER_JAR));
+            commandList.add(fullJarPath.toString());
+            commandList.add(QuorumPeerMain.class.getName());
+            commandList.add(configFilePath);
+            processBuilder.command(commandList);
+            File execDirectory = new File(zkDir);
+            processBuilder.directory(execDirectory);
+            processBuilder.redirectErrorStream(true);
+            LOG.info("onlineZooKeeperServers: Attempting to start ZooKeeper " +
+                "server with command " + commandList);
+            try {
+                synchronized (this) {
+                    zkProcess = processBuilder.start();
+                }
+                zkProcessCollector =
+                    new StreamCollector(zkProcess.getInputStream());
+                zkProcessCollector.start();
+                Runnable runnable = new Runnable() {
+                    public void run() {
+                        synchronized (this) {
+                            if (zkProcess != null) {
+                                LOG.warn("onlineZooKeeperServers: "+
+                                    "Forced a shutdown hook kill of the " +
+                                    "ZooKeeper process.");
+                                zkProcess.destroy();
+                            }
+                        }
+                    }
+                };
+                Runtime.getRuntime().addShutdownHook(new Thread(runnable));
+            } catch (IOException e) {
+                LOG.error("onlineZooKeeperServers: Failed to start " +
+                          "ZooKeeper process");
+                throw new RuntimeException(e);
+            }
+
+            /*
+             * Once the server is up and running, notify that this server is up
+             * and running by dropping a ready stamp.
+             */
+            int connectAttempts = 0;
+            while (connectAttempts < 5) {
+                try {
+                    if (LOG.isInfoEnabled()) {
+                        LOG.info("onlineZooKeeperServers: Connect attempt " +
+                                 connectAttempts + " trying to connect to " +
+                                 myHostname + ":" + zkBasePort +
+                                 " with poll msecs = " + pollMsecs);
+                    }
+                    InetSocketAddress zkServerAddress =
+                        new InetSocketAddress(myHostname, zkBasePort);
+                    Socket testServerSock = new Socket();
+                    testServerSock.connect(zkServerAddress, 5000);
+                    LOG.info("onlineZooKeeperServers: Connected!");
+                    break;
+                } catch (SocketTimeoutException e) {
+                    LOG.warn("onlineZooKeeperServers: Got " +
+                             "SocketTimeoutException", e);
+                } catch (ConnectException e) {
+                    LOG.warn("onlineZooKeeperServers: Got " +
+                             "ConnectException", e);
+                } catch (IOException e) {
+                    LOG.warn("onlineZooKeeperServers: Got " +
+                             "IOException", e);
+                }
+
+                ++connectAttempts;
+                try {
+                    Thread.sleep(pollMsecs);
+                } catch (InterruptedException e) {
+                    LOG.warn("onlineZooKeeperServers: Sleep of " + pollMsecs +
+                             " interrupted - " + e.getMessage());
+                }
+            }
+            if (connectAttempts == 5) {
+                throw new IllegalStateException(
+                    "onlineZooKeeperServers: Failed to connect in 5 tries!");
+            }
+            Path myReadyPath = new Path(
+                    serverDirectory, myHostname +
+                    HOSTNAME_TASK_SEPARATOR + taskPartition);
+            try {
+                if (LOG.isInfoEnabled()) {
+                    LOG.info("onlineZooKeeperServers: Creating my filestamp " +
+                             myReadyPath);
+                }
+                fs.createNewFile(myReadyPath);
+            } catch (IOException e) {
+                LOG.error("onlineZooKeeperServers: Failed (maybe previous " +
+                          "task failed) to create filestamp " + myReadyPath);
+            }
+        }
+        else {
+            List<String> foundList = new ArrayList<String>();
+            int readyRetrievalAttempt = 0;
+            while (true) {
+                try {
+                    FileStatus [] fileStatusArray =
+                        fs.listStatus(serverDirectory);
+                    foundList.clear();
+                    if ((fileStatusArray != null) &&
+                        (fileStatusArray.length > 0)) {
+                        for (int i = 0; i < fileStatusArray.length; ++i) {
+                            String[] hostnameTaskArray =
+                                fileStatusArray[i].getPath().getName().split(
+                                    HOSTNAME_TASK_SEPARATOR);
+                            if (hostnameTaskArray.length != 2) {
+                                throw new RuntimeException(
+                                    "getZooKeeperServerList: Task 0 failed " +
+                                    "to parse " +
+                                    fileStatusArray[i].getPath().getName());
+                            }
+                            foundList.add(hostnameTaskArray[0]);
+                        }
+                        if (LOG.isInfoEnabled()) {
+                            LOG.info("onlineZooKeeperServers: Got " +
+                                     foundList + " " +
+                                     foundList.size() + " hosts from " +
+                                     fileStatusArray.length +
+                                     " ready servers when " +
+                                     serverCount +
+                                     " required (polling period is " +
+                                     pollMsecs + ") on attempt " +
+                                     readyRetrievalAttempt);
+                        }
+                        if (foundList.containsAll(zkServerPortMap.keySet())) {
+                            break;
+                        }
+                    } else {
+                        if (LOG.isInfoEnabled()) {
+                            LOG.info("onlineZooKeeperSErvers: Empty " +
+                                     "directory " + serverDirectory +
+                                     ", waiting " + pollMsecs + " msecs.");
+                        }
+                    }
+                    Thread.sleep(pollMsecs);
+                    ++readyRetrievalAttempt;
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
+                    LOG.warn("onlineZooKeeperServers: Strange interrupt from " +
+                             e.getMessage());
+                }
+            }
+        }
+    }

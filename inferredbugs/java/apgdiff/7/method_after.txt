@@ -1,0 +1,47 @@
+    public static void parse(final PgDatabase database, final String command) {
+        final Parser parser = new Parser(command);
+        parser.expect("CREATE", "SEQUENCE");
+
+        final String sequenceName = parser.parseIdentifier();
+        final PgSequence sequence =
+                new PgSequence(ParserUtils.getObjectName(sequenceName));
+        final String schemaName =
+                ParserUtils.getSchemaName(sequenceName, database);
+        database.getSchema(schemaName).addSequence(sequence);
+
+        while (!parser.expectOptional(";")) {
+            if (parser.expectOptional("INCREMENT")) {
+                parser.expectOptional("BY");
+                sequence.setIncrement(parser.parseString());
+            } else if (parser.expectOptional("MINVALUE")) {
+                sequence.setMinValue(parser.parseString());
+            } else if (parser.expectOptional("MAXVALUE")) {
+                sequence.setMaxValue(parser.parseString());
+            } else if (parser.expectOptional("START")) {
+                parser.expectOptional("WITH");
+                sequence.setStartWith(parser.parseString());
+            } else if (parser.expectOptional("CACHE")) {
+                sequence.setCache(parser.parseString());
+            } else if (parser.expectOptional("CYCLE")) {
+                sequence.setCycle(true);
+            } else if (parser.expectOptional("OWNED", "BY")) {
+                if (parser.expectOptional("NONE")) {
+                    sequence.setOwnedBy(null);
+                } else {
+                    sequence.setOwnedBy(parser.parseIdentifier());
+                }
+            } else if (parser.expectOptional("NO")) {
+                if (parser.expectOptional("MINVALUE")) {
+                    sequence.setMinValue(null);
+                } else if (parser.expectOptional("MAXVALUE")) {
+                    sequence.setMaxValue(null);
+                } else if (parser.expectOptional("CYCLE")) {
+                    sequence.setCycle(false);
+                } else {
+                    parser.throwUnsupportedCommand();
+                }
+            } else {
+                parser.throwUnsupportedCommand();
+            }
+        }
+    }

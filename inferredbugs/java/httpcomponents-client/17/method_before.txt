@@ -1,0 +1,30 @@
+    protected ClientConnectionManager createClientConnectionManager() {
+        SchemeRegistry registry = SchemeRegistryFactory.createDefault();
+
+        ClientConnectionManager connManager = null;
+        HttpParams params = getParams();
+
+        ClientConnectionManagerFactory factory = null;
+
+        String className = (String) params.getParameter(
+                ClientPNames.CONNECTION_MANAGER_FACTORY_CLASS_NAME);
+        if (className != null) {
+            try {
+                Class<?> clazz = Class.forName(className);
+                factory = (ClientConnectionManagerFactory) clazz.newInstance();
+            } catch (ClassNotFoundException ex) {
+                throw new IllegalStateException("Invalid class name: " + className);
+            } catch (IllegalAccessException ex) {
+                throw new IllegalAccessError(ex.getMessage());
+            } catch (InstantiationException ex) {
+                throw new InstantiationError(ex.getMessage());
+            }
+        }
+        if (factory != null) {
+            connManager = factory.newInstance(params, registry);
+        } else {
+            connManager = new SingleClientConnManager(registry);
+        }
+
+        return connManager;
+    }

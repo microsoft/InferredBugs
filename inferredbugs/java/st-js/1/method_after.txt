@@ -1,0 +1,21 @@
+ private void addCallToSuper(ClassScope classScope, GenerationContext context, Collection<Expression> args) {
+		PreConditions.checkNotNull(classScope);
+
+		Option<ClassWrapper> superClass = classScope.getClazz().getSuperclass();
+
+		if (superClass.isDefined()) {
+			if (ClassUtils.isSyntheticType(superClass.getOrThrow())) {
+				// do not add call to super class is it's a synthetic
+				return;
+			}
+
+			if (superClass.getOrThrow().getClazz().equals(Object.class)) {
+				// avoid useless call to super() when the super class is Object
+				return;
+			}
+			printer.print(stJsName(superClass.getOrThrow())).print(".call");
+			printArguments(Collections.singleton("this"), args, Collections.<String> emptyList(), context);
+			printer.print(";");
+
+		}
+	}

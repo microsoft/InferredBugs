@@ -1,0 +1,19 @@
+    void removeNodeEntity(Object entity, boolean deregisterDependentRelationshipEntity) {
+
+        Long id = nativeId(entity);
+
+        nodeEntityRegister.remove(id);
+        final ClassInfo primaryIndexClassInfo = metaData.classInfo(entity);
+        final FieldInfo primaryIndexField = primaryIndexClassInfo
+            .primaryIndexField(); // also need to add the class to key to prevent collisions.
+        if (primaryIndexField != null) {
+            final Object primaryIndexValue = primaryIndexField.read(entity);
+            if (primaryIndexValue != null) {
+                primaryIndexNodeRegister.remove(new LabelPrimaryId(primaryIndexClassInfo, primaryIndexValue));
+            }
+        }
+
+        if (deregisterDependentRelationshipEntity) {
+            deregisterDependentRelationshipEntity(entity);
+        }
+    }

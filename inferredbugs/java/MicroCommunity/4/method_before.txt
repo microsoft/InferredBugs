@@ -1,0 +1,20 @@
+    private void validate(String paramIn) {
+        Assert.jsonObjectHaveKey(paramIn, "communityId", "请求报文中未包含communityId节点");
+        Assert.jsonObjectHaveKey(paramIn, "squarePrice", "请求报文中未包含squarePrice节点");
+        Assert.jsonObjectHaveKey(paramIn, "additionalAmount", "请求报文中未包含additionalAmount节点");
+        Assert.jsonObjectHaveKey(paramIn, "feeTypeCd", "请求报文中未包含feeTypeCd节点");
+        JSONObject reqJson = JSONObject.parseObject(paramIn);
+        Assert.isMoney(reqJson.getString("squarePrice"), "squarePrice不是有效金额格式");
+        Assert.isMoney(reqJson.getString("additionalAmount"), "additionalAmount不是有效金额格式");
+
+        FeeConfigDto feeConfigDto = new FeeConfigDto();
+        feeConfigDto.setCommunityId(reqJson.getString("communityId"));
+        feeConfigDto.setFeeTypeCd(reqJson.getString("feeTypeCd"));
+        //校验小区楼ID和小区是否有对应关系
+        List<FeeConfigDto> configDtos = feeConfigInnerServiceSMOImpl.queryFeeConfigs(feeConfigDto);
+
+        if (configDtos != null || configDtos.size() > 0) {
+            throw new IllegalArgumentException("已经存在费用配置信息");
+        }
+
+    }

@@ -1,0 +1,19 @@
+    @Override
+    public List<OperationArgument> buildResolverArguments(ArgumentBuilderParams params) {
+        Method resolverMethod = params.getResolverMethod();
+        List<OperationArgument> operationArguments = new ArrayList<>(resolverMethod.getParameterCount());
+        AnnotatedType[] parameterTypes = ClassUtils.getParameterTypes(resolverMethod, params.getDeclaringType());
+        for (int i = 0; i < resolverMethod.getParameterCount(); i++) {
+            Parameter parameter = resolverMethod.getParameters()[i];
+            if (parameter.isSynthetic() || parameter.isImplicit()) continue;
+            AnnotatedType parameterType;
+            try {
+                parameterType = params.getTypeTransformer().transform(parameterTypes[i]);
+            } catch (TypeMappingException e) {
+                throw new TypeMappingException(resolverMethod, parameter, e);
+            }
+            parameterType = ClassUtils.addAnnotations(parameterType, parameter.getAnnotations());
+            operationArguments.add(buildResolverArgument(parameter, parameterType, params.getInclusionStrategy()));
+        }
+        return operationArguments;
+    }

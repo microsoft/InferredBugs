@@ -1,0 +1,23 @@
+  @Override
+  public List<Pair<String, String>> getColumns(String schema, String table) throws VerdictDBDbmsException {
+    List<Pair<String, String>> columns = new ArrayList<>();
+    DbmsQueryResult queryResult = execute(syntax.getColumnsCommand(schema, table));
+    JdbcResultSet jdbcResultSet = new JdbcResultSet(queryResult);
+    try {
+      while (queryResult.next()) {
+        String type = jdbcResultSet.getString(syntax.getColumnTypeColumnIndex()+1);
+        type = type.toLowerCase();
+
+//        // remove the size of type
+//        type = type.replaceAll("\\(.*\\)", "");
+
+        columns.add(
+            new ImmutablePair<>(jdbcResultSet.getString(syntax.getColumnNameColumnIndex()+1), type));
+      }
+    } catch (SQLException e) {
+      throw new VerdictDBDbmsException(e);
+    } finally {
+      jdbcResultSet.close();
+    }
+    return columns;
+  }

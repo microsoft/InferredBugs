@@ -1,0 +1,56 @@
+    @Override
+    public @Nullable Tokens read(ExpressionParser main, Tokens source) {
+        SourceStream stream = new PandaSourceStream(source);
+
+        ExpressionSubparsers subparsers = main.getSubparsers().fork();
+        subparsers.removeSubparser(getName());
+
+        ExpressionParser parser = new ExpressionParser(main, subparsers);
+        Tokens value = parser.read(stream);
+
+        if (TokensUtils.isEmpty(value)) {
+            return null;
+        }
+
+        MatchableDistributor matchable = new MatchableDistributor(new TokenDistributor(source));
+        matchable.getDistributor().setIndex(source.size() - stream.getUnreadLength());
+
+        // at least 3 elements required: [ <index> ]
+        if ((source.size() - matchable.getIndex()) < 3) {
+            return null;
+        }
+
+        // check if the opening section is the square bracket
+        if (!matchable.nextVerified().contentEquals(Separators.SQUARE_BRACKET_LEFT)) {
+            return null;
+        }
+
+        // parameters content
+        while (matchable.hasNext() && !matchable.isMatchable()) {
+            matchable.nextVerified();
+        }
+
+        // check if the [ ] section is closed
+        if (!matchable.isMatchable()) {
+            return null;
+        }
+
+        // check if the closing character was square brace
+        if (!matchable.current().contentEquals(Separators.SQUARE_BRACKET_RIGHT)) {
+            return null;
+        }
+
+        Tokens selected = source.subSource(0, matchable.getIndex() + 1);
+
+        // at least 4 elements required: <field-name> [ <index> ]
+        if (selected == null || selected.size() < 4 ) {
+            return null;
+        }
+
+        // array value source has to end with parenthesis
+        if (!selected.getLast().contentEquals(Separators.SQUARE_BRACKET_RIGHT)) {
+            return null;
+        }
+
+        return selected;
+    }

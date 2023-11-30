@@ -1,0 +1,27 @@
+  private long getTopicLogSize(String topic, int pid) {
+    Option<Object> o = ZkUtils.getLeaderForPartition(zkClient, topic, pid);
+    if (o.isEmpty() || o.get() == null) {
+      log.error("No broker for partition %s - %s", topic, pid);
+      return 0;
+    }
+    Integer leaderId = Int.unbox(o.get());
+    SimpleConsumer consumer = consumerMap.get(leaderId);
+    if (consumer == null) {
+      consumer = createSimpleConsumer(leaderId);
+    }
+    // createSimpleConsumer may fail.
+    if (consumer == null) {
+      return 0;
+    }
+    consumerMap.put(leaderId, consumer);
+    TopicAndPartition topicAndPartition = new TopicAndPartition(topic, pid);
+    PartitionOffsetRequestInfo requestInfo = new PartitionOffsetRequestInfo(OffsetRequest.LatestTime(), 1);
+    OffsetRequest request = new OffsetRequest(
+      new Map1<TopicAndPartition, PartitionOffsetRequestInfo>(topicAndPartition, requestInfo),
+      0,
+      Request.OrdinaryConsumerId()
+    );
+    OffsetResponse response = consumer.getOffsetsBefore(request);
+    PartitionOffsetsResponse offsetsResponse = response.partitionErrorAndOffsets().get(topicAndPartition).get();
+    return scala.Long.unbox(offsetsResponse.offsets().head());
+  }

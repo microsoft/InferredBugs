@@ -1,0 +1,31 @@
+  private void doDeploy() {
+    // TODO: The number of ackers is configurable, but the auditor
+    // verticle needs to be refactored to better support this.
+    // So, for now we just deploy a single auditor verticle.
+    JsonObject ackConfig = new JsonObject().putString("address", context.auditAddress())
+      .putString("broadcast", context.broadcastAddress())
+      .putBoolean("enabled", context.getDefinition().ackingEnabled())
+      .putNumber("expire", context.getDefinition().ackExpire());
+
+    deployVerticle(Auditor.class.getName(), ackConfig, new Handler<AsyncResult<String>>() {
+        @Override
+        public void handle(AsyncResult<String> result) {
+          if (result.failed()) {
+            logger.error("Failed to deploy authenticator verticle.", result.cause());
+            container.exit();
+          }
+          else {
+            authDeploymentId = result.result();
+            new RecursiveDeployer(context).deploy(new Handler<AsyncResult<Void>>() {
+              @Override
+              public void handle(AsyncResult<Void> result) {
+                if (result.failed()) {
+                  container.logger().error("Failed to deploy network.", result.cause());
+                  container.exit();
+                }
+              }
+            });
+          }
+        }
+    });
+  }

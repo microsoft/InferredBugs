@@ -1,0 +1,91 @@
+    public void handleDropBoxUpload(ActionEvent e) {
+        // Read JSON object from the output of the DropBox Chooser: 
+        JsonReader dbJsonReader = Json.createReader(new StringReader(dropBoxSelection));
+        JsonArray dbArray = dbJsonReader.readArray();
+        dbJsonReader.close();
+
+        for (int i = 0; i < dbArray.size(); i++) {
+            JsonObject dbObject = dbArray.getJsonObject(i);
+
+            // Extract the payload:
+            String fileLink = dbObject.getString("link");
+            String fileName = dbObject.getString("name");
+            int fileSize = dbObject.getInt("bytes");
+
+            logger.info("DropBox url: " + fileLink + ", filename: " + fileName + ", size: " + fileSize);
+
+            DataFile dFile = null;
+
+            // Make http call, download the file: 
+            GetMethod dropBoxMethod = new GetMethod(fileLink);
+            int status = 0;
+            InputStream dropBoxStream = null;
+            try {
+                status = getClient().executeMethod(dropBoxMethod);
+                if (status == 200) {
+                    dropBoxStream = dropBoxMethod.getResponseBodyAsStream();
+                    dFile = new DataFile("application/octet-stream");
+                    dFile.setOwner(dataset);
+
+                    // save the file, in the temporary location for now: 
+                    datasetService.generateFileSystemName(dFile);
+                    if (ingestService.getFilesTempDirectory() != null) {
+                        logger.info("Will attempt to save the DropBox file as: " + ingestService.getFilesTempDirectory() + "/" + dFile.getFileSystemName());
+                        Files.copy(dropBoxStream, Paths.get(ingestService.getFilesTempDirectory(), dFile.getFileSystemName()), StandardCopyOption.REPLACE_EXISTING);
+                        File tempFile = Paths.get(ingestService.getFilesTempDirectory(), dFile.getFileSystemName()).toFile();
+                        if (tempFile.exists()) {
+                            long writtenBytes = tempFile.length();
+                            logger.info("File size, expected: " + fileSize + ", written: " + writtenBytes);
+                        } else {
+                            throw new IOException();
+                        }
+                    }
+                }
+            } catch (IOException ex) {
+                logger.warning("Failed to access DropBox url: " + fileLink + "!");
+                continue;
+            } finally {
+                if (dropBoxMethod != null) {
+                    dropBoxMethod.releaseConnection();
+                }
+                if (dropBoxStream != null) {
+                    try {
+                        dropBoxStream.close();
+                    } catch (Exception ex) {
+                    }
+                }
+            }
+
+            // If we've made it this far, we must have downloaded the file
+            // successfully, so let's finish processing it as a new DataFile
+            // object: 
+            FileMetadata fmd = new FileMetadata();
+            fmd.setDataFile(dFile);
+            dFile.getFileMetadatas().add(fmd);
+            fmd.setLabel(fileName);
+            fmd.setCategory(dFile.getContentType());
+            if (editVersion.getFileMetadatas() == null) {
+                editVersion.setFileMetadatas(new ArrayList());
+            }
+            editVersion.getFileMetadatas().add(fmd);
+            fmd.setDatasetVersion(editVersion);
+            dataset.getFiles().add(dFile);
+
+            // When uploading files from dropBox, we don't get the benefit of 
+            // having the browser recognize the mime type of the file. So we'll 
+            // have to rely on our own utilities (Jhove, etc.) to try and determine
+            // what it is. 
+            String fileType = null;
+            try {
+                fileType = FileUtil.determineFileType(Paths.get(ingestService.getFilesTempDirectory(), dFile.getFileSystemName()).toFile(), fileName);
+                logger.fine("File utility recognized the file as " + fileType);
+                if (fileType != null && !fileType.equals("")) {
+                    dFile.setContentType(fileType);
+                }
+            } catch (IOException ex) {
+                logger.warning("Failed to run the file utility mime type check on file " + fileName);
+            }
+
+            newFiles.add(dFile);
+        }
+    }

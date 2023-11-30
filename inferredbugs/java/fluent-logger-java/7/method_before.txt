@@ -1,0 +1,22 @@
+    private synchronized boolean send(byte[] bytes) {
+        // buffering
+        if (pendings.position() + bytes.length > pendings.capacity()) {
+            LOG.severe("Cannot send logs to " + server.toString());
+            return false;
+        }
+        pendings.put(bytes);
+
+        try {
+            // suppress reconnection burst
+            if (!reconnector.enableReconnection(System.currentTimeMillis())) {
+                return true;
+            }
+
+            // send pending data
+            flush();
+        } catch (IOException e) {
+            // close socket
+            close();
+        }
+        return true;
+    }

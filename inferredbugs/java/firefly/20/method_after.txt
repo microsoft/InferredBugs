@@ -1,0 +1,19 @@
+    @Test
+    public void testPathContent() throws URISyntaxException, IOException {
+        Path path = Paths.get($.class.getResource("/poem.txt").toURI());
+        System.out.println(path.toAbsolutePath());
+        PathContentProvider pathContentProvider = new PathContentProvider(path);
+        MultiPartContentProvider multiPartProvider = new MultiPartContentProvider();
+        multiPartProvider.addFilePart("poetry", "poem.txt", pathContentProvider, null);
+
+        multiPartProvider.close();
+        multiPartProvider.setListener(() -> System.out.println("on content"));
+
+        List<ByteBuffer> list = new ArrayList<>();
+        for (ByteBuffer buf : multiPartProvider) {
+            list.add(buf);
+        }
+        System.out.println(multiPartProvider.getLength());
+        Assert.assertThat(multiPartProvider.getLength(), greaterThan(0L));
+        Assert.assertThat(multiPartProvider.getLength(), is($.buffer.remaining(list)));
+    }

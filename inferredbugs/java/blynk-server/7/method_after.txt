@@ -1,0 +1,52 @@
+    @PUT
+    @Path("/{token}/widget/{pin}")
+    @Consumes(value = MediaType.APPLICATION_JSON)
+    public Response updateWidgetPinData(@PathParam("token") String token,
+                                        @PathParam("pin") String pinString,
+                                        String[] pinValues) {
+
+        User user = userDao.tokenManager.getUserByToken(token);
+
+        if (user == null) {
+            log.error("Requested token {} not found.", token);
+            return Response.notFound();
+        }
+
+        Integer dashId = user.getDashIdByToken(token);
+
+        if (dashId == null) {
+            log.error("Dash id for token {} not found. User {}", token, user.name);
+            return Response.notFound();
+        }
+
+        DashBoard dashBoard = user.profile.getDashById(dashId);
+
+        PinType pinType;
+        byte pin;
+
+        try {
+            pinType = PinType.getPingType(pinString.charAt(0));
+            pin = Byte.parseByte(pinString.substring(1));
+        } catch (NumberFormatException e) {
+            log.error("Wrong pin format. {}", pinString);
+            return Response.badRequest();
+        }
+
+        Widget widget = dashBoard.findWidgetByPin(pin, pinType);
+
+        if (widget == null) {
+            log.error("Requested pin {} not found. User {}", pinString, user.name);
+            return Response.notFound();
+        }
+
+        widget.updateIfSame(new HardwareBody(pinType, pin, pinValues));
+
+        String body = widget.makeHardwareBody();
+
+        if (body != null) {
+            Session session = sessionDao.getUserSession().get(user);
+            session.sendMessageToHardware(dashId, new HardwareMessage(111, body));
+        }
+
+        return Response.noContent();
+    }

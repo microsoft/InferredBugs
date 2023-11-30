@@ -1,0 +1,66 @@
+    @Override
+    public void run() {
+	stopped = false;
+	// Dont save old results
+	config.setSerialize(false);
+	if (!config.isNoOld()) {
+	    for (int i = 0; i < list.size(); i++) {
+		TLSServer server = null;
+		try {
+		    if (!stopped) {
+			server = ServerManager.getInstance().getFreeServer();
+			Agent agent = AgentFactory.generateAgent(config, list.get(i).getServerKeyCert());
+			Runnable worker = new TLSExecutor(list.get(i), server, agent);
+                        for (TLSAction action : list.get(i).getTrace().getTLSActions()) {
+                            action.reset();
+                        }
+                        list.get(i).getModificationList().clear();
+			executor.submit(worker);
+			runs++;
+		    } else {
+			i--;
+			try {
+			    Thread.sleep(1000);
+			} catch (InterruptedException ex) {
+			    Logger.getLogger(ExecutorThreadPool.class.getName()).log(Level.SEVERE,
+				    "Thread interruiped while the ThreadPool is paused.", ex);
+			}
+		    }
+		} catch (Throwable E) {
+		    E.printStackTrace();
+		}
+	    }
+
+	    // Save new results
+	    config.setSerialize(true);
+	    while (true) {
+		TLSServer server = null;
+		try {
+		    if (!stopped) {
+			server = ServerManager.getInstance().getFreeServer();
+			TestVector vector = mutator.getNewMutation();
+			Agent agent = AgentFactory.generateAgent(config, vector.getServerKeyCert());
+			Runnable worker = new TLSExecutor(vector, server, agent);
+			executor.submit(worker);
+			runs++;
+
+		    } else {
+			try {
+			    Thread.sleep(1000);
+			} catch (InterruptedException ex) {
+			    Logger.getLogger(ExecutorThreadPool.class.getName()).log(Level.SEVERE,
+				    "Thread interruiped while the ThreadPool is paused.", ex);
+			}
+		    }
+		} catch (Throwable ex) {
+		    ex.printStackTrace();
+                    server.release();
+		}
+
+	    }
+	    /*
+	     * executor.shutdown(); while (!executor.isTerminated()) { }
+	     * System.out.println('ExecutorThread Pool Shutdown');
+	     */
+	}
+    }

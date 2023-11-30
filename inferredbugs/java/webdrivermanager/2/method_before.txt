@@ -1,0 +1,81 @@
+ public void manage(Architecture arch, String version) {
+		try {
+			boolean getLatest = version == null || version.isEmpty()
+					|| version.equalsIgnoreCase(DriverVersion.LATEST.name())
+					|| version.equalsIgnoreCase(
+							DriverVersion.NOT_SPECIFIED.name());
+
+			String driverInCache = null;
+			if (!getLatest) {
+				driverInCache = existsDriverInCache(Downloader.getTargetPath(),
+						getDriverName(), version);
+			}
+
+			if (driverInCache != null) {
+				System.setProperty(VERSION_PROPERTY, version);
+				exportDriver(getExportParameter(), driverInCache);
+
+			} else {
+
+				// Get the complete list of URLs
+				List<URL> urls = getDrivers();
+				if (!urls.isEmpty()) {
+					List<URL> candidateUrls;
+					boolean continueSearchingVersion;
+
+					do {
+						// Get the latest or concrete version
+						if (getLatest) {
+							candidateUrls = getLatest(urls, getDriverName());
+						} else {
+							candidateUrls = getVersion(urls, getDriverName(),
+									version);
+						}
+						if (versionToDownload == null) {
+							break;
+						}
+
+						if (this.getClass().equals(EdgeDriverManager.class)) {
+							// Microsoft Edge binaries are different
+							continueSearchingVersion = false;
+						} else {
+							// Filter by architecture and OS
+							candidateUrls = filter(candidateUrls, arch);
+
+							// Find out if driver version has been found or not
+							continueSearchingVersion = candidateUrls.isEmpty()
+									&& getLatest;
+							if (continueSearchingVersion) {
+								log.debug("No valid binary found for {} {}",
+										getDriverName(), versionToDownload);
+								urls = removeFromList(urls, versionToDownload);
+								versionToDownload = null;
+							}
+						}
+
+					} while (continueSearchingVersion);
+
+					if (candidateUrls.isEmpty()) {
+						String versionStr = getLatest ? "(latest version)"
+								: version;
+						String errMessage = getDriverName() + " " + versionStr
+								+ " for " + MY_OS_NAME + arch.toString()
+								+ " not found in " + getDriverUrl();
+						log.error(errMessage);
+						throw new RuntimeException(errMessage);
+					}
+
+					for (URL url : candidateUrls) {
+						String export = candidateUrls.contains(url)
+								? getExportParameter() : null;
+						System.setProperty(VERSION_PROPERTY, versionToDownload);
+						Downloader.download(url, versionToDownload, export,
+								getDriverName());
+					}
+				}
+			}
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}

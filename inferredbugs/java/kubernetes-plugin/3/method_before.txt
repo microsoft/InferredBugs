@@ -1,0 +1,48 @@
+    private Pod getPodTemplate(KubernetesSlave slave, Label label) {
+        final PodTemplate template = getTemplate(label);
+        String id = getIdForLabel(label);
+        Pod pod = new Pod();
+
+        KubernetesHelper.setName(pod, slave.getNodeName());
+
+        pod.getMetadata().setLabels(getLabelsFor(id));
+
+        Container manifestContainer = new Container();
+
+        manifestContainer.setName(CONTAINER_NAME);
+        manifestContainer.setImage(template.getImage());
+        if (template.isPrivileged())
+            manifestContainer.setSecurityContext(new SecurityContext(null, true, null, null));
+
+        List<EnvVar> env = new ArrayList<EnvVar>(3);
+        // always add some env vars
+        env.add(new EnvVar("JENKINS_SECRET", slave.getComputer().getJnlpMac(), null));
+        env.add(new EnvVar("JENKINS_LOCATION_URL", JenkinsLocationConfiguration.get().getUrl(), null));
+        String url = StringUtils.isBlank(jenkinsUrl) ? JenkinsLocationConfiguration.get().getUrl() : jenkinsUrl;
+        env.add(new EnvVar("JENKINS_URL", url, null));
+        if (!StringUtils.isBlank(jenkinsTunnel)) {
+            env.add(new EnvVar("JENKINS_TUNNEL", jenkinsTunnel, null));
+        }
+        url = url.endsWith("/") ? url : url + "/";
+        env.add(new EnvVar("JENKINS_JNLP_URL", url + slave.getComputer().getUrl() + "slave-agent.jnlp", null));
+        manifestContainer.setEnv(env);
+
+        // command: SECRET SLAVE_NAME
+        List<String> cmd = parseDockerCommand(template.getCommand());
+        List<String> args = parseDockerCommand(template.getArgs());
+        args = args == null ? new ArrayList<String>(2) : args;
+        args.add(slave.getComputer().getJnlpMac()); // secret
+        args.add(slave.getComputer().getName()); // name
+        manifestContainer.setCommand(cmd);
+        manifestContainer.setArgs(args);
+
+        List<Container> containers = new ArrayList<Container>();
+        containers.add(manifestContainer);
+
+        PodSpec podSpec = new PodSpec();
+        pod.setSpec(podSpec);
+        podSpec.setContainers(containers);
+        podSpec.setRestartPolicy("Never");
+
+        return pod;
+    }

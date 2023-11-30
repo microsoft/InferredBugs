@@ -1,0 +1,28 @@
+    public boolean processing(long height) {
+        if (chainList.isEmpty()) {
+            return false;
+        }
+        this.checkIt();
+        if (null == approvingChain) {
+            return false;
+        }
+        Set<HeaderDigest> removeHashSet = new HashSet<>();
+        for (int i = chainList.size() - 1; i >= 0; i--) {
+            BlockHeaderChain chain = chainList.get(i);
+            if (chain.size() < (approvingChain.size() - 6)) {
+                removeHashSet.addAll(chain.getHeaderDigestList());
+                this.chainList.remove(chain);
+            }
+        }
+
+        for (HeaderDigest hd : removeHashSet) {
+            if (!approvingChain.contains(hd)) {
+                confirmingBlockCacheManager.removeBlock(hd.getHash());
+            }
+        }
+
+        if (approvingChain.getLastHd() != null && approvingChain.getLastHd().getHeight() >= (height + PocConsensusConstant.CONFIRM_BLOCK_COUNT)) {
+            return true;
+        }
+        return false;
+    }

@@ -1,0 +1,11 @@
+  @Test
+  public void testSyncRefresh() throws IOException {
+    Mockito.when(mockCredentials.refreshAccessToken()).thenReturn(
+        new AccessToken("", new Date(HeaderCacheElement.TOKEN_STALENESS_MS + 1)));
+    underTest = new RefreshingOAuth2CredentialsInterceptor(executorService, mockCredentials);
+    Assert.assertEquals(CacheState.Expired, underTest.getCacheState());
+    underTest.getHeaderSafe();
+    Assert.assertNotEquals(CacheState.Exception, underTest.getCacheState());
+    Assert.assertEquals(CacheState.Good, underTest.getCacheState());
+    Assert.assertFalse(underTest.isRefreshing());
+  }

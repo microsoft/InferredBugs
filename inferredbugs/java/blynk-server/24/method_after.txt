@@ -1,0 +1,16 @@
+    @GET
+    @Path("{token}/isAppConnected")
+    @Metric(HTTP_IS_APP_CONNECTED)
+    public Response isAppConnected(@PathParam("token") String token) {
+        TokenValue tokenValue = tokenManager.getTokenValueByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return Response.badRequest("Invalid token.");
+        }
+
+        User user = tokenValue.user;
+        Session session = sessionDao.userSession.get(new UserKey(user));
+
+        return ok(tokenValue.dash.isActive && session.isAppConnected());
+    }

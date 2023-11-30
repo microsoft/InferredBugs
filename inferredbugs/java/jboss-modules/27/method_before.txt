@@ -1,0 +1,24 @@
+    void link(final Linkage linkage) throws ModuleLoadException {
+        final HashMap<String, List<LocalLoader>> importsMap = new HashMap<String, List<LocalLoader>>();
+        final HashMap<String, List<LocalLoader>> exportsMap = new HashMap<String, List<LocalLoader>>();
+        final Dependency[] dependencies = linkage.getSourceList();
+        final long start = Metrics.getCurrentCPUTime();
+        long subtractTime = 0L;
+        try {
+            final Set<Visited> visited = new FastCopyHashSet<Visited>(16);
+            final FastCopyHashSet<PathFilter> filterStack = new FastCopyHashSet<PathFilter>(8);
+            final FastCopyHashSet<ClassFilter> classFilterStack = EMPTY_CLASS_FILTERS;
+            final FastCopyHashSet<PathFilter> resourceFilterStack = EMPTY_PATH_FILTERS;
+            subtractTime += addPaths(dependencies, importsMap, filterStack, classFilterStack, resourceFilterStack, visited);
+            subtractTime += addExportedPaths(dependencies, exportsMap, filterStack, classFilterStack, resourceFilterStack, visited);
+            synchronized (this) {
+                if (this.linkage == linkage) {
+                    this.linkage = new Linkage(linkage.getSourceList(), Linkage.State.LINKED, importsMap, exportsMap);
+                    notifyAll();
+                }
+                // else all our efforts were just wasted since someone changed the deps in the meantime
+            }
+        } finally {
+            moduleLoader.addLinkTime(Metrics.getCurrentCPUTime() - start - subtractTime);
+        }
+    }

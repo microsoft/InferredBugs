@@ -1,0 +1,51 @@
+    protected synchronized void messageConsumed(Message message) {
+        if (logger.isDebugEnabled())
+            logger.debug("Message has been successfully consumed by the client app for message: " + message
+                         + ", topic: " + origSubData.topic.toStringUtf8() + ", subscriberId: "
+                         + origSubData.subscriberId.toStringUtf8());
+        // Update the consumed messages buffer variables
+        if (responseHandler.getConfiguration().isAutoSendConsumeMessageEnabled()) {
+            // Update these variables only if we are auto-sending consume
+            // messages to the server. Otherwise the onus is on the client app
+            // to call the Subscriber consume API to let the server know which
+            // messages it has successfully consumed.
+            numConsumedMessagesInBuffer++;
+            lastMessageSeqId = message.getMsgId();
+        }
+        // Remove this consumed message from the outstanding Message Set.
+        outstandingMsgSet.remove(message);
+
+        // For consume response to server, there is a config param on how many
+        // messages to consume and buffer up before sending the consume request.
+        // We just need to keep a count of the number of messages consumed
+        // and the largest/latest msg ID seen so far in this batch. Messages
+        // should be delivered in order and without gaps. Do this only if
+        // auto-sending of consume messages is enabled.
+        if (responseHandler.getConfiguration().isAutoSendConsumeMessageEnabled()
+                && numConsumedMessagesInBuffer >= responseHandler.getConfiguration().getConsumedMessagesBufferSize()) {
+            // Send the consume request and reset the consumed messages buffer
+            // variables. We will use the same Channel created from the
+            // subscribe request for the TopicSubscriber.
+            if (logger.isDebugEnabled())
+                logger
+                .debug("Consumed message buffer limit reached so send the Consume Request to the server with lastMessageSeqId: "
+                       + lastMessageSeqId);
+            responseHandler.getSubscriber().doConsume(origSubData, subscribeChannel, lastMessageSeqId);
+            numConsumedMessagesInBuffer = 0;
+            lastMessageSeqId = null;
+        }
+
+        // Check if we throttled message consumption previously when the
+        // outstanding message limit was reached. For now, only turn the
+        // delivery back on if there are no more outstanding messages to
+        // consume. We could make this a configurable parameter if needed.
+        if (!subscribeChannel.isReadable() && outstandingMsgSet.isEmpty()) {
+            if (logger.isDebugEnabled())
+                logger
+                .debug("Message consumption has caught up so okay to turn off throttling of messages on the subscribe channel for topic: "
+                       + origSubData.topic.toStringUtf8()
+                       + ", subscriberId: "
+                       + origSubData.subscriberId.toStringUtf8());
+            subscribeChannel.setReadable(true);
+        }
+    }

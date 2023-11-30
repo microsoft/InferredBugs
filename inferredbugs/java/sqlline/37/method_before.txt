@@ -1,0 +1,28 @@
+  @Test
+  public void testConnectWithDbPropertyAsParameter2() {
+    SqlLine beeLine = new SqlLine();
+    try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+      SqlLine.Status status =
+          begin(beeLine, os, false, "-e", "!set maxwidth 80");
+      assertThat(status, equalTo(SqlLine.Status.OK));
+      DispatchCallback dc = new DispatchCallback();
+      beeLine.runCommands(dc, "!set maxwidth 80");
+      String fakeNonEmptyPassword = "nonEmptyPasswd";
+      final byte[] bytes =
+          fakeNonEmptyPassword.getBytes(StandardCharsets.UTF_8);
+      beeLine.runCommands(dc, "!connect "
+            + " -p PASSWORD_HASH TRUE -p ALLOW_LITERALS NONE "
+            + ConnectionSpec.H2.url + " "
+            + ConnectionSpec.H2.username + " "
+            + StringUtils.convertBytesToHex(bytes));
+      beeLine.runCommands(dc, "select 1;");
+      String output = os.toString("UTF8");
+      final String expected = "Error:";
+      assertThat(output, containsString(expected));
+      beeLine.runCommands(new DispatchCallback(), "!quit");
+      assertTrue(beeLine.isExit());
+    } catch (Throwable t) {
+      // fail
+      throw new RuntimeException(t);
+    }
+  }

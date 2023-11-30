@@ -1,0 +1,92 @@
+    @Test
+    public void testIndexRebuildTask() throws Throwable {
+        String baseTable = generateUniqueName();
+        String viewName = generateUniqueName();
+        Connection conn = null;
+        Connection tenantConn = null;
+        try {
+            conn = DriverManager.getConnection(getUrl());
+            conn.setAutoCommit(false);
+            Properties props = PropertiesUtil.deepCopy(TEST_PROPERTIES);
+            props.setProperty(PhoenixRuntime.TENANT_ID_ATTRIB, TENANT1);
+
+            tenantConn =DriverManager.getConnection(getUrl(), props);
+            String ddlFormat =
+                    "CREATE TABLE IF NOT EXISTS " + baseTable + "  ("
+                            + " %s PK2 VARCHAR NOT NULL, V1 VARCHAR, V2 VARCHAR "
+                            + " CONSTRAINT NAME_PK PRIMARY KEY (%s PK2)" + " ) %s";
+            conn.createStatement().execute(generateDDL(ddlFormat));
+            conn.commit();
+            // Create a view
+            String viewDDL = "CREATE VIEW " + viewName + " AS SELECT * FROM " + baseTable;
+            tenantConn.createStatement().execute(viewDDL);
+
+            // Create index
+            String indexName = generateUniqueName();
+            String idxSDDL = String.format("CREATE INDEX %s ON %s (V1)", indexName, viewName);
+
+            tenantConn.createStatement().execute(idxSDDL);
+
+            // Insert rows
+            int numOfValues = 1000;
+            for (int i=0; i < numOfValues; i++){
+                tenantConn.createStatement().execute(
+                        String.format("UPSERT INTO %s VALUES('%s', '%s', '%s')", viewName, String.valueOf(i), "y",
+                                "z"));
+            }
+            tenantConn.commit();
+
+            waitForIndexRebuild(conn, indexName, PIndexState.ACTIVE);
+            String viewIndexTableName = MetaDataUtil.getViewIndexPhysicalName(baseTable);
+            ConnectionQueryServices queryServices = conn.unwrap(PhoenixConnection.class).getQueryServices();
+
+            Table indexHTable = queryServices.getTable(Bytes.toBytes(viewIndexTableName));
+            int count = getUtility().countRows(indexHTable);
+            assertEquals(numOfValues, count);
+
+            // Alter to Unusable makes the index status inactive.
+            // If I Alter to DISABLE, it fails to in Index tool while setting state to active due to Invalid transition.
+            tenantConn.createStatement().execute(
+                    String.format("ALTER INDEX %s ON %s UNUSABLE", indexName, viewName));
+            tenantConn.commit();
+
+            // Remove index contents and try again
+            Admin admin = queryServices.getAdmin();
+            TableName tableName = TableName.valueOf(viewIndexTableName);
+            admin.disableTable(tableName);
+            admin.truncateTable(tableName, false);
+
+            count = getUtility().countRows(indexHTable);
+            assertEquals(0, count);
+
+            String data = "{IndexName:" + indexName + ", DisableBefore: true}";
+
+            // Run IndexRebuildTask
+            TaskRegionObserver.SelfHealingTask task =
+                    new TaskRegionObserver.SelfHealingTask(
+                            TaskRegionEnvironment, QueryServicesOptions.DEFAULT_TASK_HANDLING_MAX_INTERVAL_MS);
+
+            Timestamp startTs = new Timestamp(EnvironmentEdgeManager.currentTimeMillis());
+            Task.addTask(conn.unwrap(PhoenixConnection.class), PTable.TaskType.INDEX_REBUILD,
+                    TENANT1, null, viewName,
+                    PTable.TaskStatus.CREATED.toString(), data, null, startTs, null, true);
+            task.run();
+
+            // Check task status and other column values.
+            waitForTaskState(conn, PTable.TaskType.INDEX_REBUILD, viewName, PTable.TaskStatus.COMPLETED);
+
+            // See that index is rebuilt and confirm index has rows
+            count = getUtility().countRows(indexHTable);
+            assertEquals(numOfValues, count);
+        } finally {
+            if (conn != null) {
+                conn.createStatement().execute("DELETE " + " FROM " + PhoenixDatabaseMetaData.SYSTEM_TASK_NAME
+                        + " WHERE TABLE_NAME ='" + viewName  + "'");
+                conn.commit();
+                conn.close();
+            }
+            if (tenantConn != null) {
+                tenantConn.close();
+            }
+        }
+    }

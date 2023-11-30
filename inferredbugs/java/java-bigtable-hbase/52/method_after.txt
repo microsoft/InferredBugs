@@ -1,0 +1,12 @@
+  protected void run() {
+    try (Scope scope = TRACER.withSpan(operationSpan)) {
+      rpcTimerContext = rpc.getRpcMetrics().timeRpc();
+      operationSpan.addAnnotation(Annotation.fromDescriptionAndAttributes("rpcStart",
+        ImmutableMap.of("attempt", AttributeValue.longAttributeValue(failedCount))));
+      Metadata metadata = new Metadata();
+      metadata.merge(originalMetadata);
+      callWrapper.setCallAndStart(rpc, getRpcCallOptions(), getRetryRequest(), this, metadata);
+    } catch (Exception e) {
+      setException(e);
+    }
+  }

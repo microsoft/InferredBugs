@@ -1,0 +1,32 @@
+    @Override
+    public boolean tryAdvance(Consumer<? super E> action) {
+        Objects.requireNonNull(action);
+        LinkedBlockingDeque<E> q = queue;
+        ReentrantLock lock = queueLock;
+        if (!exhausted) {
+            E e = null;
+            lock.lock();
+            try {
+                if (current == null) {
+                    current = getQueueFirst(q);
+                }
+                while (current != null) {
+                    e = getNodeItem(current);
+                    current = getNextNode(current);
+                    if (e != null) {
+                        break;
+                    }
+                }
+            } finally {
+                lock.unlock();
+            }
+            if (current == null) {
+                exhausted = true;
+            }
+            if (e != null) {
+                action.accept(e);
+                return true;
+            }
+        }
+        return false;
+    }

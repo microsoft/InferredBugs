@@ -1,0 +1,58 @@
+    private void populatePartitionMaps() {
+        driveToPartitionMap.clear();
+        partitionToLogicalDriveMap.clear();
+        partitionMap.clear();
+        // For Regexp matching DeviceIDs
+        Matcher mAnt;
+        Matcher mDep;
+
+        // Map drives to partitions
+        Map<String, List<Object>> partitionQueryMap = WmiUtil.selectObjectsFrom(null, "Win32_DiskDriveToDiskPartition",
+                DISK_TO_PARTITION_STRINGS, null, DISK_TO_PARTITION_TYPES);
+        for (int i = 0; i < partitionQueryMap.get(WmiProperty.ANTECEDENT.name()).size(); i++) {
+            mAnt = DEVICE_ID.matcher((String) partitionQueryMap.get(WmiProperty.ANTECEDENT.name()).get(i));
+            mDep = DEVICE_ID.matcher((String) partitionQueryMap.get(WmiProperty.DEPENDENT.name()).get(i));
+            if (mAnt.matches() && mDep.matches()) {
+                MapUtil.createNewListIfAbsent(driveToPartitionMap, mAnt.group(1).replaceAll("\\\\\\\\", "\\\\"))
+                        .add(mDep.group(1));
+            }
+        }
+
+        // Map partitions to logical disks
+        partitionQueryMap = WmiUtil.selectObjectsFrom(null, "Win32_LogicalDiskToPartition",
+                DISK_TO_PARTITION_STRINGS, null, DISK_TO_PARTITION_TYPES);
+        for (int i = 0; i < partitionQueryMap.get(WmiProperty.ANTECEDENT.name()).size(); i++) {
+            mAnt = DEVICE_ID.matcher((String) partitionQueryMap.get(WmiProperty.ANTECEDENT.name()).get(i));
+            mDep = DEVICE_ID.matcher((String) partitionQueryMap.get(WmiProperty.DEPENDENT.name()).get(i));
+            if (mAnt.matches() && mDep.matches()) {
+                partitionToLogicalDriveMap.put(mAnt.group(1), mDep.group(1) + "\\");
+            }
+        }
+
+        // Next, get all partitions and create objects
+        final Map<String, List<Object>> hwPartitionQueryMap = WmiUtil.selectObjectsFrom(null, "Win32_DiskPartition",
+                PARTITION_STRINGS, null, PARTITION_TYPES);
+        for (int i = 0; i < hwPartitionQueryMap.get(WmiProperty.NAME.name()).size(); i++) {
+            String deviceID = (String) hwPartitionQueryMap.get(WmiProperty.DEVICEID.name()).get(i);
+            String logicalDrive = MapUtil.getOrDefault(partitionToLogicalDriveMap, deviceID, "");
+            String uuid = "";
+            if (!logicalDrive.isEmpty()) {
+                // Get matching volume for UUID
+                char[] volumeChr = new char[BUFSIZE];
+                Kernel32.INSTANCE.GetVolumeNameForVolumeMountPoint(logicalDrive, volumeChr, BUFSIZE);
+                uuid = ParseUtil.parseUuidOrDefault(new String(volumeChr).trim(), "");
+            }
+            partitionMap
+                    .put(deviceID,
+                            new HWPartition(
+                                    (String) hwPartitionQueryMap
+                                            .get(WmiProperty.NAME.name()).get(
+                                                    i),
+                                    (String) hwPartitionQueryMap.get(WmiProperty.TYPE.name()).get(i),
+                                    (String) hwPartitionQueryMap.get(WmiProperty.DESCRIPTION.name()).get(i), uuid,
+                                    (Long) hwPartitionQueryMap.get(WmiProperty.SIZE.name()).get(i),
+                                    ((Long) hwPartitionQueryMap.get(WmiProperty.DISKINDEX.name()).get(i)).intValue(),
+                                    ((Long) hwPartitionQueryMap.get(WmiProperty.INDEX.name()).get(i)).intValue(),
+                                    logicalDrive));
+        }
+    }

@@ -1,0 +1,23 @@
+  @Test
+  public void testRetyableMutateRow() throws InterruptedException {
+    final MutateRowRequest request = MutateRowRequest.getDefaultInstance();
+    final AtomicBoolean done = new AtomicBoolean(false);
+    executor.submit(new Callable<Void>(){
+      @Override
+      public Void call() throws Exception {
+        underTest.mutateRow(request);
+        done.set(true);
+        synchronized (done) {
+          done.notify();
+        }
+        return null;
+      }
+    });
+    Thread.sleep(100);
+    future.set(MutateRowsResponse.getDefaultInstance());
+    synchronized (done) {
+      done.wait(1000);
+    }
+    assertTrue(done.get());
+    verify(clientCallService, times(1)).listenableAsyncCall(any(ClientCall.class), same(request));
+  }

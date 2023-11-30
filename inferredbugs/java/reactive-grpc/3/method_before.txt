@@ -1,0 +1,41 @@
+    @Test
+    public void bidiBackpressure() throws InterruptedException {
+        Object lock = new Object();
+        BackpressureDetector clientReqBPDetector = new BackpressureDetector(madMultipleCutoff);
+        BackpressureDetector clientRespBPDetector = new BackpressureDetector(madMultipleCutoff);
+
+        RxNumbersGrpc.RxNumbersStub stub = RxNumbersGrpc.newRxStub(channel);
+
+        Flowable<NumberProto.Number> rxRequest = Flowable
+                .fromIterable(new Sequence(180, clientReqBPDetector))
+                .doOnNext(i -> System.out.println(i + " -->"))
+                .map(BackpressureIntegrationTest::protoNum);
+
+        Flowable<NumberProto.Number> rxResponse = stub.twoWayPressure(rxRequest);
+
+        rxResponse.subscribe(
+                n -> {
+                    clientRespBPDetector.tick();
+                    System.out.println("               " + n.getNumber(0) + "  <--");
+                    try { Thread.sleep(50); } catch (InterruptedException e) {}
+                },
+                t -> {
+                    t.printStackTrace();
+                    synchronized (lock) {
+                        lock.notify();
+                    }
+                },
+                () -> {
+                    System.out.println("Client done.");
+                    synchronized (lock) {
+                        lock.notify();
+                    }
+                });
+
+        synchronized (lock) {
+            lock.wait(TimeUnit.SECONDS.toMillis(20));
+        }
+
+        assertThat(clientReqBPDetector.backpressureDelayOcurred()).isTrue();
+        assertThat(serverRespBPDetector.backpressureDelayOcurred()).isTrue();
+    }

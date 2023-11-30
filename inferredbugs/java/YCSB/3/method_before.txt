@@ -1,0 +1,33 @@
+    @Override
+    public int read(String table, String key, Set<String> fields,
+            HashMap<String, ByteIterator> result) {
+        try {
+            MongoCollection<Document> collection = database
+                    .getCollection(table);
+            Document query = new Document("_id", key);
+
+            FindIterable<Document> findIterable = collection
+                                                  .withReadPreference(readPreference)
+                                                  .find(query);
+
+            Document queryResult = null;
+            if (fields != null) {
+                Document projection = new Document();
+                for (String field : fields) {
+                    projection.put(field, INCLUDE);
+                }
+                findIterable.projection(projection);
+            }
+
+            queryResult = findIterable.first();
+
+            if (queryResult != null) {
+                fillMap(result, queryResult);
+            }
+            return queryResult != null ? 0 : 1;
+        }
+        catch (Exception e) {
+            System.err.println(e.toString());
+            return 1;
+        }
+    }

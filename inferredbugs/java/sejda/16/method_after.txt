@@ -1,0 +1,41 @@
+    @Override
+    public void execute(JpegToPdfParameters parameters) throws TaskException {
+        final MutableInt currentStep = new MutableInt(0);
+
+        ImagesToPdfDocumentConverter converter = new ImagesToPdfDocumentConverter() {
+            @Override
+            public void beforeImage(Source<?> source) throws TaskException {
+                executionContext().assertTaskNotCancelled();
+                currentStep.increment();
+            }
+
+            @Override
+            public void afterImage(PDImageXObject image) {
+                notifyEvent(executionContext().notifiableTaskMetadata()).stepsCompleted(currentStep.getValue()).outOf(totalSteps);
+            }
+
+            @Override
+            public void failedImage(Source<?> source, TaskIOException e) throws TaskException{
+                executionContext().assertTaskIsLenient(e);
+                notifyEvent(executionContext().notifiableTaskMetadata()).taskWarning(
+                        String.format("Image %s was skipped, could not be processed", source.getName()), e);
+            }
+        };
+
+        documentHandler = converter.convert(parameters.getSourceList());
+
+        File tmpFile = createTemporaryBuffer(parameters.getOutput());
+        LOG.debug("Created output on temporary buffer {}", tmpFile);
+
+        documentHandler.setVersionOnPDDocument(parameters.getVersion());
+        documentHandler.setCompress(parameters.isCompress());
+        documentHandler.savePDDocument(tmpFile);
+
+        String outName = nameGenerator(parameters.getOutputPrefix()).generate(nameRequest());
+        outputWriter.addOutput(file(tmpFile).name(outName));
+
+        nullSafeCloseQuietly(documentHandler);
+
+        parameters.getOutput().accept(outputWriter);
+        LOG.debug("Input images written to {}", parameters.getOutput());
+    }

@@ -1,0 +1,54 @@
+    @Test
+    public void newTx() throws Exception {
+
+        assertNotNull(service);
+
+        // new a tx
+        Transaction tx = new TestTransaction();
+        CoinData coinData = new CoinData();
+        List<Coin> fromList = new ArrayList<>();
+        fromList.add(new Coin(new byte[20], Na.NA, 0L));
+        coinData.setFrom(fromList);
+        tx.setCoinData(coinData);
+        tx.setTime(1l);
+
+        assertNotNull(tx);
+        assertNotNull(tx.getHash());
+        assertEquals(tx.getHash().getDigestHex(), "00204a54f8b12b75c3c1fe5f261416adaf1a1b906ccf5673bb7a133ede5a0a4c56f8");
+
+        Result result = service.newTx(tx);
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertFalse(result.isFailed());
+
+        //test orphan
+        NulsDataValidator<TestTransaction> testValidator = new NulsDataValidator<TestTransaction>() {
+            @Override
+            public ValidateResult validate(TestTransaction data) {
+                if (data.getHash().getDigestHex().equals("0020e27ee243921bf482d7b62b6ee63c7ab1938953c834318b79fa3204c5c869e26b")) {
+                    return ValidateResult.getFailedResult("test.transaction", TransactionErrorCode.ORPHAN_TX);
+                } else {
+                    return ValidateResult.getSuccessResult();
+                }
+            }
+        };
+        ValidatorManager.addValidator(TestTransaction.class, testValidator);
+
+        tx = new TestTransaction();
+        tx.setTime(2l);
+        assertEquals(tx.getHash().getDigestHex(), "0020e27ee243921bf482d7b62b6ee63c7ab1938953c834318b79fa3204c5c869e26b");
+
+        result = service.newTx(tx);
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertFalse(result.isFailed());
+
+        List<Transaction> list = TxMemoryPool.getInstance().getAll();
+        assertNotNull(list);
+        assertEquals(list.size(), 1);
+
+        List<Transaction> orphanList = TxMemoryPool.getInstance().getAllOrphan();
+        assertNotNull(orphanList);
+        assertEquals(orphanList.size(), 1);
+
+    }

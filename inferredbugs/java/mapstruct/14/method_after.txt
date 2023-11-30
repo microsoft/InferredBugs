@@ -1,0 +1,63 @@
+    private MappingMethod getBeanMappingMethod(List<Method> methods, Method method,
+                                               ReportingPolicy unmappedTargetPolicy) {
+        List<PropertyMapping> propertyMappings = new ArrayList<PropertyMapping>();
+        Set<String> mappedTargetProperties = new HashSet<String>();
+
+        Map<String, Mapping> mappings = method.getMappings();
+
+        TypeElement resultTypeElement = elementUtils.getTypeElement( method.getResultType().getCanonicalName() );
+        TypeElement parameterElement = elementUtils.getTypeElement(
+            method.getSingleSourceParameter()
+                .getType()
+                .getCanonicalName()
+        );
+
+        List<ExecutableElement> sourceGetters = Filters.getterMethodsIn(
+            elementUtils.getAllMembers( parameterElement )
+        );
+        List<ExecutableElement> targetSetters = Filters.setterMethodsIn(
+            elementUtils.getAllMembers( resultTypeElement )
+        );
+
+        Set<String> sourceProperties = executables.getPropertyNames(
+            Filters.getterMethodsIn( sourceGetters )
+        );
+        Set<String> targetProperties = executables.getPropertyNames(
+            Filters.setterMethodsIn( targetSetters )
+        );
+
+        reportErrorIfMappedPropertiesDontExist( method, sourceProperties, targetProperties );
+
+        for ( ExecutableElement getterMethod : sourceGetters ) {
+            String sourcePropertyName = executables.getPropertyName( getterMethod );
+            Mapping mapping = mappings.get( sourcePropertyName );
+            String dateFormat = mapping != null ? mapping.getDateFormat() : null;
+
+            for ( ExecutableElement setterMethod : targetSetters ) {
+                String targetPropertyName = executables.getPropertyName( setterMethod );
+
+                if ( targetPropertyName.equals( mapping != null ? mapping.getTargetName() : sourcePropertyName ) ) {
+                    PropertyMapping property = getPropertyMapping(
+                        methods,
+                        method,
+                        getterMethod,
+                        setterMethod,
+                        dateFormat
+                    );
+
+                    propertyMappings.add( property );
+
+                    mappedTargetProperties.add( targetPropertyName );
+                }
+            }
+        }
+
+        reportErrorForUnmappedTargetPropertiesIfRequired(
+            method,
+            unmappedTargetPolicy,
+            targetProperties,
+            mappedTargetProperties
+        );
+
+        return new BeanMappingMethod( method, propertyMappings );
+    }

@@ -1,0 +1,157 @@
+    public Operation parseMethod(String httpMethod, Method method) {
+        int responseCode = 200;
+        Operation operation = new Operation();
+        ApiOperation apiOperation = AnnotationUtils.findAnnotation(method, ApiOperation.class);
+
+        String operationId = getOperationId(method, httpMethod);
+
+        String responseContainer = null;
+
+        Type responseClassType = null;
+        Map<String, Property> defaultResponseHeaders = null;
+
+        if (apiOperation != null) {
+            if (apiOperation.hidden()) {
+                return null;
+            }
+            if (!apiOperation.nickname().isEmpty()) {
+                operationId = apiOperation.nickname();
+            }
+
+            defaultResponseHeaders = parseResponseHeaders(apiOperation.responseHeaders());
+            operation.summary(apiOperation.value()).description(apiOperation.notes());
+
+            Map<String, Object> customExtensions = BaseReaderUtils.parseExtensions(apiOperation.extensions());
+            operation.setVendorExtensions(customExtensions);
+
+            if (!apiOperation.response().equals(Void.class) && !apiOperation.response().equals(void.class)) {
+                responseClassType = apiOperation.response();
+            }
+            if (!apiOperation.responseContainer().isEmpty()) {
+                responseContainer = apiOperation.responseContainer();
+            }
+            List<SecurityRequirement> securities = new ArrayList<>();
+            for (Authorization auth : apiOperation.authorizations()) {
+                if (!auth.value().isEmpty()) {
+                    SecurityRequirement security = new SecurityRequirement();
+                    security.setName(auth.value());
+                    for (AuthorizationScope scope : auth.scopes()) {
+                        if (!scope.scope().isEmpty()) {
+                            security.addScope(scope.scope());
+                        }
+                    }
+                    securities.add(security);
+                }
+            }
+
+            for (SecurityRequirement sec : securities) {
+                operation.security(sec);
+            }
+        }
+        operation.operationId(operationId);
+
+        if (responseClassType == null) {
+            // pick out response from method declaration
+            LOGGER.debug("picking up response class from method " + method);
+            responseClassType = method.getGenericReturnType();
+        }
+        boolean hasApiAnnotation = false;
+        if (responseClassType instanceof Class) {
+            hasApiAnnotation = AnnotationUtils.findAnnotation((Class) responseClassType, Api.class) != null;
+        }
+        if ((responseClassType != null)
+                && !responseClassType.equals(Void.class)
+                && !responseClassType.equals(void.class)
+                && !responseClassType.equals(javax.ws.rs.core.Response.class)
+                && !hasApiAnnotation
+                && !isSubResource(httpMethod, method)) {
+            if (isPrimitive(responseClassType)) {
+                Property property = ModelConverters.getInstance().readAsProperty(responseClassType);
+                if (property != null) {
+                    Property responseProperty = RESPONSE_CONTAINER_CONVERTER.withResponseContainer(responseContainer, property);
+
+                    operation.response(responseCode, new Response()
+                            .description("successful operation")
+                            .schema(responseProperty)
+                            .headers(defaultResponseHeaders));
+                }
+            } else if (!responseClassType.equals(Void.class) && !responseClassType.equals(void.class)) {
+                Map<String, Model> models = readModels(responseClassType);
+                if (models.isEmpty()) {
+                    Property p = ModelConverters.getInstance().readAsProperty(responseClassType);
+                    operation.response(responseCode, new Response()
+                            .description("successful operation")
+                            .schema(p)
+                            .headers(defaultResponseHeaders));
+                }
+                for (String key : models.keySet()) {
+                    Property responseProperty = RESPONSE_CONTAINER_CONVERTER.withResponseContainer(responseContainer, new RefProperty().asDefault(key));
+
+
+                    operation.response(responseCode, new Response()
+                            .description("successful operation")
+                            .schema(responseProperty)
+                            .headers(defaultResponseHeaders));
+                    swagger.model(key, models.get(key));
+                }
+            }
+            Map<String, Model> models = readAllModels(responseClassType);
+            for (Map.Entry<String, Model> entry : models.entrySet()) {
+                swagger.model(entry.getKey(), entry.getValue());
+            }
+        }
+
+        Consumes consumes = AnnotationUtils.findAnnotation(method, Consumes.class);
+        if (consumes != null) {
+            for (String mediaType : consumes.value()) {
+                operation.consumes(mediaType);
+            }
+        }
+
+        Produces produces = AnnotationUtils.findAnnotation(method, Produces.class);
+        if (produces != null) {
+            for (String mediaType : produces.value()) {
+                operation.produces(mediaType);
+            }
+        }
+
+        ApiResponses responseAnnotation = AnnotationUtils.findAnnotation(method, ApiResponses.class);
+        if (responseAnnotation != null) {
+            updateApiResponse(operation, responseAnnotation);
+        }
+
+        if (AnnotationUtils.findAnnotation(method, Deprecated.class) != null) {
+            operation.deprecated(true);
+        }
+
+        // process parameters
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        Type[] genericParameterTypes = method.getGenericParameterTypes();
+        Annotation[][] paramAnnotations = findParamAnnotations(method);
+
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Type type = genericParameterTypes[i];
+            List<Annotation> annotations = Arrays.asList(paramAnnotations[i]);
+            List<Parameter> parameters = getParameters(type, annotations);
+
+            for (Parameter parameter : parameters) {
+                if (hasCommonParameter(parameter)) {
+                    Parameter refParameter = new RefParameter(RefType.PARAMETER.getInternalPrefix() + parameter.getName());
+                    operation.parameter(refParameter);
+                } else {
+                    parameter = replaceArrayModelForOctetStream(operation, parameter);
+                    operation.parameter(parameter);
+                }
+            }
+        }
+        if (operation.getResponses() == null) {
+            operation.defaultResponse(new Response().description("successful operation"));
+        }
+
+        // Process @ApiImplicitParams
+        this.readImplicitParameters(method, operation);
+
+        processOperationDecorator(operation, method);
+
+        return operation;
+    }

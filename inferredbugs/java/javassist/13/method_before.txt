@@ -1,0 +1,40 @@
+    protected CtField fieldAccess(ASTree expr) throws CompileError {
+        if (expr instanceof Member) {
+            String name = ((Member)expr).get();
+            try {
+                return thisClass.getField(name);
+            }
+            catch (NotFoundException e) {
+                // EXPR might be part of a static member access?
+                throw new NoFieldException(name, expr);
+            }
+        }
+        else if (expr instanceof Expr) {
+            Expr e = (Expr)expr;
+            int op = e.getOperator();
+            if (op == MEMBER)
+                return resolver.lookupField(((Symbol)e.oprand1()).get(),
+                                            (Symbol)e.oprand2());
+            else if (op == '.')
+                try {
+                    e.oprand1().accept(this);
+                    if (exprType == CLASS && arrayDim == 0)
+                        return resolver.lookupFieldByJvmName(className,
+                                                    (Symbol)e.oprand2());
+                }
+                catch (NoFieldException nfe) {
+                    if (nfe.getExpr() != e.oprand1())
+                        throw nfe;
+
+                    /* EXPR should be a static field.
+                     * If EXPR might be part of a qualified class name,
+                     * lookupFieldByJvmName2() throws NoFieldException.
+                     */
+                    Symbol fname = (Symbol)e.oprand2();
+                    return resolver.lookupFieldByJvmName2(nfe.getField(),
+                                                          fname, expr);
+                }
+        }
+
+        throw new CompileError("bad filed access");
+    }

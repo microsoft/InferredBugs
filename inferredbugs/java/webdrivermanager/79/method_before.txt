@@ -1,0 +1,53 @@
+    protected List<URL> getCandidateUrls(String driverVersion)
+            throws IOException {
+        List<URL> urls = getDrivers();
+        List<URL> candidateUrls;
+        log.trace("All URLs: {}", urls);
+        boolean getLatest = isUnknown(driverVersion);
+        Architecture arch = config().getArchitecture();
+        boolean continueSearchingVersion;
+
+        do {
+            // Get the latest or concrete version
+            String shortDriverName = getShortDriverName();
+            candidateUrls = getLatest ? checkLatest(urls, shortDriverName)
+                    : getVersion(urls, shortDriverName, driverVersion);
+            log.trace("Candidate URLs: {}", candidateUrls);
+            if (versionToDownload == null) {
+                break;
+            }
+
+            // Filter by OS
+            if (!getDriverName().equalsIgnoreCase("IEDriverServer")
+                    && !getDriverName()
+                            .equalsIgnoreCase("selenium-server-standalone")) {
+                candidateUrls = urlFilter.filterByOs(candidateUrls,
+                        config().getOs());
+            }
+
+            // Filter by architecture
+            candidateUrls = urlFilter.filterByArch(candidateUrls, arch,
+                    forcedArch);
+
+            // Filter by distro
+            candidateUrls = filterByDistro(candidateUrls);
+
+            // Filter by ignored versions
+            candidateUrls = filterByIgnoredVersions(candidateUrls);
+
+            // Filter by beta
+            candidateUrls = urlFilter.filterByBeta(candidateUrls,
+                    config().isUseBetaVersions());
+
+            // Find out if driver version has been found or not
+            continueSearchingVersion = candidateUrls.isEmpty() && getLatest;
+            if (continueSearchingVersion) {
+                log.info(
+                        "No proper driver found for {} {} ... seeking another version",
+                        getDriverName(), versionToDownload);
+                urls = removeFromList(urls, versionToDownload);
+                versionToDownload = null;
+            }
+        } while (continueSearchingVersion);
+        return candidateUrls;
+    }

@@ -1,0 +1,27 @@
+ public void run() {
+		log.info("ProactiveGcTask starting, oldGenOccupancyFraction:" + oldGenOccupancyFraction + ", datetime: "
+				+ new Date());
+		try {
+			oldMemoryPool = getOldMemoryPool();
+			long maxOldBytes = getMemoryPoolMaxOrCommitted(oldMemoryPool);
+			long oldUsedBytes = oldMemoryPool.getUsage().getUsed();
+			log.info(String.format("max old gen: %.2f MB, used old gen: %.2f MB, available old gen: %.2f MB.",
+					SizeUnit.BYTES.toMegaBytes(maxOldBytes), SizeUnit.BYTES.toMegaBytes(oldUsedBytes),
+					SizeUnit.BYTES.toMegaBytes(maxOldBytes - oldUsedBytes)));
+			if (needTriggerGc(maxOldBytes, oldUsedBytes, oldGenOccupancyFraction)) {
+				preGc();
+				doGc();
+				postGc();
+			}
+		} catch (Exception e) {
+			log.error(e.getMessage(), e);
+		} finally {
+			if (!scheduler.isShutdown()) { // reschedule this task
+				try {
+					scheduler.reschedule(this);
+				} catch (Exception e) {
+					log.error(e.getMessage(), e);
+				}
+			}
+		}
+	}

@@ -1,0 +1,87 @@
+    public File parse(File outputDirectory, String[] classPath, Class cls) throws IOException, Exception {
+        Loader.ClassProperties allProperties = Loader.loadProperties(cls, properties, true);
+        Loader.ClassProperties clsProperties = Loader.loadProperties(cls, properties, false);
+        LinkedList<String> clsIncludes = new LinkedList<String>();
+        clsIncludes.addAll(clsProperties.get("platform.include"));
+        clsIncludes.addAll(clsProperties.get("platform.cinclude"));
+        LinkedList<String> allIncludes = new LinkedList<String>();
+        allIncludes.addAll(allProperties.get("platform.include"));
+        allIncludes.addAll(allProperties.get("platform.cinclude"));
+        LinkedList<File> allFiles = findHeaderFiles(allProperties, allIncludes);
+        LinkedList<File> clsFiles = findHeaderFiles(allProperties, clsIncludes);
+        LinkedList<String> allTargets = allProperties.get("target");
+        LinkedList<String> clsTargets = clsProperties.get("target");
+        LinkedList<String> clsHelpers = clsProperties.get("helper");
+        String target = clsTargets.getFirst(); // there can only be one
+        LinkedList<Class> allInherited = allProperties.getInheritedClasses();
+
+        infoMap = new Parser.InfoMap();
+        for (Class c : allInherited) {
+            try {
+                ((InfoMapper)c.newInstance()).map(infoMap);
+            } catch (ClassCastException e) {
+            } catch (InstantiationException e) {
+            } catch (IllegalAccessException e) {
+                // fail silently as if the interface wasn't implemented
+            }
+        }
+        leafInfoMap = new Parser.InfoMap();
+        try {
+            ((InfoMapper)cls.newInstance()).map(leafInfoMap);
+        } catch (ClassCastException e) {
+        } catch (InstantiationException e) {
+        } catch (IllegalAccessException e) {
+            // fail silently as if the interface wasn't implemented
+        }
+        infoMap.putAll(leafInfoMap);
+
+        String version = Generator.class.getPackage().getImplementationVersion();
+        if (version == null) {
+            version = "unknown";
+        }
+        String text = "// Targeted by JavaCPP version " + version + "\n\n";
+        int n = target.lastIndexOf('.');
+        if (n >= 0) {
+            text += "package " + target.substring(0, n) + ";\n\n";
+        }
+        LinkedList<Info> infoList = leafInfoMap.get(null);
+        for (Info info : infoList) {
+            if (info.javaText != null && info.javaText.startsWith("import")) {
+                text += info.javaText + "\n";
+            }
+        }
+        text += "import com.googlecode.javacpp.*;\n" +
+                "import com.googlecode.javacpp.annotation.*;\n" +
+                "import java.nio.*;\n\n";
+        for (String s : allTargets) {
+            if (!target.equals(s)) {
+                text += "import static " + s + ".*;\n";
+            }
+        }
+        if (allTargets.size() > 1) {
+            text += "\n";
+        }
+        text += "public class " + target.substring(n + 1) + " extends "
+             + (clsHelpers.size() > 0 ? clsHelpers.getFirst() : cls.getCanonicalName()) + " {";
+        leafInfoMap.putFirst(new Info().javaText(text));
+
+        String targetPath = target.replace('.', File.separatorChar);
+        File targetFile = new File(outputDirectory, targetPath + ".java");
+        logger.info("Targeting " + targetFile);
+        Context context = new Context();
+        String[] includePath = classPath;
+        n = targetPath.lastIndexOf(File.separatorChar);
+        if (n >= 0) {
+            includePath = classPath.clone();
+            for (int i = 0; i < includePath.length; i++) {
+                includePath[i] += File.separator + targetPath.substring(0, n);
+            }
+        }
+        for (File f : allFiles) {
+            if (!clsFiles.contains(f)) {
+                parse(null, context, includePath, f);
+            }
+        }
+        parse(targetFile, context, includePath, clsFiles.toArray(new File[clsFiles.size()]));
+        return targetFile;
+    }

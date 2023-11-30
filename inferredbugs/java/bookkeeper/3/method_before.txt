@@ -1,0 +1,52 @@
+    @Override
+    public void run() {
+        while (running) {
+            synchronized (this) {
+                try {
+                    wait(gcWaitTime);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    continue;
+                }
+            }
+
+            // Dependency check.
+            if (null == zk) {
+                continue;
+            }
+
+            // Extract all of the ledger ID's that comprise all of the entry logs
+            // (except for the current new one which is still being written to).
+            try {
+                entryLogMetaMap = entryLogger.extractMetaFromEntryLogs(entryLogMetaMap);
+            } catch (IOException ie) {
+                LOG.warn("Exception when extracting entry log meta from entry logs : ", ie);
+            }
+
+            // gc inactive/deleted ledgers
+            doGcLedgers();
+
+            // gc entry logs
+            doGcEntryLogs();
+
+            long curTime = System.currentTimeMillis();
+            if (enableMajorCompaction &&
+                curTime - lastMajorCompactionTime > majorCompactionInterval) {
+                // enter major compaction
+                LOG.info("Enter major compaction");
+                doCompactEntryLogs(majorCompactionThreshold);
+                lastMajorCompactionTime = System.currentTimeMillis();
+                // also move minor compaction time
+                lastMinorCompactionTime = lastMajorCompactionTime;
+                continue;
+            }
+
+            if (enableMinorCompaction &&
+                curTime - lastMinorCompactionTime > minorCompactionInterval) {
+                // enter minor compaction
+                LOG.info("Enter minor compaction");
+                doCompactEntryLogs(minorCompactionThreshold);
+                lastMinorCompactionTime = System.currentTimeMillis();
+            }
+        }
+    }

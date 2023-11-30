@@ -1,0 +1,26 @@
+    @Override
+    public void forEachRemaining(Consumer<? super E> action) {
+        Objects.requireNonNull(action);
+        if (!exhausted) {
+            exhausted = true;
+            ReentrantLock lock = queueLock;
+            Object p = current;
+            current = null;
+            do {
+                E e = null;
+                lock.lock();
+                try {
+                    if (p != null || (p = getQueueFirst(queue)) != null)
+                        do {
+                            e = getNodeItem(p);
+                            p = succ(p);
+                        } while (e == null && p != null);
+                } finally {
+                    // checkInvariants();
+                    lock.unlock();
+                }
+                if (e != null)
+                    action.accept(e);
+            } while (p != null);
+        }
+    }

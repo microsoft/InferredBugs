@@ -1,0 +1,33 @@
+    public void produce( final DataConsumer pReceiver ) throws IOException {
+
+        TarInputStream archiveInputStream = null;
+        try {
+            archiveInputStream = new TarInputStream(getCompressedInputStream(new FileInputStream(archive)));
+
+            while(true) {
+                
+                TarEntry entry = archiveInputStream.getNextEntry();
+
+                if (entry == null) {
+                    break;
+                }
+
+                if (!isIncluded(entry.getName())) {
+                    continue;                   
+                }               
+
+                entry = map(entry);
+                
+                if (entry.isDirectory()) {
+                    pReceiver.onEachDir(entry.getName(), entry.getLinkName(), entry.getUserName(), entry.getUserId(), entry.getGroupName(), entry.getGroupId(), entry.getMode(), entry.getSize());
+                    continue;
+                }
+                pReceiver.onEachFile(archiveInputStream, entry.getName(), entry.getLinkName(), entry.getUserName(), entry.getUserId(), entry.getGroupName(), entry.getGroupId(), entry.getMode(), entry.getSize());                      
+            }
+
+        } finally {
+            if (archiveInputStream != null) {
+                archiveInputStream.close();
+            }
+        }       
+    }

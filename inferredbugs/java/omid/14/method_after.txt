@@ -1,0 +1,136 @@
+    @Override
+    public void run() {
+        // *** Start the Netty configuration ***
+        // Start server with Nb of active threads = 2*NB CPU + 1 as maximum.
+        ChannelFactory factory = new NioServerSocketChannelFactory(
+                Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("boss-%d").build()),
+                Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("worker-%d").build()), (Runtime
+                        .getRuntime().availableProcessors() * 2 + 1) * 2);
+
+        ServerBootstrap bootstrap = new ServerBootstrap(factory);
+        // Create the global ChannelGroup
+        ChannelGroup channelGroup = new DefaultChannelGroup(TSOServer.class.getName());
+        // threads max
+        // int maxThreads = Runtime.getRuntime().availableProcessors() *2 + 1;
+        int maxThreads = 5;
+        // Memory limitation: 1MB by channel, 1GB global, 100 ms of timeout
+        ThreadPoolExecutor pipelineExecutor = new OrderedMemoryAwareThreadPoolExecutor(maxThreads, 1048576, 1073741824,
+                100, TimeUnit.MILLISECONDS, new ObjectSizeEstimator() {
+                    @Override
+                    public int estimateSize(Object o) {
+                        return 1000;
+                    }
+                }, new ThreadFactoryBuilder().setNameFormat("executor-%d").build());
+
+        // TODO use dependency injection
+        if (config.getFsLog() != null) {
+            state = FileSystemTimestampOnlyStateBuilder.getState(config);
+        } else {
+            state = BookKeeperStateBuilder.getState(this.config);
+        }
+
+        if (state == null) {
+            LOG.error("Couldn't build state");
+            return;
+        }
+
+        state.addRecord(new byte[] { LoggerProtocol.LOGSTART }, new AddRecordCallback() {
+            @Override
+            public void addRecordComplete(int rc, Object ctx) {
+            }
+        }, null);
+
+        String metricsConfig = config.getMetrics();
+        if (metricsConfig != null) {
+            MetricsUtils.initMetrics(metricsConfig);
+        }
+
+        LOG.info("PARAM MAX_ITEMS: " + state.maxItems);
+        LOG.info("PARAM BATCH_SIZE: " + state.batchSize);
+        LOG.info("PARAM LOAD_FACTOR: " + TSOState.LOAD_FACTOR);
+        LOG.info("PARAM MAX_THREADS: " + maxThreads);
+
+        final TSOHandler handler = new TSOHandler(channelGroup, state);
+        handler.start();
+
+        bootstrap.setPipelineFactory(new TSOPipelineFactory(pipelineExecutor, handler));
+        bootstrap.setOption("tcpNoDelay", true);
+        // setting buffer size can improve I/O
+        bootstrap.setOption("child.sendBufferSize", 1048576);
+        bootstrap.setOption("child.receiveBufferSize", 1048576);
+        // better to have an receive buffer predictor
+        bootstrap.setOption("receiveBufferSizePredictorFactory", new AdaptiveReceiveBufferSizePredictorFactory());
+        // if the server is sending 1000 messages per sec, optimum write buffer water marks will
+        // prevent unnecessary throttling, Check NioSocketChannelConfig doc
+        bootstrap.setOption("writeBufferLowWaterMark", 32 * 1024);
+        bootstrap.setOption("writeBufferHighWaterMark", 64 * 1024);
+
+        bootstrap.setOption("child.tcpNoDelay", true);
+        bootstrap.setOption("child.keepAlive", true);
+        bootstrap.setOption("child.reuseAddress", true);
+        bootstrap.setOption("child.connectTimeoutMillis", 60000);
+
+        // *** Start the Netty running ***
+
+        // Add the parent channel to the group
+        Channel channel = bootstrap.bind(new InetSocketAddress(config.getPort()));
+        channelGroup.add(channel);
+
+        // Compacter handler
+        ChannelFactory comFactory = new NioServerSocketChannelFactory(
+                Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("compacter-boss-%d").build()),
+                Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("compacter-worker-%d").build()),
+                (Runtime.getRuntime().availableProcessors() * 2 + 1) * 2);
+        ServerBootstrap comBootstrap = new ServerBootstrap(comFactory);
+        ChannelGroup comGroup = new DefaultChannelGroup("compacter");
+        final CompacterHandler comHandler = new CompacterHandler(comGroup, state);
+        comBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
+
+            @Override
+            public ChannelPipeline getPipeline() throws Exception {
+                ChannelPipeline pipeline = Channels.pipeline();
+                pipeline.addLast("decoder", new ObjectDecoder());
+                pipeline.addLast("encoder", new ObjectEncoder());
+                pipeline.addLast("handler", comHandler);
+                return pipeline;
+            }
+        });
+        comBootstrap.setOption("tcpNoDelay", true);
+        comBootstrap.setOption("child.tcpNoDelay", true);
+        comBootstrap.setOption("child.keepAlive", true);
+        comBootstrap.setOption("child.reuseAddress", true);
+        comBootstrap.setOption("child.connectTimeoutMillis", 100);
+        comBootstrap.setOption("readWriteFair", true);
+        channel = comBootstrap.bind(new InetSocketAddress(config.getPort() + 1));
+
+        synchronized (lock) {
+            while (!finish) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }
+
+        // timestampOracle.stop();
+        handler.stop();
+        comHandler.stop();
+        state.stop();
+        state = null;
+
+        // *** Start the Netty shutdown ***
+
+        // Now close all channels
+        LOG.info("End of channel group");
+        channelGroup.close().awaitUninterruptibly();
+        comGroup.close().awaitUninterruptibly();
+        // Close the executor for Pipeline
+        LOG.info("End of pipeline executor");
+        pipelineExecutor.shutdownNow();
+        // Now release resources
+        LOG.info("End of resources");
+        factory.releaseExternalResources();
+        comFactory.releaseExternalResources();
+        comBootstrap.releaseExternalResources();
+    }

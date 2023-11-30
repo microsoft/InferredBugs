@@ -1,0 +1,32 @@
+    @Override
+    public AuthenticationMechanismOutcome authenticate(HttpServerExchange exchange, SecurityContext securityContext) {
+        BearerTokenAuthenticator bearer = createBearerTokenAuthenticator();
+        AuthenticationMechanismOutcome outcome = bearer.authenticate(exchange);
+        if (outcome == AuthenticationMechanismOutcome.NOT_AUTHENTICATED) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, bearer.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+        }
+        else if (outcome == AuthenticationMechanismOutcome.AUTHENTICATED) {
+            completeAuthentication(securityContext, bearer);
+            return AuthenticationMechanismOutcome.AUTHENTICATED;
+        }
+        else if (adapterConfig.isBearerOnly()) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, bearer.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_ATTEMPTED;
+        }
+
+        OAuthAuthenticator oauth = createOAuthAuthenticator(exchange);
+        outcome = oauth.authenticate();
+        if (outcome == AuthenticationMechanismOutcome.NOT_AUTHENTICATED) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, oauth.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+        }
+        else if (outcome == AuthenticationMechanismOutcome.NOT_ATTEMPTED) {
+            exchange.putAttachment(KEYCLOAK_CHALLENGE_ATTACHMENT_KEY, oauth.getChallenge());
+            return AuthenticationMechanismOutcome.NOT_ATTEMPTED;
+
+        }
+        completeAuthentication(securityContext, oauth);
+        log.info("AUTHENTICATED");
+        return AuthenticationMechanismOutcome.AUTHENTICATED;
+    }

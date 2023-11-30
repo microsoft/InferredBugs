@@ -1,0 +1,23 @@
+    @Test
+    void resolveFieldOfEnumAsInternalClassOfInterfaceQualifiedDifferentPackage() throws IOException {
+        File src = new File("src/test/resources/internalClassInInterface");
+        File aClass = new File(src.getPath() + File.separator + "foo" + File.separator + "bar"
+                + File.separator + "differentpackage" + File.separator + "AClass2.java");
+
+        CombinedTypeSolver localCts = new CombinedTypeSolver();
+        localCts.add(new ReflectionTypeSolver());
+        localCts.add(new JavaParserTypeSolver(src));
+
+        ParserConfiguration parserConfiguration = new ParserConfiguration().setSymbolResolver(new JavaSymbolSolver(localCts));
+        JavaParser parser = new JavaParser(parserConfiguration);
+        StreamProvider classProvider = new StreamProvider(new FileInputStream(aClass), StandardCharsets.UTF_8);
+
+        CompilationUnit cu = parser.parse(ParseStart.COMPILATION_UNIT, classProvider).getResult().get();
+
+        Optional<FieldAccessExpr> fae = cu.findFirst(FieldAccessExpr.class, n -> n.toString().equals("foo.bar.AnInterface.ListChangeType.ADDITION") && n.getRange().get().begin.line == 7);
+
+        assertTrue(fae.isPresent());
+
+        assertEquals("foo.bar.AnInterface.ListChangeType", fae.get().resolve().getType().describe());
+        assertEquals("ADDITION", fae.get().resolve().getName());
+    }

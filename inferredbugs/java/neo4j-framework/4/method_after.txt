@@ -1,0 +1,62 @@
+ @Test
+	public void verifyRandomWalkerModuleCorrectlyGeneratesReasonablePageRankMeasurements() throws InterruptedException {
+		// firstly, generate a graph
+		final int numberOfNodes = 50;
+		GraphGenerator graphGenerator = new Neo4jGraphGenerator(database);
+
+		LOG.info("Generating Barabasi-Albert social network graph with {} nodes...", numberOfNodes);
+
+		graphGenerator.generateGraph(new BasicGeneratorConfiguration(numberOfNodes, new BarabasiAlbertGraphRelationshipGenerator(
+				new BarabasiAlbertConfig(numberOfNodes, 2)), SocialNetworkNodeCreator.getInstance(), SocialNetworkRelationshipCreator
+				.getInstance()));
+
+		LOG.info("Computing adjacency matrix for graph...");
+
+		// secondly, compute the adjacency matrix for this graph
+		NetworkMatrixFactory networkMatrixFactory = new NetworkMatrixFactory(database);
+
+		try (Transaction tx = database.beginTx()) {
+			LOG.info("Computing page rank based on adjacency matrix...");
+
+			// thirdly, compute the page rank of this graph based on the adjacency matrix
+			PageRank pageRank = new PageRank();
+
+            NetworkMatrix transitionMatrix = networkMatrixFactory.getTransitionMatrix();
+			List<RankNodePair> pageRankResult = pageRank.getPageRankPairs(transitionMatrix, 0.85); // Sergei's & Larry's suggestion is to use .85 to become rich;)
+
+            //LOG.info(pageRankResult.toString());
+			LOG.info("Applying random graph walker module to page rank graph");
+
+			// fourthly, run the rage rank module to compute the random walker's page rank
+			GraphAwareRuntime runtime = GraphAwareRuntimeFactory.createRuntime(database);
+			runtime.registerModule(pageRankModule);
+			runtime.start();
+
+			LOG.info("Waiting for module walker to do its work");
+			TimeUnit.SECONDS.sleep(30);
+
+			// finally, compare both page rank metrics and verify the module is producing what it should
+//			List<Node> indexMap = networkMatrixFactory.getIndexMap();
+
+            LOG.info("The highest PageRank in the network is: " + pageRankResult.get(0).node().getProperty("name").toString());
+            //LOG.info("Top of the rank map is: {}", indexMap.get(0).getProperty("name"));
+
+            ArrayList<RankNodePair> neoRank = new ArrayList<>();
+			for (RankNodePair pair : pageRankResult) {
+                Node node = pair.node();
+                int rank = (int) pair.node().getProperty(RandomWalkerPageRankModule.PAGE_RANK_PROPERTY_KEY);
+
+                //System.out.printf("%s\t%s\t%s\n", node.getProperty("name"),
+                  //      "NeoRank: " + rank, "PageRank: " + pair.rank());
+
+                neoRank.add(new RankNodePair(rank, node));
+			}
+
+            sort(neoRank, new RankNodePairComparator());
+            LOG.info("The highest NeoRank in the network is: " + neoRank.get(0).node().getProperty("name").toString());
+
+            // Perform an analysis of the results:
+            LOG.info("Analysing results:");
+            analyseResults(RankNodePair.convertToRankedNodeList(pageRankResult), RankNodePair.convertToRankedNodeList(neoRank));
+		}
+	}

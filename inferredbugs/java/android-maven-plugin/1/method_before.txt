@@ -1,0 +1,97 @@
+    public void execute() throws MojoExecutionException, MojoFailureException {
+
+        CommandExecutor executor = CommandExecutor.Factory.createDefaultCommmandExecutor();
+        executor.setLogger(this.getLog());
+
+        if (androidManifestFile == null) {
+            androidManifestFile = new File(resourceDirectory.getParent(), "AndroidManifest.xml");
+        }
+
+        File tmpOutputFile;
+        try {
+            tmpOutputFile = File.createTempFile("android", "apk");
+        } catch (IOException e) {
+            throw new MojoExecutionException("", e);
+        }
+
+        Artifact artifact = artifactFactory.createArtifact("android", "android", androidVersion, "jar", "jar");
+        ArtifactRepositoryLayout defaultLayout = new DefaultRepositoryLayout();
+
+        File androidJar = new File(localRepository, defaultLayout.pathOf(artifact));
+        artifact.setFile(androidJar);
+
+        tmpOutputFile.deleteOnExit();
+        File outputFile = new File(project.getBuild().getDirectory(),  project.getArtifactId() + "-"
+                + project.getVersion() + ".apk");
+
+        List<String> commands = new ArrayList<String>();
+        commands.add("package");
+        commands.add("-f");
+        commands.add("-M");
+        commands.add(androidManifestFile.getAbsolutePath());
+        if (resourceDirectory.exists()) {
+            commands.add("-S");
+            commands.add(resourceDirectory.getAbsolutePath());
+        }
+        commands.add("-I");
+        commands.add(androidJar.getAbsolutePath());
+        commands.add("-F");
+        commands.add(tmpOutputFile.getAbsolutePath());
+        getLog().info("aapt " + commands.toString());
+        try {
+            executor.executeCommand("aapt", commands, project.getBasedir(), false);
+        } catch (ExecutionException e) {
+            throw new MojoExecutionException("", e);
+        }
+
+        File dexClassesFile = new File(project.getBasedir(), "target" + File.separator + project.getArtifactId() + "-"
+                + project.getVersion() + "-classes.dex");
+
+        ZipOutputStream os = null;
+        InputStream is = null;
+
+        try {
+            ZipFile zipFile = new ZipFile(tmpOutputFile);
+            os = new ZipOutputStream(new FileOutputStream(outputFile));
+
+            for (ZipEntry entry : (List<ZipEntry>) Collections.list(zipFile.entries())) {
+                os.putNextEntry(new ZipEntry(entry.getName()));
+                is = zipFile.getInputStream(entry);
+                byte[] buffer = new byte[1024];
+                int i;
+                while ((i = is.read(buffer)) > 0) {
+                    os.write(buffer, 0, i);
+                }
+                is.close();
+            }
+            os.putNextEntry(new ZipEntry("classes.dex"));
+            is = new FileInputStream(dexClassesFile);
+            byte[] buffer = new byte[1024];
+            int i;
+            while ((i = is.read(buffer)) > 0) {
+                os.write(buffer, 0, i);
+            }
+            is.close();
+            os.close();
+        } catch (IOException e) {
+            throw new MojoExecutionException("", e);
+        }
+        finally {
+            if (os != null) {
+                try {
+                    os.close();
+                } catch (IOException e) {
+
+                }
+            }
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+
+        project.getArtifact().setFile(outputFile);
+
+    }

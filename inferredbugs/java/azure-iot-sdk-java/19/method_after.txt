@@ -1,0 +1,37 @@
+    @Test
+    @ConditionalIgnoreRule.ConditionalIgnore(condition = StandardTierOnlyRule.class)
+    public void testQueryTwin() throws IOException, InterruptedException, IotHubException, GeneralSecurityException, URISyntaxException, ModuleClientException
+    {
+        addMultipleDevices(MAX_DEVICES);
+
+        // Add same desired on multiple devices
+        final String queryProperty = PROPERTY_KEY_QUERY + UUID.randomUUID().toString();
+        final String queryPropertyValue = PROPERTY_VALUE_QUERY + UUID.randomUUID().toString();
+
+        setDesiredProperties(queryProperty, queryPropertyValue, MAX_DEVICES);
+
+        // Query multiple devices having same property
+        final String where = "is_defined(properties.desired." + queryProperty + ")";
+        SqlQuery sqlQuery = SqlQuery.createSqlQuery("*", SqlQuery.FromType.DEVICES, where, null);
+        Thread.sleep(MAXIMUM_TIME_FOR_IOTHUB_PROPAGATION_BETWEEN_DEVICE_SERVICE_CLIENTS);
+        Query twinQuery = sCDeviceTwin.queryTwin(sqlQuery.getQuery(), PAGE_SIZE);
+
+        for (int i = 0; i < MAX_DEVICES; i++)
+        {
+            if (sCDeviceTwin.hasNextDeviceTwin(twinQuery))
+            {
+                DeviceTwinDevice d = sCDeviceTwin.getNextDeviceTwin(twinQuery);
+                assertNotNull(d.getVersion());
+
+                assertEquals(TwinConnectionState.DISCONNECTED.toString(), d.getConnectionState());
+
+                for (Pair dp : d.getDesiredProperties())
+                {
+                    assertEquals(buildExceptionMessage("Unexpected desired property key, expected " + queryProperty + " but was " + dp.getKey(), internalClient), queryProperty, dp.getKey());
+                    assertEquals(buildExceptionMessage("Unexpected desired property value, expected " + queryPropertyValue + " but was " + dp.getValue(), internalClient), queryPropertyValue, dp.getValue());
+                }
+            }
+        }
+        assertFalse(sCDeviceTwin.hasNextDeviceTwin(twinQuery));
+        removeMultipleDevices(MAX_DEVICES);
+    }

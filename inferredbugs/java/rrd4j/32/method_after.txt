@@ -1,0 +1,29 @@
+    @Test
+    public void testEntriesNeg55To105InRrd() throws IOException, FontFormatException {
+        createGaugeRrd(165);
+        RrdDb rrd = RrdDb.getBuilder().setPath(jrbFileName).build();
+
+        for(int i=0; i<160; i++) {
+            long timestamp = startTime + 1 + (i * 60);
+            Sample sample = rrd.createSample();
+            sample.setAndUpdate(timestamp + ":" + (i -55));
+        }
+        rrd.close();
+        prepareGraph();
+        /**
+         * Prior to JRB-12 fix, this was the behaviour.  Note the lack of a decent negative label
+                expectMinorGridLines(3);
+                expectMajorGridLine("   0");
+                expectMinorGridLines(4);
+                expectMajorGridLine(" 100");
+                expectMinorGridLines(1);
+         */
+        //New behaviour is better; no minor grid lines, which is interesting, but much better representation
+        expectMajorGridLine(" -50");
+        expectMajorGridLine("   0");
+        expectMajorGridLine("  50");
+        expectMajorGridLine(" 100");
+
+        run();
+
+    }

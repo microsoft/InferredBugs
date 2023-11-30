@@ -1,0 +1,55 @@
+    @Override
+    public void onMessage(GetBlockRequest message, Node fromNode) throws NulsException {
+        GetBlockDataParam param = message.getMsgBody();
+        if (param.getSize() > MAX_SIZE) {
+            return;
+        }
+        if (param.getSize() == 1) {
+            Block block = null;
+            Result<Block> result = this.blockService.getBlock(param.getStartHash());
+            if (result.isFailed()) {
+                sendNotFound(param.getStartHash(), fromNode);
+                return;
+            }
+            block = result.getData();
+            sendBlock(block, fromNode);
+            return;
+        }
+        Block chainStartBlock = null;
+        Result<Block> blockResult = this.blockService.getBlock(param.getStartHash());
+        if (blockResult.isFailed()) {
+            sendNotFound(param.getStartHash(), fromNode);
+            return;
+        } else {
+            chainStartBlock = blockResult.getData();
+        }
+        Block chainEndBlock = null;
+        blockResult = this.blockService.getBlock(param.getEndHash());
+        if (blockResult.isFailed()) {
+            sendNotFound(param.getEndHash(), fromNode);
+            return;
+        } else {
+            chainEndBlock = blockResult.getData();
+        }
+        if (chainEndBlock.getHeader().getHeight() < chainStartBlock.getHeader().getHeight()) {
+            return;
+        }
+        long end = param.getStart() + param.getSize() - 1;
+        if (chainStartBlock.getHeader().getHeight() > param.getStart() || chainEndBlock.getHeader().getHeight() < end) {
+            sendNotFound(param.getStartHash(), fromNode);
+            return;
+        }
+
+        Block block = chainEndBlock;
+        while (true) {
+            this.sendBlock(block, fromNode);
+            if (block.getHeader().getHash().equals(chainStartBlock.getHeader().getHash())) {
+                break;
+            }
+            if (block.getHeader().getPreHash().equals(chainStartBlock.getHeader().getHash())) {
+                block = chainStartBlock;
+                continue;
+            }
+            block = blockService.getBlock(block.getHeader().getPreHash()).getData();
+        }
+    }

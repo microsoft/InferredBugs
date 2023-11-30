@@ -1,0 +1,23 @@
+    private void importRelationshipIndexes(File file, String indexName, String indexType) throws IOException {
+    	BatchInserterIndex index;
+    	if (indexType.equals("fulltext")) {
+    		index = lucene.relationshipIndex( indexName, stringMap( "type", "fulltext" ) );
+    	} else {
+    		index = lucene.relationshipIndex( indexName, EXACT_CONFIG );
+    	}
+
+        BufferedReader bf = new BufferedReader(new FileReader(file));
+        
+        final Data data = new Data(bf.readLine(), "\t", 1);
+        Object[] rel = new Object[1];
+        String line;
+        report.reset();
+        while ((line = bf.readLine()) != null) {        
+            final Map<String, Object> properties = map(data.update(line, rel));
+            index.add(id(rel[0]), properties);
+            report.dots();
+        }
+                
+        report.finishImport("Relationships into " + indexName + " Index");
+
+    }

@@ -1,0 +1,35 @@
+    protected FilterWatchListDeletable<Pod, PodList, Boolean, Watch, Watcher<Pod>> withSelector(ClientNonNamespaceOperation<Pod, PodList, DoneablePod, ClientPodResource<Pod, DoneablePod>> pods, LabelSelector selector) {
+        FilterWatchListDeletable<Pod, PodList, Boolean, Watch, Watcher<Pod>> answer = pods;
+        Map<String, String> matchLabels = selector.getMatchLabels();
+        if (matchLabels != null && !matchLabels.isEmpty()) {
+            answer = answer.withLabels(matchLabels);
+        }
+        List<LabelSelectorRequirement> matchExpressions = selector.getMatchExpressions();
+        if (matchExpressions != null) {
+            for (LabelSelectorRequirement expression : matchExpressions) {
+                String key = expression.getKey();
+                List<String> values = expression.getValues();
+                if (Strings.isNullOrBlank(key)) {
+                    log.warn("Ignoring empty key in selector expression %s", expression);
+                    continue;
+                }
+                if (values == null && values.isEmpty()) {
+                    log.warn("Ignoring empty values in selector expression %s", expression);
+                    continue;
+                }
+                String[] valuesArray = values.toArray(new String[values.size()]);
+                String operator = expression.getOperator();
+                switch (operator) {
+                    case "In":
+                        answer = answer.withLabelIn(key, valuesArray);
+                        break;
+                    case "NotIn":
+                        answer = answer.withLabelNotIn(key, valuesArray);
+                        break;
+                    default:
+                        log.warn("Ignoring unknown operator %s in selector expression %s", operator, expression);
+                }
+            }
+        }
+        return answer;
+    }

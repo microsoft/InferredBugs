@@ -1,0 +1,24 @@
+ private void accept() throws IOException, SocketTimeoutException {
+		Socket socket = this.socket.accept();
+
+		try {
+			logger.debug("New incoming connection ...");
+			Handshake hs = this.validateHandshake(socket, null);
+			this.sendHandshake(socket);
+			this.fireNewPeerConnection(socket, hs.getPeerId());
+		} catch (ParseException pe) {
+			logger.info("Invalid handshake from " + this.socketRepr(socket) +
+					": " + pe.getMessage());
+			try { socket.close(); } catch (IOException e) { }
+		} catch (IOException ioe) {
+			logger.info("An error occured while reading an incoming " +
+					"handshake: " + ioe.getMessage());
+			try {
+				if (!socket.isClosed()) {
+					socket.close();
+				}
+			} catch (IOException e) {
+				// Ignore
+			}
+		}
+	}

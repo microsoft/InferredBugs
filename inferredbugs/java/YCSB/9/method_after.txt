@@ -1,0 +1,44 @@
+  public void init() throws DBException {
+    Properties props = getProperties();
+
+    String url = props.getProperty(URL_PROPERTY);
+    String user = props.getProperty(USER_PROPERTY, USER_PROPERTY_DEFAULT);
+    String password = props.getProperty(PASSWORD_PROPERTY, PASSWORD_PROPERTY_DEFAULT);
+    Boolean newdb = Boolean.parseBoolean(props.getProperty(NEWDB_PROPERTY, NEWDB_PROPERTY_DEFAULT));
+
+    if (url == null) {
+      throw new DBException(String.format("Required property \"%s\" missing for OrientDBClient", URL_PROPERTY));
+    }
+
+    try {
+      System.out.println("OrientDB loading database url = " + url);
+
+      OGlobalConfiguration.STORAGE_KEEP_OPEN.setValue(false);
+      db = new ODatabaseDocumentTx(url);
+      if (db.exists()) {
+        db.open(user, password);
+        if (newdb) {
+          System.out.println("OrientDB drop and recreate fresh db");
+          db.drop();
+          db.create();
+        }
+      } else {
+        System.out.println("OrientDB database not found, create fresh db");
+        db.create();
+      }
+
+      System.out.println("OrientDB connection created with " + url);
+
+      dictionary = db.getMetadata().getIndexManager().getDictionary();
+      if (!db.getMetadata().getSchema().existsClass(CLASS))
+        db.getMetadata().getSchema().createClass(CLASS);
+
+      db.declareIntent(new OIntentMassiveInsert());
+
+    } catch (Exception e1) {
+      System.err.println("Could not initialize OrientDB connection pool for Loader: " + e1.toString());
+      e1.printStackTrace();
+      return;
+    }
+
+  }

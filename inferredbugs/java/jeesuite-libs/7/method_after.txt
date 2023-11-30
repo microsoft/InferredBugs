@@ -1,0 +1,56 @@
+ @SuppressWarnings({ "rawtypes", "unchecked" })
+	@Override
+	public Object onInterceptor(Invocation invocation) throws Throwable {
+		
+		final Executor executor = (Executor) invocation.getTarget();
+		final Object[] args = invocation.getArgs();
+		final MappedStatement orignMappedStatement = (MappedStatement)args[0];
+		
+		if(!orignMappedStatement.getSqlCommandType().equals(SqlCommandType.SELECT))return null;
+		if(!pageMappedStatements.keySet().contains(orignMappedStatement.getId()))return null;
+		
+		final RowBounds rowBounds = (RowBounds) args[2];
+		final ResultHandler resultHandler = (ResultHandler) args[3];
+        final Object parameter = args[1];
+        
+        PageParams pageParams = PageExecutor.getPageParams();
+        
+        if(pageParams == null && pageMappedStatements.get(orignMappedStatement.getId())){
+        	if(parameter instanceof Map){
+        		Collection parameterValues = ((Map)parameter).values();
+        		for (Object val : parameterValues) {
+					if(val instanceof PageParams){
+						pageParams = (PageParams) val;
+						break;
+					}
+				}
+        	}else{
+        		pageParams = (PageParams) parameter;
+        	}
+        }
+        
+        if(pageParams == null)return null;
+        
+        BoundSql boundSql = orignMappedStatement.getBoundSql(parameter);
+
+        //查询总数
+        MappedStatement countMappedStatement = getCountMappedStatement(orignMappedStatement);
+        Long total = executeQueryCount(executor, countMappedStatement, parameter, boundSql, rowBounds, resultHandler);
+        
+      //按分页查询
+    	MappedStatement limitMappedStatement = getLimitMappedStatementIfNotCreate(orignMappedStatement);
+    	
+    	boundSql = limitMappedStatement.getBoundSql(parameter);
+    	
+    	boundSql.setAdditionalParameter(PARAMETER_OFFSET, pageParams.getOffset());
+    	boundSql.setAdditionalParameter(PARAMETER_SIZE, pageParams.getPageSize());
+    	
+    	List<?> datas = executor.query(limitMappedStatement, parameter, RowBounds.DEFAULT, resultHandler,null,boundSql);
+    	
+        Page<Object> page = new Page<Object>(pageParams,total,(List<Object>) datas);	
+		
+		List<Page<?>> list = new ArrayList<Page<?>>(1);
+		list.add(page);
+		return list;
+	
+	}

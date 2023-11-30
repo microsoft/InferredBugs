@@ -1,0 +1,36 @@
+    protected void compactEntryLog(long entryLogId) {
+        EntryLogMetadata entryLogMeta = entryLogMetaMap.get(entryLogId);
+        if (null == entryLogMeta) {
+            LOG.warn("Can't get entry log meta when compacting entry log " + entryLogId + ".");
+            return;
+        }
+
+        // Similar with Sync Thread
+        // try to mark compacting flag to make sure it would not be interrupted
+        // by shutdown during compaction. otherwise it will receive
+        // ClosedByInterruptException which may cause index file & entry logger
+        // closed and corrupted.
+        if (!compacting.compareAndSet(false, true)) {
+            // set compacting flag failed, means compacting is true now
+            // indicates another thread wants to interrupt gc thread to exit
+            return;
+        }
+
+        LOG.info("Compacting entry log : " + entryLogId);
+
+        try {
+            CompactionScanner scanner = new CompactionScanner(entryLogMeta);
+            entryLogger.scanEntryLog(entryLogId, scanner);
+            scanner.awaitComplete();
+            // after moving entries to new entry log, remove this old one
+            removeEntryLog(entryLogId);
+        } catch (IOException e) {
+            LOG.info("Premature exception when compacting " + entryLogId, e);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            LOG.warn("Interrupted while compacting", ie);
+        } finally {
+            // clear compacting flag
+            compacting.set(false);
+        }
+    }

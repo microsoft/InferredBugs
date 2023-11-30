@@ -1,0 +1,46 @@
+ public String checkLoginRequest(final HttpServletRequest request, final HttpSession session) {
+		final String encrypted = request.getParameter("encrypted");
+		try {
+			final String loginInfoStr = DecryptionUtil.dncryption(encrypted, ku.getPrivateKey());
+			final LoginInfoPojo info = gson.fromJson(loginInfoStr, LoginInfoPojo.class);
+			if (System.currentTimeMillis() - Long.parseLong(info.getTime()) > TIME_OUT) {
+				return "error";
+			}
+			final String accountId = info.getAccountId();
+			if (!ConfigureReader.instance().foundAccount(accountId)) {
+				return "accountnotfound";
+			}
+			// 如果验证码开启且该账户已被关注，则要求提供验证码
+			if(!ConfigureReader.instance().getVCLevel().equals(VCLevel.Close)) {
+				synchronized (focusAccount) {
+					if (focusAccount.contains(accountId)) {
+						String reqVerCode = request.getParameter("vercode");
+						String trueVerCode = (String) session.getAttribute("VERCODE");
+						session.removeAttribute("VERCODE");// 确保一个验证码只会生效一次，无论对错
+						if (reqVerCode == null || trueVerCode == null || !trueVerCode.equals(reqVerCode.toLowerCase())) {
+							return "needsubmitvercode";
+						}
+					}
+				}
+			}
+			if (ConfigureReader.instance().checkAccountPwd(accountId, info.getAccountPwd())) {
+				session.setAttribute("ACCOUNT", (Object) accountId);
+				// 如果该账户输入正确且是一个被关注的账户，则解除该账户的关注，释放空间
+				if(!ConfigureReader.instance().getVCLevel().equals(VCLevel.Close)) {
+					synchronized (focusAccount) {
+						focusAccount.remove(accountId);
+					}
+				}
+				return "permitlogin";
+			}
+			// 如果账户密码不匹配，则将该账户加入到关注账户集合，避免对方进一步破解
+			synchronized (focusAccount) {
+				if(!ConfigureReader.instance().getVCLevel().equals(VCLevel.Close)) {
+					focusAccount.add(accountId);
+				}
+			}
+			return "accountpwderror";
+		} catch (Exception e) {
+			return "error";
+		}
+	}

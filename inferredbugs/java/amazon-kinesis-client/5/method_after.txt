@@ -1,0 +1,45 @@
+    @Override
+    public Shard getShard(String shardId) {
+        if (this.cachedShardMap == null) {
+            synchronized (this) {
+                if (this.cachedShardMap == null) {
+                    this.getShardList();
+                }
+            }
+        }
+
+        Shard shard = cachedShardMap.get(shardId);
+        if (shard == null) {
+            if (cacheMisses.incrementAndGet() > MAX_CACHE_MISSES_BEFORE_RELOAD || cacheNeedsTimeUpdate()) {
+                synchronized (this) {
+                    shard = cachedShardMap.get(shardId);
+
+                    //
+                    // If after synchronizing we resolve the shard, it means someone else already got it for us.
+                    //
+                    if (shard == null) {
+                        LOG.info("To many shard map cache misses or cache is out of date -- forcing a refresh");
+                        this.getShardList();
+                        shard = verifyAndLogShardAfterCacheUpdate(shardId);
+                        cacheMisses.set(0);
+                    } else {
+                        //
+                        // If someone else got us the shard go ahead and zero cache misses
+                        //
+                        cacheMisses.set(0);
+                    }
+
+                }
+            }
+        }
+
+        if (shard == null) {
+            String message = "Cannot find the shard given the shardId " + shardId + ".  Cache misses: " + cacheMisses;
+            if (cacheMisses.get() % CACHE_MISS_WARNING_MODULUS == 0) {
+                LOG.warn(message);
+            } else {
+                LOG.debug(message);
+            }
+        }
+        return shard;
+    }

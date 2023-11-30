@@ -1,0 +1,43 @@
+    public synchronized PocMeetingRound resetCurrentMeetingRound() {
+        Block currentBlock = NulsContext.getInstance().getBestBlock();
+        BlockRoundData currentRoundData = new BlockRoundData(currentBlock.getHeader().getExtend());
+        PocMeetingRound currentRound = ROUND_MAP.get(currentRoundData.getRoundIndex());
+        boolean needCalcRound = false;
+        do {
+            if (null == currentRound) {
+                needCalcRound = true;
+                break;
+            }
+            if (currentRound.getEndTime() < TimeService.currentTimeMillis()) {
+                needCalcRound = true;
+                break;
+            }
+            boolean thisIsLastBlockOfRound = currentRoundData.getPackingIndexOfRound() == currentRoundData.getConsensusMemberCount();
+            if (currentRound.getIndex() == currentRoundData.getRoundIndex() && !thisIsLastBlockOfRound) {
+                needCalcRound = false;
+                break;
+            }
+            if (currentRound.getIndex() == (currentRoundData.getRoundIndex() + 1) && thisIsLastBlockOfRound) {
+                needCalcRound = false;
+                break;
+            }
+            needCalcRound = true;
+        } while (false);
+        PocMeetingRound resultRound = null;
+        if (needCalcRound) {
+            if (null != ROUND_MAP.get(currentRoundData.getRoundIndex() + 1)) {
+                resultRound = ROUND_MAP.get(currentRoundData.getRoundIndex() + 1);
+            } else {
+                resultRound = calcNextRound(currentBlock, currentRoundData);
+            }
+        }
+
+        if (resultRound.getPreRound() == null) {
+            resultRound.setPreRound(ROUND_MAP.get(currentRoundData.getRoundIndex() + 1));
+        }
+
+        List<Account> accountList = accountService.getAccountList();
+        resultRound.calcLocalPacker(accountList);
+        this.currentRound = resultRound;
+        return resultRound;
+    }

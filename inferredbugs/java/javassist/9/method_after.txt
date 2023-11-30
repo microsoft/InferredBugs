@@ -1,0 +1,35 @@
+    public void atBinExpr(BinExpr expr) throws CompileError {
+        int token = expr.getOperator();
+        int k = CodeGen.lookupBinOp(token);
+        if (k >= 0) {
+            /* arithmetic operators: +, -, *, /, %, |, ^, &, <<, >>, >>>
+             */
+            if (token == '+') {
+                Expr e = atPlusExpr(expr);
+                if (e != null) {
+                    /* String concatenation has been translated into
+                     * an expression using StringBuffer.
+                     */
+                    e = CallExpr.makeCall(Expr.make('.', e,
+                                            new Member("toString")), null);
+                    expr.setOprand1(e);
+                    expr.setOprand2(null);    // <---- look at this!
+                    className = jvmJavaLangString;
+                }
+            }
+            else {
+                ASTree left = expr.oprand1();
+                ASTree right = expr.oprand2();
+                left.accept(this);
+                int type1 = exprType;
+                right.accept(this);
+                if (!isConstant(expr, token, left, right))
+                    computeBinExprType(expr, token, type1);
+            }
+        }
+        else {
+            /* equation: &&, ||, ==, !=, <=, >=, <, >
+            */
+            booleanExpr(expr);
+        }
+    }

@@ -1,0 +1,16 @@
+ protected void registerRuleOverrides(Context context, final Token functionToken) {
+		Iterable<Token> tokens = context.beforeTokens(functionToken);
+		for (Token currentTok : tokens) {
+			if (currentTok.getChannel() == Token.HIDDEN_CHANNEL && currentTok.getType() == CFSCRIPTLexer.ML_COMMENT) {
+				String mlText = currentTok.getText();
+				Pattern pattern = Pattern.compile(".*\\s*@CFLintIgnore\\s+([\\w,_]+)\\s*.*", Pattern.DOTALL);
+				Matcher matcher = pattern.matcher(mlText);
+				if (matcher.matches()) {
+					String ignoreCodes = matcher.group(1);
+					context.ignore(Arrays.asList(ignoreCodes.split(",\\s*")));
+				}
+			} else if (currentTok.getLine() < functionToken.getLine()) {
+				break;
+			}
+		}
+	}

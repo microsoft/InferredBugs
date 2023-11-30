@@ -1,0 +1,48 @@
+    protected void assertSuccessfulAuthentication(String providerId) {
+        this.driver.navigate().to("http://localhost:8081/test-app/");
+
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/auth/realms/realm-with-broker/protocol/openid-connect/login"));
+
+        // choose the identity provider
+        this.loginPage.clickSocial(providerId);
+
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8082/auth/realms/realm-with-saml-identity-provider/protocol/saml"));
+
+        // log in to identity provider
+        this.loginPage.login("saml.user", "password");
+
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/auth/broker/realm-with-broker/" + providerId));
+
+        // update profile
+        this.updateProfilePage.assertCurrent();
+
+        String userEmail = "new@email.com";
+        String userFirstName = "New first";
+        String userLastName = "New last";
+
+        this.updateProfilePage.update(userFirstName, userLastName, userEmail);
+
+        // authenticated and redirected to app
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/test-app/"));
+
+        KeycloakSession samlServerSession = brokerServerRule.startSession();
+        RealmModel brokerRealm = samlServerSession.realms().getRealm("realm-with-broker");
+
+        UserModel federatedUser = samlServerSession.users().getUserByEmail(userEmail, brokerRealm);
+
+        // user created
+        assertNotNull(federatedUser);
+        assertEquals(userFirstName, federatedUser.getFirstName());
+        assertEquals(userLastName, federatedUser.getLastName());
+
+        driver.navigate().to("http://localhost:8081/test-app/logout");
+        driver.navigate().to("http://localhost:8081/test-app/");
+
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/auth/realms/realm-with-broker/protocol/openid-connect/login"));
+
+        // choose the identity provider
+        this.loginPage.clickSocial(providerId);
+
+        // already authenticated in saml idp and redirected to app
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/test-app/"));
+    }

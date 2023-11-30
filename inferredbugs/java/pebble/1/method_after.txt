@@ -1,0 +1,84 @@
+    @Override
+    public Object evaluate(PebbleTemplateImpl self, EvaluationContext context) throws PebbleException {
+        Object object = node.evaluate(self, context);
+
+        Object result = null;
+
+        Object[] argumentValues = null;
+        
+        Member member = object == null ? null : memberCache.get(object.getClass());
+        
+        if (object != null && member == null) {
+
+            /*
+             * If, and only if, no arguments were provided does it make sense to
+             * check maps/arrays/lists
+             */
+            if (args == null) {
+
+                // first we check maps
+                if (object instanceof Map && ((Map<?, ?>) object).containsKey(attributeName)) {
+                    return ((Map<?, ?>) object).get(attributeName);
+                }
+
+                try {
+
+                    // then we check arrays
+                    if (object instanceof Object[]) {
+                        Integer key = Integer.valueOf(attributeName);
+                        Object[] arr = ((Object[]) object);
+                        return arr[key];
+                    }
+
+                    // then lists
+                    if (object instanceof List) {
+                        Integer key = Integer.valueOf(attributeName);
+                        @SuppressWarnings("unchecked")
+                        List<Object> list = (List<Object>) object;
+                        return list.get(key);
+                    }
+                } catch (NumberFormatException ex) {
+                    // do nothing
+                }
+
+            }
+
+            /*
+             * Only one thread at a time should
+             */
+            synchronized (memberLock) {
+
+                if (member == null) {
+                    /*
+                     * turn args into an array of types and an array of values
+                     * in order to use them for our reflection calls
+                     */
+                    argumentValues = getArgumentValues(self, context);
+                    Class<?>[] argumentTypes = new Class<?>[argumentValues.length];
+
+                    for (int i = 0; i < argumentValues.length; i++) {
+                        argumentTypes[i] = argumentValues[i].getClass();
+                    }
+
+                    member = reflect(object, attributeName, argumentTypes);
+                    memberCache.put(object.getClass(), member);
+                }
+            }
+
+        }
+
+        if (object != null && member != null) {
+            if (argumentValues == null) {
+                argumentValues = getArgumentValues(self, context);
+            }
+            result = invokeMember(object, member, argumentValues);
+        } else if (context.isStrictVariables()) {
+            throw new AttributeNotFoundException(
+                    null,
+                    String.format(
+                            "Attribute [%s] of [%s] does not exist or can not be accessed and strict variables is set to true.",
+                            attributeName, object.getClass().getName()));
+        }
+        return result;
+
+    }

@@ -1,0 +1,55 @@
+    private static void enumerateProperties(Map<String, List<Object>> values, EnumWbemClassObject enumerator,
+            String[] properties, ValueType[] propertyTypes) {
+        if (propertyTypes.length > 1 && properties.length != propertyTypes.length) {
+            throw new IllegalArgumentException("Property type array size must be 1 or equal to properties array size.");
+        }
+        // Step 7: -------------------------------------------------
+        // Get the data from the query in step 6 -------------------
+        PointerByReference pclsObj = new PointerByReference();
+        LongByReference uReturn = new LongByReference(0L);
+        while (enumerator.getPointer() != Pointer.NULL) {
+            HRESULT hres = enumerator.Next(new NativeLong(EnumWbemClassObject.WBEM_INFINITE), new NativeLong(1),
+                    pclsObj, uReturn);
+            // Requested 1; if 0 objects returned, we're done
+            if (0L == uReturn.getValue() || COMUtils.FAILED(hres)) {
+                // Enumerator will be released by calling method so no need to
+                // release it here.
+                return;
+            }
+            VARIANT.ByReference vtProp = new VARIANT.ByReference();
+
+            // Get the value of the properties
+            WbemClassObject clsObj = new WbemClassObject(pclsObj.getValue());
+            for (int p = 0; p < properties.length; p++) {
+                String property = properties[p];
+                hres = clsObj.Get(new BSTR(property), new NativeLong(0L), vtProp, null, null);
+
+                ValueType propertyType = propertyTypes.length > 1 ? propertyTypes[p] : propertyTypes[0];
+                switch (propertyType) {
+                // WMI Longs will return as strings
+                case STRING:
+                    values.get(property).add(vtProp.getValue() == null ? "unknown" : vtProp.stringValue());
+                    break;
+                // WMI Uint32s will return as longs
+                case UINT32: // WinDef.LONG TODO improve in JNA 4.3
+                    values.get(property)
+                            .add(vtProp.getValue() == null ? 0L : vtProp._variant.__variant.lVal.longValue());
+                    break;
+                case FLOAT:
+                    values.get(property).add(vtProp.getValue() == null ? 0f : vtProp.floatValue());
+                    break;
+                case DATETIME:
+                    // Read a string in format 20160513072950.782000-420 and
+                    // parse to a long representing ms since eopch
+                    values.get(property).add(ParseUtil.cimDateTimeToMillis(vtProp.stringValue()));
+                    break;
+                default:
+                    // Should never get here! If you get this exception you've
+                    // added something to the enum without adding it here. Tsk.
+                    throw new IllegalArgumentException("Unimplemented enum type: " + propertyType.toString());
+                }
+                OleAuto.INSTANCE.VariantClear(vtProp.getPointer());
+            }
+            clsObj.Release();
+        }
+    }

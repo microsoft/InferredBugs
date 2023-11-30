@@ -1,0 +1,49 @@
+    public void testZipArchiveCreation() throws Exception {
+        // Archive
+        final File output = new File(dir, "bla.zip");
+        final File file1 = getFile("test1.xml");
+        final File file2 = getFile("test2.xml");
+
+        {
+            final OutputStream out = new FileOutputStream(output);
+            final ArchiveOutputStream os = new ArchiveStreamFactory().createArchiveOutputStream("zip", out);
+
+            os.putArchiveEntry(new ZipArchiveEntry("testdata/test1.xml"));
+            IOUtils.copy(new FileInputStream(file1), os);
+            os.closeArchiveEntry();
+
+            os.putArchiveEntry(new ZipArchiveEntry("testdata/test2.xml"));
+            IOUtils.copy(new FileInputStream(file2), os);
+            os.closeArchiveEntry();
+            os.close();
+        }
+
+        // Unarchive the same
+        List results = new ArrayList();
+
+        {
+            final InputStream is = new FileInputStream(output);
+            final ArchiveInputStream in = new ArchiveStreamFactory().createArchiveInputStream("zip", is);
+
+            File result = File.createTempFile("dir-result", "");
+            result.delete();
+            result.mkdir();
+
+            ZipArchiveEntry entry = null;
+            while((entry = (ZipArchiveEntry)in.getNextEntry()) != null) {
+                File outfile = new File(result.getCanonicalPath() + "/result/" + entry.getName());
+                outfile.getParentFile().mkdirs();
+                OutputStream out = new FileOutputStream(outfile);
+                IOUtils.copy(in, out);
+                out.close();
+                results.add(outfile);
+            }
+            in.close();
+        }
+
+        assertEquals(results.size(), 2);
+        File result = (File)results.get(0);
+        assertEquals(file1.length(), result.length());
+        result = (File)results.get(1);
+        assertEquals(file2.length(), result.length());
+    }

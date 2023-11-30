@@ -1,0 +1,75 @@
+    public static void main(String[] args) throws ParseException, IOException, TransformationException, AnalysisException, CloneNotSupportedException {
+        Options options = new Options();
+        options.addOption("under", false, "use undersampling for data selection");
+        options.addOption("over", false, "use oversampling for data selection");
+        options.addOption("normal", false, "don't use any special strategy for data selection");
+
+        CommandLineParser parser = new GnuParser();
+        CommandLine line = parser.parse(options, args);
+
+        if (args.length != 2 ||  !(line.hasOption("under") ^ line.hasOption("over") ^ line.hasOption("normal"))) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp(" [-options] input-directory", options);
+            System.exit(1); 
+        }
+        String inputDirPath = line.getArgs()[0];
+        File inputDirFile = new File(inputDirPath);
+
+        SampleSelector<BxZoneLabel> sampler = null;
+        if (line.hasOption("over")) {
+            sampler = new OversamplingSelector<BxZoneLabel>(1.0);
+        } else if (line.hasOption("under")) {
+            sampler = new UndersamplingSelector<BxZoneLabel>(1.0);
+        } else if (line.hasOption("normal")) {
+            sampler = new NormalSelector<BxZoneLabel>();
+        } else {
+            System.err.println("Sampling pattern is not specified!");
+            System.exit(1);
+        }
+
+        List<TrainingSample<BxZoneLabel>> initialTrainingElements = new ArrayList<TrainingSample<BxZoneLabel>>();
+        List<TrainingSample<BxZoneLabel>> metaTrainingElements = new ArrayList<TrainingSample<BxZoneLabel>>();
+        
+        HierarchicalReadingOrderResolver ror = new HierarchicalReadingOrderResolver();
+        EvaluationUtils.DocumentsIterator iter = new DocumentsIterator(inputDirPath);
+        FeatureVectorBuilder<BxZone, BxPage> vectorBuilder;
+        Integer docIdx = 0;
+        for(BxDocument doc: iter) {
+        	doc = ror.resolve(doc);
+        	System.out.println(docIdx + ": " + doc.getFilename());
+        	String filename = doc.getFilename();
+        	doc = ror.resolve(doc);
+        	doc.setFilename(filename);
+        	////
+        	for (BxZone zone : doc.asZones()) {
+        		if (zone.getLabel() != null) {
+        			if (zone.getLabel().getCategory() != BxZoneLabelCategory.CAT_METADATA) {
+        				zone.setLabel(zone.getLabel().getGeneralLabel());
+        			}
+        		}
+        		else {
+        			zone.setLabel(BxZoneLabel.OTH_UNKNOWN);
+        		}
+        	}
+        	vectorBuilder = SVMMetadataZoneClassifier.getFeatureVectorBuilder();
+        	List<TrainingSample<BxZoneLabel>> newSamples = BxDocsToTrainingSamplesConverter.getZoneTrainingSamples(doc, vectorBuilder, BxZoneLabel.getIdentityMap());
+        	
+        	for(TrainingSample<BxZoneLabel> sample: newSamples) {
+        		if(sample.getLabel().getCategory() == BxZoneLabelCategory.CAT_METADATA) {
+        			metaTrainingElements.add(sample);
+        		}
+        	}
+        	////
+        	vectorBuilder = SVMInitialZoneClassifier.getFeatureVectorBuilder();
+        	newSamples = BxDocsToTrainingSamplesConverter.getZoneTrainingSamples(doc, vectorBuilder, BxZoneLabel.getLabelToGeneralMap());
+        	initialTrainingElements.addAll(newSamples);
+        	////
+        	++docIdx;
+        }
+
+        initialTrainingElements = sampler.pickElements(initialTrainingElements);
+        metaTrainingElements = sampler.pickElements(metaTrainingElements);
+
+        toLibSVM(initialTrainingElements, "initial_" + inputDirFile.getName() + ".dat");
+        toLibSVM(metaTrainingElements, "meta_" + inputDirFile.getName() + ".dat");
+    }

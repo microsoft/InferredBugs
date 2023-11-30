@@ -1,0 +1,39 @@
+    public void inputReady(final NHttpServerConnection conn, final ContentDecoder decoder) {
+        HttpContext context = conn.getContext();
+        HttpRequest request = conn.getHttpRequest();
+
+        ServerConnState connState = (ServerConnState) context.getAttribute(CONN_STATE);
+        ContentInputBuffer buffer = connState.getInbuffer();
+
+        // Update connection state
+        connState.setInputState(ServerConnState.REQUEST_BODY_STREAM);
+        
+        try {
+            buffer.consumeContent(decoder);
+            if (decoder.isCompleted()) {
+                // Request entity has been fully received
+                connState.setInputState(ServerConnState.REQUEST_BODY_DONE);
+
+                // Create a wrapper entity instead of the original one
+                HttpEntityEnclosingRequest entityReq = (HttpEntityEnclosingRequest) request;
+                if (entityReq.getEntity() != null) {
+                    entityReq.setEntity(new ContentBufferEntity(
+                            entityReq.getEntity(), 
+                            connState.getInbuffer()));
+                }
+                conn.suspendInput();
+                processRequest(conn, request);
+            }
+            
+        } catch (IOException ex) {
+            shutdownConnection(conn);
+            if (this.eventListener != null) {
+                this.eventListener.fatalIOException(ex, conn);
+            }
+        } catch (HttpException ex) {
+            shutdownConnection(conn);
+            if (this.eventListener != null) {
+                this.eventListener.fatalProtocolException(ex, conn);
+            }
+        }
+    }

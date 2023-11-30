@@ -1,0 +1,16 @@
+ @Override
+	public byte[] decrypt(byte[] data, KeyType keyType) throws CryptoException {
+		if (KeyType.PrivateKey != keyType) {
+			throw new IllegalArgumentException("Decrypt is only support by private key");
+		}
+		ckeckKey(keyType);
+
+		lock.lock();
+		final SM2Engine engine = getEngine();
+		try {
+			engine.init(false, getCipherParameters(keyType));
+			return engine.processBlock(data, 0, data.length);
+		} finally {
+			lock.unlock();
+		}
+	}

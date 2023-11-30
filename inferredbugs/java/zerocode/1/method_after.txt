@@ -1,0 +1,110 @@
+    @Override
+    public boolean runSteps(FlowSpec scenario, FlowStepStatusNotifier flowStepStatusNotifier) {
+
+        LOGGER.info("\n-------------------------- Scenario:{} -------------------------\n", scenario.getFlowName());
+
+        ScenarioExecutionState scenarioExecutionState = new ScenarioExecutionState();
+
+        for(Step thisStep : scenario.getSteps()){
+            // Another way to get the String
+            // String requestJson = objectMapper.valueToTree(thisStep.getRequest()).toString();
+
+            final String requestJsonAsString = thisStep.getRequest().toString();
+
+            StepExecutionState stepExecutionState = new StepExecutionState();
+            stepExecutionState.addStep(thisStep.getName());
+
+            String resolvedRequestJson = jsonTestProcesor.resolveStringJson(
+                    requestJsonAsString,
+                    scenarioExecutionState.getResolvedScenarioState()
+            );
+            stepExecutionState.addRequest(resolvedRequestJson);
+
+            String executionResult;
+            final String logPrefixRelationshipId = createRelationshipId();
+            try{
+                String serviceName = thisStep.getUrl();
+                String operationName = thisStep.getOperation();
+
+                // Resolve the URL patterns if any
+                serviceName = jsonTestProcesor.resolveStringJson(
+                        serviceName,
+                        scenarioExecutionState.getResolvedScenarioState()
+                );
+
+                //
+                logCorelationshipPrinter.aRequestBuilder()
+                        .relationshipId(logPrefixRelationshipId)
+                        .requestTimeStamp(LocalDateTime.now())
+                        .step(thisStep.getName())
+                        .url(serviceName)
+                        .method(operationName)
+                        .request(SmartUtils.prettyPrintJson(resolvedRequestJson));
+                //
+
+                // REST call execution
+                Boolean isRESTCall = false;
+                if( serviceName != null && serviceName.contains("/")) {
+                    isRESTCall = true;
+                }
+                if(isRESTCall) {
+                    serviceName = getFullyQualifiedRestUrl(serviceName);
+                    executionResult = serviceExecutor.executeRESTService(serviceName, operationName, resolvedRequestJson);
+                }
+                else {
+                    executionResult = serviceExecutor.executeJavaService(serviceName, operationName, resolvedRequestJson);
+                }
+
+                //
+                logCorelationshipPrinter.aResponseBuilder()
+                        .relationshipId(logPrefixRelationshipId)
+                        .responseTimeStamp(LocalDateTime.now())
+                        .response(executionResult);
+                //
+
+                stepExecutionState.addResponse(executionResult);
+                scenarioExecutionState.addStepState(stepExecutionState.getResolvedStep());
+
+                // Handle assertion section
+                String resolvedAssertionJson = jsonTestProcesor.resolveStringJson(
+                        thisStep.getAssertions().toString(),
+                        scenarioExecutionState.getResolvedScenarioState()
+                );
+
+                LOGGER.info("\n---------> Assertion: <----------\n{}", prettyPrintJson(resolvedAssertionJson));
+
+                List<JsonAsserter> asserters = jsonTestProcesor.createAssertersFrom(resolvedAssertionJson);
+                List<AssertionReport> failureResults = jsonTestProcesor.assertAllAndReturnFailed(asserters, executionResult); //<-- write code
+
+                // TODO: During this step: if assertion failed
+                if (!failureResults.isEmpty()) {
+                    return flowStepStatusNotifier.notifyFlowStepAssertionFailed(scenario.getFlowName(), thisStep.getName(), failureResults);
+                }
+
+                // TODO: Otherwise test passed
+                flowStepStatusNotifier.notifyFlowStepExecutionPassed(scenario.getFlowName(), thisStep.getName());
+
+            } catch(Exception ex){
+                logCorelationshipPrinter.aResponseBuilder()
+                        .relationshipId(logPrefixRelationshipId)
+                        .responseTimeStamp(LocalDateTime.now())
+                        .response(ex.getMessage());
+
+                // During this step: if any exception occurred
+                return flowStepStatusNotifier.notifyFlowStepExecutionException(
+                        scenario.getFlowName(),
+                        thisStep.getName(),
+                        new RuntimeException("Smart Step execution failed. Details:" + ex)
+                );
+            }
+            finally {
+                logCorelationshipPrinter.print();
+            }
+        }
+
+        /*
+         *  There were no steps to execute and the framework will display the test status as Green than Red.
+         *  Red symbolises failure, but nothing has failed here.
+         */
+        return true;
+    }

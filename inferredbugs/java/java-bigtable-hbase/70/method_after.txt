@@ -1,0 +1,20 @@
+  @Test
+  public void testGetCallback() throws Exception {
+    when(mockBulkRead.add(any(Query.class))).thenReturn(mockFuture);
+    byte[] key = randomBytes(8);
+    Result response =
+        Result.create(
+            ImmutableList.<Cell>of(
+                new RowCell(
+                    key,
+                    Bytes.toBytes("family"),
+                    Bytes.toBytes(""),
+                    1000L,
+                    Bytes.toBytes("value"))));
+    setFuture(response);
+    final Callback<Result> callback = Mockito.mock(Callback.class);
+    createExecutor().batchCallback(ImmutableList.<Row>of(new Get(key)), new Object[1], callback);
+
+    verify(callback, times(1))
+        .update(same(BatchExecutor.NO_REGION), same(key), argThat(matchesRow(response)));
+  }

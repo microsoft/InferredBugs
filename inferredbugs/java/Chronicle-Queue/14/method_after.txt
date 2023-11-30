@@ -1,0 +1,50 @@
+    @Test
+    public void testPricePublishing2() throws IOException, InterruptedException {
+        final String basePathSource = getIndexedTestPath("-source");
+        final String basePathSink = getIndexedTestPath("-sink");
+
+        final Chronicle source = ChronicleQueueBuilder.indexed(basePathSource)
+            .source()
+            .bindAddress(BASE_PORT + 3)
+            .build();
+        final Chronicle sink = ChronicleQueueBuilder.indexed(basePathSink)
+            .sink()
+            .connectAddress("localhost", BASE_PORT + 3)
+            .build();
+
+        final PriceWriter pw = new PriceWriter(source.createAppender());
+        final AtomicInteger count = new AtomicInteger();
+        final PriceReader reader = new PriceReader(sink.createTailer(), new PriceListener() {
+            @Override
+            public void onPrice(long timeInMicros, String symbol, double bp, int bq, double ap, int aq) {
+                count.incrementAndGet();
+            }
+        });
+
+        pw.onPrice(1, "symbol", 99.9, 1, 100.1, 2);
+        assertEquals(-1, reader.excerpt.index());
+        reader.read();
+        assertEquals(0, reader.excerpt.index());
+
+        long start = System.nanoTime();
+        int prices = 2 * 1000 * 1000;
+        for (int i = 1; i <= prices; i++) {
+            pw.onPrice(i, "symbol", 99.9, i, 100.1, i + 1);
+        }
+
+        long mid = System.nanoTime();
+        while (count.get() < prices) {
+            reader.read();
+        }
+
+        long end = System.nanoTime();
+        System.out.printf("Took an average of %.2f us to write and %.2f us to read using Excerpt%n",
+                (mid - start) / prices / 1e3, (end - mid) / prices / 1e3);
+
+
+        source.close();
+        sink.close();
+
+        assertIndexedClean(basePathSource);
+        assertIndexedClean(basePathSink);
+    }

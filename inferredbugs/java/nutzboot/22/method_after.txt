@@ -1,0 +1,15 @@
+ @IocBean(name = "beetlsqlConnectionSource")
+	public ConnectionSource createConnectionSource(@Inject DataSource dataSource) {
+	    DataSource[] slaves = null;
+        if (Lang.loadClassQuite("org.nutz.boot.starter.jdbc.DataSourceStarter") != null) {
+            DataSource slaveDataSource = DataSourceStarter.getSlaveDataSource(ioc, conf, "jdbc.slave.");
+            if (slaveDataSource != null)
+                slaves = new DataSource[] {slaveDataSource};
+        }
+		if (conf.getBoolean(PROP_TRANS, true)) {
+			// 默认事务管理,就是没有管理
+			return new DefaultConnectionSource(dataSource, slaves);
+		}
+		// 支持 Trans.exec 或者 @Aop(TransAop.READ_COMMITTED)
+		return new NutzConnectionSource(dataSource, slaves);
+	}

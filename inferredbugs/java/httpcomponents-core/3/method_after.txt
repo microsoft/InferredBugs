@@ -1,0 +1,35 @@
+    public void requestReceived(final NHttpServerConnection conn) {
+        HttpContext context = conn.getContext();
+        HttpRequest request = conn.getHttpRequest();
+
+        final ServerConnState connState = (ServerConnState) context.getAttribute(CONN_STATE);
+
+        connState.resetInput();
+        connState.setRequest(request);
+        connState.setInputState(ServerConnState.REQUEST_RECEIVED);
+
+        this.executor.execute(new Runnable() {
+            
+            public void run() {
+                try {
+                    HttpContext context = new HttpExecutionContext(conn.getContext());
+                    context.setAttribute(HttpExecutionContext.HTTP_CONNECTION, conn);
+                    handleRequest(connState, context);
+                    commitResponse(connState, conn);
+                    
+                } catch (IOException ex) {
+                    shutdownConnection(conn);
+                    if (eventListener != null) {
+                        eventListener.fatalIOException(ex);
+                    }
+                } catch (HttpException ex) {
+                    shutdownConnection(conn);
+                    if (eventListener != null) {
+                        eventListener.fatalProtocolException(ex);
+                    }
+                }
+            }
+            
+        });
+
+    }

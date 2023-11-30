@@ -1,0 +1,61 @@
+  @Test
+  public void testBatchBulkGets() throws Exception {
+    final List<Get> gets = new ArrayList<>(10);
+    final List<ApiFuture<Result>> expected = new ArrayList<>(10);
+
+    gets.add(new Get(Bytes.toBytes("key0")));
+    expected.add(ApiFutures.<Result>immediateFuture(null));
+    for (int i = 1; i < 10; i++) {
+      byte[] row_key = randomBytes(8);
+      gets.add(new Get(row_key));
+      ByteString key = ByteStringer.wrap(row_key);
+      ByteString cellValue = ByteString.copyFrom(randomBytes(8));
+      expected.add(
+          ApiFutures.immediateFuture(
+              Result.create(
+                  ImmutableList.<Cell>of(
+                      new RowCell(
+                          key.toByteArray(),
+                          Bytes.toBytes("family"),
+                          Bytes.toBytes(""),
+                          System.nanoTime() / 1000,
+                          cellValue.toByteArray())))));
+    }
+
+    // Test 10 gets, but return only 9 to test the row not found case.
+    when(mockBulkRead.add(any(Query.class)))
+        .then(
+            new Answer<ApiFuture<Result>>() {
+              final AtomicInteger counter = new AtomicInteger();
+
+              @Override
+              public ApiFuture<Result> answer(InvocationOnMock invocation) throws Throwable {
+                return expected.get(counter.getAndIncrement());
+              }
+            });
+    ByteString key = ByteStringer.wrap(randomBytes(8));
+    ByteString cellValue = ByteString.copyFrom(randomBytes(8));
+    Result row =
+        Result.create(
+            ImmutableList.<Cell>of(
+                new RowCell(
+                    key.toByteArray(),
+                    Bytes.toBytes("family"),
+                    Bytes.toBytes(""),
+                    1000L,
+                    cellValue.toByteArray())));
+    when(mockFuture.get()).thenReturn(row);
+
+    Result[] results = createExecutor().batch(gets);
+    verify(mockBulkRead, times(10)).add(any(Query.class));
+    verify(mockBulkRead, times(1)).flush();
+    assertTrue(matchesRow(Result.EMPTY_RESULT).matches(results[0]));
+    for (int i = 1; i < results.length; i++) {
+      assertTrue(
+          "Expected "
+              + Bytes.toString(gets.get(i).getRow())
+              + " but was "
+              + Bytes.toString(results[i].getRow()),
+          Bytes.equals(results[i].getRow(), gets.get(i).getRow()));
+    }
+  }

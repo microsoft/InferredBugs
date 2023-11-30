@@ -1,0 +1,46 @@
+  public void init() throws DBException {
+    // initialize OrientDB driver
+    Properties props = getProperties();
+
+    String url;
+    if (System.getProperty("os.name").toLowerCase().contains("win"))
+      url = props.getProperty("orientdb.url", "plocal:C:/temp/databases/ycsb");
+    else
+      url = props.getProperty("orientdb.url", "plocal:/temp/databases/ycsb");
+
+    String user = props.getProperty("orientdb.user", "admin");
+    String password = props.getProperty("orientdb.password", "admin");
+    Boolean newdb = Boolean.parseBoolean(props.getProperty("orientdb.newdb", "false"));
+
+    try {
+      System.out.println("OrientDB loading database url = " + url);
+
+      OGlobalConfiguration.STORAGE_KEEP_OPEN.setValue(false);
+      db = new ODatabaseDocumentTx(url);
+      if (db.exists()) {
+        db.open(user, password);
+        if (newdb) {
+          System.out.println("OrientDB drop and recreate fresh db");
+          db.drop();
+          db.create();
+        }
+      } else {
+        System.out.println("OrientDB database not found, create fresh db");
+        db.create();
+      }
+
+      System.out.println("OrientDB connection created with " + url);
+
+      dictionary = db.getMetadata().getIndexManager().getDictionary();
+      if (!db.getMetadata().getSchema().existsClass(CLASS))
+        db.getMetadata().getSchema().createClass(CLASS);
+
+      db.declareIntent(new OIntentMassiveInsert());
+
+    } catch (Exception e1) {
+      System.err.println("Could not initialize OrientDB connection pool for Loader: " + e1.toString());
+      e1.printStackTrace();
+      return;
+    }
+
+  }

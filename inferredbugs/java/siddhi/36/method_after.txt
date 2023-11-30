@@ -1,0 +1,63 @@
+    @Override
+    public void process(ComplexEventChunk complexEventChunk) {
+        if (trigger) {
+            ComplexEventChunk<StateEvent> returnEventChunk = new ComplexEventChunk<StateEvent>(true);
+            StateEvent joinStateEvent = new StateEvent(2, 0);
+            StreamEvent nextEvent = (StreamEvent) complexEventChunk.getFirst();
+            complexEventChunk.clear();
+            while (nextEvent != null) {
+
+                StreamEvent streamEvent = nextEvent;
+                nextEvent = streamEvent.getNext();
+                streamEvent.setNext(null);
+                joinLock.lock();
+                try {
+                    ComplexEvent.Type eventType = streamEvent.getType();
+                    if (eventType == ComplexEvent.Type.TIMER) {
+                        continue;
+                    } else if (eventType == ComplexEvent.Type.RESET) {
+                        if (outerJoinProcessor && !leftJoinProcessor) {
+                            returnEventChunk.add(joinEventBuilder(null, streamEvent, eventType));
+                        } else if (outerJoinProcessor && leftJoinProcessor) {
+                            returnEventChunk.add(joinEventBuilder(streamEvent, null, eventType));
+                        }
+                    } else {
+                        joinStateEvent.setEvent(matchingStreamIndex, streamEvent);
+                        StreamEvent foundStreamEvent = findableProcessor.find(joinStateEvent, finder);
+                        joinStateEvent.setEvent(matchingStreamIndex, null);
+                        if (foundStreamEvent == null) {
+                            if (outerJoinProcessor && !leftJoinProcessor) {
+                                returnEventChunk.add(joinEventBuilder(foundStreamEvent, streamEvent, eventType));
+                            } else if (outerJoinProcessor && leftJoinProcessor) {
+                                returnEventChunk.add(joinEventBuilder(streamEvent, foundStreamEvent, eventType));
+                            }
+                        } else {
+                            while (foundStreamEvent != null) {
+                                if (!leftJoinProcessor) {
+                                    returnEventChunk.add(joinEventBuilder(foundStreamEvent, streamEvent, eventType));
+                                } else {
+                                    returnEventChunk.add(joinEventBuilder(streamEvent, foundStreamEvent, eventType));
+                                }
+                                foundStreamEvent = foundStreamEvent.getNext();
+                            }
+                        }
+                    }
+                } finally {
+                    joinLock.unlock();
+                }
+                if (returnEventChunk.getFirst() != null) {
+                    selector.process(returnEventChunk);
+                    returnEventChunk.clear();
+                }
+            }
+        } else {
+            if (preJoinProcessor) {
+                joinLock.lock();
+                try {
+                    nextProcessor.process(complexEventChunk);
+                } finally {
+                    joinLock.unlock();
+                }
+            }
+        }
+    }

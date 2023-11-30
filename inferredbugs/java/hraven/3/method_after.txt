@@ -1,0 +1,32 @@
+  @Test
+  public void testMissingSlotMillis() throws IOException {
+    final String JOB_HISTORY_FILE_NAME =
+        "src/test/resources/job_1329348432999_0003-1329348443227-user-Sleep+job-1329348468601-10-1-SUCCEEDED-default.jhist";
+
+    File jobHistoryfile = new File(JOB_HISTORY_FILE_NAME);
+    byte[] contents = Files.toByteArray(jobHistoryfile);
+    final String JOB_CONF_FILE_NAME =
+        "src/test/resources/job_1329348432655_0001_conf.xml";
+    Configuration jobConf = new Configuration();
+    jobConf.addResource(new Path(JOB_CONF_FILE_NAME));
+
+    JobHistoryFileParserHadoop2 historyFileParser =
+        new JobHistoryFileParserHadoop2(jobConf);
+    assertNotNull(historyFileParser);
+
+    JobKey jobKey = new JobKey("cluster1", "user", "Sleep", 1, "job_1329348432655_0001");
+    historyFileParser.parse(contents, jobKey);
+
+    // this history file has only map slot millis no reduce millis
+    Long mapMbMillis = historyFileParser.getMapMbMillis();
+    assertNotNull(mapMbMillis);
+    assertEquals(mapMbMillis, new Long(178169856L));
+    Long reduceMbMillis = historyFileParser.getReduceMbMillis();
+    assertNotNull(reduceMbMillis);
+    assertEquals(reduceMbMillis, Constants.NOTFOUND_VALUE);
+
+    Long mbMillis = historyFileParser.getMegaByteMillis();
+    assertNotNull(mbMillis);
+    Long expValue = 188559872L;
+    assertEquals(expValue, mbMillis);
+  }

@@ -1,0 +1,80 @@
+    public Map<Long, Map<Long, CoOccurrenceItem>> createCooccurrences(Node annotatedText) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", annotatedText.getId());
+        String query;
+        if (respectSentences) {
+            query = COOCCURRENCE_QUERY_BY_SENTENCE;
+        } else {
+            query = COOCCURRENCE_QUERY;
+        }
+
+        Result res = null;
+        try (Transaction tx = database.beginTx();) {
+            res = database.execute(query, params);
+            tx.success();
+        } catch (Exception e) {
+            LOG.error("Error while creating co-occurrences: ", e);
+        }
+
+        List<CoOccurrenceItem> prelim = new ArrayList<>();
+        while (res != null && res.hasNext()) {
+            Map<String, Object> next = res.next();
+            Long tag1 = toLong(next.get("tag1"));
+            Long tag2 = toLong(next.get("tag2"));
+            String tagVal1 = (String) next.get("tag1_val");
+            String tagVal2 = (String) next.get("tag2_val");
+            int tag1Start = (toLong(next.get("sourceStartPosition"))).intValue();
+            int tag2Start = (toLong(next.get("destinationStartPosition"))).intValue();
+            List<String> pos1 = Arrays.asList((String[]) next.get("pos1"));
+            List<String> pos2 = Arrays.asList((String[]) next.get("pos2"));
+
+            // check whether POS of both tags are admitted
+            boolean bPOS1 = pos1.stream().filter(pos -> admittedPOSs.contains(pos)).count() != 0  ||  pos1.size() == 0;
+            boolean bPOS2 = pos2.stream().filter(pos -> admittedPOSs.contains(pos)).count() != 0  ||  pos2.size() == 0;
+
+            // fill tag co-occurrences (adjacency matrix)
+            if (bPOS1 && bPOS2) {
+                prelim.add(new CoOccurrenceItem(tag1, tag1Start, tag2, tag2Start));
+            }
+
+            // for logging purposses and for `handleNamedEntities()`
+            idToValue.put(tag1, tagVal1);
+            idToValue.put(tag2, tagVal2);
+        }
+
+        Map<Long, List<Pair<Long, Long>>> neExp = expandNamedEntities();
+        neExpanded = neExp.entrySet().stream()
+                        .collect(Collectors.toMap( Map.Entry::getKey, e -> e.getValue().stream().map(p -> p.second()).collect(Collectors.toList()) ));
+ 
+        Map<Long, Map<Long, CoOccurrenceItem>> results = new HashMap<>();
+        long neVisited = 0L;
+        for (CoOccurrenceItem it: prelim) {
+            Long tag1 = it.getSource();
+            Long tag2 = it.getDestination();
+            int tag1Start = it.getSourceStartingPositions().get(0).first().intValue();
+            int tag2Start = it.getSourceStartingPositions().get(0).second().intValue();
+
+            if (neExp.containsKey(tag1)) {
+                if (neVisited == 0L || neVisited != tag1.longValue()) {
+                    connectTagsInNE(results, neExp.get(tag1), tag1Start);
+                    neVisited = 0L;
+                }
+                tag1Start += neExp.get(tag1).get( neExp.get(tag1).size() - 1 ).first().intValue();
+                tag1 = neExp.get(tag1).get( neExp.get(tag1).size() - 1 ).second();
+            }
+
+            if (neExp.containsKey(tag2)) {
+                connectTagsInNE(results, neExp.get(tag2), tag2Start);
+                neVisited = tag2;
+                tag2 = neExp.get(tag2).get(0).second();
+            } else
+                neVisited = 0L;
+
+            addTagToCoOccurrence(results, tag1, tag1Start, tag2, tag2Start);
+            if (!directionsMatter) { // when direction of co-occurrence relationships is not important
+                addTagToCoOccurrence(results, tag2, tag2Start, tag1, tag1Start);
+            }
+        }
+
+        return results;
+    }

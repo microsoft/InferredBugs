@@ -1,0 +1,23 @@
+    @Override
+    public void close() throws IOException {
+        if (this.queueFrontIndexPageFactory != null) {
+            this.queueFrontIndexPageFactory.releaseCachedPages();
+        }
+
+
+        synchronized (futureLock) {
+
+            /* Cancel the future but don't interrupt running tasks
+            because they might perform further work not refering to the queue
+             */
+            if (peekFuture != null) {
+
+                peekFuture.cancel(false);
+            }
+            if (dequeueFuture != null) {
+                dequeueFuture.cancel(false);
+            }
+        }
+
+        this.innerArray.close();
+    }

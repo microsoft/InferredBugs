@@ -1,0 +1,34 @@
+    @Test(timeout = 60000)
+    public void testWhenNoLogsToCompact() throws Exception {
+        tearDown(); // I dont want the test infrastructure
+        ServerConfiguration conf = new ServerConfiguration();
+        File tmpDir = File.createTempFile("bkTest", ".dir");
+        tmpDir.delete();
+        tmpDir.mkdir();
+        File curDir = Bookie.getCurrentDirectory(tmpDir);
+        Bookie.checkDirectoryStructure(curDir);
+        conf.setLedgerDirNames(new String[] { tmpDir.toString() });
+
+        LedgerDirsManager dirs = new LedgerDirsManager(conf, conf.getLedgerDirs());
+        final Set<Long> ledgers = Collections
+                .newSetFromMap(new ConcurrentHashMap<Long, Boolean>());
+        LedgerManager manager = getLedgerManager(ledgers);
+        CheckpointSource checkpointSource = new CheckpointSource() {
+
+            @Override
+            public Checkpoint newCheckpoint() {
+                return null;
+            }
+
+            @Override
+            public void checkpointComplete(Checkpoint checkpoint,
+                    boolean compact) throws IOException {
+            }
+        };
+        InterleavedLedgerStorage storage = new InterleavedLedgerStorage(conf,
+                manager, dirs, checkpointSource);
+
+        double threshold = 0.1;
+        // shouldn't throw exception
+        storage.gcThread.doCompactEntryLogs(threshold);
+    }

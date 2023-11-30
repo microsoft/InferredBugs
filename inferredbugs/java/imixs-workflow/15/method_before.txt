@@ -1,0 +1,51 @@
+ @SuppressWarnings("unchecked")
+	@Test
+	public void testUpdateOriginProcess() throws ModelException {
+
+		String orignUniqueID = documentContext.getUniqueID();
+
+		/*
+		 * 1.) create test result for new subprcoess.....
+		 */
+		try {
+			documentActivity = this.getModel().getEvent(100, 20);
+			splitAndJoinPlugin.run(documentContext, documentActivity);
+		} catch (PluginException e) {
+			e.printStackTrace();
+			Assert.fail();
+		}
+		Assert.assertNotNull(documentContext);
+
+		// now load the subprocess
+		List<String> workitemRefList = documentContext.getItemValue(SplitAndJoinPlugin.LINK_PROPERTY);
+		String subprocessUniqueid = workitemRefList.get(0);
+		ItemCollection subprocess = this.documentService.load(subprocessUniqueid);
+
+		// test data in subprocess
+		Assert.assertNotNull(subprocess);
+		Assert.assertEquals(100, subprocess.getProcessID());
+
+		/*
+		 * 2.) process the subprocess to test if the origin process will be
+		 * updated correctly
+		 */
+		// add some custom data
+		subprocess.replaceItemValue("_sub_data", "some test data");
+		// now we process the subprocess
+		try {
+			documentActivity = this.getModel().getEvent(100, 50);
+			splitAndJoinPlugin.run(subprocess, documentActivity);
+		} catch (PluginException e) {
+			e.printStackTrace();
+			Assert.fail();
+		}
+
+		// load origin document
+		documentContext = documentService.load(orignUniqueID);
+		Assert.assertNotNull(documentContext);
+
+		// test data.... (new $processId=200 and _sub_data from subprocess
+		Assert.assertEquals(100, documentContext.getProcessID());
+		Assert.assertEquals("some test data", documentContext.getItemValueString("_sub_data"));
+
+	}

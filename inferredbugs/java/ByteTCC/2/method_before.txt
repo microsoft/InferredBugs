@@ -1,0 +1,32 @@
+ public void onEnlistResource(Xid xid, XAResource xares) {
+		String resourceKey = null;
+		if (XAResourceDescriptor.class.isInstance(xares)) {
+			XAResourceDescriptor descriptor = (XAResourceDescriptor) xares;
+			resourceKey = descriptor.getIdentifier();
+		} else if (XAResourceArchive.class.isInstance(xares)) {
+			XAResourceArchive resourceArchive = (XAResourceArchive) xares;
+			XAResourceDescriptor descriptor = resourceArchive.getDescriptor();
+			resourceKey = descriptor == null ? null : descriptor.getIdentifier();
+		}
+
+		CompensableLogger compensableLogger = this.beanFactory.getCompensableLogger();
+		if (this.transactionContext.isCompensating()) {
+			// this.archive.setCompensableXid(xid); // preset the compensable-xid.
+			this.archive.setCompensableResourceKey(resourceKey);
+			compensableLogger.updateCompensable(this.archive);
+		} else {
+			for (int i = 0; i < this.currentArchiveList.size(); i++) {
+				CompensableArchive compensableArchive = this.currentArchiveList.get(i);
+				compensableArchive.setTransactionXid(xid);
+				compensableArchive.setTransactionResourceKey(resourceKey);
+
+				XidFactory transactionXidFactory = this.beanFactory.getTransactionXidFactory();
+				TransactionXid globalXid = transactionXidFactory.createGlobalXid(xid.getGlobalTransactionId());
+				TransactionXid branchXid = transactionXidFactory.createBranchXid(globalXid);
+				compensableArchive.setCompensableXid(branchXid); // preset the compensable-xid.
+
+				compensableLogger.createCompensable(compensableArchive);
+			}
+		}
+
+	}

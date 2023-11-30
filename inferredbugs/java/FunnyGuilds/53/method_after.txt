@@ -1,0 +1,54 @@
+    @Override
+    public void onLoad() {
+        funnyguilds = this;
+        this.logger = new FunnyGuildsLogger(this);
+
+        try {
+            Class.forName("net.md_5.bungee.api.ChatColor");
+        }
+        catch (Exception spigotNeeded) {
+            FunnyGuilds.getInstance().getPluginLogger().info("FunnyGuilds requires spigot to work, your server seems to be using something else");
+            FunnyGuilds.getInstance().getPluginLogger().info("If you think that is not true - contact plugin developers");
+            FunnyGuilds.getInstance().getPluginLogger().info("https://github.com/FunnyGuilds/FunnyGuilds");
+
+            getServer().getPluginManager().disablePlugin(this);
+            this.forceDisabling = true;
+
+            return;
+        }
+
+        if (! this.getDataFolder().exists()) {
+            this.getDataFolder().mkdir();
+        }
+
+        try {
+            this.pluginConfiguration = ConfigHelper.loadConfig(this.pluginConfigurationFile, PluginConfiguration.class);
+            this.messageConfiguration = ConfigHelper.loadConfig(this.messageConfigurationFile, MessageConfiguration.class);
+
+            this.pluginConfiguration.load();
+            this.messageConfiguration.load();
+        }
+        catch (Exception ex) {
+            this.getPluginLogger().error("Could not load plugin configuration", ex);
+            this.getServer().getPluginManager().disablePlugin(this);
+            this.forceDisabling = true;
+            return;
+        }
+
+        DescriptionChanger descriptionChanger = new DescriptionChanger(super.getDescription());
+        String[] versions = descriptionChanger.extractVersion();
+
+        this.fullVersion = versions[0];
+        this.mainVersion = versions[1];
+
+        PluginConfiguration settings = FunnyGuilds.getInstance().getPluginConfiguration();
+        descriptionChanger.rename(settings.pluginName);
+
+        this.concurrencyManager = new ConcurrencyManager(settings.concurrencyThreads);
+        this.concurrencyManager.printStatus();
+
+        Commands commands = new Commands();
+        commands.register();
+
+        this.dynamicListenerManager = new DynamicListenerManager(this);
+    }

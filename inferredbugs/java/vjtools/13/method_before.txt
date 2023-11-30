@@ -1,0 +1,38 @@
+ private void init() throws IOException {
+		Map<String, Counter> perfCounters = null;
+		try {
+			perfData = PerfData.connect(Integer.parseInt(pid));
+			perfCounters = perfData.getCounters();
+			initPerfCounters(perfCounters);
+			perfDataSupport = true;
+		} catch (Throwable ignored) {
+		}
+
+		if (perfDataSupport) {
+			vmArgs = (String) perfCounters.get("java.rt.vmArgs").getValue();
+		} else {
+			vmArgs = Formats.join(jmxClient.getRuntimeMXBean().getInputArguments(), " ");
+		}
+
+		startTime = jmxClient.getRuntimeMXBean().getStartTime();
+
+		Map<String, String> taregetVMSystemProperties = jmxClient.getRuntimeMXBean().getSystemProperties();
+		osUser = taregetVMSystemProperties.get("user.name");
+		jvmVersion = taregetVMSystemProperties.get("java.version");
+		jvmMajorVersion = getJavaMajorVersion(jvmVersion);
+		permGenName = jvmMajorVersion >= 8 ? "metaspace" : "perm";
+
+		threadStackSize = 1024
+				* Long.parseLong(jmxClient.getHotSpotDiagnosticMXBean().getVMOption("ThreadStackSize").getValue());
+		maxDirectMemorySize = Long
+				.parseLong(jmxClient.getHotSpotDiagnosticMXBean().getVMOption("MaxDirectMemorySize").getValue());
+		maxDirectMemorySize = maxDirectMemorySize == 0 ? -1 : maxDirectMemorySize;
+
+		threadCpuTimeSupported = jmxClient.getThreadMXBean().isThreadCpuTimeSupported();
+		threadMemoryAllocatedSupported = jmxClient.getThreadMXBean().isThreadAllocatedMemorySupported();
+
+		processors = jmxClient.getOperatingSystemMXBean().getAvailableProcessors();
+		warningRule.updateProcessor(processors);
+
+		isLinux = System.getProperty("os.name").toLowerCase(Locale.US).contains("linux");
+	}

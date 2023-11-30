@@ -1,0 +1,21 @@
+  @Override
+  public PropertyStore<ZNRecord> getPropertyStore()
+  {
+    checkConnected();
+
+    synchronized (_propertyStoreRef)
+    {
+      if (_propertyStoreRef.get() == null)
+      {
+        String path =
+            PropertyPathConfig.getPath(PropertyType.PROPERTYSTORE, _clusterName);
+        // property store uses a different serializer
+        ZkClient zkClient = new ZkClient(_zkConnectString, CONNECTIONTIMEOUT);
+
+        PropertyStore<ZNRecord>_propertyStore =
+            new ZKPropertyStore<ZNRecord>(zkClient, new ZNRecordJsonSerializer(), path);
+        _propertyStoreRef.set(_propertyStore);
+      }
+    }
+    return _propertyStoreRef.get();
+  }

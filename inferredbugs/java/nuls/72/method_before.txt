@@ -1,0 +1,37 @@
+    @Override
+    public ValidateResult validate(AbstractCoinTransaction tx) {
+        UtxoData data = (UtxoData) tx.getCoinData();
+        for (int i = 0; i < data.getInputs().size(); i++) {
+            UtxoInput input = data.getInputs().get(i);
+            UtxoOutput output = input.getFrom();
+
+            if (output == null && tx.getStatus() == TxStatusEnum.CACHED) {
+                return ValidateResult.getFailedResult(ErrorCode.ORPHAN_TX);
+            }
+
+            if (tx.getStatus() == TxStatusEnum.CACHED) {
+                if (!output.isUsable()) {
+                    return ValidateResult.getFailedResult(ErrorCode.UTXO_STATUS_CHANGE);
+                }
+            } else if (tx.getStatus() == TxStatusEnum.AGREED) {
+                if (!output.isSpend()) {
+                    return ValidateResult.getFailedResult(ErrorCode.UTXO_STATUS_CHANGE);
+                }
+            }
+
+            byte[] owner = output.getOwner();
+            P2PKHScriptSig p2PKHScriptSig = null;
+            try {
+                p2PKHScriptSig = P2PKHScriptSig.createFromBytes(tx.getScriptSig());
+            } catch (NulsException e) {
+                return ValidateResult.getFailedResult(ErrorCode.DATA_ERROR);
+            }
+            byte[] user = p2PKHScriptSig.getSignerHash160();
+            if (!Arrays.equals(owner, user)) {
+                return ValidateResult.getFailedResult(ErrorCode.INVALID_OUTPUT);
+            }
+
+            return ValidateResult.getSuccessResult();
+        }
+        return ValidateResult.getSuccessResult();
+    }

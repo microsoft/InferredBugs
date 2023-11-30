@@ -1,0 +1,49 @@
+ private synchronized void loadResources() {
+		if (!isEmpty(resources)) {
+			return;
+		}
+
+		FacesContext context = FacesContext.getCurrentInstance();
+		ResourceHandler handler = context.getApplication().getResourceHandler();
+		resources = new LinkedHashSet<>();
+		contentLength = 0;
+		lastModified = 0;
+
+		for (ResourceIdentifier resourceIdentifier : resourceIdentifiers) {
+			Resource resource = handler.createResource(resourceIdentifier.getName(), resourceIdentifier.getLibrary());
+
+			if (resource == null) {
+				if (logger.isLoggable(WARNING)) {
+					logger.log(WARNING, format(LOG_RESOURCE_NOT_FOUND, resourceIdentifier, id));
+				}
+
+				resources.clear();
+				return;
+			}
+
+			resources.add(resource);
+			URLConnection connection;
+
+			try {
+				connection = resource.getURL().openConnection();
+			}
+			catch (Exception richFacesDoesNotSupportThis) {
+				logger.log(FINEST, "Ignoring thrown exception; this can only be caused by a buggy component library.", richFacesDoesNotSupportThis);
+
+				try {
+					connection = new URL(getRequestDomainURL(context) + resource.getRequestPath()).openConnection();
+				}
+				catch (IOException ignore) {
+					logger.log(FINEST, "Ignoring thrown exception; cannot handle it at this point, it would be thrown during getInputStream() anyway.", ignore);
+					return;
+				}
+			}
+
+			contentLength += connection.getContentLength();
+			long resourceLastModified = connection.getLastModified();
+
+			if (resourceLastModified > lastModified) {
+				lastModified = resourceLastModified;
+			}
+		}
+	}

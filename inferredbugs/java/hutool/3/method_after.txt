@@ -1,0 +1,16 @@
+ @Override
+	public byte[] encrypt(byte[] data, KeyType keyType) throws CryptoException {
+		if (KeyType.PublicKey != keyType) {
+			throw new IllegalArgumentException("Encrypt is only support by public key");
+		}
+		checkKey(keyType);
+
+		lock.lock();
+		final SM2Engine engine = getEngine();
+		try {
+			engine.init(true, new ParametersWithRandom(getCipherParameters(keyType)));
+			return engine.processBlock(data, 0, data.length);
+		} finally {
+			lock.unlock();
+		}
+	}

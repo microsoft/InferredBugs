@@ -1,0 +1,41 @@
+    protected void update( ModifiedPomXMLEventReader pom )
+        throws MojoExecutionException, MojoFailureException, XMLStreamException
+    {
+        getLog().debug( "Updating parent to " + getProject().getVersion() );
+
+        Stack stack = new Stack();
+        String path = "";
+
+        while ( pom.hasNext() )
+        {
+            XMLEvent event = pom.nextEvent();
+            if ( event.isStartElement() )
+            {
+                stack.push( path );
+                path = new StringBuffer()
+                    .append( path )
+                    .append( "/" )
+                    .append( event.asStartElement().getName().getLocalPart() )
+                    .toString();
+
+                if ( "/project/parent/version".equals( path ) )
+                {
+                    pom.mark( 0 );
+                }
+            }
+            if ( event.isEndElement() )
+            {
+                if ( "/project/parent/version".equals( path ) )
+                {
+                    pom.mark( 1 );
+                    if ( pom.hasMark( 0 ) )
+                    {
+                        pom.replaceBetween( 0, 1, getProject().getVersion() );
+                        getLog().debug( "Made an update to " + getProject().getVersion() );
+                        return;
+                    }
+                }
+                path = (String) stack.pop();
+            }
+        }
+    }

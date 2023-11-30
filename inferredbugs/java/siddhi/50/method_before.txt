@@ -1,0 +1,20 @@
+    @Override
+    protected void add(List<Object[]> records) {
+        String insertQuery = this.resolveTableName(this.queryConfigurationEntry.getRecordInsertQuery());
+        StringBuilder params = new StringBuilder();
+        int fieldsLeft = this.attributes.size();
+        while (fieldsLeft > 0) {
+            params.append(QUESTION_MARK);
+            if (fieldsLeft > 1) {
+                params.append(SEPARATOR);
+            }
+            fieldsLeft = fieldsLeft - 1;
+        }
+        insertQuery = insertQuery.replace(Q_PLACEHOLDER, params.toString());
+        try {
+            this.batchExecuteQueriesWithRecords(insertQuery, records, false);
+        } catch (SQLException e) {
+            throw new RDBMSTableException("Error in adding events to '" + this.tableName + "' store: "
+                    + e.getMessage(), e);
+        }
+    }

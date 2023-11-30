@@ -1,0 +1,34 @@
+    @Test
+    public void testGeneratedDoc() throws Exception {
+        mojo.execute();
+
+        FileInputStream swaggerJson = null;
+        BufferedReader swaggerReader = null;
+
+        try {
+            File actual = docOutput;
+            File expected = new File(this.getClass().getResource("/sample-springmvc.html").getFile());
+            String exptectedFileContent = CharMatcher.breakingWhitespace().removeFrom(Files.toString(expected, Charset.forName("UTF-8")));
+            String actualFileContent = CharMatcher.breakingWhitespace().removeFrom(Files.toString(actual, Charset.forName("UTF-8")));
+            assertEquals(exptectedFileContent, actualFileContent);
+
+            swaggerJson = new FileInputStream(new File(swaggerOutputDir, "swagger.json"));
+            swaggerReader = new BufferedReader(new InputStreamReader(swaggerJson));
+            String s = swaggerReader.readLine();
+            while (s != null) {
+                if (s.contains("\"parameters\" : [ ],")) {
+                    fail("should not have null parameters");
+                }
+                s = swaggerReader.readLine();
+            }
+
+        } finally {
+            if (swaggerJson != null) {
+                swaggerJson.close();
+            }
+            if (swaggerReader != null) {
+                swaggerReader.close();
+            }
+        }
+
+    }

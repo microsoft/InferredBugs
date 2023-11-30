@@ -1,0 +1,42 @@
+    @Override
+    public void subscriptionAllChanged(boolean all, Subscription s) {
+        /* BCM subscription switched to RAW subscription */
+        if (all == true) {
+            subscriptionsBCM.remove(s);
+            if(!subscriptionsRAW.contains(s))
+                subscriptionsRAW.add(s);
+
+            Set<Integer> ids = s.getAllIdentifiers();
+            for(Integer identifier : ids) {
+                safeUnsubscribe(identifier);
+            }
+
+            if(mode == TimeSource.Mode.PLAY) {
+                openRAWConnection();
+            }
+        /* RAW subscription switched to BCM subscription */
+        } else {
+            subscriptionsRAW.remove(s);
+            if(!subscriptionsBCM.contains(s))
+                subscriptionsBCM.add(s);
+
+            if(subscriptionsRAW.isEmpty() && rawConnection != null && rawConnection.isConnected()) {
+                logger.log(Level.INFO, "No more raw subscriptions. Closing connection.");
+                rawConnection.close();
+            }
+
+            /* Make sure BCM connection is opened */
+            if(mode == TimeSource.Mode.PLAY) {
+                openBCMConnection();
+
+                for(Integer identifier : s.getAllIdentifiers()) {
+                    bcmConnection.subscribeTo(identifier, 0, 0);
+                }
+            }
+            synchronized(subscribedIDs) {
+                for(Integer identifier : s.getAllIdentifiers()) {
+                    subscribedIDs.add(identifier);
+                }
+            }
+        }
+    }

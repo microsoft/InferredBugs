@@ -1,0 +1,37 @@
+    protected void addChildren(int index, Node... children) {
+        Validate.notNull(children);
+        if (children.length == 0) {
+            return;
+        }
+        final List<Node> nodes = ensureChildNodes();
+
+        // fast path - if used as a wrap (index=0, children = child[0].parent.children - do inplace
+        final Node firstParent = children[0].parent();
+        if (firstParent != null && firstParent.childNodeSize() == children.length) {
+            boolean sameList = true;
+            final List<Node> firstParentNodes = firstParent.childNodes();
+            // identity check contents to see if same
+            int i = children.length;
+            while (i-- > 0) {
+                if (children[i] != firstParentNodes.get(i)) {
+                    sameList = false;
+                    break;
+                }
+            }
+            firstParent.empty();
+            nodes.addAll(index, Arrays.asList(children));
+            i = children.length;
+            while (i-- > 0) {
+                children[i].parentNode = this;
+            }
+            reindexChildren(index);
+            return;
+        }
+
+        Validate.noNullElements(children);
+        for (Node child : children) {
+            reparentChild(child);
+        }
+        nodes.addAll(index, Arrays.asList(children));
+        reindexChildren(index);
+    }

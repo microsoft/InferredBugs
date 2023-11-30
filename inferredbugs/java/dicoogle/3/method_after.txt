@@ -1,0 +1,42 @@
+ public static LoggedInStatus webappLogin(HttpServletRequest request, HttpServletResponse response, boolean requiresAdminRights) throws IOException
+	{
+		// check if there a session and a login information attached to it
+		//HttpSession session = request.getSession(true);
+		//LoggedIn login = getUserLoggedIn(session);
+		/*if (login != null)
+		{
+			// check if this request needs admin rights and the user has them
+			if (requiresAdminRights && (! login.isAdmin()))
+			{
+				response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+				return new LoggedInStatus(null, LoggedInStatus.S_UNAUTHORIZEDACCESS);
+			}
+
+			return new LoggedInStatus(login, LoggedInStatus.S_ALREADYLOGGEDIN);
+		}*/
+
+		// since the above failed, check if there is valid login information on the request parameters
+		String username = request.getParameter("username");
+		String password = request.getParameter("password");
+		LoggedIn login = getSuccessfulLogin(username, password);
+		if (login != null)
+		{
+			// check if this request needs admin rights and the user has them
+			if (requiresAdminRights && (! login.isAdmin()))
+			{
+				response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+				return new LoggedInStatus(null, LoggedInStatus.S_UNAUTHORIZEDACCESS);
+			}
+
+			// add the login information to the session
+			HttpSession session = request.getSession(true); // force the creation of a new session if there is none
+			session.setAttribute("login", login);
+			return new LoggedInStatus(login, LoggedInStatus.S_VALIDLOGIN);
+		}
+
+		// both situations failed
+		if ((username == null) && (password == null))
+			return new LoggedInStatus(null, LoggedInStatus.S_NOINFORMATION);
+		else
+			return new LoggedInStatus(null, LoggedInStatus.S_INVALIDCREDENTIALS);
+	}

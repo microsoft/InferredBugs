@@ -1,0 +1,39 @@
+    private void loadExtDict() {
+        // 加载扩展词典配置
+        List<String> extDictFiles = cfg.getExtDictionarys();
+        if (extDictFiles != null) {
+            InputStream is;
+            for (String extDictName : extDictFiles) {
+                // 读取扩展词典文件
+                System.out.println("Load extended dictionary:" + extDictName);
+                is = this.getClass().getClassLoader().getResourceAsStream(extDictName);
+                // 如果找不到扩展的字典，则忽略
+                if (is == null) {
+                    continue;
+                }
+                try {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8), 512);
+                    String theWord;
+                    do {
+                        theWord = br.readLine();
+                        if (theWord != null && !"".equals(theWord.trim())) {
+                            // 加载扩展词典数据到主内存词典中
+                            // System.out.println(theWord);
+                            _MainDict.fillSegment(theWord.trim().toLowerCase().toCharArray());
+                        }
+                    } while (theWord != null);
+
+                } catch (IOException ioe) {
+                    System.err.println("Extension Dictionary loading exception.");
+                    ioe.printStackTrace();
+
+                } finally {
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }

@@ -1,0 +1,54 @@
+    public static void main(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.out.println("Please specify thread count and interval (us)");
+            return;
+        }
+//        double targetLoadLevel = Double.parseDouble(args[0]);
+        final int threadCount = Integer.parseInt(args[0]);
+        final int intervalMicros = Integer.parseInt(args[1]);
+
+        System.setProperty("log4j2.AsyncEventRouter", PrintingDefaultAsyncEventRouter.class.getName());
+        System.setProperty("AsyncLogger.RingBufferSize", String.valueOf(256 * 1024));
+        System.setProperty("Log4jContextSelector", AsyncLoggerContextSelector.class.getName());
+        System.setProperty("log4j.configurationFile", "perf3PlainNoLoc.xml");
+
+        Logger logger = LogManager.getLogger();
+        logger.info("Starting..."); // initializes Log4j
+        Thread.sleep(100);
+
+        final long nanoTimeCost = PerfTest.calcNanoTimeCost();
+        System.out.println("nanoTimeCost=" + nanoTimeCost);
+
+//        long maxOpsPerSec = 1000 * 1000; // just assume... TODO make parameter
+//
+//        long oneOpDurationNanos = TimeUnit.SECONDS.toNanos(1) / maxOpsPerSec;
+//        long idleTimeNanos = (long) ((1.0 - targetLoadLevel) * oneOpDurationNanos);
+//        idleTimeNanos *= 10;
+//        System.out.printf("Idle time is %d nanos at %,f load level%n", idleTimeNanos, targetLoadLevel);
+
+        final long interval = TimeUnit.MICROSECONDS.toNanos(intervalMicros);// * threadCount;
+        System.out.printf("%d threads, interval is %d nanos%n", threadCount, interval);
+
+        final long WARMUP_DURATION_MILLIS = TimeUnit.MINUTES.toMillis(1);
+        List<Histogram> warmupHistograms = new ArrayList<>(threadCount);
+
+        final int WARMUP_COUNT = 50000 / threadCount;
+        final IdleStrategy idleStrategy = new YieldIdleStrategy();
+        runLatencyTest(logger, WARMUP_DURATION_MILLIS, WARMUP_COUNT, interval, idleStrategy, warmupHistograms, nanoTimeCost, threadCount);
+        Thread.sleep(1000);
+
+        long start = System.currentTimeMillis();
+        List<Histogram> histograms = new ArrayList<>(threadCount);
+
+        final long TEST_DURATION_MILLIS = TimeUnit.MINUTES.toMillis(4);
+        final int COUNT = 5000000 / threadCount;
+        runLatencyTest(logger, TEST_DURATION_MILLIS, COUNT, interval, idleStrategy, histograms, nanoTimeCost, threadCount);
+        long end = System.currentTimeMillis();
+
+        final Histogram result = new Histogram(TimeUnit.SECONDS.toNanos(10), 3);
+        for (Histogram hist : histograms) {
+            result.add(hist);
+        }
+        result.outputPercentileDistribution(System.out, 1000.0);
+        System.out.println("Test duration: " + (end - start) / 1000.0 + " seconds");
+    }

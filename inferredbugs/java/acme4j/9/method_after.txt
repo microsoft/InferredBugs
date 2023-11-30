@@ -1,0 +1,25 @@
+    private AcmeException createAcmeException(Problem problem) {
+        if (problem.getType() == null) {
+            return new AcmeException(problem.getDetail());
+        }
+
+        String error = AcmeUtils.stripErrorPrefix(problem.getType().toString());
+
+        if ("unauthorized".equals(error)) {
+            return new AcmeUnauthorizedException(problem);
+        }
+
+        if ("userActionRequired".equals(error)) {
+            Collection<URI> links = getLinks("terms-of-service");
+            URI tos = links != null ? links.stream().findFirst().orElse(null) : null;
+            return new AcmeUserActionRequiredException(problem, tos);
+        }
+
+        if ("rateLimited".equals(error)) {
+            Optional<Instant> retryAfter = getRetryAfterHeader();
+            Collection<URI> rateLimits = getLinks("urn:ietf:params:acme:documentation");
+            return new AcmeRateLimitExceededException(problem, retryAfter.orElse(null), rateLimits);
+        }
+
+        return new AcmeServerException(problem);
+    }

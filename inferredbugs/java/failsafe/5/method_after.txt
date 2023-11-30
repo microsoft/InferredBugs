@@ -1,0 +1,36 @@
+  @SuppressWarnings("unchecked")
+  public void testRetryOn() {
+    // Given retry on IllegalArgumentException
+    exec = new AsyncExecution(callable, new RetryPolicy().retryOn(IllegalArgumentException.class), scheduler, future,
+        null);
+
+    // When / Then
+    assertTrue(exec.retryOn(new IllegalArgumentException()));
+    exec.prepare();
+    assertFalse(exec.retryOn(e));
+
+    // Then
+    assertEquals(exec.getExecutions(), 2);
+    assertTrue(exec.isComplete());
+    assertNull(exec.getLastResult());
+    assertEquals(exec.getLastFailure(), e);
+    verifyScheduler(1);
+    verify(future).complete(null, e, false);
+
+    // Given 2 max retries
+    exec = new AsyncExecution(callable, new RetryPolicy().withMaxRetries(1), scheduler, future, null);
+
+    // When / Then
+    resetMocks();
+    assertTrue(exec.retryOn(e));
+    exec.prepare();
+    assertFalse(exec.retryOn(e));
+
+    // Then
+    assertEquals(exec.getExecutions(), 2);
+    assertTrue(exec.isComplete());
+    assertNull(exec.getLastResult());
+    assertEquals(exec.getLastFailure(), e);
+    verifyScheduler(1);
+    verify(future).complete(null, e, false);
+  }

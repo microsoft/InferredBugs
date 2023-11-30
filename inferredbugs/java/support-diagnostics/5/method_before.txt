@@ -1,0 +1,24 @@
+   public void extractDiagnosticArchive(String sourceInput) throws Exception {
+
+      TarArchiveInputStream archive = readDiagArchive(sourceInput);
+      logger.info("Extracting archive...");
+
+      try {
+         // Base archive name - it's not redundant like Intellij is complaining...
+         TarArchiveEntry tae = archive.getNextTarEntry();
+
+         // First actual archived entry
+         tae = archive.getNextTarEntry();
+
+         while (tae != null) {
+            String name = tae.getName();
+            int fileStart = name.indexOf("/");
+            name = name.substring(fileStart + 1);
+            archiveProcessor.process(archive, name);
+            tae = archive.getNextTarEntry();
+         }
+      } catch (IOException e)      {
+         logger.info("Error extracting {}.", "", e);
+         throw new RuntimeException("Error extracting {} from archive.", e);
+      }
+   }

@@ -1,0 +1,47 @@
+    @Override
+    public String[] getDescription(String url,Document page) {
+        if (isThisATest()) {
+            return null;
+        }
+        try {
+            // Fetch the image page
+            Response resp = Http.url(url)
+                                .referrer(this.url)
+                                .cookies(cookies)
+                                .response();
+            cookies.putAll(resp.cookies());
+
+            // Try to find the description
+            Document documentz = resp.parse();
+            Element ele = documentz.select("div.dev-description").first();
+            if (ele == null) {
+                throw new IOException("No description found");
+            }
+            documentz.outputSettings(new Document.OutputSettings().prettyPrint(false));
+            ele.select("br").append("\\n");
+            ele.select("p").prepend("\\n\\n");
+            String fullSize = null;
+            Element thumb = page.select("div.zones-container span.thumb[href=\"" + url + "\"]").get(0);
+            if (!thumb.attr("data-super-full-img").isEmpty()) {
+                fullSize = thumb.attr("data-super-full-img");
+                String[] split = fullSize.split("/");
+                fullSize = split[split.length - 1];
+            } else {
+                String spanUrl = thumb.attr("href");
+                fullSize = jsonToImage(page,spanUrl.substring(spanUrl.lastIndexOf('-') + 1));
+                if (fullSize != null) {
+                    String[] split = fullSize.split("/");
+                    fullSize = split[split.length - 1];
+                }
+            }
+            if (fullSize == null) {
+                return new String[] {Jsoup.clean(ele.html().replaceAll("\\\\n", System.getProperty("line.separator")), "", Whitelist.none(), new Document.OutputSettings().prettyPrint(false))};
+            }
+            fullSize = fullSize.substring(0, fullSize.lastIndexOf("."));
+            return new String[] {Jsoup.clean(ele.html().replaceAll("\\\\n", System.getProperty("line.separator")), "", Whitelist.none(), new Document.OutputSettings().prettyPrint(false)),fullSize};
+            // TODO Make this not make a newline if someone just types \n into the description.
+        } catch (IOException ioe) {
+                logger.info("Failed to get description at " + url + ": '" + ioe.getMessage() + "'");
+                return null;
+        }
+    }

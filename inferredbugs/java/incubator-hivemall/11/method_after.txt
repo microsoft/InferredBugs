@@ -1,0 +1,78 @@
+    private boolean executeOperation(Operation currentOperation) throws VMRuntimeException {
+        if(IP < 0) {
+            return false;
+        }
+        switch (currentOperation.op) {
+            case GOTO: {
+                if(isInt(currentOperation.operand)) {
+                    IP = Integer.parseInt(currentOperation.operand);
+                } else {
+                    IP = jumpMap.get(currentOperation.operand);
+                }
+                break;
+            }
+            case CALL: {
+                double candidateIP = valuesMap.get(currentOperation.operand);
+                if(candidateIP < 0) {
+                    evaluateBuiltinByName(currentOperation.operand);
+                    IP++;
+                }
+                break;
+            }
+            case IFEQ: {
+                // follow the rule of smile's Math class.
+                double a = pop();
+                double b = pop();
+                double absa = Math.abs(a);
+                double absb = Math.abs(b);
+                if(a == b || Math.abs(a - b) <= Math.min(absa, absb) * 2.2204460492503131e-16) {
+                    if(isInt(currentOperation.operand)) {
+                        IP = Integer.parseInt(currentOperation.operand);
+                    } else {
+                        IP = jumpMap.get(currentOperation.operand);
+                    }
+                } else {
+                    IP++;
+                }
+                break;
+            }
+            case IFGR: {
+                double lower = pop();
+                double upper = pop();
+                if(upper > lower) {
+                    if(isInt(currentOperation.operand)) {
+                        IP = Integer.parseInt(currentOperation.operand);
+                    } else {
+                        IP = jumpMap.get(currentOperation.operand);
+                    }
+                } else {
+                    IP++;
+                }
+                break;
+            }
+            case POP: {
+                valuesMap.put(currentOperation.operand, pop());
+                IP++;
+                break;
+            }
+            case PUSH: {
+                if(isDouble(currentOperation.operand))
+                    push(Double.parseDouble(currentOperation.operand));
+                else {
+                    Double v = valuesMap.get(currentOperation.operand);
+                    if(v == null) {
+                        throw new VMRuntimeException("value is not binded: "
+                                + currentOperation.operand);
+                    }
+                    push(v);
+                }
+                IP++;
+                break;
+            }
+            default:
+                throw new VMRuntimeException("Machine code has wrong opcode :"
+                        + currentOperation.op);
+        }
+        return true;
+
+    }

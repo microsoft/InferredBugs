@@ -1,0 +1,78 @@
+    protected void doShutdown() throws InterruptedIOException {
+        if (this.status.compareTo(IOReactorStatus.SHUTTING_DOWN) >= 0) {
+            return;
+        }
+        this.status = IOReactorStatus.SHUTTING_DOWN;
+        try {
+            cancelRequests();        
+        } catch (IOReactorException ex) {
+            if (ex.getCause() != null) {
+                addExceptionEvent(ex.getCause());
+            }
+        }
+        this.selector.wakeup();
+        
+        // Close out all channels
+        if (this.selector.isOpen()) {
+            Set<SelectionKey> keys = this.selector.keys();
+            for (Iterator<SelectionKey> it = keys.iterator(); it.hasNext(); ) {
+                try {
+                    SelectionKey key = it.next();
+                    Channel channel = key.channel();
+                    if (channel != null) {
+                        channel.close();
+                    }
+                } catch (IOException ex) {
+                    addExceptionEvent(ex);
+                }
+            }
+            // Stop dispatching I/O events
+            try {
+                this.selector.close();
+            } catch (IOException ex) {
+                addExceptionEvent(ex);
+            }
+        }
+
+        // Attempt to shut down I/O dispatchers gracefully
+        for (int i = 0; i < this.workerCount; i++) {
+            BaseIOReactor dispatcher = this.dispatchers[i];
+            dispatcher.gracefulShutdown();
+        }
+
+        long gracePeriod = NIOReactorParams.getGracePeriod(this.params);
+        
+        try {
+            // Force shut down I/O dispatchers if they fail to terminate
+            // in time
+            for (int i = 0; i < this.workerCount; i++) {
+                BaseIOReactor dispatcher = this.dispatchers[i];
+                if (dispatcher.getStatus() != IOReactorStatus.INACTIVE) {
+                    dispatcher.awaitShutdown(gracePeriod);
+                }
+                if (dispatcher.getStatus() != IOReactorStatus.SHUT_DOWN) {
+                    try {
+                        dispatcher.hardShutdown();
+                    } catch (IOReactorException ex) {
+                        if (ex.getCause() != null) {
+                            addExceptionEvent(ex.getCause());
+                        }
+                    }
+                }
+            }
+            // Join worker threads
+            for (int i = 0; i < this.workerCount; i++) {
+                Thread t = this.threads[i];
+                if (t != null) {
+                    t.join(gracePeriod);
+                }
+            }
+        } catch (InterruptedException ex) {
+            throw new InterruptedIOException(ex.getMessage());
+        } finally {
+            synchronized (this.shutdownMutex) {
+                this.status = IOReactorStatus.SHUT_DOWN;
+                this.shutdownMutex.notifyAll();
+            }
+        }
+    }

@@ -1,0 +1,38 @@
+    public synchronized AppiumServiceBuilder startAppiumServer(String methodName) throws Exception {
+        device_udid = getNextAvailableDeviceId();
+        if (device_udid == null) {
+            System.out.println("No devices are free to run test or Failed to run test");
+            return null;
+        }
+        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            if (iosDevice.checkiOSDevice(device_udid)) {
+                iosDevice.setIOSWebKitProxyPorts(device_udid);
+                category = iosDevice.getDeviceName(device_udid).replace(" ", "_");
+            } else if (!iosDevice.checkiOSDevice(device_udid)) {
+                category = androidDevice.getDeviceModel(device_udid);
+                System.out.println(category);
+            }
+        } else {
+            category = androidDevice.getDeviceModel(device_udid);
+        }
+
+        if (prop.getProperty("FRAMEWORK").equalsIgnoreCase("testng")) {
+            parent = ExtentTestManager.startTest(methodName, "Mobile Appium Test",
+                category + "_" + device_udid.replaceAll("\\W", "_"));
+            parentContext.put(Thread.currentThread().getId(), parent);
+            ExtentTestManager.getTest().log(LogStatus.INFO, "AppiumServerLogs",
+                "<a href=" + System.getProperty("user.dir") + "/target/appiumlogs/" + device_udid
+                    .replaceAll("\\W", "_") + "__" + methodName + ".txt" + ">Logs</a>");
+        }
+        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            if (iosDevice.checkiOSDevice(device_udid)) {
+                String webKitPort = iosDevice.startIOSWebKit(device_udid);
+                return appiumMan.appiumServerForIOS(device_udid, methodName, webKitPort);
+            } else if (!iosDevice.checkiOSDevice(device_udid)) {
+                return appiumMan.appiumServerForAndroid(device_udid, methodName);
+            }
+        } else {
+            return appiumMan.appiumServerForAndroid(device_udid, methodName);
+        }
+        return null;
+    }

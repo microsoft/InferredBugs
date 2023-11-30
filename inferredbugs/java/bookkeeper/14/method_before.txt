@@ -1,0 +1,34 @@
+    @Override
+    public void processResult(int rc, String path, Object ctx, List<String> children) {
+
+        if (rc != KeeperException.Code.OK.intValue()) {
+            //logger.error("Error while reading bookies", KeeperException.create(Code.get(rc), path));
+            // try the read after a second again
+            scheduler.schedule(reReadTask, ZK_CONNECT_BACKOFF_SEC, TimeUnit.SECONDS);
+            return;
+        }
+
+        // Read the bookie addresses into a set for efficient lookup
+        HashSet<InetSocketAddress> newBookieAddrs = new HashSet<InetSocketAddress>();
+        for (String bookieAddrString : children) {
+            InetSocketAddress bookieAddr;
+            try {
+                bookieAddr = StringUtils.parseAddr(bookieAddrString);
+            } catch (IOException e) {
+                logger.error("Could not parse bookie address: " + bookieAddrString + ", ignoring this bookie");
+                continue;
+            }
+            newBookieAddrs.add(bookieAddr);
+        }
+
+        HashSet<InetSocketAddress> deadBookies = (HashSet<InetSocketAddress>)knownBookies.clone();
+        deadBookies.removeAll(newBookieAddrs);
+
+        synchronized (this) {
+            knownBookies = newBookieAddrs;
+        }
+
+        if (bk.getBookieClient() != null) {
+            bk.getBookieClient().closeClients(deadBookies);
+        }
+    }

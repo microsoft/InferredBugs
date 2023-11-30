@@ -1,0 +1,43 @@
+    @Override
+    public void onManagerEvent(final org.asteriskjava.manager.event.ManagerEvent event)
+    {
+
+        // logger.error(event);
+        boolean wanted = false;
+        /**
+         * Dump any events we arn't interested in ASAP to minimise the
+         * processing overhead of these events.
+         */
+        // Only enqueue the events that are of interest to one of our listeners.
+        synchronized (this.globalEvents)
+        {
+            Class< ? extends ManagerEvent> shadowEvent = CoherentEventFactory.getShadowEvent(event);
+            if (this.globalEvents.contains(shadowEvent))
+            {
+                wanted = true;
+            }
+        }
+
+        if (wanted)
+        {
+
+            // We don't support all events.
+            this._eventQueue.add(new EventLifeMonitor<>(event));
+            final int queueSize = this._eventQueue.size();
+            if (this._queueMaxSize < queueSize)
+            {
+                this._queueMaxSize = queueSize;
+            }
+            this._queueSum += queueSize;
+            this._queueCount++;
+
+            if (CoherentManagerEventQueue.logger.isDebugEnabled())
+            {
+                if (this._eventQueue.size() > ((this._queueMaxSize + (this._queueSum / this._queueCount)) / 2))
+                {
+                    CoherentManagerEventQueue.logger.debug("queue gtr max avg: size=" + queueSize + " max:" //$NON-NLS-1$ //$NON-NLS-2$
+                            + this._queueMaxSize + " avg:" + (this._queueSum / this._queueCount)); //$NON-NLS-1$
+                }
+            }
+        }
+    }

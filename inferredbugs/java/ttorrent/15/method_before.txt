@@ -1,0 +1,34 @@
+  public void open() throws IOException {
+    this.partial = new File(this.target.getAbsolutePath() +
+      TorrentByteStorage.PARTIAL_FILE_NAME_SUFFIX);
+
+    if (this.partial.exists()) {
+      logger.debug("Partial download found at {}. Continuing...",
+        this.partial.getAbsolutePath());
+      this.current = this.partial;
+    } else if (!this.target.exists()) {
+      logger.debug("Downloading new file to {}...",
+        this.partial.getAbsolutePath());
+      this.current = this.partial;
+    } else {
+      logger.debug("Using existing file {}.",
+        this.target.getAbsolutePath());
+      this.current = this.target;
+    }
+
+    this.raf = new RandomAccessFile(this.current, "rw");
+
+    // Set the file length to the appropriate size, eventually truncating
+    // or extending the file if it already exists with a different size.
+    this.raf.setLength(this.size);
+
+    this.channel = raf.getChannel();
+
+    logger.debug("Opened byte storage file at {} " +
+      "({}+{} byte(s)).",
+      new Object[] {
+        this.current.getAbsolutePath(),
+        this.offset,
+        this.size,
+      });
+  }

@@ -1,0 +1,58 @@
+    void onRpcReturned(Status status, GetFileResponse response) {
+        this.lock.lock();
+        try {
+            if (this.finished) {
+                return;
+            }
+            if (!status.isOk()) {
+                // Reset count to make next rpc retry the previous one
+                this.requestBuilder.setCount(0);
+                if (status.getCode() == RaftError.ECANCELED.getNumber()) {
+                    if (this.st.isOk()) {
+                        this.st.setError(status.getCode(), status.getErrorMsg());
+                        this.onFinished();
+                        return;
+                    }
+                }
+
+                // Throttled reading failure does not increase _retry_times
+                if (status.getCode() != RaftError.EAGAIN.getNumber()
+                    && ++this.retryTimes >= this.copyOptions.getMaxRetry()) {
+                    if (this.st.isOk()) {
+                        this.st.setError(status.getCode(), status.getErrorMsg());
+                        this.onFinished();
+                        return;
+                    }
+                }
+                this.timer = this.timerManager.schedule(this::onTimer, this.copyOptions.getRetryIntervalMs(),
+                        TimeUnit.MILLISECONDS);
+                return;
+            }
+            this.retryTimes = 0;
+            Requires.requireNonNull(response, "response");
+            // Reset count to |real_read_size| to make next rpc get the right offset
+            if (response.hasReadSize() && response.getReadSize() != 0) {
+                this.requestBuilder.setCount(response.getReadSize());
+            }
+            if (this.outputStream != null) {
+                try {
+                    response.getData().writeTo(this.outputStream);
+                } catch (final IOException e) {
+                    LOG.error("Fail to write into file {}", this.destPath);
+                    this.st.setError(RaftError.EIO, RaftError.EIO.name());
+                    this.onFinished();
+                    return;
+                }
+            } else {
+                final byte[] data = response.getData().toByteArray();
+                this.destBuf.put(data);
+            }
+            if (response.getEof()) {
+                onFinished();
+                return;
+            }
+        } finally {
+            this.lock.unlock();
+        }
+        sendNextRpc();
+    }

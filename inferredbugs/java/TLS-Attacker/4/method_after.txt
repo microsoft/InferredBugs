@@ -1,0 +1,58 @@
+    public void init(EvolutionaryFuzzerConfig config)
+    {
+        File file = new File(config.getServerCommandFromFile());
+        if (!file.exists())
+        {
+            LOG.log(Level.INFO, "Could not find Server Configuration Files:" + file.getAbsolutePath());
+            LOG.log(Level.INFO, "You can create new Configuration files with the command new-server");
+            System.exit(-1);
+
+        }
+        else
+        {
+            if (file.isDirectory())
+            {
+                File[] filesInDic = file.listFiles(new GitIgnoreFileFilter());
+                if (filesInDic.length == 0)
+                {
+                    LOG.log(Level.INFO, "No Server Configurations Files in the Server Config Folder:"+file.getAbsolutePath());
+                    LOG.log(Level.INFO, "You can create new Configuration files with the command new-server");
+                    System.exit(-1);
+                }
+                else
+                {
+                    // ServerConfig is a Folder
+                    for (File f : filesInDic)
+                    {
+                        try
+                        {
+                            if (f.isFile())
+                            {
+                                TLSServer server = ServerSerializer.read(f);
+                                addServer(server);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            LOG.log(Level.SEVERE, "Could not read Server!", ex);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // ServerConfig is a File
+                try
+                {
+                    TLSServer server = ServerSerializer.read(file);
+                    addServer(server);
+
+                }
+                catch (Exception ex)
+                {
+                    LOG.log(Level.SEVERE, "Could not read Server!", ex);
+                }
+            }
+        }
+
+    }

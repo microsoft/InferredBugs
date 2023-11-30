@@ -1,0 +1,36 @@
+    public static WatchMgr getWatchMgr(FetcherMgr fetcherMgr) throws Exception {
+
+        if (!ConfigMgr.isInit()) {
+            throw new Exception(
+                    "ConfigMgr should be init before WatchFactory.getWatchMgr");
+        }
+
+        if (hosts == null) {
+            synchronized (hostsSync) {
+                if (hosts == null) {
+
+                    // 获取 Zoo Hosts
+                    try {
+
+                        hosts = fetcherMgr.getValueFromServer(DisconfWebPathMgr
+                                .getZooHostsUrl(DisClientSysConfig
+                                        .getInstance().CONF_SERVER_ZOO_ACTION));
+
+                        WatchMgr watchMgr = new WatchMgrImpl();
+                        watchMgr.init(
+                                hosts,
+                                DisClientSysConfig.getInstance().ZOOKEEPER_URL_PREFIX);
+
+                        return watchMgr;
+
+                    } catch (Exception e) {
+
+                        LOGGER.error("cannot get watch module", e);
+
+                    }
+                }
+            }
+        }
+
+        return null;
+    }

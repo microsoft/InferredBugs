@@ -1,0 +1,51 @@
+    @Override
+    protected SecondaryIndexQueryOperation.Response convert(List<Object> rawResponse)
+    {
+        SecondaryIndexQueryOperation.Response.Builder responseBuilder =
+                new SecondaryIndexQueryOperation.Response.Builder();
+
+        for (Object o : rawResponse)
+        {
+            if (o instanceof RiakKvPB.RpbIndexBodyResp)
+            {
+                assert pbReq.getReturnBody();
+                final RiakKvPB.RpbIndexBodyResp bodyResp = (RiakKvPB.RpbIndexBodyResp)o;
+                convertBodies(responseBuilder, bodyResp);
+
+                if (bodyResp.hasContinuation())
+                {
+                    responseBuilder.withContinuation(
+                            BinaryValue.unsafeCreate(bodyResp.getContinuation().toByteArray()));
+                }
+                continue;
+            }
+
+            final RiakKvPB.RpbIndexResp pbEntry = (RiakKvPB.RpbIndexResp) o;
+
+            /**
+             * The 2i API is inconsistent on the Riak side. If it's not
+             * a range query, return_terms is ignored it only returns the
+             * list of object keys and you have to have
+             * preserved the index key if you want to return it to the user
+             * with the results.
+             *
+             * Also, the $key index queries just ignore return_terms altogether.
+             */
+
+            if (pbReq.getReturnTerms() && !query.indexName.toString().equalsIgnoreCase(IndexNames.KEY))
+            {
+                convertTerms(responseBuilder, pbEntry);
+            }
+            else
+            {
+                convertKeys(responseBuilder, pbEntry);
+            }
+
+            if (pbEntry.hasContinuation())
+            {
+                responseBuilder.withContinuation(
+                        BinaryValue.unsafeCreate(pbEntry.getContinuation().toByteArray()));
+            }
+        }
+        return responseBuilder.build();
+    }

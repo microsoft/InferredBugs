@@ -1,0 +1,39 @@
+ @SuppressWarnings("unchecked")
+	public static WebApp bootstrap(WebApp app, String[] args, Object... config) {
+		Log.info("Starting Rapidoid...", "version", RapidoidInfo.version());
+
+		ConfigHelp.processHelp(args);
+
+		// FIXME make optional
+		// print internal state
+		// LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+
+		Conf.init(args, config);
+
+		Log.info("Working directory is: " + System.getProperty("user.dir"));
+
+		inferAndSetRootPackage();
+
+		if (app == null) {
+			app = AppTool.createRootApp();
+		}
+
+		registerDefaultPlugins();
+
+		Set<String> configArgs = U.set(args);
+
+		for (Object arg : config) {
+			processArg(configArgs, arg);
+		}
+
+		String[] configArgsArr = configArgs.toArray(new String[configArgs.size()]);
+		Conf.args(configArgsArr);
+		Log.args(configArgsArr);
+
+		AOP.reset();
+		
+		AOP.intercept(new AuthInterceptor(), Admin.class, Manager.class, Moderator.class, LoggedIn.class,
+				DevMode.class, Role.class, HasRole.class);
+
+		return app;
+	}

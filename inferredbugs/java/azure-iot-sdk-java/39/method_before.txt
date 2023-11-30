@@ -1,0 +1,53 @@
+    public HttpsResponse send() throws TransportException
+    {
+        if (this.url == null)
+        {
+            throw new IllegalArgumentException("url cannot be null");
+        }
+
+        HttpsConnection connection = new HttpsConnection(url, method, this.proxySettings);
+
+        for (String headerKey : headers.keySet())
+        {
+            for (String headerValue : this.headers.get(headerKey))
+            {
+                connection.setRequestHeader(headerKey, headerValue);
+            }
+        }
+
+        connection.writeOutput(this.body);
+
+        if (this.sslContext != null)
+        {
+            connection.setSSLContext(this.sslContext);
+        }
+
+        if (this.readTimeout != 0)
+        {
+            connection.setReadTimeout(this.readTimeout);
+        }
+
+        if (this.connectTimeout != 0)
+        {
+            connection.setConnectTimeout(this.connectTimeout);
+        }
+
+        int responseStatus = -1;
+        byte[] responseBody = new byte[0];
+        byte[] errorReason = new byte[0];
+        Map<String, List<String>> headerFields;
+
+        // Codes_SRS_HTTPSREQUEST_11_008: [The function shall send an HTTPS request as formatted in the constructor.]
+        connection.connect();
+
+        responseStatus = connection.getResponseStatus();
+        headerFields = connection.getResponseHeaders();
+
+        if (responseStatus == 200)
+        {
+            responseBody = connection.readInput();
+        }
+
+        // Codes_SRS_HTTPSREQUEST_11_009: [The function shall return the HTTPS response received, including the status code, body (if 200 status code), header fields, and error reason (if any).]
+        return new HttpsResponse(responseStatus, responseBody, headerFields, errorReason);
+    }

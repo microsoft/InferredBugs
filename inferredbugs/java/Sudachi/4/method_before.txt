@@ -1,0 +1,35 @@
+    void readOOV(String unkDef, Grammar grammar) throws IOException {
+        try (InputStream input = (unkDef == null) ? openFromJar("unk.def") : new FileInputStream(unkDef);
+                InputStreamReader isReader = new InputStreamReader(input, StandardCharsets.UTF_8);
+                LineNumberReader reader = new LineNumberReader(isReader)) {
+            while (true) {
+                String line = reader.readLine();
+                if (line == null) {
+                    break;
+                }
+                String[] cols = line.split(",");
+                if (cols.length < 10) {
+                    throw new IllegalArgumentException("invalid format at line " + reader.getLineNumber());
+                }
+                CategoryType type = CategoryType.valueOf(cols[0]);
+                if (type == null) {
+                    throw new IllegalArgumentException(cols[0] + " is invalid type at line " + reader.getLineNumber());
+                }
+                if (!categories.containsKey(type)) {
+                    throw new IllegalArgumentException(cols[0] + " is undefined at line " + reader.getLineNumber());
+                }
+
+                OOV oov = new OOV();
+                oov.leftId = Short.parseShort(cols[1]);
+                oov.rightId = Short.parseShort(cols[2]);
+                oov.cost = Short.parseShort(cols[3]);
+                List<String> pos = Arrays.asList(cols[4], cols[5], cols[6], cols[7], cols[8], cols[9]);
+                oov.posId = grammar.getPartOfSpeechId(pos);
+
+                if (!oovList.containsKey(type)) {
+                    oovList.put(type, new ArrayList<OOV>());
+                }
+                oovList.get(type).add(oov);
+            }
+        }
+    }

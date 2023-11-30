@@ -1,0 +1,41 @@
+    @Path("dsPreview/{datasetId}")
+    @GET
+    @Produces({ "image/png" })
+    public InputStream dsPreview(@PathParam("datasetId") Long datasetId, @Context UriInfo uriInfo, @Context HttpHeaders headers, @Context HttpServletResponse response) /*throws NotFoundException, ServiceUnavailableException, PermissionDeniedException, AuthorizationRequiredException*/ {        
+        
+        
+        
+        Dataset dataset = datasetService.find(datasetId);
+        String imageThumbFileName = null; 
+        
+        List<DataFile> dataFiles = dataset.getFiles();
+        for (DataFile dataFile : dataFiles) {
+            if (dataFile.isImage()) {
+                imageThumbFileName = ImageThumbConverter.generateImageThumb(dataFile.getFileSystemLocation().toString(), 48);
+                break;
+            } 
+        }
+        
+        if (imageThumbFileName == null) {
+            imageThumbFileName = getWebappImageResource (DEFAULT_DATASET_ICON);
+        }
+        
+        if (imageThumbFileName != null) {
+            InputStream in;
+
+            try {
+                in = new FileInputStream(imageThumbFileName);
+            } catch (Exception ex) {
+                // We don't particularly care what the reason why we have
+                // failed to access the file was.
+                // From the point of view of the download subsystem, it's a
+                // binary operation -- it's either successfull or not.
+                // If we can't access it for whatever reason, we are saying
+                // it's 404 NOT FOUND in our HTTP response.
+                return null;
+            }
+            return in;
+        }
+
+        return null; 
+    }

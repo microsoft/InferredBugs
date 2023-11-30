@@ -1,0 +1,16 @@
+    @Override
+    public void start(ExtendedSequenceNumber extendedSequenceNumber, InitialPositionInStreamExtended initialPositionInStreamExtended) {
+        if (executorService.isShutdown()) {
+            throw new IllegalStateException("ExecutorService has been shutdown.");
+        }
+
+        this.initialPositionInStreamExtended = initialPositionInStreamExtended;
+        highestSequenceNumber = extendedSequenceNumber.sequenceNumber();
+        dataFetcher.initialize(extendedSequenceNumber, initialPositionInStreamExtended);
+
+        if (!started) {
+            log.info("{} : Starting prefetching thread.", shardId);
+            executorService.execute(defaultGetRecordsCacheDaemon);
+        }
+        started = true;
+    }

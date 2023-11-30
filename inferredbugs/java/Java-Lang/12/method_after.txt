@@ -1,0 +1,20 @@
+    @Test
+    public void testSimpleLock() {
+        DirectBytes bytes = new DirectStore(64).bytes();
+        bytes.writeLong(0, -1L);
+        assertFalse(bytes.tryLockLong(0));
+        bytes.writeLong(0, 0L);
+        assertTrue(bytes.tryLockLong(0));
+        long val1 = bytes.readLong(0);
+        assertTrue(bytes.tryLockLong(0));
+        bytes.unlockLong(0);
+        assertEquals(val1, bytes.readLong(0));
+        bytes.unlockLong(0);
+        assertEquals(0L, bytes.readLong(0));
+        try {
+            bytes.unlockLong(0);
+            fail();
+        } catch (IllegalMonitorStateException e) {
+            // expected.
+        }
+    }

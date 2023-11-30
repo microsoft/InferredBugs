@@ -1,0 +1,29 @@
+  @Test
+  public void testMetadataForClassHierarchy() {
+    new MockUp<JDBCConnection>() {
+      @Mock
+      public DatabaseMetaData getMetaData() throws SQLException {
+        return new CustomDatabaseMetadata(
+            (JDBCConnection) sqlLine.getConnection());
+      }
+    };
+
+    try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+      SqlLine.Status status =
+          begin(sqlLine, os, false, "-e", "!set maxwidth 80");
+      assertThat(status, equalTo(SqlLine.Status.OK));
+      DispatchCallback dc = new DispatchCallback();
+      sqlLine.runCommands(dc, "!connect "
+          + ConnectionSpec.HSQLDB.url + " \""
+          + ConnectionSpec.HSQLDB.username + "\" \""
+          + ConnectionSpec.HSQLDB.password + "\"");
+      os.reset();
+      sqlLine.runCommands(dc, "!tables");
+      String output = os.toString("UTF8");
+      assertThat(output,
+          allOf(containsString("TABLE_CAT"),
+              not(containsString("No such method \"getTables\""))));
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }

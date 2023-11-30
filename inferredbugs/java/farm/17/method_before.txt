@@ -1,0 +1,39 @@
+    @Test
+    public void renderClaimXml() throws Exception {
+        final Farm farm = new FtFarm(new PropsFarm(new FkFarm()));
+        final Catalog catalog = new Catalog(new Pmo(farm)).bootstrap();
+        final String pid = "A1B2C3D4F";
+        catalog.add(pid, String.format("2017/07/%s/", pid));
+        final Project pkt = farm.find(String.format("@id='%s'", pid))
+            .iterator().next();
+        final Roles roles = new Roles(
+            pkt
+        ).bootstrap();
+        final String uid = "yegor256";
+        new People(new Pmo(farm)).bootstrap().invite(uid, "mentor");
+        roles.assign(uid, "PO");
+        final Take take = new TkApp(farm);
+        final long cid = 42L;
+        final ClaimOut claim = new ClaimOut().type("test").cid(cid);
+        claim.postTo(pkt);
+        MatcherAssert.assertThat(
+            XhtmlMatchers.xhtml(
+                new RsPrint(
+                    take.act(
+                        new RqWithHeaders(
+                            new RqFake(
+                                "GET",
+                                String.format("/footprint/%s/%d", pid, cid)
+                            ),
+                            // @checkstyle LineLength (1 line)
+                            "Cookie: PsCookie=0975A5A5-F6DB193E-AF18000A-75726E3A-74657374-3A310005-6C6F6769-6E000879-65676F72-323536AE",
+                            "Accept: application/xml"
+                        )
+                    )
+                ).printBody()
+            ),
+            XhtmlMatchers.hasXPaths(
+                String.format("/page/claim/cid[text() = %d]", cid)
+            )
+        );
+    }

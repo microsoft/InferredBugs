@@ -1,0 +1,24 @@
+  private String readEntityAsString(ContainerRequestContext req) throws Exception {
+    LOGGER.entering();
+    // Read the entire input stream into a String
+    // This should be OK since JSON input shouldn't be monstrously big
+    BufferedReader ir = new BufferedReader(new InputStreamReader(req.getEntityStream()));
+    StringBuilder sb = new StringBuilder();
+    String line = null;
+    Charset cs = MessageUtils.getCharset(req.getMediaType());
+    // TBD - is all the Charset handling correct?
+    do {
+      line = ir.readLine();
+      if (line != null) {
+        sb.append(line);
+      }
+    } while (line != null);
+    ir.close();
+    String entity = sb.toString();
+
+    // Set the request input stream to a clone of the original input stream
+    // so that it can be read again
+    req.setEntityStream(new ByteArrayInputStream(entity.getBytes(cs)));
+    LOGGER.exiting(entity);
+    return entity;
+  }

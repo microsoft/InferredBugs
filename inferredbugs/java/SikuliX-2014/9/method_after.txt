@@ -1,0 +1,78 @@
+ public void initBeforeLoad(String scriptType, boolean reInit) {
+		String scrType = null;
+		boolean paneIsEmpty = false;
+
+    log(lvl, "initBeforeLoad: %s", scriptType);
+		if (scriptType == null) {
+			scriptType = Settings.EDEFAULT;
+			paneIsEmpty = true;
+		}
+
+		if (Settings.EPYTHON.equals(scriptType)) {
+			scrType = Settings.CPYTHON;
+			_indentationLogic = SikuliIDE.getIDESupport(scriptType).getIndentationLogic();
+			_indentationLogic.setTabWidth(pref.getTabWidth());
+		} else if (Settings.ERUBY.equals(scriptType)) {
+			scrType = Settings.CRUBY;
+			_indentationLogic = null;
+		}
+
+//TODO should know, that scripttype not changed here to avoid unnecessary new setups    
+		if (scrType != null) {
+			sikuliContentType = scrType;
+			editorKit = new SikuliEditorKit();
+			editorViewFactory = (EditorViewFactory) editorKit.getViewFactory();
+			setEditorKit(editorKit);
+			setContentType(scrType);
+
+			if (_indentationLogic != null) {
+				pref.addPreferenceChangeListener(new PreferenceChangeListener() {
+					@Override
+					public void preferenceChange(PreferenceChangeEvent event) {
+						if (event.getKey().equals("TAB_WIDTH")) {
+							_indentationLogic.setTabWidth(Integer.parseInt(event.getNewValue()));
+						}
+					}
+				});
+			}
+		}
+
+
+		if (transferHandler == null) {
+			transferHandler = new MyTransferHandler();
+		}
+		setTransferHandler(transferHandler);
+
+    if (_highlighter == null) {
+      _highlighter = new EditorCurrentLineHighlighter(this);
+  		addCaretListener(_highlighter);
+  		initKeyMap();
+      addKeyListener(this);
+      addCaretListener(this);
+    }
+
+		setFont(new Font(pref.getFontName(), Font.PLAIN, pref.getFontSize()));
+		setMargin(new Insets(3, 3, 3, 3));
+		setBackground(Color.WHITE);
+		if (!Settings.isMac()) {
+			setSelectionColor(new Color(170, 200, 255));
+		}
+
+		updateDocumentListeners("initBeforeLoad");
+
+		popMenuImage = new SikuliIDEPopUpMenu("POP_IMAGE", this);
+		if (!popMenuImage.isValidMenu()) {
+			popMenuImage = null;
+		}
+
+		if (paneIsEmpty || reInit) {
+//			this.setText(String.format(Settings.TypeCommentDefault, getSikuliContentType()));
+			this.setText("");
+		}
+		SikuliIDE.getStatusbar().setCurrentContentType(getSikuliContentType());
+		log(lvl, "InitTab: (%s)", getSikuliContentType());
+		if (!Settings.hasTypeRunner(getSikuliContentType())) {
+			SikuliX.popup("No installed runner supports (" + getSikuliContentType() + ")\n"
+							+ "Trying to run the script will crash IDE!", "... serious problem detected!");
+		}
+	}

@@ -1,0 +1,26 @@
+    public DefaultNHttpServerConnection createConnection(final IOSession iosession) {
+        final SSLIOSession ssliosession = createSSLIOSession(iosession, this.sslcontext, this.sslHandler);
+        CharsetDecoder chardecoder = null;
+        CharsetEncoder charencoder = null;
+        final Charset charset = this.config.getCharset();
+        final CodingErrorAction malformedInputAction = this.config.getMalformedInputAction() != null ?
+                this.config.getMalformedInputAction() : CodingErrorAction.REPORT;
+        final CodingErrorAction unmappableInputAction = this.config.getUnmappableInputAction() != null ?
+                this.config.getUnmappableInputAction() : CodingErrorAction.REPORT;
+        if (charset != null) {
+            chardecoder = charset.newDecoder();
+            chardecoder.onMalformedInput(malformedInputAction);
+            chardecoder.onUnmappableCharacter(unmappableInputAction);
+            charencoder = charset.newEncoder();
+            charencoder.onMalformedInput(malformedInputAction);
+            charencoder.onUnmappableCharacter(unmappableInputAction);
+        }
+        return new DefaultNHttpServerConnection(ssliosession,
+                this.config.getBufferSize(),
+                this.config.getFragmentSizeHint(),
+                this.allocator,
+                chardecoder, charencoder, this.config.getMessageConstraints(),
+                null, null,
+                this.requestParserFactory,
+                null);
+    }

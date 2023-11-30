@@ -1,0 +1,43 @@
+ @Override
+	public TableEvaluationRequest readFrom(Class<TableEvaluationRequest> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
+		String charset = getCharset(mediaType);
+
+		MultivaluedMap<String, String> queryParameters = this.uriInfo.getQueryParameters();
+
+		String delimiterChar = queryParameters.getFirst("delimiterChar");
+		String quoteChar = queryParameters.getFirst("quoteChar");
+
+		BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, charset)){
+
+			@Override
+			public void close(){
+				// The closing of the underlying java.io.InputStream is handled elsewhere
+			}
+		};
+
+		TableEvaluationRequest tableRequest;
+
+		try {
+			CsvPreference format;
+
+			if(delimiterChar != null){
+				format = CsvUtil.getFormat(delimiterChar, quoteChar);
+			} else
+
+			{
+				format = CsvUtil.getFormat(reader);
+			}
+
+			tableRequest = CsvUtil.readTable(reader, format);
+		} catch(Exception e){
+			logger.error("Failed to load CSV document", e);
+
+			throw new BadRequestException(e);
+		} finally {
+			reader.close();
+		}
+
+		tableRequest.setCharset(charset);
+
+		return tableRequest;
+	}

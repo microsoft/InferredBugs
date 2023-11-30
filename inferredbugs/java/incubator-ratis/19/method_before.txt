@@ -1,0 +1,36 @@
+  @Override
+  protected void operation(RaftClient client) throws IOException {
+    int length = Integer.parseInt(size);
+    int num = Integer.parseInt(numFiles);
+    AtomicLong totalBytes = new AtomicLong(0);
+    String entropy = RandomStringUtils.randomAlphanumeric(10);
+
+    byte[] fileValue = string2Bytes(RandomStringUtils.randomAscii(length));
+    FileStoreClient fileStoreClient = new FileStoreClient(client);
+
+    System.out.println("Starting load now ");
+    long startTime = System.currentTimeMillis();
+    List<CompletableFuture<Long>> futures = new ArrayList<>();
+    for (int i = 0; i < num; i++) {
+      String path = "file-" + entropy + "-" + i;
+      ByteBuffer b = ByteBuffer.wrap(fileValue);
+      futures.add(fileStoreClient.writeAsync(path, 0, true, b));
+    }
+
+    for (CompletableFuture<Long> future : futures) {
+      Long writtenLen = future.join();
+      totalBytes.addAndGet(writtenLen);
+      if (writtenLen != length) {
+        System.out.println("File length written is wrong: " + writtenLen + length);
+      }
+    }
+    long endTime = System.currentTimeMillis();
+
+    System.out.println("Total files written: " + futures.size());
+    System.out.println("Each files size: " + length);
+    System.out.println("Total data written: " + totalBytes + " bytes");
+    System.out.println("Total time taken: " + (endTime - startTime) + " millis");
+
+    client.close();
+    System.exit(0);
+  }

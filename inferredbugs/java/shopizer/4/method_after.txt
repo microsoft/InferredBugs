@@ -1,0 +1,40 @@
+  private Customer convertPersistableCustomerToCustomer(PersistableCustomer customer, MerchantStore store) {
+
+    Customer cust = new Customer();
+
+    CustomerPopulator populator = new CustomerPopulator();
+    populator.setCountryService(countryService);
+    populator.setCustomerOptionService(customerOptionService);
+    populator.setCustomerOptionValueService(customerOptionValueService);
+    populator.setLanguageService(languageService);
+    populator.setLanguageService(languageService);
+    populator.setZoneService(zoneService);
+    populator.setGroupService(groupService);
+    try{
+      populator.populate(customer, cust, store, store.getDefaultLanguage());
+    } catch (ConversionException e) {
+      throw new ConversionRuntimeException(e);
+    }
+
+
+    List<Group> groups = getListOfGroups(GroupType.CUSTOMER);
+    cust.setGroups(groups);
+
+    String password = customer.getClearPassword();
+    if (StringUtils.isBlank(password)) {
+      password = UserReset.generateRandomString();
+      customer.setClearPassword(password);
+    }
+
+
+    String encodedPassword = passwordEncoder.encode(password);
+    if (!StringUtils.isBlank(customer.getEncodedPassword())) {
+      encodedPassword = customer.getEncodedPassword();
+      // customer.setClearPassword("");
+    }
+
+    cust.setPassword(encodedPassword);
+
+    return cust;
+
+  }

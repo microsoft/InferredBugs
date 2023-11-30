@@ -1,0 +1,29 @@
+    @Override
+    protected void doExecute(MagnetContext context) {
+        TorrentId torrentId = context.getMagnetUri().getTorrentId();
+
+        MetadataFetcher metadataFetcher = new MetadataFetcher(metadataService, torrentId);
+        context.getRouter().registerMessagingAgent(metadataFetcher);
+
+        // need to also receive Bitfields and Haves (without validation for the number of pieces...)
+        BitfieldCollectingConsumer bitfieldConsumer = new BitfieldCollectingConsumer();
+        context.getRouter().registerMessagingAgent(bitfieldConsumer);
+
+        getDescriptor(torrentId).start();
+
+        context.getMagnetUri().getPeerAddresses().forEach(address -> {
+            context.getSession().get().onPeerDiscovered(new InetPeer(address));
+        });
+
+        Torrent torrent = metadataFetcher.fetchTorrent();
+        Optional<AnnounceKey> announceKey = createAnnounceKey(context.getMagnetUri());
+        torrent = amendTorrent(torrent, context.getMagnetUri().getDisplayName(), announceKey);
+        if (announceKey.isPresent()) {
+            TrackerAnnouncer announcer = new TrackerAnnouncer(trackerService, torrent);
+            announcer.start();
+        }
+
+        context.setTorrent(torrent);
+
+        context.setBitfieldConsumer(bitfieldConsumer);
+    }

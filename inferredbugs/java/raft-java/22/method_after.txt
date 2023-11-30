@@ -1,0 +1,32 @@
+    @Override
+    public Raft.VoteResponse requestVote(Raft.VoteRequest request) {
+        raftNode.getLock().lock();
+        try {
+            Raft.VoteResponse.Builder responseBuilder = Raft.VoteResponse.newBuilder();
+            responseBuilder.setGranted(false);
+            responseBuilder.setTerm(raftNode.getCurrentTerm());
+            if (request.getTerm() < raftNode.getCurrentTerm()) {
+                return responseBuilder.build();
+            }
+            if (request.getTerm() > raftNode.getCurrentTerm()) {
+                raftNode.stepDown(request.getTerm());
+            }
+            boolean logIsOk = request.getLastLogTerm() > raftNode.getRaftLog().getLastLogTerm()
+                    || (request.getLastLogTerm() == raftNode.getRaftLog().getLastLogTerm()
+                    && request.getLastLogIndex() >= raftNode.getRaftLog().getLastLogIndex());
+            if (raftNode.getVotedFor() == 0 && logIsOk) {
+                raftNode.stepDown(request.getTerm());
+                raftNode.setVotedFor(request.getServerId());
+                raftNode.getRaftLog().updateMetaData(raftNode.getCurrentTerm(), raftNode.getVotedFor(), null);
+                responseBuilder.setGranted(true);
+                responseBuilder.setTerm(raftNode.getCurrentTerm());
+            }
+            LOG.info("Receive RequestVote request from server {} " +
+                            "in term {} (my term is {}), granted={}",
+                    request.getServerId(), request.getTerm(),
+                    raftNode.getCurrentTerm(), responseBuilder.getGranted());
+            return responseBuilder.build();
+        } finally {
+            raftNode.getLock().unlock();
+        }
+    }

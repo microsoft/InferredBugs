@@ -1,0 +1,29 @@
+    private Map<String, List<AppiumDevice>> getDevices() throws Exception {
+        String platform = System.getProperty(PLATFORM);
+        Map<String, List<AppiumDevice>> devicesByHost = new HashMap<>();
+        if (capabilityManager.getCapabilities().has("hostMachines")) {
+            JSONArray hostMachines = capabilityManager.getHostMachineObject();
+            for (Object hostMachine : hostMachines) {
+                JSONObject hostMachineJson = (JSONObject) hostMachine;
+                String machineIP = hostMachineJson.getString("machineIP");
+                IAppiumManager appiumManager = AppiumManagerFactory.getAppiumManager(machineIP);
+                List<Device> devices = appiumManager.getDevices(machineIP, platform);
+
+                if (!platform.equalsIgnoreCase("android")
+                        && capabilityManager.isSimulatorAppPresentInCapsJson()
+                        && hostMachineJson.has("simulators")) {
+                    JSONArray simulators = hostMachineJson.getJSONArray("simulators");
+                    List<Device> simulatorsToBoot = getSimulatorsToBoot(
+                            machineIP, simulators);
+                    devices.addAll(simulatorsToBoot);
+                }
+
+                List<AppiumDevice> appiumDevices = getAppiumDevices(machineIP, devices);
+
+                devicesByHost.put(machineIP, appiumDevices);
+            }
+        } else {
+            throw new RuntimeException("Provide hostMachine in Caps.json for execution");
+        }
+        return devicesByHost;
+    }

@@ -1,0 +1,54 @@
+    public PackageDescriptor createDeb( final File[] pControlFiles, final DataProducer[] pData, final File pOutput, String compression ) throws PackagingException, InvalidDescriptorException {
+
+        File tempData = null;
+        File tempControl = null;
+
+        try {
+            tempData = File.createTempFile("deb", "data");          
+            tempControl = File.createTempFile("deb", "control");            
+
+            console.println("Building data");
+            final StringBuffer md5s = new StringBuffer();
+            final BigInteger size = buildData(pData, tempData, md5s, compression);
+
+            console.println("Building control");
+            final PackageDescriptor packageDescriptor = buildControl(pControlFiles, size, md5s, tempControl);
+
+            if (!packageDescriptor.isValid()) {
+                throw new InvalidDescriptorException(packageDescriptor);
+            }
+
+            final InformationOutputStream output = new InformationOutputStream(new FileOutputStream(pOutput), MessageDigest.getInstance("MD5"));
+
+            final ArArchiveOutputStream ar = new ArArchiveOutputStream(output);
+
+            addTo(ar, "debian-binary", "2.0\n");
+            addTo(ar, "control.tar.gz", tempControl);
+            addTo(ar, "data.tar" + getExtension(compression), tempData);
+            
+            ar.close();
+
+            // intermediate values
+            packageDescriptor.set("MD5", output.getMd5());
+            packageDescriptor.set("Size", "" + output.getSize());
+            packageDescriptor.set("File", pOutput.getName());
+
+            return packageDescriptor;
+
+        } catch(InvalidDescriptorException e) {
+            throw e;
+        } catch(Exception e) {
+            throw new PackagingException("Could not create deb package", e);
+        } finally {
+            if (tempData != null) {
+                if (!tempData.delete()) {
+                    throw new PackagingException("Could not delete " + tempData);                   
+                }
+            }
+            if (tempControl != null) {
+                if (!tempControl.delete()) {
+                    throw new PackagingException("Could not delete " + tempControl);                    
+                }
+            }
+        }
+    }

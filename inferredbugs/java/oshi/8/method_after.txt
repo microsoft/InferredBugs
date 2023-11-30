@@ -1,0 +1,28 @@
+    @Override
+    public String getFamily() {
+        if (this._family == null) {
+            String etcOsRelease = getReleaseFilename();
+            try {
+                this.osRelease = FileUtil.readFile(etcOsRelease);
+                for (String line : this.osRelease) {
+                    String[] splittedLine = line.split("=");
+                    if ((splittedLine[0].equals("NAME") || splittedLine[0].equals("DISTRIB_ID"))
+                            && splittedLine.length > 1) {
+                        // remove beginning and ending '"' characters, etc from
+                        // NAME="Ubuntu"
+                        this._family = splittedLine[1].replaceAll("^\"|\"$", "");
+                        break;
+                    }
+                }
+                // If we've gotten to the end without matching, use the filename
+                if (this._family == null) {
+                    this._family = etcOsRelease.replace("/etc/", "").replace("release", "").replace("version", "")
+                            .replace("-", "");
+                }
+            } catch (IOException e) {
+                LOG.trace("", e);
+                return "";
+            }
+        }
+        return this._family;
+    }

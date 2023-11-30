@@ -1,0 +1,15 @@
+    @Test
+    public void testSelectDependsOnObservable() {
+        try (Database db = db()) {
+            Observable<Integer> a = db.update("update person set score=100 where name=?") //
+                    .parameter("FRED") //
+                    .counts().toObservable();
+            db.select("select score from person where name=?") //
+                    .parameter("FRED") //
+                    .dependsOn(a) //
+                    .getAs(Integer.class)//
+                    .test().awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                    .assertValues(100) //
+                    .assertComplete();
+        }
+    }

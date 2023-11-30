@@ -1,0 +1,19 @@
+    @Test
+    public void shouldDetermineQueueDirectoryFromQueueFile() throws Exception {
+        final File queuePath = DirectoryUtils.tempDir(getClass().getSimpleName());
+        try (final SingleChronicleQueue queue =
+                     SingleChronicleQueueBuilder.binary(queuePath)
+                             .testBlockSize()
+                             .build()) {
+            try (DocumentContext ctx = queue.acquireAppender().writingDocument()) {
+                ctx.wire().write("key").text("value");
+            }
+        }
+        final Path path = queuePath.listFiles(QUEUE_FILE_FILTER)[0].toPath();
+        try (final SingleChronicleQueue queue =
+                     SingleChronicleQueueBuilder.binary(path)
+                             .testBlockSize()
+                             .build()) {
+            assertThat(queue.createTailer().readingDocument().isPresent(), is(true));
+        }
+    }

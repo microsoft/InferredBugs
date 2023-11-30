@@ -1,0 +1,35 @@
+ protected void initDataComposer(IDataComposer dataComposer, HttpServletRequest request) {
+
+		String paramName = (String) request.getSession().getAttribute(Constants.MODIFY_STATE_HDIV_PARAMETER);
+		String preState = paramName != null ? request.getParameter(paramName) : null;
+		if (preState != null && preState.length() > 0) {
+
+			// We are modifying an existing state, preload dataComposer with it
+			IState state = this.stateUtil.restoreState(preState);
+			if (state.getPageId() > 0) {
+				IPage page = this.session.getPage(state.getPageId() + "");
+				if (page != null) {
+					dataComposer.startPage(page);
+				}
+			}
+			if (state != null) {
+				dataComposer.beginRequest(state);
+			}
+		} else if (this.config.isReuseExistingPageInAjaxRequest() && isAjaxRequest(request)) {
+			String hdivStateParamName = (String) request.getSession().getAttribute(Constants.HDIV_PARAMETER);
+			String hdivState = request.getParameter(hdivStateParamName);
+
+			IState state = this.stateUtil.restoreState(hdivState);
+			IPage page = this.session.getPage(Integer.toString(state.getPageId()));
+			dataComposer.startPage(page);
+		} else {
+			dataComposer.startPage();
+		}
+
+		// Detect if request url is configured as a long living page
+		String url = request.getRequestURI().substring(request.getContextPath().length());
+		String scope = this.config.isLongLivingPages(url);
+		if (scope != null) {
+			dataComposer.startScope(scope);
+		}
+	}

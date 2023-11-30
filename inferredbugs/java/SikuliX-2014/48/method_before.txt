@@ -1,0 +1,32 @@
+  public <PSI> Iterator<Match> findAll(PSI target) throws FindFailed {
+    lastMatches = null;
+    Image img = null;
+    String targetStr = target.toString();
+    if (target instanceof String) {
+      targetStr = targetStr.trim();
+    }
+    while (true) {
+      try {
+        if (autoWaitTimeout > 0) {
+          RepeatableFindAll rf = new RepeatableFindAll(target);
+          rf.repeat(autoWaitTimeout);
+          lastMatches = rf.getMatches();
+        } else {
+          lastMatches = doFindAll(target, null);
+        }
+      } catch (Exception ex) {
+        if (ex instanceof IOException) {
+          if (handleImageMissing(img, false)) {
+            continue;
+          }
+        }
+        throw new FindFailed(ex.getMessage());
+      }
+      if (lastMatches != null) {
+        return lastMatches;
+      }
+      if (!handleFindFailed(img)) {
+        return null;
+      }
+    }
+  }

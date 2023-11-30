@@ -1,0 +1,42 @@
+    private void postPlugin(Plugin plugin, boolean isPing) throws IOException {
+        // Construct the post data
+        String response = "ERR No response";
+        String data = encode("guid") + "=" + encode(guid)
+                + "&" + encode("version") + "=" + encode(plugin.getDescription().getVersion())
+                + "&" + encode("server") + "=" + encode(Bukkit.getVersion())
+                + "&" + encode("players") + "=" + encode(Bukkit.getServer().getOnlinePlayers().length + "")
+                + "&" + encode("revision") + "=" + encode(REVISION + "");
+
+        // If we're pinging, append it
+        if (isPing) {
+            data += "&" + encode("ping") + "=" + encode("true");
+        }
+
+        // Create the url
+        URL url = new URL(BASE_URL + String.format(REPORT_URL, plugin.getDescription().getName()));
+
+        // Connect to the website
+        URLConnection connection = url.openConnection();
+        connection.setDoOutput(true);
+
+        // Write the data
+        OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream());
+        writer.write(data);
+        writer.flush();
+
+        // Now read the response
+        BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        response = reader.readLine();
+
+        // close resources
+        writer.close();
+        reader.close();
+
+        if (response.startsWith("OK")) {
+            // Useless return, but it documents that we should be receiving OK followed by an optional description
+            return;
+        } else if (response.startsWith("ERR")) {
+            // Throw it to whoever is catching us
+            throw new IOException(response);
+        }
+    }

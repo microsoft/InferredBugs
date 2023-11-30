@@ -1,0 +1,18 @@
+  @Test
+  public void testTwoFrames() throws Exception {
+    final ZMTPWriter writer = ZMTPWriter.create(ZMTP10);
+    final ByteBuf buf = Unpooled.buffer();
+    writer.reset(buf);
+
+    final ByteBuf f0 = copiedBuffer("hello ", UTF_8);
+    final ByteBuf f1 = copiedBuffer("hello ", UTF_8);
+
+    writer.frame(f0.readableBytes(), true).writeBytes(f0.duplicate());
+    writer.frame(f1.readableBytes(), false).writeBytes(f1.duplicate());
+
+    final ZMTPParser parser = ZMTPParser.create(ZMTP10, new RawDecoder());
+    parser.parse(buf, out);
+
+    assertThat(out, hasSize(1));
+    assertThat(out, contains((Object) asList(f0, f1)));
+  }

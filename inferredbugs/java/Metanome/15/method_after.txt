@@ -1,0 +1,57 @@
+  @Test
+  public void testStoreTableInput() throws EntityStorageException, InputValidationException {
+    // Setup
+    TestHelper.resetDatabaseSync();
+    final boolean[] blocked = {true};
+
+    BasePage parent = new BasePage();
+    InputConfigurationPage page = new InputConfigurationPage(parent);
+    page.setErrorReceiver(new TabWrapper());
+
+    DatabaseConnection dbConnection = new DatabaseConnection();
+    dbConnection.setUrl("url");
+    dbConnection.setPassword("password");
+    dbConnection.setUsername("db");
+    TestHelper.storeDatabaseConnectionSync(dbConnection);
+
+    page.tableInputField.setValues("1: url", "table");
+    page.tableInputFieldSelected = true;
+    page.dbFieldSelected = false;
+    page.fileInputFieldSelected = false;
+    page.content.clear();
+    page.content.add(page.tableInputField);
+
+    // Execute
+    page.saveObject();
+
+    // Expected values
+    final TableInput expectedInput = page.tableInputField.getValue();
+
+    // Check result
+    TestHelper.getAllTableInputs(
+        new AsyncCallback<List<TableInput>>() {
+          @Override
+          public void onFailure(Throwable throwable) {
+            fail();
+          }
+
+          @Override
+          public void onSuccess(List<TableInput> con) {
+            blocked[0] = false;
+            assertTrue(con.contains(expectedInput));
+          }
+        });
+
+    Timer rpcCheck = new Timer() {
+      @Override
+      public void run() {
+        if (blocked[0]) {
+          this.schedule(100);
+        }
+      }
+    };
+    rpcCheck.schedule(100);
+
+    // Cleanup
+    TestHelper.resetDatabaseSync();
+  }

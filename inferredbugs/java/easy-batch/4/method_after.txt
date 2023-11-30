@@ -1,0 +1,35 @@
+    public static void main(String[] args) throws Exception {
+
+        // Input file tweets.csv
+        File tweets = new File(args[0]);
+
+        // Create queues
+        BlockingQueue<Record> queue1 = new LinkedBlockingQueue<Record>();
+        BlockingQueue<Record> queue2 = new LinkedBlockingQueue<Record>();
+
+        // Create a round robin record dispatcher that will be used to distribute records to worker engines
+        RoundRobinRecordDispatcher roundRobinRecordDispatcher = new RoundRobinRecordDispatcher(Arrays.asList(queue1, queue2));
+
+        // Build a master engine that will read records from the data source and dispatch them to worker engines
+        Engine masterEngine = aNewEngine()
+                .reader(new FlatFileRecordReader(tweets))
+                .processor(roundRobinRecordDispatcher)
+                .batchProcessEventListener(new PoisonRecordBroadcaster(roundRobinRecordDispatcher))
+                .build();
+
+        // Build worker engines
+        Engine workerEngine1 = buildWorkerEngine(queue1);
+        Engine workerEngine2 = buildWorkerEngine(queue2);
+
+        // Create a thread pool to call master and worker engines in parallel
+        ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+
+        // Submit workers to executor service
+        executorService.submit(masterEngine);
+        executorService.submit(workerEngine1);
+        executorService.submit(workerEngine2);
+
+        // Shutdown executor service
+        executorService.shutdown();
+
+    }

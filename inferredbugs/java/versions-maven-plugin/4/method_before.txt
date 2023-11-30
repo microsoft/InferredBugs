@@ -1,0 +1,45 @@
+    private void useNextReleases( ModifiedPomXMLEventReader pom, Collection dependencies )
+        throws XMLStreamException, MojoExecutionException
+    {
+        Iterator i = dependencies.iterator();
+
+        while ( i.hasNext() )
+        {
+            Dependency dep = (Dependency) i.next();
+
+            if ( isExcludeReactor() && isProducedByReactor( dep ) )
+            {
+                continue;
+            }
+
+            String version = dep.getVersion();
+            Matcher versionMatcher = matchSnapshotRegex.matcher( version );
+            if ( !versionMatcher.matches() )
+            {
+                Artifact artifact = this.findArtifact( dep );
+                if ( !isIncluded( artifact ) )
+                {
+                    continue;
+                }
+
+                ArtifactVersions versions = getHelper().lookupArtifactVersions( artifact, false );
+                try
+                {
+                    ArtifactVersion[] newer = versions.getNewerVersions( artifact.getSelectedVersion(), false );
+                    if ( newer.length > 0 )
+                    {
+                        if ( PomHelper.setDependencyVersion( pom, dep.getGroupId(), dep.getArtifactId(), version,
+                                                             newer[0].toString() ) )
+                        {
+                            getLog().debug( "Version set to " + newer[0].toString() + " for dependnecy: " + dep );
+                        }
+                    }
+                }
+                catch ( OverConstrainedVersionException e )
+                {
+                    getLog().warn( "This should never happen as your build should not work at all if this is thrown",
+                                   e );
+                }
+            }
+        }
+    }

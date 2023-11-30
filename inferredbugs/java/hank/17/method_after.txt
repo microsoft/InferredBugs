@@ -1,0 +1,11 @@
+  public static ZkRingGroup create(ZooKeeperPlus zk, String path, ZkDomainGroup domainGroup, Coordinator coordinator) throws KeeperException, InterruptedException, IOException {
+    if (domainGroup.getVersions().isEmpty()) {
+      throw new IllegalStateException(
+          "You cannot create a ring group for a domain group that has no versions!");
+    }
+    zk.create(path, domainGroup.getName().getBytes());
+    zk.create(ZkPath.append(path, CURRENT_VERSION_PATH_SEGMENT), null);
+    zk.create(ZkPath.append(path, UPDATING_TO_VERSION_PATH_SEGMENT),
+        (Integer.toString(DomainGroupUtils.getLatestVersion(domainGroup).getVersionNumber())).getBytes());
+    return new ZkRingGroup(zk, path, domainGroup, coordinator);
+  }

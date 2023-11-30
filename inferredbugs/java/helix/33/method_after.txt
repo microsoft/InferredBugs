@@ -1,0 +1,24 @@
+  public void onExternalViewChange(ExternalView externalView, IdealState idealState) {
+    try {
+      String resourceName = externalView.getId();
+      if (!_resourceMbeanMap.containsKey(resourceName)) {
+        synchronized (this) {
+          if (!_resourceMbeanMap.containsKey(resourceName)) {
+            ResourceMonitor bean = new ResourceMonitor(_clusterName, resourceName);
+            bean.updateExternalView(externalView, idealState);
+            registerResources(Arrays.asList(bean));
+          }
+        }
+      }
+      ResourceMonitor bean = _resourceMbeanMap.get(resourceName);
+      String oldSensorName = bean.getSensorName();
+      bean.updateExternalView(externalView, idealState);
+      String newSensorName = bean.getSensorName();
+      if (!oldSensorName.equals(newSensorName)) {
+        unregisterResources(Arrays.asList(resourceName));
+        registerResources(Arrays.asList(bean));
+      }
+    } catch (Exception e) {
+      LOG.warn(e);
+    }
+  }

@@ -1,0 +1,72 @@
+  @Test
+  public void testTwoDomainsManagedByTwoOperators() throws Exception {
+    Assume.assumeFalse(QUICKTEST);
+    String testMethodName = new Object() {}.getClass().getEnclosingMethod().getName();
+    logTestBegin(testMethodName);
+    logger.info("Creating Domain domain4 & verifing the domain creation");
+
+    logger.info("Checking if operator1 and domain1 are running, if not creating");
+    if (operator1 == null) {
+      operator1 = TestUtils.createOperator(opManagingdefaultAndtest1NSYamlFile);
+    }
+
+    Domain domain1 = null, domain2 = null;
+    boolean testCompletedSuccessfully = false;
+    try {
+      // load input yaml to map and add configOverrides
+      Map<String, Object> wlstDomainMap = TestUtils.loadYaml(domainOnPVUsingWLSTYamlFile);
+      wlstDomainMap.put("domainUID", "domain1onpvwlst");
+      wlstDomainMap.put("adminNodePort", new Integer("30702"));
+      wlstDomainMap.put("t3ChannelPort", new Integer("30031"));
+      domain1 = TestUtils.createDomain(wlstDomainMap);
+      domain1.verifyDomainCreated();
+      testBasicUseCases(domain1);
+      logger.info("Checking if operator2 is running, if not creating");
+      if (operator2 == null) {
+        operator2 = TestUtils.createOperator(opManagingtest2NSYamlFile);
+      }
+      // create domain5 with configured cluster
+      // ToDo: configured cluster support is removed from samples, modify the test to create
+      // configured cluster
+      Map<String, Object> wdtDomainMap = TestUtils.loadYaml(domainOnPVUsingWDTYamlFile);
+      wdtDomainMap.put("domainUID", "domain2onpvwdt");
+      wdtDomainMap.put("adminNodePort", new Integer("30703"));
+      wdtDomainMap.put("t3ChannelPort", new Integer("30041"));
+      // wdtDomainMap.put("clusterType", "Configured");
+      domain2 = TestUtils.createDomain(wdtDomainMap);
+      domain2.verifyDomainCreated();
+      testBasicUseCases(domain2);
+      logger.info("Verify the only remaining running domain domain1 is unaffected");
+      domain1.verifyDomainCreated();
+
+      testClusterScaling(operator2, domain2);
+
+      logger.info("Verify the only remaining running domain domain1 is unaffected");
+      domain1.verifyDomainCreated();
+
+      logger.info("Destroy and create domain4 and verify no impact on domain2");
+      domain1.destroy();
+      domain1.create();
+
+      logger.info("Verify no impact on domain2");
+      domain2.verifyDomainCreated();
+      testCompletedSuccessfully = true;
+
+    } finally {
+      String domainUidsToBeDeleted = "";
+
+      if (domain1 != null && (JENKINS || testCompletedSuccessfully)) {
+        domainUidsToBeDeleted = domain1.getDomainUid();
+      }
+      if (domain2 != null && (JENKINS || testCompletedSuccessfully)) {
+        domainUidsToBeDeleted = domainUidsToBeDeleted + "," + domain2.getDomainUid();
+      }
+      if (!domainUidsToBeDeleted.equals("")) {
+        logger.info("About to delete domains: " + domainUidsToBeDeleted);
+        TestUtils.deleteWeblogicDomainResources(domainUidsToBeDeleted);
+        TestUtils.verifyAfterDeletion(domain1);
+        TestUtils.verifyAfterDeletion(domain2);
+      }
+    }
+    logger.info("SUCCESS - " + testMethodName);
+  }

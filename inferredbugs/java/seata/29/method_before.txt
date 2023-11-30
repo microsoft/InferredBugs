@@ -1,0 +1,45 @@
+    @Override
+    public BranchStatus branchCommit(BranchType branchType, String xid, long branchId, String resourceId,
+                                     String applicationData)
+        throws TransactionException {
+        try {
+            BranchCommitRequest request = new BranchCommitRequest();
+            request.setXid(xid);
+            request.setBranchId(branchId);
+            request.setResourceId(resourceId);
+            request.setApplicationData(applicationData);
+            request.setBranchType(branchType);
+
+            GlobalSession globalSession = SessionHolder.findGlobalSession(xid);
+            if (globalSession == null) {
+                return BranchStatus.PhaseTwo_Committed;
+            }
+
+            if(BranchType.SAGA.equals(branchType)){
+
+                Map<String,Channel> channels = ChannelManager.getRmChannels();
+                if(channels == null || channels.size() == 0){
+                    LOGGER.error("Failed to commit SAGA global[" + globalSession.getXid() + ", RM channels is empty.");
+                    return BranchStatus.PhaseTwo_CommitFailed_Retryable;
+                }
+                String sagaResourceId = globalSession.getApplicationId() + "#" + globalSession.getTransactionServiceGroup();
+                Channel sagaChannel = channels.get(sagaResourceId);
+                if(sagaChannel == null){
+                    LOGGER.error("Failed to commit SAGA global[" + globalSession.getXid() + ", cannot find channel by resourceId["+sagaResourceId+"]");
+                    return BranchStatus.PhaseTwo_CommitFailed_Retryable;
+                }
+                BranchCommitResponse response = (BranchCommitResponse)messageSender.sendSyncRequest(sagaChannel, request);
+                return response.getBranchStatus();
+            }
+            else{
+
+                BranchSession branchSession = globalSession.getBranch(branchId);
+
+                BranchCommitResponse response = (BranchCommitResponse)messageSender.sendSyncRequest(resourceId,
+                        branchSession.getClientId(), request);
+                return response.getBranchStatus();
+            }
+        } catch (IOException | TimeoutException e) {
+            throw new BranchTransactionException(FailedToSendBranchCommitRequest, String.format("Send branch commit failed, xid = %s branchId = %s", xid, branchId), e);
+        }
+    }

@@ -1,0 +1,31 @@
+  @Override
+  public void run() {
+    // Clear the interrupted status, if present
+    Thread.interrupted();
+    
+    final Fiber oldFiber = CURRENT_FIBER.get();
+    CURRENT_FIBER.set(this);
+    Container oldContainer = ContainerResolver.getDefault().enterContainer(owner.getContainer());
+    try {
+      // doRun returns true to indicate an early exit from fiber processing
+      if (!doRun(next)) {
+          completionCheck();
+      }
+      
+      // Trigger exitCallback
+      synchronized (this) {
+        if (exitCallback != null && exitCallback != PLACEHOLDER) {
+          
+          if (LOGGER.isFineEnabled()) {
+            LOGGER.fine("{0} invoking exit callback", new Object[] { getName() });
+          }
+
+          exitCallback.onExit();
+        }
+        exitCallback = PLACEHOLDER;
+      }
+    } finally {
+      ContainerResolver.getDefault().exitContainer(oldContainer);
+      CURRENT_FIBER.set(oldFiber);
+    }
+  }

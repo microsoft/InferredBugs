@@ -1,0 +1,64 @@
+  @Override
+  public void handleNewSession() throws Exception {
+    LOG.info(
+        "Handle new session, instance: " + _instanceName + ", type: " + _instanceType);
+    waitUntilConnected();
+
+    /**
+     * stop all timer tasks, reset all handlers, make sure cleanup completed for previous session
+     * disconnect if fail to cleanup
+     */
+    stopTimerTasks();
+    if (_leaderElectionHandler != null) {
+      _leaderElectionHandler.reset();
+    }
+    resetHandlers();
+
+    /**
+     * clean up write-through cache
+     */
+    _baseDataAccessor.reset();
+
+    /**
+     * from here on, we are dealing with new session
+     */
+    if (!ZKUtil.isClusterSetup(_clusterName, _zkclient)) {
+      throw new HelixException("Cluster structure is not set up for cluster: " + _clusterName);
+    }
+
+    _sessionStartTime = System.currentTimeMillis();
+
+    switch (_instanceType) {
+    case PARTICIPANT:
+      handleNewSessionAsParticipant();
+      break;
+    case CONTROLLER:
+      handleNewSessionAsController();
+      break;
+    case CONTROLLER_PARTICIPANT:
+      handleNewSessionAsParticipant();
+      handleNewSessionAsController();
+      break;
+    case ADMINISTRATOR:
+    case SPECTATOR:
+    default:
+      break;
+    }
+
+    startTimerTasks();
+
+    /**
+     * init handlers
+     * ok to init message handler and data-accessor twice
+     * the second init will be skipped (see CallbackHandler)
+     */
+    initHandlers(_handlers);
+
+    if (_stateListener != null) {
+      try {
+        _stateListener.onConnected(this);
+      } catch (Exception e) {
+        LOG.warn("stateListener.onConnected callback fails", e);
+      }
+    }
+  }

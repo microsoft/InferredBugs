@@ -1,0 +1,34 @@
+    @Test
+    public void testSerializeRoundTrip() throws IOException {
+        RTree<Object, Point> tree = RTree.star().maxChildren(10).create();
+        tree = tree.add(GreekEarthquakes.entries()).last().toBlocking().single();
+        long t = System.currentTimeMillis();
+        File output = new File("target/file");
+        FileOutputStream os = new FileOutputStream(output);
+        FlatBuffersSerializer serializer = new FlatBuffersSerializer();
+        serializer.serialize(tree, new Func1<Object, byte[]>() {
+            @Override
+            public byte[] call(Object o) {
+                return EMPTY;
+            }
+        }, os);
+        os.close();
+        System.out.println("written in " + (System.currentTimeMillis() - t) + "ms, " + "file size="
+                + output.length() / 1000000.0 + "MB");
+        System.out.println("bytes per entry=" + output.length() / tree.size());
+
+        InputStream is = new FileInputStream(output);
+        t = System.currentTimeMillis();
+        RTree<Object, Geometry> tr = serializer.deserialize(output.length(), is,
+                new Func1<byte[], Object>() {
+                    @Override
+                    public Object call(byte[] bytes) {
+                        return "a";
+                    }
+                });
+        System.out.println("read in " + (System.currentTimeMillis() - t) + "ms");
+        int found = tr.search(Geometries.rectangle(40, 27.0, 40.5, 27.5)).count().toBlocking()
+                .single();
+        System.out.println("found=" + found);
+        assertEquals(22, found);
+    }

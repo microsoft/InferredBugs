@@ -1,0 +1,39 @@
+ public void train(String dataFile, int maxite, float c) throws IOException {
+
+		fp = File.createTempFile("train-features", null, new File("./tmp/"));
+
+		buildInstanceList(dataFile);
+
+		LabelAlphabet postagAlphabet = factory.buildLabelAlphabet("postag");
+
+		IFeatureAlphabet features = factory.DefaultFeatureAlphabet();
+
+		SFGenerator generator = new SFGenerator();
+		Linear[] models = new Linear[postagAlphabet.size()];
+		int fsize = features.size();
+
+		for (int i = 0; i < postagAlphabet.size(); i++) {
+			String pos = postagAlphabet.lookupString(i);
+			InstanceSet instset = readInstanceSet(pos);
+			LabelAlphabet alphabet = factory.buildLabelAlphabet(pos);
+			int ysize = alphabet.size();
+			System.out.printf("Training with data: %s\n", pos);
+			System.out.printf("Number of labels: %d\n", ysize);
+			LinearMax solver = new LinearMax(generator, ysize);
+			ZeroOneLoss loss = new ZeroOneLoss();
+			Update update = new LinearMaxPAUpdate(loss);
+			OnlineTrainer trainer = new OnlineTrainer(solver, update, loss,
+					fsize, maxite, c);
+			models[i] = trainer.train(instset, null);
+			instset = null;
+			solver = null;
+			loss = null;
+			trainer = null;
+			System.out.println();
+		}
+		factory.setStopIncrement(true);
+		saveModels(modelfile, models,factory);
+
+		fp.delete();
+		fp = null;
+	}

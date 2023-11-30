@@ -1,0 +1,36 @@
+    @Override
+    public ValueBlock filter(PositionBlock positions)
+    {
+        // find selected positions
+        Set<Integer> indexes = new HashSet<>();
+        for (long position : positions.getPositions()) {
+            if (range.contains(position)) {
+                indexes.add((int) (position - range.lowerEndpoint()));
+            }
+        }
+
+        // if no positions are selected, we are done
+        if (indexes.isEmpty()) {
+            return EmptyValueBlock.INSTANCE;
+        }
+
+
+        // build a buffer containing only the tuples from the selected positions
+        DynamicSliceOutput sliceOutput = new DynamicSliceOutput(1024);
+
+        int currentOffset = 0;
+        for (int index = 0; index < getCount(); ++index) {
+            Slice currentPositionToEnd = slice.slice(currentOffset, slice.length() - currentOffset);
+            int size = tupleInfo.size(currentPositionToEnd);
+
+            // only write selected tuples
+            if (indexes.contains(index)) {
+                sliceOutput.writeBytes(slice, currentOffset, size);
+            }
+
+            currentOffset += size;
+        }
+
+        // todo what is the start position
+        return new UncompressedValueBlock(Ranges.closed(0L, (long) indexes.size() - 1), tupleInfo, sliceOutput.slice());
+    }

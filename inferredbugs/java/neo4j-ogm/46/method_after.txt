@@ -1,0 +1,41 @@
+    private boolean bothWayMappingRequired(Object srcObject, String relationshipType, Object tgtObject, String relationshipDirection) {
+        boolean mapBothWays = false;
+
+        ClassInfo tgtInfo = metaData.classInfo(tgtObject);
+        if(tgtInfo == null) {
+            LOGGER.warn("Unable to process {} on {}. Checck the mapping.", relationshipType, srcObject.getClass());
+            // #347. attribute is not a rel ? maybe would be better to change FieldInfo.persistableAsProperty ?
+            return false;
+        }
+        for (FieldInfo tgtRelReader : tgtInfo.relationshipFields()) {
+            String tgtRelationshipDirection = tgtRelReader.relationshipDirection();
+            if ((tgtRelationshipDirection.equals(Relationship.OUTGOING) || tgtRelationshipDirection.equals(Relationship.INCOMING)) //The relationship direction must be explicitly incoming or outgoing
+                    && tgtRelReader.relationshipType().equals(relationshipType)) { //The source must have the same relationship type to the target as the target to the source
+                //Moreover, the source must be related to the target and vice versa in the SAME direction
+                if (relationshipDirection.equals(tgtRelationshipDirection)) {
+
+                    Object target = tgtRelReader.read(tgtObject);
+                    if (target != null) {
+                        if (target instanceof Iterable) {
+                            for (Object relatedObject : (Iterable<?>) target) {
+                                if (relatedObject.equals(srcObject)) { //the target is mapped to the source as well
+                                    mapBothWays = true;
+                                }
+                            }
+                        } else if (target.getClass().isArray()) {
+                            for (Object relatedObject : (Object[]) target) {
+                                if (relatedObject.equals(srcObject)) { //the target is mapped to the source as well
+                                    mapBothWays = true;
+                                }
+                            }
+                        } else {
+                            if (target.equals(srcObject)) { //the target is mapped to the source as well
+                                mapBothWays = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return mapBothWays;
+    }

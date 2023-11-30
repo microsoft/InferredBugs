@@ -1,0 +1,32 @@
+ public void testNoCompression() throws Exception {
+		project.executeTarget("no-compression");
+
+		File deb = new File("target/test-classes/test.deb");
+		assertTrue("package not build", deb.exists());
+
+		boolean found = false;
+
+		ArInputStream in = new ArInputStream(new FileInputStream(deb));
+		ArEntry entry;
+		while ((entry = in.getNextEntry()) != null) {
+			if (entry.getName().equals("data.tar")) {
+				found = true;
+
+				TarInputStream tar = new TarInputStream(in);
+				while ((tar.getNextEntry()) != null);
+				tar.close();
+			} else {
+				// skip to the next entry
+				long skip = entry.getLength(); 
+				while(skip > 0) {
+					long skipped = in.skip(skip); 
+					if (skipped == -1) {
+						throw new IOException("Failed to skip");
+					}
+					skip -= skipped;
+				}
+			}
+		}
+
+		assertTrue("tar file not found", found);
+	}

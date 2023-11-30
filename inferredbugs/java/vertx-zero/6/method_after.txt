@@ -1,0 +1,23 @@
+    @Override
+    public void mount(final Router router) {
+        final Class<?> clazz = ZeroAmbient.getPlugin(PlugRouter.KEY_ROUTER);
+        if (Values.ZERO == LOG_FLAG_START.getAndIncrement()) {
+            LOGGER.info(Info.DY_DETECT, NAME);
+        }
+        if (null != clazz && Ut.isImplement(clazz, PlugRouter.class)) {
+            final JsonObject routerConfig = PlugRouter.config();
+            if (Values.ONE == LOG_FLAG_END.getAndIncrement()) {
+                LOGGER.info(Info.DY_FOUND, NAME, clazz.getName(), routerConfig.encode());
+            }
+            // Mount dynamic router
+            final PlugRouter plugRouter = Fn.poolThread(Pool.PLUGS,
+                    () -> Ut.instance(clazz));
+            plugRouter.bind(this.vertxRef);
+            plugRouter.mount(router, routerConfig);
+        } else {
+            if (Values.ONE == LOG_FLAG_END.getAndIncrement()) {
+                LOGGER.info(Info.DY_SKIP, NAME,
+                        Fn.getNull(null, () -> null == clazz ? null : clazz.getName(), clazz));
+            }
+        }
+    }

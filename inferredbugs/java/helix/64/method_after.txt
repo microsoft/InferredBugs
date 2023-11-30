@@ -1,0 +1,146 @@
+  @Override
+  public void execute(final ClusterEvent event) throws Exception {
+    _eventId = event.getEventId();
+    HelixManager manager = event.getAttribute(AttributeName.helixmanager.name());
+    Map<String, Resource> resourceMap = event.getAttribute(AttributeName.RESOURCES.name());
+    ClusterDataCache cache = event.getAttribute(AttributeName.ClusterDataCache.name());
+
+    if (manager == null || resourceMap == null || cache == null) {
+      throw new StageException("Missing attributes in event:" + event
+          + ". Requires ClusterManager|RESOURCES|DataCache");
+    }
+
+    HelixDataAccessor dataAccessor = manager.getHelixDataAccessor();
+    PropertyKey.Builder keyBuilder = dataAccessor.keyBuilder();
+
+    CurrentStateOutput currentStateOutput =
+        event.getAttribute(AttributeName.CURRENT_STATE.name());
+    ClusterStatusMonitor clusterStatusMonitor =
+        event.getAttribute(AttributeName.clusterStatusMonitor.name());
+
+    List<ExternalView> newExtViews = new ArrayList<>();
+    Set<String> monitoringResources = new HashSet<>();
+
+    Map<String, ExternalView> curExtViews = cache.getExternalViews();
+
+    for (String resourceName : resourceMap.keySet()) {
+      ExternalView view = new ExternalView(resourceName);
+      // view.setBucketSize(currentStateOutput.getBucketSize(resourceName));
+      // if resource ideal state has bucket size, set it
+      // otherwise resource has been dropped, use bucket size from current state instead
+      Resource resource = resourceMap.get(resourceName);
+      if (resource.getBucketSize() > 0) {
+        view.setBucketSize(resource.getBucketSize());
+      } else {
+        view.setBucketSize(currentStateOutput.getBucketSize(resourceName));
+      }
+
+      int totalPendingMessageCount = 0;
+
+      for (Partition partition : resource.getPartitions()) {
+        Map<String, String> currentStateMap =
+            currentStateOutput.getCurrentStateMap(resourceName, partition);
+        if (currentStateMap != null && currentStateMap.size() > 0) {
+          // Set<String> disabledInstances
+          // = cache.getDisabledInstancesForResource(resource.toString());
+          for (String instance : currentStateMap.keySet()) {
+            // if (!disabledInstances.contains(instance))
+            // {
+            view.setState(partition.getPartitionName(), instance, currentStateMap.get(instance));
+            // }
+          }
+        }
+        totalPendingMessageCount +=
+            currentStateOutput.getPendingMessageMap(resource.getResourceName(), partition).size();
+      }
+
+      // Update cluster status monitor mbean
+      IdealState idealState = cache.getIdealState(resourceName);
+      if (!cache.isTaskCache()) {
+        ResourceConfig resourceConfig = cache.getResourceConfig(resourceName);
+        if (clusterStatusMonitor != null) {
+          if (idealState != null // has ideal state
+              && (resourceConfig == null || !resourceConfig.isMonitoringDisabled()) // monitoring not disabled
+              && !idealState.getStateModelDefRef() // and not a job resource
+              .equalsIgnoreCase(DefaultSchedulerMessageHandlerFactory.SCHEDULER_TASK_QUEUE)) {
+            StateModelDefinition stateModelDef =
+                cache.getStateModelDef(idealState.getStateModelDefRef());
+            clusterStatusMonitor
+                .setResourceStatus(view, cache.getIdealState(view.getResourceName()),
+                    stateModelDef);
+            clusterStatusMonitor
+                .updatePendingMessages(resource.getResourceName(), totalPendingMessageCount);
+            monitoringResources.add(resourceName);
+          }
+        }
+      }
+      ExternalView curExtView = curExtViews.get(resourceName);
+      // copy simplefields from IS, in cases where IS is deleted copy it from existing ExternalView
+      if (idealState != null) {
+        view.getRecord().getSimpleFields().putAll(idealState.getRecord().getSimpleFields());
+      } else if (curExtView != null) {
+        view.getRecord().getSimpleFields().putAll(curExtView.getRecord().getSimpleFields());
+      }
+
+      // compare the new external view with current one, set only on different
+      if (curExtView == null || !curExtView.getRecord().equals(view.getRecord())) {
+        // Add external view to the list which will be written to ZK later.
+        newExtViews.add(view);
+
+        // For SCHEDULER_TASK_RESOURCE resource group (helix task queue), we need to find out which
+        // task partitions are finished (COMPLETED or ERROR), update the status update of the original
+        // scheduler message, and then remove the partitions from the ideal state
+        if (idealState != null
+            && idealState.getStateModelDefRef().equalsIgnoreCase(
+            DefaultSchedulerMessageHandlerFactory.SCHEDULER_TASK_QUEUE)) {
+          updateScheduledTaskStatus(view, manager, idealState);
+        }
+      }
+    }
+
+    // Keep MBeans for existing resources and unregister MBeans for dropped resources
+    if (clusterStatusMonitor != null) {
+      clusterStatusMonitor.retainResourceMonitor(monitoringResources);
+    }
+
+    List<String> externalViewsToRemove = new ArrayList<>();
+    // TODO: consider not setting the externalview of SCHEDULER_TASK_QUEUE at all.
+    // Are there any entity that will be interested in its change?
+
+    // For the resource with DisableExternalView option turned on in IdealState
+    // We will not actually create or write the externalView to ZooKeeper.
+    List<PropertyKey> keys = new ArrayList<>();
+    for(Iterator<ExternalView> it = newExtViews.iterator(); it.hasNext(); ) {
+      ExternalView view = it.next();
+      String resourceName = view.getResourceName();
+      IdealState idealState = cache.getIdealState(resourceName);
+      if (idealState != null && idealState.isExternalViewDisabled()) {
+        it.remove();
+        // remove the external view if the external view exists
+        if (curExtViews.containsKey(resourceName)) {
+          LogUtil
+              .logInfo(LOG, _eventId, "Remove externalView for resource: " + resourceName);
+          dataAccessor.removeProperty(keyBuilder.externalView(resourceName));
+          externalViewsToRemove.add(resourceName);
+        }
+      } else {
+        keys.add(keyBuilder.externalView(resourceName));
+      }
+    }
+
+    // add/update external-views
+    if (newExtViews.size() > 0) {
+      dataAccessor.setChildren(keys, newExtViews);
+      cache.updateExternalViews(newExtViews);
+    }
+
+    // remove dead external-views
+    for (String resourceName : curExtViews.keySet()) {
+      if (!resourceMap.keySet().contains(resourceName)) {
+        LogUtil.logInfo(LOG, _eventId, "Remove externalView for resource: " + resourceName);
+        dataAccessor.removeProperty(keyBuilder.externalView(resourceName));
+        externalViewsToRemove.add(resourceName);
+      }
+    }
+    cache.removeExternalViews(externalViewsToRemove);
+  }

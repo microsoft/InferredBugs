@@ -1,0 +1,27 @@
+ private void resetCorrectOffsets() {
+		
+		KafkaConsumerCommand consumerCommand = new KafkaConsumerCommand(consumerContext.getProperties().getProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
+		try {
+			List<TopicInfo> topicInfos = consumerCommand.consumerGroup(consumerContext.getGroupId()).getTopics();
+			for (TopicInfo topic : topicInfos) {
+				List<TopicPartitionInfo> partitions = topic.getPartitions();
+				for (TopicPartitionInfo partition : partitions) {	
+					try {						
+						//期望的偏移
+						long expectOffsets = consumerContext.getLatestProcessedOffsets(topic.getTopicName(), partition.getPartition());
+						//
+						if(expectOffsets < partition.getOffset()){						
+							consumer.seek(new TopicPartition(topic.getTopicName(), partition.getPartition()), expectOffsets);
+							logger.info("seek Topic[{}] partition[{}] from {} to {}",topic.getTopicName(), partition.getPartition(),partition.getOffset(),expectOffsets);
+						}
+					} catch (Exception e) {
+						logger.warn("try seek topic["+topic.getTopicName()+"] partition["+partition.getPartition()+"] offsets error",e);
+					}
+				}
+			}
+			
+		} catch (Exception e) {
+			logger.warn("KafkaConsumerCommand.consumerGroup("+consumerContext.getGroupId()+") error",e);
+		}
+		consumerCommand.close();
+	}

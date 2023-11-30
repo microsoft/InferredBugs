@@ -1,0 +1,27 @@
+  @Override
+  public Response index(LindenIndexRequest request) throws IOException {
+    if (request.getType().equals(IndexRequestType.SWAP_INDEX)) {
+      Response response;
+      try {
+        response = swapIndex(request.getIndexName());
+      } catch (Exception e) {
+        LOGGER.error("Swapping index " + request.getIndexName() + " failed, " + e);
+        throw new IOException("Swapping index " + request.getIndexName() + " failed!", e);
+      }
+      return response;
+    }
+    String indexName = request.getIndexName();
+    LindenCore core = currentLindenCore;
+    if (indexName != null && !indexName.equals(currentIndexName)) {
+      if (indexName.startsWith(NEXT_INDEX_NAME_PREFIX)) {
+        // Accept bootstrap index request after swap is done in case something unexpected happened
+        // that swap command is executed before bootstrap is done
+        if (!indexName.substring(NEXT_INDEX_NAME_PREFIX.length()).equals(currentIndexVersion)) {
+          core = getLindenCore(indexName);
+        }
+      } else {
+        throw new IOException("Bad index name " + indexName + " in HotSwapLindenCoreImpl.");
+      }
+    }
+    return core.index(request);
+  }

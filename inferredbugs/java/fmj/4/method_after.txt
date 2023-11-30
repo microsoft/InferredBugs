@@ -1,0 +1,30 @@
+public String handler(InputStream errorStream) throws IOException {
+    FileChannel inputChannel =null;
+    if (errorStream instanceof FileInputStream) {
+        inputChannel = ((FileInputStream) errorStream).getChannel();
+    } else{
+
+        return "";
+    }
+    ByteArrayOutputStream byteArrayStream = new ByteArrayOutputStream(4096);
+    ByteBuffer buffer = ByteBuffer.allocate(4096);
+    StringBuffer sb = new StringBuffer();
+
+    try {
+        while (inputChannel.read(buffer) > -1) {
+            buffer.flip();
+            sb.append(buffer.get());
+            buffer.clear();
+        }
+    } catch (IOException e) {
+        // 当脚本执行超时，由于channel的关闭必然会抛出异常
+        log.error("read from process error : '{}'",e);
+        throw e;
+    }
+    finally {
+        if(inputChannel!=null)
+            inputChannel.close();
+    }
+    setResult(sb.toString());
+    return getResult();
+}

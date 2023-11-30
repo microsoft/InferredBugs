@@ -1,0 +1,37 @@
+    @Override
+    public Event applyHashZipList(RedisInputStream in, DB db, int version) throws IOException {
+        /*
+         * |<zlbytes>| <zltail>| <zllen>| <entry> ...<entry> | <zlend>|
+         * | 4 bytes | 4 bytes | 2bytes | zipListEntry ...   | 1byte  |
+         */
+        BaseRdbParser parser = new BaseRdbParser(in);
+        KeyStringValueHash o13 = new KeyStringValueHash();
+        byte[] key = parser.rdbLoadEncodedStringObject().first();
+        ByteArray aux = parser.rdbLoadPlainStringObject();
+        RedisInputStream stream = new RedisInputStream(new ByteArrayInputStream(aux));
+
+        Map<String, String> map = new LinkedHashMap<>();
+        Map<byte[], byte[]> rawMap = new LinkedHashMap<>();
+        int zlbytes = BaseRdbParser.LenHelper.zlbytes(stream);
+        int zltail = BaseRdbParser.LenHelper.zltail(stream);
+        int zllen = BaseRdbParser.LenHelper.zllen(stream);
+        while (zllen > 0) {
+            byte[] field = BaseRdbParser.StringHelper.zipListEntry(stream);
+            zllen--;
+            byte[] value = BaseRdbParser.StringHelper.zipListEntry(stream);
+            zllen--;
+            map.put(new String(field, CHARSET), new String(value, CHARSET));
+            rawMap.put(field, value);
+        }
+        int zlend = BaseRdbParser.LenHelper.zlend(stream);
+        if (zlend != 255) {
+            throw new AssertionError("zlend expect 255 but " + zlend);
+        }
+        o13.setValueRdbType(RDB_TYPE_HASH_ZIPLIST);
+        o13.setValue(map);
+        o13.setRawValue(rawMap);
+        o13.setDb(db);
+        o13.setKey(new String(key, CHARSET));
+        o13.setRawKey(key);
+        return o13;
+    }

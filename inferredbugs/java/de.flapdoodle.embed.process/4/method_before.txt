@@ -1,0 +1,40 @@
+ @Override
+	public ExtractedFileSet extractFileSet(Distribution distribution)
+			throws IOException {
+		
+		Directory withDistribution = withDistribution(extraction.getDirectory(), distribution);
+		ArtifactStore baseStore = store(withDistribution, extraction.getExecutableNaming());
+		
+		boolean foundExecutable=false;
+		File destinationDir = withDistribution.asFile();
+		
+		Builder fileSetBuilder = ExtractedFileSet.builder(destinationDir)
+				.baseDirIsGenerated(withDistribution.isGenerated());
+		
+		FilesToExtract filesToExtract = baseStore.filesToExtract(distribution);
+		for (FileSet.Entry file : filesToExtract.files()) {
+			if (file.type()==FileType.Executable) {
+				String executableName = FilesToExtract.executableName(extraction.getExecutableNaming(), file);
+				File executableFile = new File(executableName);
+				File resolvedExecutableFile = new File(destinationDir, executableName);
+				if (resolvedExecutableFile.isFile()) {
+					foundExecutable=true;
+				}
+				fileSetBuilder.executable(executableFile);
+			} else {
+				fileSetBuilder.addLibraryFiles(new File(FilesToExtract.fileName(file)));
+			}
+		}
+		
+		if (!foundExecutable) {
+			// we found no executable, so we trigger extraction and hope for the best
+			try {
+				baseStore.extractFileSet(distribution);
+			} catch (FileAlreadyExistsException fx) {
+				throw new RuntimeException("extraction to "+destinationDir+" has failed", fx);
+			}
+		}
+		
+		ExtractedFileSet extractedFileSet = fileSetBuilder.build();
+		return ExtractedFileSets.copy(extractedFileSet, temp.getDirectory(), temp.getExecutableNaming());
+	}

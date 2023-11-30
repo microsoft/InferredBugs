@@ -1,0 +1,46 @@
+    public void releaseConnection(final ManagedClientConnection conn, long keepalive, TimeUnit tunit) {
+        if (!(conn instanceof ManagedClientConnectionImpl)) {
+            throw new IllegalArgumentException("Connection class mismatch, " +
+                 "connection not obtained from this manager");
+        }
+        ManagedClientConnectionImpl managedConn = (ManagedClientConnectionImpl) conn;
+        synchronized (managedConn) {
+            if (this.log.isDebugEnabled()) {
+                this.log.debug("Releasing connection " + conn);
+            }
+            if (managedConn.getPoolEntry() == null) {
+                return; // already released
+            }
+            ClientConnectionManager manager = managedConn.getManager();
+            if (manager != null && manager != this) {
+                throw new IllegalStateException("Connection not obtained from this manager");
+            }
+            synchronized (this) {
+                if (this.shutdown) {
+                    shutdownConnection(managedConn);
+                    return;
+                }
+                try {
+                    if (managedConn.isOpen() && !managedConn.isMarkedReusable()) {
+                        shutdownConnection(managedConn);
+                    }
+                    this.poolEntry.updateExpiry(keepalive, tunit != null ? tunit : TimeUnit.MILLISECONDS);
+                    if (this.log.isDebugEnabled()) {
+                        String s;
+                        if (keepalive > 0) {
+                            s = "for " + keepalive + " " + tunit;
+                        } else {
+                            s = "indefinitely";
+                        }
+                        this.log.debug("Connection can be kept alive " + s);
+                    }
+                } finally {
+                    managedConn.detach();
+                    this.conn = null;
+                    if (this.poolEntry.isClosed()) {
+                        this.poolEntry = null;
+                    }
+                }
+            }
+        }
+    }

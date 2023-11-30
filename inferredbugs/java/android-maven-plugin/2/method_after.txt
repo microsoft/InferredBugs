@@ -1,0 +1,39 @@
+ private void updateWithMetaInf( ZipOutputStream zos, File jarFile, Set<String> entries, boolean metaInfOnly )
+	throws ZipException, IOException
+	{
+		ZipFile zin = new ZipFile( jarFile );
+
+		for( Enumeration<? extends ZipEntry> en = zin.entries(); en.hasMoreElements(); ) {
+			ZipEntry ze = en.nextElement();
+
+			if( ze.isDirectory() )
+				continue;
+
+			String zn = ze.getName();
+
+			if( metaInfOnly ) {
+				if( !zn.startsWith( "META-INF/" ) ) {
+					continue;
+				}
+
+				if( this.extractDuplicates && !entries.add( zn ) ) {
+					continue;
+				}
+
+				if( !metaInfMatches( zn ) ) {
+					continue;
+				}
+			}
+
+			zos.putNextEntry( new ZipEntry( zn ) );
+
+			InputStream is = zin.getInputStream( ze );
+
+			copyStreamWithoutClosing( is, zos );
+
+			is.close();
+			zos.closeEntry();
+		}
+
+		zin.close();
+	}

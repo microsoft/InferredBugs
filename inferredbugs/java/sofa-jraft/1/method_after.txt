@@ -1,0 +1,22 @@
+    @Override
+    public void cancel() {
+        this.lock.lock();
+        try {
+            if (this.finished) {
+                return;
+            }
+            if (this.timer != null) {
+                this.timer.cancel(true);
+            }
+            if (this.rpcCall != null) {
+                this.rpcCall.cancel(true);
+            }
+            if (this.st.isOk()) {
+                this.st.setError(RaftError.ECANCELED, RaftError.ECANCELED.name());
+            }
+
+            this.onFinished();
+        } finally {
+            this.lock.unlock();
+        }
+    }

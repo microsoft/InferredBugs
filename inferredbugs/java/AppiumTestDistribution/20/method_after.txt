@@ -1,0 +1,122 @@
+    public void endLogTestResults(ITestResult result) throws IOException, InterruptedException {
+
+        final String classNameCur = result.getName().split(" ")[2].substring(1);
+        final Package[] packages = Package.getPackages();
+        String className = null;
+        for (final Package p : packages) {
+            final String pack = p.getName();
+            final String tentative = pack + "." + classNameCur;
+            try {
+                Class.forName(tentative);
+            } catch (final ClassNotFoundException e) {
+                continue;
+            }
+            className = tentative;
+            break;
+        }
+
+
+        if (result.isSuccess()) {
+            ExtentTestManager.getTest()
+                .log(LogStatus.PASS, result.getMethod().getMethodName(), "Pass");
+            if (driver.toString().split("\\(")[0].trim().equals("AndroidDriver:  on LINUX")) {
+                log_file_writer.println(logEntries);
+                log_file_writer.flush();
+                ExtentTestManager.getTest().log(LogStatus.INFO, result.getMethod().getMethodName(),
+                    "ADBLogs:: <a href=" + "adblogs/" + device_udid
+                        .replaceAll("\\W", "_") + "__" + result.getMethod().getMethodName() + ".txt"
+                        + ">AdbLogs</a>");
+                System.out.println(driver.getSessionId() + ": Saving device log - Done.");
+            }
+
+        }
+        if (result.getStatus() == ITestResult.FAILURE) {
+            writeFailureToTxt();
+            ExtentTestManager.getTest()
+                .log(LogStatus.FAIL, result.getMethod().getMethodName(), result.getThrowable());
+            if (driver.toString().split(":")[0].trim().equals("AndroidDriver")) {
+                System.out.println("im in");
+                deviceModel = androidDevice.getDeviceModel(device_udid);
+                //captureScreenshot(result.getMethod().getMethodName(), "android", className);
+                captureScreenShot(result.getMethod().getMethodName(), result.getStatus(),
+                    result.getTestClass().getName());
+            } else if (driver.toString().split(":")[0].trim().equals("IOSDriver")) {
+                deviceModel = iosDevice.getIOSDeviceProductTypeAndVersion(device_udid);
+                captureScreenShot(result.getMethod().getMethodName(), result.getStatus(),
+                    result.getTestClass().getName());
+            }
+
+            if (driver.toString().split(":")[0].trim().equals("AndroidDriver")) {
+                File framedImageAndroid = new File(
+                    "screenshot/android/" + device_udid
+                        .replaceAll("\\W", "_") + "/" + className + "/" + result.getMethod()
+                        .getMethodName() + "/" + screenShotNameWithTimeStamp + deviceModel
+                        + "_failed_" + result.getMethod().getMethodName() + "_framed.png");
+                if (framedImageAndroid.exists()) {
+                    ExtentTestManager.getTest()
+                        .log(LogStatus.INFO, result.getMethod().getMethodName(),
+                            "Snapshot below: " + ExtentTestManager.getTest().addScreenCapture(
+                                "screenshot/android/" + device_udid
+                                    .replaceAll("\\W", "_") + "/" + className + "/" + result
+                                    .getMethod().getMethodName() + "/" + screenShotNameWithTimeStamp
+                                    + deviceModel + "_failed_" + result.getMethod().getMethodName()
+                                    + "_framed.png"));
+                } else {
+                    ExtentTestManager.getTest()
+                        .log(LogStatus.INFO, result.getMethod().getMethodName(),
+                            "Snapshot below: " + ExtentTestManager.getTest().addScreenCapture(
+                                "screenshot/android/" + device_udid
+                                    .replaceAll("\\W", "_") + "/" + className + "/" + result
+                                    .getMethod().getMethodName() + "/" + screenShotNameWithTimeStamp
+                                    + deviceModel + "_" + result.getMethod().getMethodName()
+                                    + "_failed.png"));
+                }
+
+
+            }
+            if (driver.toString().split(":")[0].trim().equals("IOSDriver")) {
+                File framedImageIOS = new File(
+                    "screenshot/iOS/" + device_udid
+                        .replaceAll("\\W", "_") + "/" + className + "/" + result.getMethod()
+                        .getMethodName() + "/" + screenShotNameWithTimeStamp + deviceModel
+                        + "_failed_" + result.getMethod().getMethodName() + "_framed.png");
+                if (framedImageIOS.exists()) {
+                    ExtentTestManager.getTest()
+                        .log(LogStatus.INFO, result.getMethod().getMethodName(),
+                            "Snapshot below: " + ExtentTestManager.getTest().addScreenCapture(
+                                "/screenshot/iOS/" + device_udid
+                                    .replaceAll("\\W", "_") + "/" + className + "/" + result
+                                    .getMethod().getMethodName() + "/" + screenShotNameWithTimeStamp
+                                    + deviceModel + "_failed_" + result.getMethod().getMethodName()
+                                    + "_framed.png"));
+                } else {
+                    ExtentTestManager.getTest()
+                        .log(LogStatus.INFO, result.getMethod().getMethodName(),
+                            "Snapshot below: " + ExtentTestManager.getTest().addScreenCapture(
+                                "screenshot/iOS/" + device_udid
+                                    .replaceAll("\\W", "_") + "/" + className + "/" + result
+                                    .getMethod().getMethodName() + "/" + screenShotNameWithTimeStamp
+                                    + deviceModel + "_" + result.getMethod().getMethodName()
+                                    + "_failed.png"));
+                }
+
+            }
+
+
+            if (driver.toString().split("\\(")[0].trim().equals("AndroidDriver:  on LINUX")) {
+                log_file_writer.println(logEntries);
+                log_file_writer.flush();
+                ExtentTestManager.getTest().log(LogStatus.INFO, result.getMethod().getMethodName(),
+                    "ADBLogs:: <a href=" + "adblogs/" + device_udid
+                        .replaceAll("\\W", "_") + "__" + result.getMethod().getMethodName() + ".txt"
+                        + ">AdbLogs</a>");
+                System.out.println(driver.getSessionId() + ": Saving device log - Done.");
+            }
+
+        }
+        if (result.getStatus() == ITestResult.SKIP) {
+            ExtentTestManager.getTest().log(LogStatus.SKIP, "Test skipped");
+        }
+        parentContext.get(Thread.currentThread().getId()).appendChild(child);
+        ExtentManager.getInstance().flush();
+    }

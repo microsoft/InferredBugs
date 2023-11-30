@@ -1,0 +1,53 @@
+    @Test
+    public void testLayout() throws Exception {
+        final Map<String, Appender> appenders = this.rootLogger.getAppenders();
+        for (final Appender appender : appenders.values()) {
+            this.rootLogger.removeAppender(appender);
+        }
+        // set up appender
+        final XmlLayout layout = XmlLayout.createLayout("true", "true", "true", null, null);
+        final ListAppender appender = new ListAppender("List", null, layout, true, false);
+        appender.start();
+
+        // set appender on root and set level to debug
+        this.rootLogger.addAppender(appender);
+        this.rootLogger.setLevel(Level.DEBUG);
+
+        // output starting message
+        this.rootLogger.debug("starting mdc pattern test");
+
+        this.rootLogger.debug("empty mdc");
+
+        ThreadContext.put("key1", "value1");
+        ThreadContext.put("key2", "value2");
+
+        this.rootLogger.debug("filled mdc");
+
+        ThreadContext.remove("key1");
+        ThreadContext.remove("key2");
+
+        this.rootLogger.error("finished mdc pattern test", new NullPointerException("test"));
+
+        final Marker marker = MarkerManager.getMarker("EVENT");
+        this.rootLogger.error(marker, "marker test");
+
+        appender.stop();
+
+        final List<String> list = appender.getMessages();
+
+        final String string = list.get(0);
+        assertTrue("Incorrect header: " + string, string.equals("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+        assertTrue("Incorrect footer", list.get(list.size() - 1).equals("</Events>"));
+        this.checkContains("loggerFqcn=\"org.apache.logging.log4j.spi.AbstractLoggerProvider\"", list);
+        this.checkContains("level=\"DEBUG\"", list);
+        this.checkContains(">starting mdc pattern test</Message>", list);
+        // this.checkContains("<Message>starting mdc pattern test</Message>", list);
+
+        // <Marker xmlns="" _class="org.apache.logging.log4j.MarkerManager..Log4jMarker" name="EVENT"/>
+        this.checkContains("<Marker", list);
+        this.checkContains("name=\"EVENT\"/>", list);
+
+        for (final Appender app : appenders.values()) {
+            this.rootLogger.addAppender(app);
+        }
+    }

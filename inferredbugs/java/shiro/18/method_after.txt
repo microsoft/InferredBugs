@@ -1,0 +1,35 @@
+    protected boolean executeLogin(ServletRequest request, ServletResponse response) {
+        if (log.isDebugEnabled()) {
+            log.debug("Attempting to authenticate Subject based on Http BASIC Authentication request...");
+        }
+
+        String authorizationHeader = getAuthzHeader(request);
+        if (authorizationHeader == null || authorizationHeader.length() == 0 ) {
+            return false;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Attempting to execute login with headers [" + authorizationHeader + "]");
+        }
+
+        String[] prinCred = getPrincipalsAndCredentials(authorizationHeader, request);
+        if ( prinCred == null || prinCred.length < 2 ) {
+            return false;
+        }
+
+        String username = prinCred[0];
+        String password = prinCred[1];
+
+        if (log.isDebugEnabled()) {
+            log.debug("Processing login request for username [" + username + "]");
+        }
+
+        AuthenticationToken token = createToken(username, password, request );
+        if ( token != null ) {
+            return executeLogin(token, request, response );
+        }
+
+        //always default to false.  If we've made it to this point in the code, that
+        //means the authentication attempt either never occured, or wasn't successful:
+        return false;
+    }

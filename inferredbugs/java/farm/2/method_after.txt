@@ -1,0 +1,54 @@
+    public void exec() throws IOException {
+        final Properties props = new Properties();
+        try (final InputStream input =
+            this.getClass().getResourceAsStream("/main.properties")) {
+            props.load(input);
+        }
+        final Github github = new RtGithub(
+            props.getProperty("github.0crat.login"),
+            props.getProperty("github.0crat.password")
+        );
+        final Map<String, SlackSession> sessions = new ConcurrentHashMap<>(0);
+        final Farm farm = new PingFarm(
+            new ReactiveFarm(
+                new SyncFarm(
+                    new S3Farm(
+                        new Region.Simple(
+                            props.getProperty("s3.key"),
+                            props.getProperty("s3.secret")
+                        ).bucket(props.getProperty("s3.bucket"))
+                    )
+                ),
+                Stream.of(
+                    new StkNotify(github),
+                    new com.zerocracy.radars.slack.StkNotify(sessions),
+                    new StkAdd(github),
+                    new StkRemove(),
+                    new StkShow(),
+                    new StkParent(),
+                    new StkSet(),
+                    new com.zerocracy.stk.pmo.profile.rate.StkShow(),
+                    new com.zerocracy.stk.pmo.profile.wallet.StkSet(),
+                    new com.zerocracy.stk.pmo.profile.wallet.StkShow(),
+                    new com.zerocracy.stk.pmo.profile.skills.StkAdd(),
+                    new com.zerocracy.stk.pmo.profile.skills.StkShow(),
+                    new com.zerocracy.stk.pmo.profile.aliases.StkShow()
+                ).map(StkSafe::new).collect(Collectors.toList())
+            )
+        );
+        final GithubRadar ghradar = Main.ghradar(farm, github);
+        final SlackRadar skradar = Main.skradar(farm, props, sessions);
+        try (final Radar chain = new Radar.Chain(ghradar, skradar)) {
+            final GhookRadar gkradar = Main.gkradar(farm, github);
+            chain.start();
+            new FtCli(
+                new TkApp(
+                    props,
+                    new FkRegex("/slack", skradar),
+                    new FkRegex("/alias", new TkAlias(farm)),
+                    new FkRegex("/ghook", gkradar)
+                ),
+                this.arguments
+            ).start(Exit.NEVER);
+        }
+    }

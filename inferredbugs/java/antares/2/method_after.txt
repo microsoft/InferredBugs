@@ -1,0 +1,63 @@
+    @Override
+    public void execute(final JobDetail jobDetail, JobTriggerType triggerType, JobExecutionContext context) {
+
+        final String appName = jobDetail.getApp().getAppName();
+        final String jobClass = jobDetail.getJob().getClazz();
+
+        JobInstance instance = null;
+        try {
+
+            Logs.info("The job({}/{}) is fired.", appName, jobClass);
+
+            if (triggerType == JobTriggerType.DEFAULT){
+                // refresh the job fire time if triggered by scheduler
+                asyncExecutor.submit(new RefreshJobFireTimeTask(appName, jobClass, context));
+            }
+
+            if (!canRunJobInstance(appName, jobClass)){
+                return;
+            }
+
+            // job is running
+            jobSupport.updateJobStateDirectly(appName, jobClass, JobState.RUNNING);
+
+            // create the job instance and shards
+            instance = createInstanceAndShards(jobDetail, triggerType);
+
+            // trigger the clients to pull shards
+            jobSupport.triggerJobInstance(appName, jobClass, instance);
+
+            // blocking until all shards to be finished or timeout
+            Long timeout = jobDetail.getConfig().getTimeout();
+            timeout = timeout == null ? 0L : timeout;
+            JobInstanceWaitResp finishResp = jobSupport.waitingJobInstanceFinish(appName, jobClass, instance.getId(), timeout);
+            if (finishResp.isSuccess()){
+                // job instance is finished successfully
+                // publish job finish event
+                eventDispatcher.publish(new JobFinishedEvent(instance.getJobId(), instance.getId()));
+            } else if (finishResp.isTimeout()){
+                // job instance is timeout
+                eventDispatcher.publish(new JobTimeoutEvent(instance.getJobId(), instance.getId(), buildJobTimeoutDetail(instance)));
+            }
+
+            // maybe now the job is paused, stopped, ..., so need to expect the job state
+            jobSupport.updateJobStateSafely(appName, jobClass, JobState.WAITING);
+
+            // job has finished
+        } catch (JobStateTransferInvalidException e){
+            // job state transfer error
+            Logs.warn("failed to update job state(instances={}), cause: {}.", instance, e.toString());
+        } catch (JobInstanceCreateException e){
+            // handle when job instance create failed
+            String cause = Throwables.getStackTraceAsString(e);
+            Logs.error("failed to create job instance when execute job(jobDetail={}, instance={}), cause: {}",
+                    jobDetail, instance, cause);
+            handleJobExecuteFailed(jobDetail, instance, appName, jobClass, cause);
+        } catch (Exception e){
+            // handle other exceptions
+            String cause = Throwables.getStackTraceAsString(e);
+            Logs.error("failed to execute job(jobDetail={}, instance={}), cause: {}",
+                    jobDetail, instance, cause);
+            handleJobExecuteFailed(jobDetail, instance, appName, jobClass, cause);
+        }
+    }

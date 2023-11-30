@@ -1,0 +1,24 @@
+  @Override
+  public void cleanup() throws DBException {
+    if (bulkMutation != null) {
+      try {
+        bulkMutation.flush();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new DBException(e);
+      } catch(RuntimeException e){
+        throw new DBException(e);
+      }
+    }
+
+    synchronized (CONFIG) {
+      --threadCount;
+      if (threadCount <= 0) {
+        try {
+          session.close();
+        } catch (IOException e) {
+          throw new DBException(e);
+        }
+      }
+    }
+  }

@@ -1,0 +1,32 @@
+  public ForStatement forStatement(AstNode astNode) {
+    AstNode forStatementNode = astNode;
+    Token asyncToken = null;
+    if (astNode.is(PythonGrammar.ASYNC_STMT)) {
+      asyncToken = toPyToken(astNode.getFirstChild().getToken());
+      forStatementNode = astNode.getFirstChild(PythonGrammar.FOR_STMT);
+    }
+    Token forKeyword = toPyToken(forStatementNode.getFirstChild(PythonKeyword.FOR).getToken());
+    Token inKeyword = toPyToken(forStatementNode.getFirstChild(PythonKeyword.IN).getToken());
+    Token colon = toPyToken(forStatementNode.getFirstChild(PythonPunctuator.COLON).getToken());
+    List<Expression> expressions = expressionsFromExprList(forStatementNode.getFirstChild(PythonGrammar.EXPRLIST));
+    List<Expression> testExpressions = expressionsFromTest(forStatementNode.getFirstChild(PythonGrammar.TESTLIST));
+    AstNode firstSuite = forStatementNode.getFirstChild(PythonGrammar.SUITE);
+    Token firstIndent = firstSuite.getFirstChild(PythonTokenType.INDENT) == null ? null : toPyToken(firstSuite.getFirstChild(PythonTokenType.INDENT).getToken());
+    Token firstNewLine = firstSuite.getFirstChild(PythonTokenType.INDENT) == null ? null : toPyToken(firstSuite.getFirstChild(PythonTokenType.NEWLINE).getToken());
+    Token firstDedent = firstSuite.getFirstChild(PythonTokenType.DEDENT) == null ? null : toPyToken(firstSuite.getFirstChild(PythonTokenType.DEDENT).getToken());
+    StatementList body = getStatementListFromSuite(firstSuite);
+    AstNode lastSuite = forStatementNode.getLastChild(PythonGrammar.SUITE);
+    Token lastIndent = lastSuite.getFirstChild(PythonTokenType.INDENT) == null ? null : toPyToken(lastSuite.getFirstChild(PythonTokenType.INDENT).getToken());
+    Token lastNewLine = lastSuite.getFirstChild(PythonTokenType.INDENT) == null ? null : toPyToken(lastSuite.getFirstChild(PythonTokenType.NEWLINE).getToken());
+    Token lastDedent = lastSuite.getFirstChild(PythonTokenType.DEDENT) == null ? null : toPyToken(lastSuite.getFirstChild(PythonTokenType.DEDENT).getToken());
+    AstNode elseKeywordNode = forStatementNode.getFirstChild(PythonKeyword.ELSE);
+    Token elseKeyword = null;
+    Token elseColonKeyword = null;
+    if (elseKeywordNode != null) {
+      elseKeyword = toPyToken(elseKeywordNode.getToken());
+      elseColonKeyword = toPyToken(elseKeywordNode.getNextSibling().getToken());
+    }
+    StatementList elseBody = lastSuite == firstSuite ? null : getStatementListFromSuite(lastSuite);
+    return new ForStatementImpl(forStatementNode, forKeyword, expressions, inKeyword, testExpressions, colon, firstNewLine, firstIndent,
+      body, firstDedent, elseKeyword, elseColonKeyword, lastNewLine, lastIndent, elseBody, lastDedent, asyncToken);
+  }

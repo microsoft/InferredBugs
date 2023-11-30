@@ -1,0 +1,32 @@
+  @Test
+  public void testAsynchronousClose() throws Exception {
+    RegularFile file = regularFile(10);
+    final FileChannel channel = channel(file, READ, WRITE);
+
+    file.writeLock().lock(); // ensure all operations on the channel will block
+
+    ExecutorService executor = Executors.newCachedThreadPool();
+
+    CountDownLatch latch = new CountDownLatch(BLOCKING_OP_COUNT);
+    List<Future<?>> futures = queueAllBlockingOperations(channel, executor, latch);
+
+    // wait for all the threads to have started running
+    latch.await();
+    // then ensure time for operations to start blocking
+    Uninterruptibles.sleepUninterruptibly(20, MILLISECONDS);
+
+    // close channel on this thread
+    channel.close();
+
+    // the blocking operations are running on different threads, so they all get
+    // AsynchronousCloseException
+    for (Future<?> future : futures) {
+      try {
+        future.get();
+        fail();
+      } catch (ExecutionException expected) {
+        assertThat(expected.getCause()).named("blocking thread exception")
+            .isA(AsynchronousCloseException.class);
+      }
+    }
+  }

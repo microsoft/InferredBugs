@@ -1,0 +1,71 @@
+    private static boolean extractAndLoadLibraryFile(String libFolderForCurrentOS, String libraryFileName,
+            String targetFolder)
+    {
+        String nativeLibraryFilePath = libFolderForCurrentOS + "/" + libraryFileName;
+        final String prefix = String.format("sqlite-%s-", getVersion());
+
+        String extractedLibFileName = prefix + libraryFileName;
+        File extractedLibFile = new File(targetFolder, extractedLibFileName);
+
+        try
+        {
+            if (extractedLibFile.exists())
+            {
+                // test md5sum value
+                String md5sum1 = md5sum(SQLiteJDBCLoader.class.getResourceAsStream(nativeLibraryFilePath));
+                String md5sum2 = md5sum(new FileInputStream(extractedLibFile));
+
+                if (md5sum1.equals(md5sum2))
+                {
+                    return loadNativeLibrary(targetFolder, extractedLibFileName);
+                }
+                else
+                {
+                    // remove old native library file
+                    boolean deletionSucceeded = extractedLibFile.delete();
+                    if (!deletionSucceeded)
+                    {
+                        throw new IOException("failed to remove existing native library file: "
+                                + extractedLibFile.getAbsolutePath());
+                    }
+                }
+            }
+
+            // extract file into the current directory
+            InputStream reader = SQLiteJDBCLoader.class.getResourceAsStream(nativeLibraryFilePath);
+            FileOutputStream writer = new FileOutputStream(extractedLibFile);
+            byte[] buffer = new byte[1024];
+            int bytesRead = 0;
+            while ((bytesRead = reader.read(buffer)) != -1)
+            {
+                writer.write(buffer, 0, bytesRead);
+            }
+
+            writer.close();
+            reader.close();
+
+            if (!System.getProperty("os.name").contains("Windows"))
+            {
+                try
+                {
+                    Runtime.getRuntime().exec(new String[] { "chmod", "755", extractedLibFile.getAbsolutePath() })
+                            .waitFor();
+                }
+                catch (Throwable e)
+                {}
+            }
+
+            return loadNativeLibrary(targetFolder, extractedLibFileName);
+        }
+        catch (IOException e)
+        {
+            System.err.println(e.getMessage());
+            return false;
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            System.err.println(e.getMessage());
+            return false;
+        }
+
+    }

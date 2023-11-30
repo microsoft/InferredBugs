@@ -1,0 +1,25 @@
+    @Override
+    public OSService[] getServices() {
+        // Get running services
+        List<OSService> services = new ArrayList<>();
+        Set<String> running = new HashSet<>();
+        for (OSProcess p : getChildProcesses(1, 0, ProcessSort.PID)) {
+            OSService s = new OSService(p.getName(), p.getProcessID(), RUNNING);
+            services.add(s);
+            running.add(p.getName());
+        }
+        // Get Directories for stopped services
+        File dir = new File("/etc/rc.d");
+        if (dir.exists() && dir.isDirectory()) {
+            for (File f : dir.listFiles()) {
+                String name = f.getName();
+                if (!running.contains(name)) {
+                    OSService s = new OSService(name, 0, STOPPED);
+                    services.add(s);
+                }
+            }
+        } else {
+            LOG.error("Directory: /etc/init does not exist");
+        }
+        return services.toArray(new OSService[0]);
+    }

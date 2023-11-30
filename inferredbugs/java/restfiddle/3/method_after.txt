@@ -1,0 +1,111 @@
+    @RequestMapping(value = "/api/processor", method = RequestMethod.POST, headers = "Accept=application/json")
+    ConversationDTO requestProcessor(@RequestParam(value = "runnerLogId", required = false) String runnerLogId, @RequestBody RfRequestDTO rfRequestDTO) {
+	Conversation existingConversation = null;
+	Conversation currentConversation;
+
+	// TODO : Get RfRequest Id if present as part of this request and update the existing conversation entity.
+	// Note : New conversation entity which is getting created below is still required for logging purpose.
+	
+	if (rfRequestDTO == null) {
+	    return null;
+	} else if (rfRequestDTO.getId() != null && !rfRequestDTO.getId().isEmpty()) {
+	    RfRequest rfRequest = rfRequestRepository.findOne(rfRequestDTO.getId());
+	    String conversationId = rfRequest != null ? rfRequest.getConversationId() : null;
+	    existingConversation = conversationId != null ? conversationRepository.findOne(conversationId) : null;
+	    // finding updated existing conversation
+	    existingConversation = existingConversation != null ? nodeRepository.findOne(existingConversation.getNodeId()).getConversation() : null;
+	    if(existingConversation != null) {
+	       rfRequestDTO.setAssertionDTO(EntityToDTO.toDTO(existingConversation.getRfRequest().getAssertion()));
+	    }
+	}
+	
+	long startTime = System.currentTimeMillis();
+	RfResponseDTO result = genericHandler.processHttpRequest(rfRequestDTO);
+	long endTime = System.currentTimeMillis();
+	long duration = endTime - startTime;
+
+	if (result != null) {
+	    String nodeId = null;
+	    if (existingConversation != null && existingConversation.getNodeId() != null) {
+		nodeId = existingConversation.getNodeId();
+	    }
+	    assertHandler.runAssert(result, nodeId);
+	}
+
+	currentConversation = ConversationConverter.convertToEntity(rfRequestDTO, result);
+
+	// This is used to get project-runner/folder-runner logs
+	currentConversation.setRunnerLogId(runnerLogId);
+
+	if (existingConversation != null) {
+	    currentConversation.getRfRequest().setAssertion(existingConversation.getRfRequest().getAssertion());
+	}
+
+	rfRequestRepository.save(currentConversation.getRfRequest());
+	rfResponseRepository.save(currentConversation.getRfResponse());
+
+	currentConversation.setDuration(duration);
+
+	Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+	if (principal instanceof User) {
+	    currentConversation.setLastModifiedBy((User) principal);
+	}
+
+	Date currentDate = new Date();
+	currentConversation.setCreatedDate(currentDate);
+	currentConversation.setLastModifiedDate(currentDate);
+	currentConversation.setLastRunDate(currentDate);
+	
+	currentConversation.setName(currentConversation.getRfRequest().getApiUrl());
+	try {
+	    currentConversation = conversationRepository.save(currentConversation);
+
+	    currentConversation.getRfRequest().setConversationId(currentConversation.getId());
+	    rfRequestRepository.save(currentConversation.getRfRequest());
+	    
+	    ActivityLog activityLog = null;
+
+	    // Note : existingConversation will be null if the request was not saved previously.
+	    if (existingConversation != null && existingConversation.getNodeId() != null) {
+		BaseNode node = nodeRepository.findOne(existingConversation.getNodeId());
+		currentConversation.setNodeId(node.getId());
+		currentConversation.setName(node.getName());
+		
+		activityLog = activityLogRepository.findActivityLogByDataId(node.getId());
+	    }
+	    
+	    if (principal instanceof User) {
+		currentConversation.setLastModifiedBy((User) principal);
+	    }
+
+	    conversationRepository.save(currentConversation);
+	    
+	    if (activityLog == null) {
+	        activityLog = new ActivityLog();
+	        if(existingConversation != null) {
+	           activityLog.setDataId(existingConversation.getNodeId());
+	        }
+	        activityLog.setType("CONVERSATION");
+	    }
+	    
+	    activityLog.setName(currentConversation.getName());
+	    activityLog.setWorkspaceId(currentConversation.getWorkspaceId());
+	    activityLog.setLastModifiedDate(currentDate);
+	    
+	    List<BaseEntity> logData = activityLog.getData();
+	    logData.add(0, currentConversation);
+	    
+	    activityLogRepository.save(activityLog);
+
+	} catch (InvalidDataAccessResourceUsageException e) {
+	    throw new ApiException("Please use sql as datasource, some of features are not supported by hsql", e);
+	}
+	ConversationDTO conversationDTO = new ConversationDTO();
+	conversationDTO.setWorkspaceId(rfRequestDTO.getWorkspaceId());
+	conversationDTO.setDuration(duration);
+	conversationDTO.setRfResponseDTO(result);
+	if (result != null) {
+	    result.setItemDTO(conversationDTO);
+	}
+	return conversationDTO;
+    }

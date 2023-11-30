@@ -1,0 +1,42 @@
+    void reArrangeBlocks() {
+        if (concurrentMapManager.isMaster()) {
+            Map<Address, Integer> addressBlocks = getCurrentMemberBlocks();
+            if (addressBlocks.size() == 0) {
+                return;
+            }
+            List<Block> lsBlocksToRedistribute = new ArrayList<Block>();
+            int aveBlockOwnCount = BLOCK_COUNT / (addressBlocks.size());
+            for (Block blockReal : blocks) {
+                if (blockReal.getOwner() == null) {
+                    logger.log(Level.SEVERE, "Master cannot have null block owner " + blockReal);
+                    return;
+                }
+                if (blockReal.isMigrating()) {
+                    logger.log(Level.SEVERE, "Cannot have migrating block " + blockReal);
+                    return;
+                }
+                Integer countInt = addressBlocks.get(blockReal.getOwner());
+                int count = (countInt == null) ? 0 : countInt;
+                if (count >= aveBlockOwnCount) {
+                    lsBlocksToRedistribute.add(new Block(blockReal));
+                } else {
+                    addressBlocks.put(blockReal.getOwner(), ++count);
+                }
+            }
+            Collection<Address> allAddress = addressBlocks.keySet();
+            lsBlocksToMigrate.clear();
+            for (Address address : allAddress) {
+                Integer countInt = addressBlocks.get(address);
+                int count = (countInt == null) ? 0 : countInt;
+                while (count < aveBlockOwnCount && lsBlocksToRedistribute.size() > 0) {
+                    Block blockToMigrate = lsBlocksToRedistribute.remove(0);
+                    if (!blockToMigrate.getOwner().equals(address)) {
+                        blockToMigrate.setMigrationAddress(address);
+                        lsBlocksToMigrate.add(blockToMigrate);
+                    }
+                    count++;
+                }
+            }
+            Collections.shuffle(lsBlocksToMigrate);
+        }
+    }

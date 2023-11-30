@@ -1,0 +1,34 @@
+  public void runTestDataStream(){
+    final int bufferSize = 1024*1024;
+    final int bufferNum = 10;
+    final DataStreamOutput out = client.stream();
+    DataStreamClientImpl.DataStreamOutputImpl impl = (DataStreamClientImpl.DataStreamOutputImpl) out;
+
+    final List<CompletableFuture<DataStreamReply>> futures = new ArrayList<>();
+
+    // add header
+    futures.add(impl.getHeaderFuture());
+
+    //send data
+    final int halfBufferSize = bufferSize/2;
+    int dataSize = 0;
+    for(int i = 0; i < bufferNum; i++) {
+      final int size = halfBufferSize + ThreadLocalRandom.current().nextInt(halfBufferSize);
+      final ByteBuffer bf = initBuffer(dataSize, size);
+      futures.add(out.writeAsync(bf));
+      dataSize += size;
+    }
+
+    //join all requests
+    for(CompletableFuture<DataStreamReply> f : futures) {
+      f.join();
+    }
+
+    Assert.assertEquals(writeRequest.getClientId(), impl.getHeader().getClientId());
+    Assert.assertEquals(writeRequest.getCallId(), impl.getHeader().getCallId());
+    Assert.assertEquals(writeRequest.getRaftGroupId(), impl.getHeader().getRaftGroupId());
+    Assert.assertEquals(writeRequest.getServerId(), impl.getHeader().getServerId());
+
+    Assert.assertEquals(dataSize, byteWritten);
+    shutDownSetup();
+  }

@@ -1,0 +1,66 @@
+ private void updateMemoryPool() {
+		if (!isJmxStateOk()) {
+			return;
+		}
+
+		try {
+			JmxMemoryPoolManager memoryPoolManager = jmxClient.getMemoryPoolManager();
+
+			MemoryPoolMXBean edenMXBean = memoryPoolManager.getEdenMemoryPool();
+			if (edenMXBean != null) {
+				eden = new Usage(edenMXBean.getUsage());
+			} else {
+				eden = new Usage();
+			}
+
+			MemoryPoolMXBean oldMXBean = memoryPoolManager.getOldMemoryPool();
+			if (oldMXBean != null) {
+				old = new Usage(oldMXBean.getUsage());
+				warningRule.updateOld(old.max);
+			} else {
+				old = new Usage();
+			}
+
+			MemoryPoolMXBean survivorMemoryPool = memoryPoolManager.getSurvivorMemoryPool();
+			if (survivorMemoryPool != null) {
+				sur = new Usage(survivorMemoryPool.getUsage());
+			} else {
+				sur = new Usage();
+			}
+
+			MemoryPoolMXBean permMXBean = memoryPoolManager.getPermMemoryPool();
+			if (permMXBean != null) {
+				perm = new Usage(permMXBean.getUsage());
+				warningRule.updatePerm(perm.max);
+			} else {
+				perm = new Usage();
+			}
+
+			if (jvmMajorVersion >= 8) {
+				MemoryPoolMXBean compressedClassSpaceMemoryPool = memoryPoolManager.getCompressedClassSpaceMemoryPool();
+				if (compressedClassSpaceMemoryPool != null) {
+					ccs = new Usage(compressedClassSpaceMemoryPool.getUsage());
+				} else {
+					ccs = new Usage();
+				}
+			}
+
+			MemoryPoolMXBean memoryPoolMXBean = memoryPoolManager.getCodeCacheMemoryPool();
+			if (memoryPoolMXBean != null) {
+				codeCache = new Usage(memoryPoolMXBean.getUsage());
+			} else {
+				codeCache = new Usage();
+			}
+
+			direct = new Usage(jmxClient.getBufferPoolManager().getDirectBufferPoolUsed(),
+					jmxClient.getBufferPoolManager().getDirectBufferPoolCapacity(), maxDirectMemorySize);
+
+			// 取巧用法，将count 放入无用的max中。
+			long mapUsed = jmxClient.getBufferPoolManager().getMappedBufferPoolUsed();
+			map = new Usage(mapUsed, jmxClient.getBufferPoolManager().getMappedBufferPoolCapacity(),
+					mapUsed == 0 ? 0 : jmxClient.getBufferPoolManager().getMappedBufferPoolCount());
+
+		} catch (Exception e) {
+			handleJmxFetchDataError(e);
+		}
+	}

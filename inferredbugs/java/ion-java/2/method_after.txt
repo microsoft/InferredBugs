@@ -1,0 +1,34 @@
+    protected void testTypeAnnotationHashCode(String text, IonType type)
+    {
+        String sharedSymbolTable = "$ion_symbol_table::{imports:[{name:\"foo\", version: 1, max_id:90}]}";
+        checkType(type, oneValue("annot1::" + text));
+        checkType(type, oneValue(sharedSymbolTable + "$99::" + text));
+
+        assertIonEqImpliesHashEq(oneValue("annot1::" + text),
+                                 oneValue("annot2::" + text));
+        assertIonEqImpliesHashEq(oneValue("annot1::annot2::" + text),
+                                 oneValue("annot1::annot2::" + text));
+        assertIonEqImpliesHashEq(oneValue("annot1::annot2::annot3::" + text),
+                                 oneValue("annot1::annot2::annot3::" + text));
+
+        assertIonEqImpliesHashEq(oneValue(sharedSymbolTable + "$99::" + text),
+                                 oneValue(sharedSymbolTable + "$98::" + text));
+        assertIonEqImpliesHashEq(oneValue(sharedSymbolTable + "$99::$98::" + text),
+                                 oneValue(sharedSymbolTable + "$99::$98::" + text));
+        assertIonEqImpliesHashEq(oneValue(sharedSymbolTable + "$99::$98::$97::" + text),
+                                 oneValue(sharedSymbolTable + "$99::$98::$97::" + text));
+
+        assertIonNotEqImpliesHashNotEq("annot1::" + text,
+                                       "annot2::" + text);
+        assertIonNotEqImpliesHashNotEq("annot1::annot2::" + text,
+                                       "annot2::annot1::" + text);
+        assertIonNotEqImpliesHashNotEq("annot1::annot2::annot3::" + text,
+                                       "annot3::annot2::annot1::" + text);
+
+        assertIonNotEqImpliesHashNotEq(sharedSymbolTable + "$99::" + text,
+                                       sharedSymbolTable + "$98::" + text);
+        assertIonNotEqImpliesHashNotEq(sharedSymbolTable + "$99::$98::" + text,
+                                       sharedSymbolTable + "$98::$99::" + text);
+        assertIonNotEqImpliesHashNotEq(sharedSymbolTable + "$99::$98::$97::" + text,
+                                       sharedSymbolTable + "$97::$98::$99::" + text);
+    }

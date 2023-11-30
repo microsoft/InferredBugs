@@ -1,0 +1,73 @@
+ private void login() throws IOException {
+
+		File f = new File("DACookie.toDelete");
+		if (!f.exists()) {
+			f.createNewFile();
+			f.deleteOnExit();
+
+			// Load login page
+			Response res = Http.url("https://www.deviantart.com/users/login").connection().method(Method.GET)
+					.referrer(referer).userAgent(userAgent).execute();
+
+			// Find tokens
+			Document doc = res.parse();
+			Element form = doc.getElementById("login");
+			String token = form.select("input[name=\"validate_token\"]").first().attr("value");
+			String key = form.select("input[name=\"validate_key\"]").first().attr("value");
+			System.out.println(
+					"------------------------------" + token + "   &   " + key + "------------------------------");
+
+			// Build Login Data
+			HashMap<String, String> loginData = new HashMap<String, String>();
+			loginData.put("challenge", "");
+			loginData.put("username", username);
+			loginData.put("password", password);
+			loginData.put("remember_me", "1");
+			loginData.put("validate_token", token);
+			loginData.put("validate_key", key);
+			Map<String, String> cookies = res.cookies();
+
+			// Log in using data. Handle redirect
+			res = Http.url("https://www.deviantart.com/users/login").connection().referrer(referer).userAgent(userAgent)
+					.method(Method.POST).data(loginData).cookies(cookies).followRedirects(false).execute();
+			this.cookies = res.cookies();
+
+			res = Http.url(res.header("location")).connection().referrer(referer).userAgent(userAgent)
+					.method(Method.GET).cookies(cookies).followRedirects(false).execute();
+
+			// Store cookies
+			updateCookie(res.cookies());
+
+			// Apply agegate
+			this.cookies.put("agegate_state", "1");
+
+			// Write Cookie to file for other RipMe Instances
+			try {
+				FileOutputStream fileOut = new FileOutputStream(f);
+				ObjectOutputStream out = new ObjectOutputStream(fileOut);
+				out.writeObject(this.cookies);
+				out.close();
+				fileOut.close();
+			} catch (IOException i) {
+				i.printStackTrace();
+			}
+
+		} else {
+
+			// When cookie file already exists (from another RipMe instance)
+			while (this.cookies == null) {
+				try {
+					Thread.sleep(2000);
+					FileInputStream fileIn = new FileInputStream(f);
+					ObjectInputStream in = new ObjectInputStream(fileIn);
+					this.cookies = (Map<String, String>) in.readObject();
+					in.close();
+					fileIn.close();
+				} catch (IOException | ClassNotFoundException | InterruptedException i) {
+					i.printStackTrace();
+				}
+			}
+		}
+
+		System.out.println("------------------------------" + this.cookies + "------------------------------");
+	}

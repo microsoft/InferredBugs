@@ -1,0 +1,43 @@
+  @Test
+  public void testRefreshAfterStale() throws Exception {
+    underTest = new RefreshingOAuth2CredentialsInterceptor(executorService, credentials);
+    underTest.rateLimiter.setRate(100000);
+
+    final AccessToken staleToken = new AccessToken("stale", new Date(HeaderCacheElement.TOKEN_STALENESS_MS + 1));
+    AccessToken goodToken = new AccessToken("good", new Date(HeaderCacheElement.TOKEN_STALENESS_MS + 11));
+
+    //noinspection unchecked
+    Mockito.when(credentials.refreshAccessToken())
+        // First call will setup a stale token
+        .thenReturn(staleToken)
+        // Second call will give a good token
+        .thenReturn(goodToken);
+
+    // First call - setup
+    HeaderCacheElement firstResult = underTest.getHeaderSafe();
+    Assert.assertEquals(CacheState.Good, firstResult.getCacheState());
+    Assert.assertThat(firstResult.header, containsString("stale"));
+
+    // Fast forward until token is stale
+    setTimeInMillieconds(10);
+
+    // Second call - return stale token, but schedule refresh
+    HeaderCacheElement secondResult = underTest.getHeaderSafe();
+    Assert.assertEquals(CacheState.Stale, secondResult.getCacheState());
+    Assert.assertThat(secondResult.header, containsString("stale"));
+
+    // Wait for the refresh to finish
+    final Future<?> waiter;
+    synchronized (underTest.lock) {
+      waiter = underTest.isRefreshing ? underTest.futureToken : Futures.immediateFuture(null);
+    }
+    waiter.get();
+
+    // Third call - now returns good token
+    HeaderCacheElement thirdResult = underTest.getHeaderSafe();
+    Assert.assertEquals(CacheState.Good, thirdResult.getCacheState());
+    Assert.assertThat(thirdResult.header, containsString("good"));
+
+    // Make sure that the token was only requested twice: once for the stale token & second time for the good token
+    Mockito.verify(credentials, times(2)).refreshAccessToken();
+  }

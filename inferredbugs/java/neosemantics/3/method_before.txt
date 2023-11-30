@@ -1,0 +1,26 @@
+  @Procedure(mode = Mode.READ)
+  public Stream<StreamedStatement> streamRDF(@Name("url") String url, @Name("format") String format,
+      @Name(value = "params", defaultValue = "{}") Map<String, Object> props) {
+    final boolean verifyUriSyntax = (props.containsKey("verifyUriSyntax") ? (Boolean) props
+        .get("verifyUriSyntax") : true);
+
+    StatementStreamer statementStreamer = new StatementStreamer();
+    try {
+
+      InputStream inputStream = getInputStream(url, props);
+      RDFFormat rdfFormat = getFormat(format);
+      log.info("Data set to be parsed as " + rdfFormat);
+      RDFParser rdfParser = Rio.createParser(rdfFormat);
+      rdfParser.set(BasicParserSettings.VERIFY_URI_SYNTAX, verifyUriSyntax);
+      rdfParser.setRDFHandler(statementStreamer);
+      rdfParser.parse(inputStream, "http://neo4j.com/base/");
+    } catch (MalformedURLException e) {
+      e.printStackTrace();
+    } catch (IOException | RDFHandlerException | QueryExecutionException | RDFParseException | RDFImportPreRequisitesNotMet e) {
+      e.printStackTrace();
+    }
+
+    return statementStreamer.getStatements().stream();
+
+
+  }

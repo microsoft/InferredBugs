@@ -1,0 +1,45 @@
+    @Test
+    public void writeMetrics() throws Exception {
+
+        Connection conn = getConnectionWithoutTracing();
+        String tableName = generateUniqueName();
+        TraceSpanReceiver traceSpanReceiver = new TraceSpanReceiver();
+        latch = new CountDownLatch(1);
+        testTraceWriter = new TestTraceWriter(tableName, defaultTracingThreadPoolForTest, defaultTracingBatchSizeForTest);
+
+        // create a simple metrics record
+        long traceid = 987654;
+        String description = "Some generic trace";
+        long spanid = 10;
+        long parentid = 11;
+        long startTime = 12;
+        long endTime = 13;
+        String processid = "Some process";
+        String annotation = "test annotation for a span";
+
+        Span span = createNewSpan(traceid, parentid, spanid, description, startTime, endTime,
+            processid, annotation);
+
+        traceSpanReceiver.getSpanQueue().add(span);
+        assertTrue("Span never committed to table", latch.await(30, TimeUnit.SECONDS));
+
+        // make sure we only get expected stat entry (matcing the trace id), otherwise we could the
+        // stats for the update as well
+        TraceReader reader = new TraceReader(conn, tableName);
+        Collection<TraceHolder> traces = reader.readAll(10);
+        assertEquals("Wrong number of traces in the tracing table", 1, traces.size());
+
+        // validate trace
+        TraceHolder trace = traces.iterator().next();
+        // we are just going to get an orphan span b/c we don't send in a parent
+        assertEquals("Didn't get expected orphaned spans!" + trace.orphans, 1, trace.orphans.size());
+
+        assertEquals(traceid, trace.traceid);
+        SpanInfo spanInfo = trace.orphans.get(0);
+        assertEquals(description, spanInfo.description);
+        assertEquals(parentid, spanInfo.getParentIdForTesting());
+        assertEquals(startTime, spanInfo.start);
+        assertEquals(endTime, spanInfo.end);
+        assertEquals("Wrong number of tags", 0, spanInfo.tagCount);
+        assertEquals("Wrong number of annotations", 1, spanInfo.annotationCount);
+    }

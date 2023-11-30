@@ -1,0 +1,36 @@
+ @Test
+	public void testParsingErrorPositionLargeInput() throws IOException {
+		// 2048 is the buffer size, this will allow us to test position
+		// information for large input that needs to be buffered
+		char[] in = new char[2048 + 7];
+		in[0] = '[';
+		for (int i = 1; i < 2046; i++) in[i] = '1';
+		in[2046] = ',';
+		in[2047] = '\n';
+		in[2048] = '3';
+		in[2049] = '3';
+		in[2050] = ',';
+		in[2051] = '\n';
+		in[2052] = '5';
+		in[2053] = 'x';
+		in[2054] = ']';
+		/* looks like : 
+		 * [11111.....111,
+		 * 3,
+		 * 5x]
+		 */
+		
+		@SuppressWarnings("resource")
+		JsonReader reader = new JsonReader(new CharArrayReader(in), strictDoubleParse, readMetadata);
+		try {
+			for (reader.beginArray(); reader.hasNext();) {
+				reader.next();
+				reader.valueAsDouble();
+			}
+			reader.endArray();
+			fail();
+		} catch (JsonStreamException e) {
+			assertEquals(2, e.getRow());
+			assertEquals(1, e.getColumn());
+		}
+	}

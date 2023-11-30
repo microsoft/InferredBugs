@@ -1,0 +1,38 @@
+  private void createLoadBalancer() throws Exception {
+    Yaml yaml = new Yaml();
+    InputStream lbIs =
+        new FileInputStream(
+            new File(
+                BaseTest.getProjectRoot()
+                    + "/kubernetes/samples/scripts/create-weblogic-domain-load-balancer/create-load-balancer-inputs.yaml"));
+    Map<String, Object> lbMap = yaml.load(lbIs);
+    lbIs.close();
+
+    lbMap.put("domainName", domainMap.get("domainName"));
+    lbMap.put("domainUID", domainUid);
+    lbMap.put("namespace", domainNS);
+
+    if (domainMap.get("loadBalancer") != null) {
+      lbMap.put("loadBalancer", domainMap.get("loadBalancer"));
+    }
+    if (domainMap.get("loadBalancerWebPort") != null) {
+      lbMap.put("loadBalancerWebPort", domainMap.get("loadBalancerWebPort"));
+    }
+    if (domainMap.get("loadBalancerDashboardPort") != null) {
+      lbMap.put("loadBalancerDashboardPort", domainMap.get("loadBalancerDashboardPort"));
+    }
+    if (domainMap.get("loadBalancerVolumePath") != null) {
+      lbMap.put("loadBalancerVolumePath", domainMap.get("loadBalancerVolumePath"));
+    }
+
+    loadBalancer = (String) lbMap.get("loadBalancer");
+    loadBalancerWebPort = ((Integer) lbMap.get("loadBalancerWebPort")).intValue();
+    loadBalancerDashboardPort = ((Integer) lbMap.get("loadBalancerDashboardPort")).intValue();
+
+    if (domainUid.equals("domain7") && loadBalancer.equals("APACHE")) {
+      lbMap.put("loadBalancerAppPrepath", "/weblogic");
+      lbMap.put("loadBalancerExposeAdminPort", new Boolean(true));
+    }
+    lbMap.values().removeIf(Objects::isNull);
+    new LoadBalancer(lbMap);
+  }

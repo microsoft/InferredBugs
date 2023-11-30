@@ -1,0 +1,115 @@
+ @Override
+	public String doImportFolder(HttpServletRequest request, MultipartFile file) {
+		String account = (String) request.getSession().getAttribute("ACCOUNT");
+		String folderId = request.getParameter("folderId");
+		final String originalFileName = new String(file.getOriginalFilename().getBytes(Charset.forName("UTF-8")),
+				Charset.forName("UTF-8"));
+		final String folderConstraint = request.getParameter("folderConstraint");
+		// 再次检查上传文件名与目标目录ID
+		if (folderId == null || folderId.length() <= 0 || originalFileName == null || originalFileName.length() <= 0) {
+			return UPLOADERROR;
+		}
+		Folder folder = flm.queryById(folderId);
+		if (folder == null) {
+			return UPLOADERROR;
+		}
+		// 检查上传权限
+		if (!ConfigureReader.instance().authorized(account, AccountAuth.UPLOAD_FILES)
+				|| !ConfigureReader.instance().accessFolder(folder, account)) {
+			return UPLOADERROR;
+		}
+		// 检查上传文件体积是否超限
+		long mufs = ConfigureReader.instance().getUploadFileSize(account);
+		if (mufs >= 0 && file.getSize() > mufs) {
+			return UPLOADERROR;
+		}
+		// 计算相对路径的文件夹ID（即真正要保存的文件夹目标）
+		String[] paths = getParentPath(originalFileName);
+		//将当前操作的文件夹路径加入到安全锁中，确保同一时间内无法对该文件夹进行重复导入，避免发生文件冲突的问题。
+		String pathskey = Arrays.toString(paths);
+		synchronized (pathsKeys) {
+			if(pathsKeys.contains(pathskey)) {
+				return UPLOADERROR;
+			}else {
+				pathsKeys.add(pathskey);
+			}
+		}
+		for (String pName : paths) {
+			try {
+				Folder target = flm.queryByParentId(folderId).parallelStream()
+						.filter((e) -> e.getFolderName().equals(pName)).findAny().get();
+				if (ConfigureReader.instance().accessFolder(target, account)) {
+					folderId = target.getFolderId();// 向下迭代直至将父路径全部迭代完毕并找到最终路径
+				} else {
+					synchronized (pathsKeys) {
+						pathsKeys.remove(pathskey);//解除安全锁，便于下一次上传
+					}
+					return UPLOADERROR;
+				}
+			} catch (NoSuchElementException e) {
+				Folder newFolder = fu.createNewFolder(flm.queryById(folderId), account, pName, folderConstraint);
+				if (newFolder != null) {
+					folderId = newFolder.getFolderId();
+				} else {
+					synchronized (pathsKeys) {
+						pathsKeys.remove(pathskey);//解除安全锁，便于下一次上传
+					}
+					return UPLOADERROR;
+				}
+			}
+		}
+		String fileName = getFileNameFormPath(originalFileName);
+		// 检查是否存在同名文件。存在则直接失败（确保上传的文件夹内容的原始性）
+		final List<Node> files = this.fm.queryByParentFolderId(folderId);
+		if (files.parallelStream().anyMatch((e) -> e.getFileName().equals(fileName))) {
+			synchronized (pathsKeys) {
+				pathsKeys.remove(pathskey);//解除安全锁，便于下一次上传
+			}
+			return UPLOADERROR;
+		}
+		// 将文件存入节点并获取其存入生成路径，型如“UUID.block”形式。
+		final String path = this.fbu.saveToFileBlocks(file);
+		if (path.equals("ERROR")) {
+			synchronized (pathsKeys) {
+				pathsKeys.remove(pathskey);//解除安全锁，便于下一次上传
+			}
+			return UPLOADERROR;
+		}
+		final String fsize = this.fbu.getFileSize(file);
+		final Node f2 = new Node();
+		f2.setFileId(UUID.randomUUID().toString());
+		if (account != null) {
+			f2.setFileCreator(account);
+		} else {
+			f2.setFileCreator("\u533f\u540d\u7528\u6237");
+		}
+		f2.setFileCreationDate(ServerTimeUtil.accurateToDay());
+		f2.setFileName(fileName);
+		f2.setFileParentFolder(folderId);
+		f2.setFilePath(path);
+		f2.setFileSize(fsize);
+		int i = 0;
+		// 尽可能避免UUID重复的情况发生，重试10次
+		while (true) {
+			try {
+				if (this.fm.insert(f2) > 0) {
+					this.lu.writeUploadFileEvent(f2, account);
+					synchronized (pathsKeys) {
+						pathsKeys.remove(pathskey);//解除安全锁，便于下一次上传
+					}
+					return UPLOADSUCCESS;
+				}
+				break;
+			} catch (Exception e) {
+				f2.setFileId(UUID.randomUUID().toString());
+				i++;
+			}
+			if (i >= 10) {
+				break;
+			}
+		}
+		synchronized (pathsKeys) {
+			pathsKeys.remove(pathskey);
+		}
+		return UPLOADERROR;
+	}

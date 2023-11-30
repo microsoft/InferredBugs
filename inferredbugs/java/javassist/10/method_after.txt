@@ -1,0 +1,38 @@
+    public void atExpr(Expr expr) throws CompileError {
+        // array access, member access,
+        // (unary) +, (unary) -, ++, --, !, ~
+
+        int token = expr.getOperator();
+        ASTree oprand = expr.oprand1();
+        if (token == '.') {
+            String member = ((Symbol)expr.oprand2()).get();
+            if (member.equals("length"))
+                atArrayLength(expr);
+            else if (member.equals("class"))                
+                atClassObject(expr);  // .class
+            else
+                atFieldRead(expr);
+        }
+        else if (token == MEMBER) {     // field read
+            String member = ((Symbol)expr.oprand2()).get();
+            if (member.equals("class"))                
+                atClassObject(expr);  // .class
+            else
+                atFieldRead(expr);
+        }
+        else if (token == ARRAY)
+            atArrayRead(oprand, expr.oprand2());
+        else if (token == PLUSPLUS || token == MINUSMINUS)
+            atPlusPlus(token, oprand, expr);
+        else if (token == '!')
+            booleanExpr(expr);
+        else if (token == CALL)              // method call
+            fatal();
+        else {
+            oprand.accept(this);
+            if (!isConstant(expr, token, oprand))
+                if (token == '-' || token == '~')
+                    if (CodeGen.isP_INT(exprType))
+                        exprType = INT;         // type may be BYTE, ...
+        }
+    }

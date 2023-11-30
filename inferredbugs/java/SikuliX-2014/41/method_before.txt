@@ -1,0 +1,34 @@
+  public static boolean unzip(File fZip, File fTarget) {
+    String fpZip = null;
+    String fpTarget = null;
+    try {
+      fpZip = fZip.getCanonicalPath();
+      if (!fZip.exists()) {
+        log(-1, "unzip: source not found:\n%s", fpZip);
+        return false;
+      }
+      fTarget.mkdirs();
+      fpTarget = fTarget.getCanonicalPath();
+      if (!fZip.exists()) {
+        log(-1, "unzip: target not found:\n%s", fTarget);
+        return false;
+      }
+      final int BUF_SIZE = 2048;
+      ZipInputStream isZip = new ZipInputStream(new BufferedInputStream(new FileInputStream(fZip)));
+      ZipEntry entry;
+      while ((entry = isZip.getNextEntry()) != null) {
+        int count;
+        byte data[] = new byte[BUF_SIZE];
+        FileOutputStream fos = new FileOutputStream(new File(fTarget, entry.getName()));
+        BufferedOutputStream dest = new BufferedOutputStream(fos, BUF_SIZE);
+        while ((count = isZip.read(data, 0, BUF_SIZE)) != -1) {
+          dest.write(data, 0, count);
+        }
+        dest.close();
+      }
+      isZip.close();
+    } catch (Exception ex) {
+      log(-1, "unzip: not possible: source:\n%s\ntarget:\n%s\n%s", fpZip, fpTarget, ex);
+    }
+    return true;
+  }

@@ -1,0 +1,43 @@
+  @Override
+  public void run()
+  {
+    while (this.running)
+    {
+      //input
+      while (!this.inputs.isEmpty())
+      {
+        DatagramPacket dp = this.inputs.remove();
+        KcpOnUdp ku = this.kcps.get(dp.sender());
+        if (ku == null)
+        {
+          ku = new KcpOnUdp(this.out, dp.sender(), this.listerner);//初始化
+          ku.noDelay(nodelay, interval, resend, nc);
+          ku.wndSize(sndwnd, rcvwnd);
+          ku.setMtu(mtu);
+          ku.setTimeout(timeout);
+          this.kcps.put(dp.sender(), ku);
+        }
+        ku.input(dp.content());
+      }
+      //update
+      KcpOnUdp temp = null;
+      for (KcpOnUdp ku : this.kcps.values())
+      {
+        ku.update();
+        if (ku.isClosed())
+        {
+          temp = ku;
+        }
+      }
+      if (temp != null)//删掉过时的kcp
+      {
+        this.kcps.remove((InetSocketAddress) temp.getKcp().getUser());
+      }
+      try
+      {
+        Thread.sleep(this.interval);
+      } catch (InterruptedException ex)
+      {
+      }
+    }
+  }

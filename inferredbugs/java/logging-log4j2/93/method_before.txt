@@ -1,0 +1,27 @@
+    @Test
+    public void testConfig() {
+        final LoggerContext ctx = Configurator.initialize("Test1", "target/test-classes/log4j2-mapfilter.xml");
+        final Configuration config = ctx.getConfiguration();
+        final Filter filter = config.getFilter();
+        assertNotNull("No MapFilter", filter);
+        assertTrue("Not a MapFilter", filter instanceof  MapFilter);
+        final MapFilter mapFilter = (MapFilter) filter;
+        assertFalse("Should not be And filter", mapFilter.isAnd());
+        final Map<String, List<String>> map = mapFilter.getMap();
+        assertNotNull("No Map", map);
+        assertFalse("No elements in Map", map.isEmpty());
+        assertEquals("Incorrect number of elements in Map", 1, map.size());
+        assertTrue("Map does not contain key eventId", map.containsKey("eventId"));
+        assertEquals("List does not contain 2 elements", 2, map.get("eventId").size());
+        final Logger logger = LogManager.getLogger(MapFilterTest.class);
+        final Map<String, String> eventMap = new HashMap<>();
+        eventMap.put("eventId", "Login");
+        logger.debug(new MapMessage(eventMap));
+        final Appender app = config.getAppender("LIST");
+        assertNotNull("No List appender", app);
+        final List<String> msgs = ((ListAppender) app).getMessages();
+        assertNotNull("No messages", msgs);
+        assertFalse("No messages", msgs.isEmpty());
+
+
+    }

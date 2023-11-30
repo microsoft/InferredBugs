@@ -1,0 +1,50 @@
+  @Test
+  public void returnAllFieldsAndApplyMappings() {
+
+
+    Schema schema = SchemaBuilder.struct().name("com.example.Person")
+            .field("firstName", Schema.STRING_SCHEMA)
+            .field("lastName", Schema.STRING_SCHEMA)
+            .field("age", Schema.INT32_SCHEMA)
+            .field("threshold", Schema.OPTIONAL_FLOAT64_SCHEMA).build();
+
+    double threshold = 215.66612;
+    Struct struct = new Struct(schema)
+            .put("firstName", "Alex")
+            .put("lastName", "Smith")
+            .put("age", 30)
+            .put("threshold", threshold);
+
+    Map<String, FieldAlias> mappings = Maps.newHashMap();
+    mappings.put("lastName", new FieldAlias("Name"));
+    mappings.put("age", new FieldAlias("a"));
+
+    FieldsMappings tm = new FieldsMappings("table", "topic", true, mappings);
+    StructFieldsDataExtractor dataExtractor = new StructFieldsDataExtractor(tm);
+    List<PreparedStatementBinder> binders = dataExtractor.get(struct,
+            new SinkRecord("", 1, null, null, schema, struct, 0));
+
+    HashMap<String, PreparedStatementBinder> map = new HashMap<>();
+    for (PreparedStatementBinder p : binders)
+      map.put(p.getFieldName(), p);
+
+
+    assertTrue(!binders.isEmpty());
+    assertEquals(binders.size(), 4);
+
+    assertTrue(map.containsKey("firstName"));
+    assertTrue(map.get("firstName").getClass() == StringPreparedStatementBinder.class);
+    assertEquals(((StringPreparedStatementBinder) map.get("firstName")).getValue(), "Alex");
+
+    assertTrue(map.containsKey("Name"));
+    assertTrue(map.get("Name").getClass() == StringPreparedStatementBinder.class);
+    assertEquals(((StringPreparedStatementBinder) map.get("Name")).getValue(), "Smith");
+
+    assertTrue(map.containsKey("a"));
+    assertTrue(map.get("a").getClass() == IntPreparedStatementBinder.class);
+    assertEquals(((IntPreparedStatementBinder) map.get("a")).getValue(), 30);
+
+    assertTrue(map.containsKey("threshold"));
+    assertTrue(map.get("threshold").getClass() == DoublePreparedStatementBinder.class);
+    assertTrue(Double.compare(((DoublePreparedStatementBinder) map.get("threshold")).getValue(), threshold) == 0);
+  }

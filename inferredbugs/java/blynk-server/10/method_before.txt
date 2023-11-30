@@ -1,0 +1,35 @@
+    @Test
+    public void testDeleteCommand() throws IOException {
+        StorageWorker storageWorker = new StorageWorker(averageAggregator, reportingFolder, new DBManager(null));
+
+        ConcurrentHashMap<AggregationKey, AggregationValue> map = new ConcurrentHashMap<>();
+
+        long ts = getTS() / AverageAggregator.HOUR;
+
+        AggregationKey aggregationKey = new AggregationKey("test", 1, PinType.ANALOG, (byte) 1, ts);
+        AggregationValue aggregationValue = new AggregationValue();
+        aggregationValue.update(100);
+        AggregationKey aggregationKey2 = new AggregationKey("test", 1, PinType.ANALOG, (byte) 1, ts - 1);
+        AggregationValue aggregationValue2 = new AggregationValue();
+        aggregationValue2.update(150.54);
+        AggregationKey aggregationKey3 = new AggregationKey("test2", 2, PinType.ANALOG, (byte) 2, ts);
+        AggregationValue aggregationValue3 = new AggregationValue();
+        aggregationValue3.update(200);
+
+        map.put(aggregationKey, aggregationValue);
+        map.put(aggregationKey2, aggregationValue2);
+        map.put(aggregationKey3, aggregationValue3);
+
+        when(averageAggregator.getMinute()).thenReturn(new ConcurrentHashMap<>());
+        when(averageAggregator.getHourly()).thenReturn(map);
+        when(averageAggregator.getDaily()).thenReturn(new ConcurrentHashMap<>());
+        when(properties.getProperty("data.folder")).thenReturn(System.getProperty("java.io.tmpdir"));
+
+        storageWorker.run();
+
+        assertTrue(Files.exists(Paths.get(reportingFolder, "test", generateFilename(1, PinType.ANALOG, (byte) 1, GraphType.HOURLY))));
+        assertTrue(Files.exists(Paths.get(reportingFolder, "test2", generateFilename(2, PinType.ANALOG, (byte) 2, GraphType.HOURLY))));
+
+        new ReportingDao(reportingFolder, null, properties).delete("test", 1, PinType.ANALOG, (byte) 1);
+        assertFalse(Files.exists(Paths.get(reportingFolder, "test", generateFilename(1, PinType.ANALOG, (byte) 1, GraphType.HOURLY))));
+    }

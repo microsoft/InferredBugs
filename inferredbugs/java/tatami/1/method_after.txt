@@ -1,0 +1,28 @@
+    @Override
+    @Cacheable("attachment-cache")
+    public Attachment findAttachmentById(String attachmentId) {
+        if (attachmentId == null) {
+            return null;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Finding attachment : " + attachmentId);
+        }
+        Attachment attachment = this.findAttachmentMetadataById(attachmentId);
+
+        if (attachment == null) {
+            return null;
+        }
+
+        ColumnQuery<String, String, byte[]> queryAttachment = HFactory.createColumnQuery(keyspaceOperator,
+                StringSerializer.get(), StringSerializer.get(), BytesArraySerializer.get());
+
+        HColumn<String, byte[]> columnAttachment =
+                queryAttachment.setColumnFamily(ATTACHMENT_CF)
+                        .setKey(attachmentId)
+                        .setName(CONTENT)
+                        .execute()
+                        .get();
+
+        attachment.setContent(columnAttachment.getValue());
+        return attachment;
+    }

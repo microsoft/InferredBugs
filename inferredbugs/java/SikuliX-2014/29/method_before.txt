@@ -1,0 +1,58 @@
+  public static void main(String[] args) throws FindFailed {
+
+    System.out.println("********** Running Sikulix.main");
+
+    int dl = RunTime.checkArgs(args, RunTime.Type.API);
+    if (dl > -1 && dl < 999) {
+      testNumber = dl;
+      Debug.on(3);
+    } else {
+      testNumber = -1;
+    }
+    
+    rt = RunTime.get();
+    testNumber = rt.getOptionNumber("testing.test", -1);
+
+    if (testNumber > -1) {
+      rt = RunTime.get();
+      if (!rt.testing) {
+        rt.show();
+        rt.testing = true;
+      }            
+      Tests.runTest(testNumber);
+      System.exit(1);
+    } else {
+      rt = RunTime.get();
+      Debug.on(3);
+      Settings.InfoLogs = false;
+      Settings.ActionLogs = false;
+      
+      Settings.OcrTextSearch = true;
+      Region eWin = App.start(App.Type.EDITOR);
+      eWin.write("\n Jump\n\n Jump and Run\n\nRun and Jump\n");
+      Region reg = eWin;
+      while (true) {
+        Match ms = reg.exists("Jump", 0);
+        if (ms == null) {
+          break;
+        }
+        ms.highlight(2);
+        ms.x = eWin.x;
+        ms.w = eWin.w;
+        reg = eWin.intersection(ms.below());
+      }
+
+      if (rt.runningWinApp) {        
+        popup("Hello World\nNot much else to do ( yet ;-)", rt.fSxBaseJar.getName());
+        try {
+        Screen scr = new Screen();
+        scr.find(new Image(scr.userCapture("grab something to find"))).highlight(3);
+        } catch (Exception ex) {
+          popup("Uuups :-(\n" + ex.getMessage(), rt.fSxBaseJar.getName());
+        }
+        popup("Hello World\nNothing else to do ( yet ;-)", rt.fSxBaseJar.getName());
+        System.exit(1);
+      }
+      rt.terminate(1,"Sikulix::main: nothing to test");
+    }
+  }

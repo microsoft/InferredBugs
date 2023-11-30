@@ -1,0 +1,19 @@
+  public void onExternalViewChange(ExternalView externalView, IdealState idealState) {
+    try {
+      String resourceName = externalView.getId();
+      if (!_resourceMbeanMap.containsKey(resourceName)) {
+        synchronized (this) {
+          if (!_resourceMbeanMap.containsKey(resourceName)) {
+            ResourceMonitor bean = new ResourceMonitor(_clusterName, resourceName);
+            String beanName =
+                CLUSTER_DN_KEY + "=" + _clusterName + "," + RESOURCE_DN_KEY + "=" + resourceName;
+            register(bean, getObjectName(beanName));
+            _resourceMbeanMap.put(resourceName, bean);
+          }
+        }
+      }
+      _resourceMbeanMap.get(resourceName).updateExternalView(externalView, idealState);
+    } catch (Exception e) {
+      LOG.warn(e);
+    }
+  }

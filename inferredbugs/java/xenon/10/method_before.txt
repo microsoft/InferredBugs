@@ -1,0 +1,63 @@
+    private Map<String, LoaderServiceInfo> discoverServices(File libDir,
+            Map<String, LoaderServiceInfo> existingPackages) {
+        logFine("Checking for updates in " + libDir.toURI());
+        Map<String, LoaderServiceInfo> discoveredPackages = new HashMap<String, LoaderService.LoaderServiceInfo>();
+
+        boolean updated = false;
+        for (File file : libDir.listFiles()) {
+            if (!file.getName().endsWith(".jar")) {
+                continue;
+            }
+            logFine("Found jar file %s", file.toURI());
+
+            LoaderServiceInfo packageInfo = existingPackages.get(file.toURI().toString());
+            if (packageInfo != null) {
+                long lastModified = file.lastModified();
+                if (lastModified == packageInfo.fileUpdateTimeMillis) {
+                    // Jar file has been previously loaded.
+                    // Add to the list of discovered packages and skip.
+                    discoveredPackages.put(file.toURI().toString(), packageInfo);
+                    continue;
+                }
+            }
+
+            try (JarInputStream jar =
+                    new JarInputStream(new FileInputStream(file))) {
+                while (true) {
+                    JarEntry e = jar.getNextJarEntry();
+                    if (e == null) {
+                        break;
+                    }
+
+                    String name = e.getName();
+
+                    // Assuming specific naming convention for
+                    // Service classes
+                    if (isValidServiceClassName(name)) {
+                        logFine("Found service class %s", name);
+                        String className =
+                                name.replaceAll(".class", "").replaceAll("/", ".");
+
+                        if (packageInfo == null) {
+                            packageInfo = new LoaderServiceInfo();
+                        }
+
+                        packageInfo.name = file.getName();
+                        packageInfo.fileUpdateTimeMillis = file.lastModified();
+                        updated |= (null == packageInfo.serviceClasses.put(className, null));
+
+                        discoveredPackages.put(file.toURI().toString(), packageInfo);
+                    }
+                }
+            } catch (IOException e) {
+                logWarning("Problem loading package %s, Exception %s",
+                        file.getName(), Utils.toString(e));
+            }
+        }
+
+        if (updated) {
+            return discoveredPackages;
+        }
+
+        return null;
+    }

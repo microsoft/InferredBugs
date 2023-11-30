@@ -1,0 +1,18 @@
+    @Test
+    public void testChangePeers() throws Exception {
+        final List<PeerId> newPeers = TestUtils.generatePeers(10);
+        newPeers.removeAll(conf.getPeerSet());
+        for (final PeerId peer : newPeers) {
+            assertTrue(cluster.start(peer.getEndpoint()));
+        }
+        cluster.waitLeader();
+        final Node oldLeaderNode = cluster.getLeader();
+        assertNotNull(oldLeaderNode);
+        final PeerId oldLeader = oldLeaderNode.getNodeId().getPeerId();
+        assertNotNull(oldLeader);
+        assertTrue(this.cliService.changePeers(groupId, conf, new Configuration(newPeers)).isOk());
+        cluster.waitLeader();
+        final PeerId newLeader = cluster.getLeader().getNodeId().getPeerId();
+        assertNotEquals(oldLeader, newLeader);
+        assertTrue(newPeers.contains(newLeader));
+    }

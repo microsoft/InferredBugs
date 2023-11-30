@@ -1,0 +1,38 @@
+    @Nullable
+    public MappedBytesStore acquireByteStore(long position) throws IOException {
+        if (closed.get())
+            throw new IOException("Closed");
+        int chunk = (int) (position / chunkSize);
+        synchronized (stores) {
+            while (stores.size() <= chunk) {
+                stores.add(null);
+            }
+            WeakReference<MappedBytesStore> mbsRef = stores.get(chunk);
+            if (mbsRef != null) {
+                MappedBytesStore mbs = mbsRef.get();
+                if (mbs != null && mbs.tryReserve()) {
+                    return mbs;
+                }
+            }
+            long minSize = (chunk + 1L) * chunkSize + overlapSize;
+            long size = fileChannel.size();
+            if (size < minSize) {
+                // handle a possible race condition between processes.
+                try (FileLock lock = fileChannel.lock()) {
+                    size = fileChannel.size();
+                    if (size < minSize) {
+                        raf.setLength(minSize);
+                    }
+                }
+            }
+            long start = System.nanoTime();
+            long mappedSize = chunkSize + overlapSize;
+            long address = OS.map(fileChannel, FileChannel.MapMode.READ_WRITE, chunk * chunkSize, mappedSize);
+            MappedBytesStore mbs2 = new MappedBytesStore(this, chunk * chunkSize, address, mappedSize, chunkSize);
+            stores.set(chunk, new WeakReference<>(mbs2));
+            mbs2.reserve();
+            System.out.printf("Took %,d us to acquire chunk %,d%n", (System.nanoTime() - start) / 1000, chunk);
+//            new Throwable("chunk "+chunk).printStackTrace();
+            return mbs2;
+        }
+    }

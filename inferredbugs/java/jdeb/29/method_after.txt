@@ -1,0 +1,43 @@
+    public void testControlFilesPermissions() throws Exception {
+        File deb = new File("target/test-classes/test-control.deb");
+        if (deb.exists() && !deb.delete()) {
+            fail("Couldn't delete " + deb);
+        }
+        
+        Processor processor = new Processor(new NullConsole(), new MapVariableResolver(Collections.<String, String>emptyMap()));
+        
+        File controlDir = new File("target/test-classes/org/vafer/jdeb/deb/control");
+        DataProducer[] producers = {new EmptyDataProducer()};
+        
+        processor.createDeb(controlDir.listFiles(), producers, deb, Compression.NONE);
+        
+        // now reopen the package and check the control files
+        assertTrue("package not build", deb.exists());
+        
+        final AtomicBoolean controlFound = new AtomicBoolean(false);
+        
+        ArchiveWalker.walkControlFiles(deb, new ArchiveVisitor<TarArchiveEntry>() {
+            public void visit(TarArchiveEntry entry, byte[] content) throws IOException {
+                controlFound.set(true);
+                
+                assertFalse("directory found in the control archive", entry.isDirectory());
+                assertTrue("prefix", entry.getName().startsWith("./"));
+                
+                InformationInputStream infoStream = new InformationInputStream(new ByteArrayInputStream(content));
+                IOUtils.copy(infoStream, NullOutputStream.NULL_OUTPUT_STREAM);
+                
+                if (infoStream.isShell()) {
+                    assertTrue("Permissions on " + entry.getName() + " should be 755", entry.getMode() == 0755);
+                } else {
+                    assertTrue("Permissions on " + entry.getName() + " should be 644", entry.getMode() == 0644);
+                }
+                
+                assertTrue(entry.getName() + " doesn't have Unix line endings", infoStream.hasUnixLineEndings());
+                
+                assertEquals("user", "root", entry.getUserName());
+                assertEquals("group", "root", entry.getGroupName());
+            }
+        });
+        
+        assertTrue("Control files not found in the package", controlFound.get());
+    }

@@ -1,0 +1,20 @@
+ @SuppressWarnings("unchecked")
+	private Lease renew(Lease lease) {
+
+		HttpEntity<Object> leaseRenewalEntity = getLeaseRenewalBody(lease);
+
+		ResponseEntity<Map<String, Object>> entity = operations
+				.doWithSession(restOperations -> (ResponseEntity) restOperations
+						.exchange("sys/renew", HttpMethod.PUT, leaseRenewalEntity, Map.class));
+
+		Assert.state(entity != null && entity.getBody() != null,
+				"Renew response must not be null");
+
+		Map<String, Object> body = entity.getBody();
+		String leaseId = (String) body.get("lease_id");
+		Number leaseDuration = (Number) body.get("lease_duration");
+		boolean renewable = (Boolean) body.get("renewable");
+
+		return Lease.of(leaseId, leaseDuration != null ? leaseDuration.longValue() : 0,
+				renewable);
+	}

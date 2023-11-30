@@ -1,0 +1,35 @@
+    @RequestMapping(value = "/api/{projectId}/entities/{name}/{uuid}", method = RequestMethod.PUT, headers = "Accept=application/json", consumes = "application/json")
+    public @ResponseBody
+    String updateEntityData(@PathVariable("projectId") String projectId, @PathVariable("name") String entityName, @PathVariable("uuid") String uuid,
+	    @RequestBody Object genericEntityDataDTO) {
+	DBObject resultObject = new BasicDBObject();
+	if (genericEntityDataDTO instanceof Map) {
+	    Map map = (Map) genericEntityDataDTO;
+	    if (map.get("id") != null && map.get("id") instanceof String) {
+		String entityDataId = (String) map.get("id");
+		logger.debug("Updating Entity Data with Id " + entityDataId);
+	    }
+	    JSONObject uiJson = new JSONObject(map);
+	    // ID is stored separately (in a different column).
+	    DBObject obj = (DBObject) JSON.parse(uiJson.toString());
+	    obj.removeField("_id");
+
+	    DBCollection dbCollection = mongoTemplate.getCollection(projectId+"_"+entityName);
+	    BasicDBObject queryObject = new BasicDBObject();
+	    queryObject.append("_id", new ObjectId(uuid));
+	    resultObject = dbCollection.findOne(queryObject);
+
+	    Set<String> keySet = obj.keySet();
+	    for (String key : keySet) {
+		resultObject.put(key, obj.get(key));
+	    }
+	    relationToDBRef(resultObject, projectId);
+	    dbCollection.save(resultObject);
+	}
+	dbRefToRelation(resultObject);
+	String json = resultObject.toString();
+
+	// Indentation
+	JSONObject jsonObject = new JSONObject(json);
+	return jsonObject.toString(4);
+    }

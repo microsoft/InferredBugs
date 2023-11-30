@@ -1,0 +1,19 @@
+    @Override
+    public HttpSession getSession(final boolean create) {
+        if (httpSession == null) {
+            Session session = exchange.getExchange().getAttachment(Session.ATTACHMENT_KEY);
+            if (session != null) {
+                httpSession = new HttpSessionImpl(session, servletContext, servletContext.getDeployment().getApplicationListeners(), exchange.getExchange(), false);
+            } else if (create) {
+                final SessionManager sessionManager = exchange.getExchange().getAttachment(SessionManager.ATTACHMENT_KEY);
+                try {
+                    Session newSession = sessionManager.getOrCreateSession(exchange.getExchange()).get();
+                    httpSession = new HttpSessionImpl(newSession, servletContext, servletContext.getDeployment().getApplicationListeners(), exchange.getExchange(), true);
+                    servletContext.getDeployment().getApplicationListeners().sessionCreated(httpSession);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        return httpSession;
+    }

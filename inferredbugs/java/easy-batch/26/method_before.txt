@@ -1,0 +1,32 @@
+    @Test
+    public void integrationTest() throws Exception {
+
+        File inputTweets = new File(this.getClass().getResource("/tweets-in.xlsx").toURI());
+        File outputTweets = new File(this.getClass().getResource("/tweets-out.xlsx").toURI());
+
+        String[] fields = {"id", "user", "message"};
+        Job job = JobBuilder.aNewJob()
+                .reader(new MsExcelRecordReader(inputTweets))
+                .mapper(new MsExcelRecordMapper<>(Tweet.class, fields))
+                .marshaller(new MsExcelRecordMarshaller<>(Tweet.class, fields))
+                .writer(new MsExcelRecordWriter(outputTweets, SHEET_NAME))
+                .build();
+
+        JobReport report = new JobExecutor().execute(job);
+
+        assertThat(report).isNotNull();
+        assertThat(report.getMetrics().getReadCount()).isEqualTo(2);
+        assertThat(report.getMetrics().getWriteCount()).isEqualTo(2);
+        assertThat(report.getStatus()).isEqualTo(JobStatus.COMPLETED);
+
+        XSSFWorkbook workbook = new XSSFWorkbook(new FileInputStream(outputTweets));
+        XSSFSheet sheet = workbook.getSheet(SHEET_NAME);
+        XSSFRow row = sheet.getRow(1);
+        assertThat(row.getCell(0).getNumericCellValue()).isEqualTo(1.0);
+        assertThat(row.getCell(1).getStringCellValue()).isEqualTo("foo");
+        assertThat(row.getCell(2).getStringCellValue()).isEqualTo("hi");
+        row = sheet.getRow(2);
+        assertThat(row.getCell(0).getNumericCellValue()).isEqualTo(2.0);
+        assertThat(row.getCell(1).getStringCellValue()).isEqualTo("bar");
+        assertThat(row.getCell(2).getStringCellValue()).isEqualTo("hello");
+    }

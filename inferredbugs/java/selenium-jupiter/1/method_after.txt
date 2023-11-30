@@ -1,0 +1,54 @@
+    public String startContainer(DockerContainer dockerContainer)
+            throws DockerException, InterruptedException {
+        String imageId = dockerContainer.getImageId();
+        log.info("Starting Docker container {}", imageId);
+        com.spotify.docker.client.messages.HostConfig.Builder hostConfigBuilder = HostConfig
+                .builder();
+        com.spotify.docker.client.messages.ContainerConfig.Builder containerConfigBuilder = ContainerConfig
+                .builder();
+
+        boolean privileged = dockerContainer.isPrivileged();
+        if (privileged) {
+            log.trace("Using privileged mode");
+            hostConfigBuilder.privileged(true);
+        }
+        Optional<String> network = dockerContainer.getNetwork();
+        if (network.isPresent()) {
+            log.trace("Using network: {}", network.get());
+            hostConfigBuilder.networkMode(network.get());
+        }
+        Optional<Map<String, List<PortBinding>>> portBindings = dockerContainer
+                .getPortBindings();
+        if (portBindings.isPresent()) {
+            log.trace("Using port bindings: {}", portBindings.get());
+            hostConfigBuilder.portBindings(portBindings.get());
+            containerConfigBuilder.exposedPorts(portBindings.get().keySet());
+        }
+        Optional<List<String>> binds = dockerContainer.getBinds();
+        if (binds.isPresent()) {
+            log.trace("Using binds: {}", binds.get());
+            hostConfigBuilder.binds(binds.get());
+        }
+        Optional<List<String>> envs = dockerContainer.getEnvs();
+        if (envs.isPresent()) {
+            log.trace("Using envs: {}", envs.get());
+            containerConfigBuilder.env(envs.get());
+        }
+        Optional<List<String>> cmd = dockerContainer.getCmd();
+        if (cmd.isPresent()) {
+            log.trace("Using cmd: {}", cmd.get());
+            containerConfigBuilder.cmd(cmd.get());
+        }
+        Optional<List<String>> entryPoint = dockerContainer.getEntryPoint();
+        if (entryPoint.isPresent()) {
+            log.trace("Using entryPoint: {}", entryPoint.get());
+            containerConfigBuilder.entrypoint(entryPoint.get());
+        }
+
+        ContainerConfig createContainer = containerConfigBuilder.image(imageId)
+                .hostConfig(hostConfigBuilder.build()).build();
+        String containerId = dockerClient.createContainer(createContainer).id();
+        dockerClient.startContainer(containerId);
+
+        return containerId;
+    }

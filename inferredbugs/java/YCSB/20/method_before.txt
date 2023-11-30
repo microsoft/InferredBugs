@@ -1,0 +1,61 @@
+  @Override
+  public void init() throws DBException {
+    Properties props = getProperties();
+    
+    // Defaults the user can override if needed
+    CONFIG.set("google.bigtable.auth.service.account.enable", "true");
+    
+    // make it easy on ourselves by copying all CLI properties into the config object.
+    final Iterator<Entry<Object, Object>> it = props.entrySet().iterator();
+    while (it.hasNext()) {
+      Entry<Object, Object> entry = it.next();
+      CONFIG.set((String)entry.getKey(), (String)entry.getValue());
+    }
+    
+    clientSideBuffering = getProperties().getProperty(CLIENT_SIDE_BUFFERING, "false")
+        .equals("true") ? true : false;
+    
+    System.err.println("Running Google Bigtable with Proto API" +
+         (clientSideBuffering ? " and client side buffering." : "."));
+    
+    synchronized (threadCount) {
+      ++threadCount;
+      if (session == null) {
+        try {
+          options = BigtableOptionsFactory.fromConfiguration(CONFIG);
+          session = new BigtableSession(options);
+          // important to instantiate the first client here, otherwise the
+          // other threads may receive an NPE from the options when they try
+          // to read the cluster name.
+          client = session.getDataClient();
+        } catch (IOException e) {
+          throw new DBException("Error loading options from config: ", e);
+        }
+      } else {
+        client = session.getDataClient();
+      }
+      
+      if (clientSideBuffering) {
+        heapSizeManager = new HeapSizeManager(
+            Long.parseLong(
+                getProperties().getProperty(ASYNC_MUTATOR_MAX_MEMORY, 
+                    Long.toString(AsyncExecutor.ASYNC_MUTATOR_MAX_MEMORY_DEFAULT))),
+            Integer.parseInt(
+                getProperties().getProperty(ASYNC_MAX_INFLIGHT_RPCS, 
+                    Integer.toString(AsyncExecutor.MAX_INFLIGHT_RPCS_DEFAULT))));
+        asyncExecutor = new AsyncExecutor(client, heapSizeManager);
+      }
+    }
+    
+    if ((getProperties().getProperty("debug") != null)
+        && (getProperties().getProperty("debug").compareTo("true") == 0)) {
+      debug = true;
+    }
+    
+    final String columnFamily = getProperties().getProperty("columnfamily");
+    if (columnFamily == null) {
+      System.err.println("Error, must specify a columnfamily for Bigtable table");
+      throw new DBException("No columnfamily specified");
+    }
+    columnFamilyBytes = Bytes.toBytes(columnFamily);
+  }

@@ -1,0 +1,155 @@
+ public static void main(String[] args) throws IOException
+	{
+		String[] filteredArgs = filterEmptyArgs(args);
+		if (filteredArgs.length < 1)
+		{
+			youMustSpecifyACommandToRun();
+		}
+
+		Command command = Command.fromName(filteredArgs[0]);
+		if (command == null)
+		{
+			youMustSpecifyACommandToRun();
+		}
+
+		CommandLineParser cmdLineGnuParser = new GnuParser();
+
+		Options options = constructOptions();
+		CommandLine commandLine;
+
+		boolean verbose = true;
+		CompareMode compareMode = CompareMode.FULL;
+		String message = "";
+		boolean useLastState = false;
+		int threadCount = Runtime.getRuntime().availableProcessors();
+
+		try
+		{
+			String[] actionArgs = Arrays.copyOfRange(filteredArgs, 1, filteredArgs.length);
+			commandLine = cmdLineGnuParser.parse(options, actionArgs);
+			if (commandLine.hasOption("h"))
+			{
+				printUsage();
+				System.exit(0);
+			}
+			else
+			{
+				verbose = !commandLine.hasOption('q');
+				compareMode = commandLine.hasOption('f') ? CompareMode.FAST : CompareMode.FULL;
+				message = commandLine.getOptionValue('m', message);
+				threadCount = Integer.parseInt(commandLine.getOptionValue('t', "" + threadCount));
+				useLastState = commandLine.hasOption('l');
+			}
+		}
+		catch (Exception ex)
+		{
+			printUsage();
+			System.exit(-1);
+		}
+
+		if (compareMode == CompareMode.FAST)
+		{
+			threadCount = 1;
+			System.out.println("Using fast compare mode. Thread count forced to 1");
+		}
+
+		if (threadCount < 1)
+		{
+			System.out.println("Thread count must be at least one");
+			System.exit(0);
+		}
+
+		File baseDirectory = new File(".");
+		File stateDir = new File(StateGenerator.FIC_DIR, "states");
+
+		if (command == Command.INIT)
+		{
+			if (stateDir.exists())
+			{
+				System.out.println("fim repository already exist");
+				System.exit(0);
+			}
+		}
+		else
+		{
+			if (!stateDir.exists())
+			{
+				System.out.println("fim repository does not exist. Please run 'fim init' before.");
+				System.exit(-1);
+			}
+		}
+
+		State previousState;
+		State currentState;
+
+		StateGenerator generator = new StateGenerator(threadCount, compareMode);
+		StateManager manager = new StateManager(stateDir, compareMode);
+		StateComparator comparator = new StateComparator(compareMode);
+		DuplicateFinder finder = new DuplicateFinder();
+
+		switch (command)
+		{
+			case INIT:
+				fastCompareNotSupported(compareMode);
+
+				stateDir.mkdirs();
+				currentState = generator.generateState("Initial State", baseDirectory);
+				comparator.compare(null, currentState).displayChanges(verbose);
+				manager.createNewState(currentState);
+				break;
+
+			case COMMIT:
+				fastCompareNotSupported(compareMode);
+
+				previousState = manager.loadPreviousState();
+				currentState = generator.generateState(message, baseDirectory);
+				CompareResult result = comparator.compare(previousState, currentState).displayChanges(verbose);
+				if (result.somethingModified())
+				{
+					System.out.println("");
+					if (confirmCommand("commit"))
+					{
+						manager.createNewState(currentState);
+					}
+					else
+					{
+						System.out.println("Nothing committed");
+					}
+				}
+				break;
+
+			case DIFF:
+				previousState = manager.loadPreviousState();
+				currentState = generator.generateState(message, baseDirectory);
+				comparator.compare(previousState, currentState).displayChanges(verbose);
+				break;
+
+			case FIND_DUPLICATES:
+				fastCompareNotSupported(compareMode);
+
+				System.out.println("Searching for duplicated files" + (useLastState ? " from the last committed State" : ""));
+				System.out.println("");
+				State state;
+				if (useLastState)
+				{
+					state = manager.loadPreviousState();
+				}
+				else
+				{
+					state = generator.generateState(message, baseDirectory);
+				}
+				finder.findDuplicates(state).displayDuplicates(verbose);
+				break;
+
+			case RESET_DATES:
+				fastCompareNotSupported(compareMode);
+
+				previousState = manager.loadPreviousState();
+				manager.resetDates(previousState);
+				break;
+
+			case LOG:
+				manager.displayStatesLog();
+				break;
+		}
+	}

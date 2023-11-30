@@ -1,0 +1,31 @@
+    @Override
+    protected File postDownload(File archive) {
+        log.trace("Post processing for Opera: {}", archive);
+
+        File extractFolder = archive.getParentFile()
+                .listFiles(getFolderFilter())[0];
+        if (!extractFolder.isFile()) {
+            log.trace("Opera extract folder (to be deleted): {}",
+                    extractFolder);
+            File[] listFiles = extractFolder.listFiles();
+            int i = 0;
+            File operadriver;
+            do {
+                operadriver = listFiles[0];
+                i++;
+            } while (!config().isExecutable(operadriver)
+                    || i >= listFiles.length);
+
+            log.trace("Operadriver binary: {}", operadriver);
+
+            File target = new File(archive.getParentFile().getAbsolutePath(),
+                    operadriver.getName());
+            log.trace("Operadriver target: {}", target);
+
+            downloader.renameFile(operadriver, target);
+            downloader.deleteFolder(extractFolder);
+            return target;
+        } else {
+            return super.postDownload(archive);
+        }
+    }

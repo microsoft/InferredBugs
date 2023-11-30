@@ -1,0 +1,155 @@
+    public void readAuction(String filename) {
+
+        noGoods = 0;
+
+        try {
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(filename), "UTF-8"));
+
+            // the first line represents the input goods
+            String line = br.readLine();
+            StringTokenizer tk = new StringTokenizer(line, "(),: ");
+
+            initialQuantity = new ArrayList<Integer>();
+
+            while (tk.hasMoreTokens()) {
+                noGoods++;
+                tk.nextToken();
+                initialQuantity.add(Integer.parseInt(tk.nextToken()));
+            }
+
+            // the second line represents the output goods
+            line = br.readLine();
+            tk = new StringTokenizer(line, "(),: ");
+
+            finalQuantity = new ArrayList<Integer>();
+
+            while (tk.hasMoreTokens()) {
+                tk.nextToken();
+                finalQuantity.add(Integer.parseInt(tk.nextToken()));
+            }
+
+            // until the word price is read, one is reading transformations.
+            // Assume that the transformations are properly grouped
+
+            line = br.readLine();
+
+            int bidCounter = 1;
+            int bid_xorCounter = 1;
+            int transformationCounter = 0;
+            int goodsCounter = 0;
+            int Id, in, out;
+
+            int[] input;
+            int[] output;
+
+            bids = new ArrayList<ArrayList<ArrayList<Transformation>>>();
+
+            bids.add(new ArrayList<ArrayList<Transformation>>());
+
+            (bids.get(0)).add(new ArrayList<Transformation>());
+
+            while (!line.equals("price")) {
+                tk = new StringTokenizer(line, "():, ");
+                transformationCounter++;
+
+                if (Integer.parseInt(tk.nextToken()) > bidCounter) {
+                    bidCounter++;
+                    bid_xorCounter = 1;
+                    transformationCounter = 1;
+
+                    bids.add(new ArrayList<ArrayList<Transformation>>());
+                    bids.get(bidCounter - 1).add(new ArrayList<Transformation>());
+                }
+                //System.out.println(bidCounter + " " + bid_xorCounter);
+                if (Integer.parseInt(tk.nextToken()) > bid_xorCounter) {
+                    bid_xorCounter++;
+                    transformationCounter = 1;
+
+                    bids.get(bidCounter - 1).add(new ArrayList<Transformation>());
+                }
+                // this token contains the number of the transformation
+                tk.nextToken();
+                bids.get(bidCounter - 1).get(bid_xorCounter - 1).add(new Transformation());
+
+                bids.get(bidCounter - 1).get(bid_xorCounter - 1).get(transformationCounter - 1).goodsIds = new ArrayList<Integer>();
+                bids.get(bidCounter - 1).get(bid_xorCounter - 1).get(transformationCounter - 1).delta = new ArrayList<Delta>();
+
+                input = new int[noGoods];
+                output = new int[noGoods];
+
+                goodsCounter = 0;
+                while (tk.hasMoreTokens()) {
+                    goodsCounter++;
+                    //System.out.println(goodsCounter);
+                    if (goodsCounter <= noGoods) {
+                        Id = Integer.parseInt(tk.nextToken()) - 1;
+                        in = Integer.parseInt(tk.nextToken());
+                        input[Id] = in;
+                    } else {
+                        Id = Integer.parseInt(tk.nextToken()) - 1;
+                        out = Integer.parseInt(tk.nextToken());
+                        output[Id] = out;
+                    }
+                }
+
+                for (int i = 0; i < noGoods; i++) {
+                    //delta = output[i] - input[i];
+                    if (output[i] > maxDelta) {
+                        maxDelta = output[i];
+                    } else if (-input[i] < minDelta) {
+                        minDelta = -input[i];
+                    }
+
+                    if (output[i] != 0 || input[i] != 0) {
+                        //System.out.print(i + " " + input[i] + ":" + output[i] + " ");
+                        //System.out.println(bidCounter + " " + bid_xorCounter + " " + transformationCounter + " " + i + " " + delta);
+                        bids.get(bidCounter - 1).get(bid_xorCounter - 1).get(transformationCounter - 1).goodsIds.add(i);
+                        bids.get(bidCounter - 1).get(bid_xorCounter - 1).get(transformationCounter - 1).delta
+                            .add(new Delta(input[i], output[i]));
+                    }
+                }
+                System.out.print("\n");
+
+                line = br.readLine();
+            }
+
+            // now read in the price for each xor bid
+
+            costs = new ArrayList<ArrayList<Integer>>();
+
+            costs.add(new ArrayList<Integer>());
+
+            bidCounter = 1;
+
+            line = br.readLine();
+
+            while (!(line == null)) {
+                tk = new StringTokenizer(line, "(): ");
+
+                if (Integer.parseInt(tk.nextToken()) > bidCounter) {
+                    bidCounter++;
+                    costs.add(new ArrayList<Integer>());
+                }
+
+                // this token contains the xor_bid id.
+                tk.nextToken();
+
+                costs.get(bidCounter - 1).add(Integer.parseInt(tk.nextToken()));
+
+                line = br.readLine();
+
+            }
+
+        } catch (FileNotFoundException ex) {
+            System.err.println("You need to run this program in a directory that contains the required file.");
+            System.err.println(ex);
+            System.exit(-1);
+        } catch (IOException ex) {
+            System.err.println(ex);
+        }
+
+        System.out.println(this.maxCost);
+        System.out.println(this.maxDelta);
+        System.out.println(this.minDelta);
+    }

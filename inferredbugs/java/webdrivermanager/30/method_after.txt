@@ -1,0 +1,30 @@
+    @Override
+    protected File postDownload(File archive) {
+        log.trace("PhatomJS package name: {}", archive);
+
+        File extractFolder = archive.getParentFile()
+                .listFiles(getFolderFilter())[0];
+        log.trace("PhatomJS extract folder (to be deleted): {}", extractFolder);
+
+        File binFolder = new File(
+                extractFolder.getAbsoluteFile() + separator + "bin");
+        // Exception for older version of PhantomJS
+        int binaryIndex = 0;
+        if (!binFolder.exists()) {
+            binFolder = extractFolder;
+            binaryIndex = 3;
+        }
+
+        log.trace("PhatomJS bin folder: {} (index {})", binFolder, binaryIndex);
+
+        File phantomjs = binFolder.listFiles()[binaryIndex];
+        log.trace("PhatomJS binary: {}", phantomjs);
+
+        File target = new File(archive.getParentFile().getAbsolutePath(),
+                phantomjs.getName());
+        log.trace("PhatomJS target: {}", target);
+
+        downloader.renameFile(phantomjs, target);
+        downloader.deleteFolder(extractFolder);
+        return target;
+    }

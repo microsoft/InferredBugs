@@ -1,0 +1,26 @@
+ private static String hashPieces(File source)
+		throws NoSuchAlgorithmException, IOException {
+		MessageDigest md = MessageDigest.getInstance("SHA-1");
+		FileInputStream fis = new FileInputStream(source);
+		StringBuffer pieces = new StringBuffer();
+		byte[] data = new byte[Torrent.PIECE_LENGTH];
+		int read;
+
+		while ((read = fis.read(data)) > 0) {
+			md.reset();
+			md.update(data, 0, read);
+			pieces.append(new String(md.digest(), Torrent.BYTE_ENCODING));
+		}
+		fis.close();
+
+		int n_pieces = new Double(Math.ceil((double)source.length() /
+					Torrent.PIECE_LENGTH)).intValue();
+		logger.debug("Hashed {} ({} bytes) in {} pieces.",
+			new Object[] {
+				source.getName(),
+				source.length(),
+				n_pieces
+			});
+
+		return pieces.toString();
+	}

@@ -1,0 +1,35 @@
+  @Test
+  public void canSwitchToTheWebViewAndFindByCSS() throws Exception {
+    IOSCapabilities safari = IOSCapabilities.iphone("UICatalog");
+    safari.setCapability(IOSCapabilities.TIME_HACK, false);
+
+    RemoteUIADriver driver = null;
+    try {
+      driver = new RemoteUIADriver(getRemoteURL(), SampleApps.uiCatalogCap());
+      Set<String> handles = driver.getWindowHandles();
+      Assert.assertEquals(handles.size(), 1);
+      UIAElement webCell = driver.findElement(new AndCriteria(new TypeCriteria(UIATableCell.class), new NameCriteria(
+          "Web", MatchingStrategy.starts)));
+      webCell.tap();
+      
+      
+      handles = driver.getWindowHandles();
+      Assert.assertEquals(handles.size(), 2);
+      driver.switchTo().window("Web");
+
+      final By by = By.cssSelector("a[href='http://store.apple.com/']");
+
+      new WebDriverWait(driver, 5).until(new ExpectedCondition<WebElement>() {
+        @Override
+        public WebElement apply(WebDriver d) {
+          return d.findElement(by);
+        }
+      });
+      WebElement el = driver.findElement(by);
+      Assert.assertEquals(el.getAttribute("href"), "http://store.apple.com/");
+
+    } finally {
+      driver.quit();
+    }
+
+  }

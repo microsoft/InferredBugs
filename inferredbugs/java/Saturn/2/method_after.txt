@@ -1,0 +1,51 @@
+ private void refreshNamespaceShardingListenerManagerMap() {
+		Collection<ZkCluster> zkClusters = RegistryCenterServiceImpl.ZKADDR_TO_ZKCLUSTER_MAP.values();
+		for (ZkCluster zkCluster: zkClusters) {
+			for(RegistryCenterConfiguration conf: zkCluster.getRegCenterConfList()) {
+				String nns = conf.getNameAndNamespace();
+				if(!namespaceShardingListenerManagerMap.containsKey(nns)) {
+					// client 从缓存取，不再新建也就不需要关闭
+					try {
+						CuratorFramework client = connect(conf.getNameAndNamespace()).getCuratorClient();
+						NamespaceShardingManager newObj = new NamespaceShardingManager(client, conf.getNamespace(), generateShardingLeadershipHostValue());
+						if (namespaceShardingListenerManagerMap.putIfAbsent(nns, newObj) == null) {
+							log.info("start NamespaceShardingManager {}", nns);
+							newObj.start();
+							log.info("done starting NamespaceShardingManager {}", nns);
+						}
+					} catch (Exception e) {
+						log.error(e.getMessage(), e);
+					}
+				}
+			}
+		}
+		// 关闭无用的
+		Iterator<Entry<String, NamespaceShardingManager>> iterator = namespaceShardingListenerManagerMap.entrySet().iterator();
+		while(iterator.hasNext()) {
+			Entry<String, NamespaceShardingManager> next = iterator.next();
+			String nns = next.getKey();
+			NamespaceShardingManager namespaceShardingManager = next.getValue();
+			boolean find = false;
+			for (ZkCluster zkCluster: zkClusters) {
+				for(RegistryCenterConfiguration conf: zkCluster.getRegCenterConfList()) {
+					if(conf.getNameAndNamespace().equals(nns)) {
+						find = true;
+						break;
+					}
+				}
+				if(find) {
+					break;
+				}
+			}
+			if(!find) {
+				namespaceShardingManager.stop();
+				iterator.remove();
+				// clear NNS_CURATOR_CLIENT_MAP
+				RegistryCenterClient registryCenterClient = NNS_CURATOR_CLIENT_MAP.remove(nns);
+				if (registryCenterClient != null) {
+					log.info("close zk client in NNS_CURATOR_CLIENT_MAP, nns: {}");
+					CloseableUtils.closeQuietly(registryCenterClient.getCuratorClient());
+				}
+			}
+		}
+	}

@@ -1,0 +1,37 @@
+ public DefineFunction encodeDefineFunction(){
+		String analyzer = getAnalyzer();
+		Boolean binary = getBinary();
+		String stripAccents = getStripAccents();
+		String tokenPattern = getTokenPattern();
+
+		switch(analyzer){
+			case "word":
+				break;
+			default:
+				throw new IllegalArgumentException(analyzer);
+		}
+
+		if(stripAccents != null){
+			throw new IllegalArgumentException(stripAccents);
+		} // End if
+
+		if(tokenPattern != null && !("(?u)\\b\\w\\w+\\b").equals(tokenPattern)){
+			throw new IllegalArgumentException(tokenPattern);
+		}
+
+		ParameterField documentField = new ParameterField(FieldName.create("document"));
+
+		ParameterField termField = new ParameterField(FieldName.create("term"));
+
+		TextIndex textIndex = new TextIndex(documentField.getName())
+			.setTokenize(Boolean.TRUE)
+			.setLocalTermWeights(binary ? TextIndex.LocalTermWeights.BINARY : null)
+			.setExpression(new FieldRef(termField.getName()));
+
+		DefineFunction defineFunction = new DefineFunction("tf", OpType.CONTINUOUS, null)
+			.setDataType(DataType.DOUBLE)
+			.addParameterFields(documentField, termField)
+			.setExpression(textIndex);
+
+		return defineFunction;
+	}

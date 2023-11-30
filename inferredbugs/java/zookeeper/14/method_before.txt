@@ -1,0 +1,32 @@
+    public static void setTraceMask(String host, int port, String traceMaskStr) {
+        try {
+            byte[] reqBytes = new byte[12];
+            ByteBuffer req = ByteBuffer.wrap(reqBytes);
+            long traceMask = Long.parseLong(traceMaskStr, 8);
+            req.putInt(ByteBuffer.wrap("stmk".getBytes()).getInt());
+            req.putLong(traceMask);
+
+            Socket s = null;
+            s = new Socket();
+            s.setSoLinger(false, 10);
+            s.setSoTimeout(20000);
+            s.connect(new InetSocketAddress(host, port));
+
+            InputStream is = s.getInputStream();
+            OutputStream os = s.getOutputStream();
+
+            os.write(reqBytes);
+
+            byte[] resBytes = new byte[8];
+
+            int rc = is.read(resBytes);
+            ByteBuffer res = ByteBuffer.wrap(resBytes);
+            long retv = res.getLong();
+            System.out.println("rc=" + rc + " retv=0"
+                    + Long.toOctalString(retv) + " masks=0"
+                    + Long.toOctalString(traceMask));
+            assert (retv == traceMask);
+        } catch (IOException ioe) {
+            LOG.warn("Unexpected exception", ioe);
+        }
+    }

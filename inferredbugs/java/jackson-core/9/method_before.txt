@@ -1,0 +1,75 @@
+    public void testLongText() throws Exception
+    {
+        final int LEN = 96000;
+        StringBuilder sb = new StringBuilder(LEN + 100);
+        Random r = new Random(99);
+        while (sb.length() < LEN) {
+            sb.append(r.nextInt());
+            sb.append(" xyz foo");
+            if (r.nextBoolean()) {
+                sb.append(" and \"bar\"");
+            } else if (r.nextBoolean()) {
+                sb.append(" [whatever].... ");
+            } else {
+                // Let's try some more 'exotic' chars
+                sb.append(" UTF-8-fu: try this {\u00E2/\u0BF8/\uA123!} (look funny?)");
+            }
+            if (r.nextBoolean()) {
+                if (r.nextBoolean()) {
+                    sb.append('\n');
+                } else if (r.nextBoolean()) {
+                    sb.append('\r');
+                } else {
+                    sb.append("\r\n");
+                }
+            }
+        }
+        final String VALUE = sb.toString();
+
+        JsonFactory jf = new JsonFactory();
+        
+        // Let's use real generator to get json done right
+        StringWriter sw = new StringWriter(LEN + (LEN >> 2));
+        JsonGenerator jg = jf.createJsonGenerator(sw);
+        jg.writeStartObject();
+        jg.writeFieldName("doc");
+        jg.writeString(VALUE);
+        jg.writeEndObject();
+        jg.close();
+        
+        final String DOC = sw.toString();
+
+        for (int type = 0; type < 3; ++type) {
+            JsonParser jp;
+
+            switch (type) {
+            default:
+                jp = jf.createJsonParser(DOC.getBytes("UTF-8"));
+                break;
+            case 1:
+                jp = jf.createJsonParser(DOC);
+                break;
+            case 2: // NEW: let's also exercise UTF-32...
+                jp = jf.createJsonParser(encodeInUTF32BE(DOC));
+                break;
+            }
+            assertToken(JsonToken.START_OBJECT, jp.nextToken());
+            assertToken(JsonToken.FIELD_NAME, jp.nextToken());
+            assertEquals("doc", jp.getCurrentName());
+            assertToken(JsonToken.VALUE_STRING, jp.nextToken());
+            
+            String act = getAndVerifyText(jp);
+            if (act.length() != VALUE.length()) {
+                fail("Expected length "+VALUE.length()+", got "+act.length());
+            }
+            if (!act.equals(VALUE)) {
+                fail("Long text differs");
+            }
+
+            // should still know the field name
+            assertEquals("doc", jp.getCurrentName());
+            assertToken(JsonToken.END_OBJECT, jp.nextToken());
+            assertNull(jp.nextToken());
+            jp.close();
+        }
+    }

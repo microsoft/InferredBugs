@@ -1,0 +1,43 @@
+  private void processMetaData(final MutationMetaData value) {
+
+    try {
+      this.mutatorScores.registerResults(value.getMutations());
+
+      final String css = FileUtil.readToString(IsolationUtils
+          .getContextClassLoader().getResourceAsStream(
+              "templates/mutation/style.css"));
+
+      final int lineCoverage = calculateLineCoverage(value);
+
+      final MutationTestSummaryData summaryData = new MutationTestSummaryData(
+          value.getMutatedClass(), value.getTestClasses(),
+          value.getPercentageMutationCoverage(), lineCoverage);
+      collectSummaryData(summaryData);
+
+      final String fileName = summaryData.getFileName();
+
+      final Writer writer = this.outputStrategy.createWriterForFile(fileName);
+
+      final StringTemplateGroup group = new StringTemplateGroup("mutation_test");
+      final StringTemplate st = group
+          .getInstanceOf("templates/mutation/mutation_report");
+      st.setAttribute("css", css);
+      st.setAttribute("summary", summaryData);
+
+      st.setAttribute("tests", value.getTargettedTests());
+
+      st.setAttribute("mutators", value.getConfig().getMutatorNames());
+
+      final Collection<SourceFile> sourceFiles = createAnnotatedSoureFiles(value);
+
+      st.setAttribute("sourceFiles", sourceFiles);
+      st.setAttribute("mutatedClasses", value.getMutatedClass());
+
+      // st.setAttribute("groups", groups);
+      writer.write(st.toString());
+      writer.close();
+
+    } catch (final IOException ex) {
+      ex.printStackTrace();
+    }
+  }

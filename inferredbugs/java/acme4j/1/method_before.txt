@@ -1,0 +1,44 @@
+    @Test
+    public void testNewAuthorization() throws AcmeException {
+        Authorization auth = new Authorization();
+        auth.setDomain("example.org");
+
+        Connection connection = new DummyConnection() {
+            @Override
+            public int sendSignedRequest(URI uri, ClaimBuilder claims, Session session, Account account) throws AcmeException {
+                assertThat(uri, is(resourceUri));
+                assertThat(claims.toString(), sameJSONAs(getJson("newAuthorizationRequest")));
+                assertThat(session, is(notNullValue()));
+                assertThat(account, is(sameInstance(testAccount)));
+                return HttpURLConnection.HTTP_CREATED;
+            }
+
+            @Override
+            public Map<String, Object> readJsonResponse() throws AcmeException {
+                return getJsonAsMap("newAuthorizationResponse");
+            }
+        };
+
+        HttpChallenge httpChallenge = new HttpChallenge();
+        DnsChallenge dnsChallenge = new DnsChallenge();
+
+        TestableAbstractAcmeClient client = new TestableAbstractAcmeClient(connection);
+        client.putTestResource(Resource.NEW_AUTHZ, resourceUri);
+        client.putTestChallenge("http-01", httpChallenge);
+        client.putTestChallenge("dns-01", dnsChallenge);
+
+        client.newAuthorization(testAccount, auth);
+
+        assertThat(auth.getDomain(), is("example.org"));
+        assertThat(auth.getStatus(), is("pending"));
+        assertThat(auth.getExpires(), is(nullValue()));
+
+        assertThat(auth.getChallenges(), containsInAnyOrder(
+                        (Challenge) httpChallenge, (Challenge) dnsChallenge));
+
+        assertThat(auth.getCombinations(), hasSize(2));
+        assertThat(auth.getCombinations().get(0), containsInAnyOrder(
+                        (Challenge) httpChallenge));
+        assertThat(auth.getCombinations().get(1), containsInAnyOrder(
+                        (Challenge) httpChallenge, (Challenge) dnsChallenge));
+    }

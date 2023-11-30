@@ -1,0 +1,27 @@
+  @Test
+  public void refresh_refreshesToken() throws IOException {
+    final String accessToken1 = "1/MkSJoj1xsli0AccessToken_NKPY2";
+    final String accessToken2 = "2/MkSJoj1xsli0AccessToken_NKPY2";
+    MockTokenServerTransport transport = new MockTokenServerTransport();
+    transport.addClient(CLIENT_ID, CLIENT_SECRET);
+    transport.addRefreshToken(REFRESH_TOKEN, accessToken1);
+    OAuth2Credentials userCredentials = new UserCredentials(
+        CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN, null, transport, null);
+    // Use a fixed clock so tokens don't exire
+    userCredentials.clock = new TestClock();
+
+    // Get a first token
+    Map<String, List<String>> metadata = userCredentials.getRequestMetadata(CALL_URI);
+    TestUtils.assertContainsBearerToken(metadata, accessToken1);
+
+    // Change server to a different token
+    transport.addRefreshToken(REFRESH_TOKEN, accessToken2);
+
+    // Confirm token being cached
+    TestUtils.assertContainsBearerToken(metadata, accessToken1);
+
+    // Refresh to force getting next token
+    userCredentials.refresh();
+    metadata = userCredentials.getRequestMetadata(CALL_URI);
+    TestUtils.assertContainsBearerToken(metadata, accessToken2);
+  }

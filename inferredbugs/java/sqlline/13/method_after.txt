@@ -1,0 +1,23 @@
+  @Test
+  public void testManual() {
+    final String expectedLine = "sqlline version";
+    try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+      new MockUp<Commands>() {
+        @Mock
+        void less(Terminal terminal, InputStream in, PrintStream out,
+            PrintStream err, Path currentDir, String[] argv) {
+        }
+      };
+
+      SqlLine.Status status =
+          begin(sqlLine, baos, false, "-e", "!set maxwidth 80");
+      assertThat(status, equalTo(SqlLine.Status.OK));
+      sqlLine.runCommands(new DispatchCallback(), "!manual");
+      String output = baos.toString("UTF8");
+
+      assertThat(output, containsString(expectedLine));
+    } catch (Throwable t) {
+      // fail
+      throw new RuntimeException(t);
+    }
+  }

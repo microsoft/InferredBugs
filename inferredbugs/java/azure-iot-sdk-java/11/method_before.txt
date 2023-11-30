@@ -1,0 +1,28 @@
+    @Override
+    public void onConnectionBound(Event event)
+    {
+        logger.LogDebug("Entered in method %s", logger.getMethodName());
+        // Codes_SRS_AMQPSIOTHUBCONNECTION_15_030: [The event handler shall get the Transport (Proton) object from the event.]
+        Transport transport = event.getConnection().getTransport();
+        if(transport != null){
+
+            if (this.useWebSockets)
+            {
+                WebSocketImpl webSocket = new WebSocketImpl();
+                webSocket.configure(this.hostName, WEB_SOCKET_PATH, 0, WEB_SOCKET_SUB_PROTOCOL, null, null);
+                ((TransportInternal)transport).addTransportLayer(webSocket);
+            }
+
+            // Codes_SRS_AMQPSIOTHUBCONNECTION_15_031: [The event handler shall set the SASL_PLAIN authentication on the transport using the given user name and sas token.]
+            Sasl sasl = transport.sasl();
+            sasl.plain(this.userName, this.sasToken);
+
+            SslDomain domain = makeDomain();
+            transport.ssl(domain);
+        }
+        synchronized (openLock)
+        {
+            openLock.notifyLock();
+        }
+        logger.LogDebug("Exited from method %s", logger.getMethodName());
+    }

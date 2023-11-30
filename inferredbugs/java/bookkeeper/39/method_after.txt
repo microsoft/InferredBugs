@@ -1,0 +1,91 @@
+    void auxTestReadWriteAsyncSingleClient(BookieServer bs) throws IOException {
+        SyncObj sync = new SyncObj();
+        try {
+            // Create a ledger
+            lh = bkc.createLedger(3, 2, digestType, ledgerPassword);
+
+            ledgerId = lh.getId();
+            LOG.info("Ledger ID: " + lh.getId());
+            for (int i = 0; i < numEntriesToWrite; i++) {
+                ByteBuffer entry = ByteBuffer.allocate(4);
+                entry.putInt(rng.nextInt(maxInt));
+                entry.position(0);
+
+                entries.add(entry.array());
+                entriesSize.add(entry.array().length);
+                lh.asyncAddEntry(entry.array(), this, sync);
+
+            }
+
+            LOG.info("Wrote " + numEntriesToWrite + " and now going to fail bookie.");
+            // Bookie fail
+            bs.shutdown();
+
+            // wait for all entries to be acknowledged
+            synchronized (sync) {
+                while (sync.counter < numEntriesToWrite) {
+                    LOG.debug("Entries counter = " + sync.counter);
+                    sync.wait(10000);
+                    assertFalse("Failure occurred during write", sync.failureOccurred);
+                }
+            }
+
+            LOG.debug("*** WRITE COMPLETE ***");
+            // close ledger
+            lh.close();
+
+            // *** WRITING PART COMPLETE // READ PART BEGINS ***
+
+            // open ledger
+            bkc.close();
+            bkc = new BookKeeperTestClient(baseClientConf);
+            lh = bkc.openLedger(ledgerId, digestType, ledgerPassword);
+            LOG.debug("Number of entries written: " + (lh.getLastAddConfirmed() + 1));
+            assertTrue("Verifying number of entries written", lh.getLastAddConfirmed() == (numEntriesToWrite - 1));
+
+            // read entries
+
+            lh.asyncReadEntries(0, numEntriesToWrite - 1, this, sync);
+
+            synchronized (sync) {
+                while (sync.value == false) {
+                    sync.wait(10000);
+                    assertTrue("Haven't received entries", sync.value);
+                    assertFalse("Failure occurred during read", sync.failureOccurred);
+                }
+            }
+
+            LOG.debug("*** READ COMPLETE ***");
+
+            // at this point, Enumeration<LedgerEntry> ls is filled with the returned
+            // values
+            int i = 0;
+            while (sync.ls.hasMoreElements()) {
+                ByteBuffer origbb = ByteBuffer.wrap(entries.get(i));
+                Integer origEntry = origbb.getInt();
+                byte[] entry = sync.ls.nextElement().getEntry();
+                ByteBuffer result = ByteBuffer.wrap(entry);
+
+                Integer retrEntry = result.getInt();
+                LOG.debug("Retrieved entry: " + i);
+                assertTrue("Checking entry " + i + " for equality", origEntry.equals(retrEntry));
+                assertTrue("Checking entry " + i + " for size", entry.length == entriesSize.get(i).intValue());
+                i++;
+            }
+
+            assertTrue("Checking number of read entries", i == numEntriesToWrite);
+
+            LOG.info("Verified that entries are ok, and now closing ledger");
+            lh.close();
+        } catch (KeeperException e) {
+            LOG.error("Caught KeeperException", e);
+            fail(e.toString());
+        } catch (BKException e) {
+            LOG.error("Caught BKException", e);
+            fail(e.toString());
+        } catch (InterruptedException e) {
+            LOG.error("Caught InterruptedException", e);
+            fail(e.toString());
+        }
+
+    }

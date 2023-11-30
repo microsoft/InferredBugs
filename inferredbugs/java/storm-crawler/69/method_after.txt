@@ -1,0 +1,36 @@
+    @Override
+    public void filter(String url, byte[] content, DocumentFragment doc,
+            ParseResult parse) {
+
+        // check whether the metadata already contains a lang value
+        // in which case we normalise its value and use it
+        Metadata m = parse.get(url).getMetadata();
+        String extractedValue = m.getFirstValue(extractedKeyName);
+        if (StringUtils.isNotBlank(extractedValue) && extractedValue.length() > 1) {
+            extractedValue = extractedValue.substring(0, 2).toLowerCase(
+                    Locale.ENGLISH);
+            LOG.info("Lang: {} extracted from page for {}", extractedValue, url);
+            m.setValue(mdKey, extractedValue);
+            return;
+        }
+
+        String text = parse.get(url).getText();
+        if (StringUtils.isBlank(text)) {
+            return;
+        }
+
+        TextObject textObject = textObjectFactory.forText(text);
+        synchronized (languageDetector) {
+            List<DetectedLanguage> probs = languageDetector
+                    .getProbabilities(textObject);
+            if (probs == null || probs.size() == 0) {
+                return;
+            }
+            for (DetectedLanguage lang : probs) {
+                if (lang.getProbability() >= minProb) {
+                    String code = lang.getLocale().getLanguage();
+                    parse.get(url).getMetadata().addValue(mdKey, code);
+                }
+            }
+        }
+    }

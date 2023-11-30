@@ -1,0 +1,28 @@
+    protected void assertSuccessfulAuthentication(String providerId) {
+        this.driver.navigate().to("http://localhost:8081/test-app/");
+
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/auth/realms/realm-with-broker/protocol/openid-connect/login"));
+
+        // choose the identity provider
+        this.loginPage.clickSocial(providerId);
+
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8082/auth/"));
+
+        // log in to identity provider
+        this.loginPage.login("test-user", "password");
+
+        doAfterProviderAuthentication(providerId);
+
+        doUpdateProfile(providerId);
+
+        // authenticated and redirected to app
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/test-app/"));
+        assertNotNull(retrieveSessionStatus());
+
+        doAssertFederatedUser(providerId);
+
+        driver.navigate().to("http://localhost:8081/test-app/logout");
+        driver.navigate().to("http://localhost:8081/test-app/");
+
+        assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/auth/realms/realm-with-broker/protocol/openid-connect/login"));
+    }

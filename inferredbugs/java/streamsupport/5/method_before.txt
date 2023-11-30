@@ -1,0 +1,26 @@
+    @Override
+    @SuppressWarnings("unchecked")
+    public void forEachRemaining(Consumer<? super E> action) {
+        Objects.requireNonNull(action);
+        int i, hi; // hoist accesses and checks from loop
+        Vector<E> lst = list;
+        Object[] a;
+        if ((hi = fence) < 0) {
+            synchronized (lst) {
+                expectedModCount = getModCount(lst);
+                a = array = getData(lst);
+                hi = fence = getSize(lst);
+            }
+        } else {
+            a = array;
+        }
+        if (a != null && (i = index) >= 0 && (index = hi) <= a.length) {
+            while (i < hi) {
+                action.accept((E) a[i++]);
+            }
+            if (expectedModCount == getModCount(lst)) {
+                return;
+            }
+        }
+        throw new ConcurrentModificationException();
+    }

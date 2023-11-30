@@ -1,0 +1,35 @@
+    public static UsbDevice[] getUsbDevices() {
+        // Get heirarchical list of USB devices
+        List<String> xml = ExecutingCommand.runNative("system_profiler SPUSBDataType -xml");
+        // Look for <key>_items</key> which prcedes <array> ... </array>
+        // Each pair of <dict> ... </dict> following is a USB device/hub
+        List<String> items = new ArrayList<>();
+        boolean copy = false;
+        int indent = 0;
+        for (String s : xml) {
+            s = s.trim();
+            // Read until <key>_items</key>
+            if (!copy && s.equals("<key>_items</key>")) {
+                copy = true;
+                continue;
+            }
+            // If we've fond items indent with each <array> tag and copy over
+            // everything with indent > 0.
+            if (copy) {
+                if (s.equals("</array>")) {
+                    if (--indent == 0) {
+                        copy = false;
+                        continue;
+                    }
+                }
+                if (indent > 0) {
+                    items.add(s);
+                }
+                if (s.equals("<array>")) {
+                    indent++;
+                }
+            }
+        }
+        // Items now contains 0 or more sets of <dict>...</dict>
+        return getUsbDevices(items);
+    }

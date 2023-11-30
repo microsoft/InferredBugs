@@ -1,0 +1,23 @@
+ @Override
+	protected String determineTargetUrl(HttpServletRequest request,
+			HttpServletResponse response) {
+		
+		SpringUser<ID> springUser = LemonUtils.getSpringUser();
+		
+		String shortLivedAuthToken = jwtService.createToken(
+				JwtService.AUTH_AUDIENCE,
+				springUser.getUsername(),
+				(long) properties.getJwt().getShortLivedMillis());
+
+		String targetUrl = LemonUtils.fetchCookie(request,
+				HttpCookieOAuth2AuthorizationRequestRepository.LEMON_REDIRECT_URI_COOKIE_PARAM_NAME)
+				.map(Cookie::getValue)
+				.orElse(properties.getOauth2AuthenticationSuccessUrl());
+		
+		HttpCookieOAuth2AuthorizationRequestRepository.deleteCookies(request, response);
+		return targetUrl + shortLivedAuthToken;
+//				
+//		return properties.getApplicationUrl()
+//				+ "/social-login-success?token="
+//				+ shortLivedAuthToken;
+	}

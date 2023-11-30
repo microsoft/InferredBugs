@@ -1,0 +1,20 @@
+    @Test
+    public void testCreateEventConsumerFailsOnConnectionFailure(final TestContext ctx) {
+
+        // GIVEN a client that already tries to create a telemetry sender for "tenant"
+        final Async connected = ctx.async();
+        final HonoClientImpl client = new HonoClientImpl(vertx, connectionFactory);
+        client.connect(new ProtonClientOptions(), ctx.asyncAssertSuccess(ok -> connected.complete()));
+        connected.await();
+
+        final Async disconnected = ctx.async();
+        client.createEventConsumer("tenant", msg -> {}, ctx.asyncAssertFailure(cause -> {
+            disconnected.complete();
+        }));
+
+        // WHEN the underlying connection fails
+        connectionFactory.getDisconnectHandler().handle(con);
+
+        // THEN all creation requests are failed
+        disconnected.await();
+    }

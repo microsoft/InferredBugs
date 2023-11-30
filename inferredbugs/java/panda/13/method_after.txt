@@ -1,0 +1,50 @@
+    private TokenExtractorResult matchDynamics(List<LexicalPatternElement> elements, TokenizedSource[] dynamics) {
+        TokenExtractorResult result = new TokenExtractorResult(true);
+
+        for (int i = 0; i < elements.size(); i++) {
+            LexicalPatternElement nodeElement = elements.get(i);
+
+            if (nodeElement.isUnit()) {
+                continue;
+            }
+
+            if (dynamics.length == 0 && nodeElement.isOptional()) {
+                continue;
+            }
+
+            TokenizedSource nodeContent = dynamics[i];
+            dynamics[i] = null;
+
+            if (nodeContent == null) {
+                return new TokenExtractorResult();
+            }
+
+            TokenDistributor content = new TokenDistributor(nodeContent);
+            TokenExtractorResult nodeElementResult = this.extract(nodeElement, content);
+
+            if (!nodeElementResult.isMatched()) {
+                return new TokenExtractorResult();
+            }
+
+            if (content.hasNext()) {
+                int nextIndex = i + 1;
+
+                if (nextIndex >= dynamics.length || dynamics[nextIndex] != null) {
+                    return new TokenExtractorResult();
+                }
+
+                dynamics[nextIndex] = new PandaTokenizedSource(content.next(content.length() - content.getIndex()));
+            }
+
+            result.addIdentifier(nodeElement.getIdentifier());
+            result.merge(nodeElementResult);
+        }
+
+        for (TokenizedSource dynamicContent : dynamics) {
+            if (dynamicContent != null) {
+                return new TokenExtractorResult();
+            }
+        }
+
+        return result;
+    }

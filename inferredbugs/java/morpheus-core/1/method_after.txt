@@ -1,0 +1,13 @@
+    @Override
+    public DataFrame<R, String> read(Consumer<DbSourceOptions<R>> configurator) throws DataFrameException {
+        final DbSourceOptions<R> options = initOptions(new DbSourceOptions<>(), configurator);
+        try (Connection conn = options.getConnection()) {
+            conn.setAutoCommit(options.isAutoCommit());
+            conn.setReadOnly(options.isReadOnly());
+            final int fetchSize = options.getFetchSize().orElse(1000);
+            final SQL sql = SQL.of(options.getSql(), options.getParameters().orElse(new Object[0]));
+            return sql.executeQuery(conn, fetchSize, rs -> read(rs, options));
+        } catch (Exception ex) {
+            throw new DataFrameException("Failed to create DataFrame from database request: " + options, ex);
+        }
+    }

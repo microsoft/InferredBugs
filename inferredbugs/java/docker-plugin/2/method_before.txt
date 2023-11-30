@@ -1,0 +1,25 @@
+    private void pullImage(DockerTemplate dockerTemplate)  throws IOException {
+
+        final String imageName = dockerTemplate.getDockerTemplateBase().getImage();
+
+        if (shouldPullImage(imageName, dockerTemplate.getPullStrategy())) {
+            LOGGER.info("Pulling image '{}'. This may take awhile...", imageName);
+
+            long startTime = System.currentTimeMillis();
+
+            PullImageCmd imgCmd =  getClient().pullImageCmd(imageName);
+            final DockerRegistryEndpoint registry = dockerTemplate.getRegistry();
+            if (registry == null) {
+                DockerRegistryToken token = registry.getToken(null);
+                AuthConfig auth = new AuthConfig()
+                        .withRegistryAddress(registry.getUrl())
+                        .withEmail(token.getEmail())
+                        .withRegistrytoken(token.getToken());
+                imgCmd.withAuthConfig(auth);
+            }
+
+            imgCmd.exec(new PullImageResultCallback()).awaitSuccess();
+            long pullTime = System.currentTimeMillis() - startTime;
+            LOGGER.info("Finished pulling image '{}', took {} ms", imageName, pullTime);
+        }
+    }

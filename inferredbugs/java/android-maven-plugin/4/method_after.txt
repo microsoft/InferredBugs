@@ -1,0 +1,56 @@
+    private void collectLibraryInputFiles()
+    {
+        if ( parsedIncludeJdkLibs )
+        {
+            // we have to add the Java framework classes to the library JARs, since they are not
+            // distributed with the JAR on Central, and since we'll strip them out of the android.jar
+            // that is shipped with the SDK (since that is not a complete Java distribution)
+            File rtJar = getJVMLibrary( "rt.jar" );
+            if ( rtJar == null )
+            {
+                rtJar = getJVMLibrary( "classes.jar" );
+            }
+            if ( rtJar != null )
+            {
+                addLibraryJar( rtJar.getPath() );
+            }
+
+            // we also need to add the JAR containing e.g. javax.servlet
+            File jsseJar = getJVMLibrary( "jsse.jar" );
+            if ( jsseJar != null )
+            {
+                addLibraryJar( jsseJar.getPath() );
+            }
+
+            // and the javax.crypto stuff
+            File jceJar = getJVMLibrary( "jce.jar" );
+            if ( jceJar != null )
+            {
+                addLibraryJar( jceJar.getPath() );
+            }
+        }
+
+        // we treat any dependencies with provided scope as library JARs
+        for ( Artifact artifact : project.getArtifacts() )
+        {
+            if ( artifact.getScope().equals( JavaScopes.PROVIDED ) )
+            {
+                if ( artifact.getArtifactId().equals( "android" ) && parsedIncludeJdkLibs )
+                {
+                    addLibraryJar( artifact.getFile().getAbsolutePath(), ANDROID_LIBRARY_EXCLUDED_FILTER );
+                }
+                else
+                {
+                    addLibraryJar( artifact.getFile().getAbsolutePath() );
+                }
+            }
+            else
+            {
+                if ( isShiftedArtifact( artifact ) )
+                {
+                    // this is a blacklisted artifact that should be processed as a library instead
+                    addLibraryJar( artifact.getFile().getAbsolutePath() );
+                }
+            }
+        }
+    }

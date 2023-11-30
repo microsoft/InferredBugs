@@ -1,0 +1,100 @@
+    protected List<IptcBlock> parseAllBlocks(final byte[] bytes, final boolean verbose,
+            final boolean strict) throws ImageReadException, IOException {
+        final List<IptcBlock> blocks = new ArrayList<IptcBlock>();
+
+        InputStream bis = null;
+        boolean canThrow = false;
+        try {
+            bis = new ByteArrayInputStream(bytes);
+
+            // Note that these are unsigned quantities. Name is always an even
+            // number of bytes (including the 1st byte, which is the size.)
+    
+            final byte[] idString = readBytes("", bis, 
+                    JpegConstants.PHOTOSHOP_IDENTIFICATION_STRING.size(),
+                    "App13 Segment missing identification string");
+            if (!JpegConstants.PHOTOSHOP_IDENTIFICATION_STRING.equals(idString)) {
+                throw new ImageReadException("Not a Photoshop App13 Segment");
+            }
+    
+            // int index = PHOTOSHOP_IDENTIFICATION_STRING.length;
+    
+            while (true) {
+                final int imageResourceBlockSignature;
+                try {
+                    imageResourceBlockSignature = read4Bytes("", bis, 
+                            "Image Resource Block missing identification string", APP13_BYTE_ORDER);
+                } catch (final IOException ioEx) {
+                    break;
+                }
+                if (imageResourceBlockSignature != JpegConstants.CONST_8BIM) {
+                    throw new ImageReadException(
+                            "Invalid Image Resource Block Signature");
+                }
+    
+                final int blockType = read2Bytes("", bis, "Image Resource Block missing type", APP13_BYTE_ORDER);
+                if (verbose) {
+                    Debug.debug("blockType: " + blockType + " (0x" + Integer.toHexString(blockType) + ")");
+                }
+    
+                final int blockNameLength = readByte("Name length", bis, "Image Resource Block missing name length");
+                if (verbose && blockNameLength > 0) {
+                    Debug.debug("blockNameLength: " + blockNameLength + " (0x" 
+                            + Integer.toHexString(blockNameLength) + ")");
+                }
+                byte[] blockNameBytes;
+                if (blockNameLength == 0) {
+                    readByte("Block name bytes", bis, "Image Resource Block has invalid name");
+                    blockNameBytes = new byte[0];
+                } else {
+                    try {
+                        blockNameBytes = readBytes("", bis, blockNameLength,
+                                "Invalid Image Resource Block name");
+                    } catch (final IOException ioEx) {
+                        if (strict) {
+                            throw ioEx;
+                        }
+                        break;
+                    }
+    
+                    if (blockNameLength % 2 == 0) {
+                        readByte("Padding byte", bis, "Image Resource Block missing padding byte");
+                    }
+                }
+    
+                final int blockSize = read4Bytes("", bis, "Image Resource Block missing size", APP13_BYTE_ORDER);
+                if (verbose) {
+                    Debug.debug("blockSize: " + blockSize + " (0x" + Integer.toHexString(blockSize) + ")");
+                }
+    
+                /*
+                 * doesn't catch cases where blocksize is invalid but is still less
+                 * than bytes.length but will at least prevent OutOfMemory errors
+                 */
+                if (blockSize > bytes.length) {
+                    throw new ImageReadException("Invalid Block Size : " + blockSize + " > " + bytes.length);
+                }
+    
+                final byte[] blockData;
+                try {
+                    blockData = readBytes("", bis, blockSize, "Invalid Image Resource Block data");
+                } catch (final IOException ioEx) {
+                    if (strict) {
+                        throw ioEx;
+                    }
+                    break;
+                }
+    
+                blocks.add(new IptcBlock(blockType, blockNameBytes, blockData));
+    
+                if ((blockSize % 2) != 0) {
+                    readByte("Padding byte", bis, "Image Resource Block missing padding byte");
+                }
+            }
+    
+            canThrow = true;
+            return blocks;
+        } finally {
+            IoUtils.closeQuietly(canThrow, bis);
+        }
+    }

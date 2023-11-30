@@ -1,0 +1,66 @@
+    public void close() {
+        // unregister from JMX
+        try {
+            if(jmxConnectionBean != null){
+                MBeanRegistry.getInstance().unregister(jmxConnectionBean);
+            }
+        } catch (Exception e) {
+            LOG.warn("Failed to unregister with JMX", e);
+        }
+        jmxConnectionBean = null;
+
+        if (closed) {
+            return;
+        }
+        closed = true;
+        synchronized (factory.cnxns) {
+            factory.cnxns.remove(this);
+        }
+        if (zk != null) {
+            zk.removeCnxn(this);
+        }
+
+        LOG.info("closing session:0x" + Long.toHexString(sessionId)
+                + " NIOServerCnxn: " + sock);
+        try {
+            /*
+             * The following sequence of code is stupid! You would think that
+             * only sock.close() is needed, but alas, it doesn't work that way.
+             * If you just do sock.close() there are cases where the socket
+             * doesn't actually close...
+             */
+            sock.socket().shutdownOutput();
+        } catch (IOException e) {
+            // This is a relatively common exception that we can't avoid
+            LOG.debug("ignoring exception during output shutdown", e);
+        }
+        try {
+            sock.socket().shutdownInput();
+        } catch (IOException e) {
+            // This is a relatively common exception that we can't avoid
+            LOG.debug("ignoring exception during input shutdown", e);
+        }
+        try {
+            sock.socket().close();
+        } catch (IOException e) {
+            LOG.warn("ignoring exception during socket close", e);
+        }
+        try {
+            sock.close();
+            // XXX The next line doesn't seem to be needed, but some posts
+            // to forums suggest that it is needed. Keep in mind if errors in
+            // this section arise.
+            // factory.selector.wakeup();
+        } catch (IOException e) {
+            LOG.warn("ignoring exception during socketchannel close", e);
+        }
+        sock = null;
+        if (sk != null) {
+            try {
+                // need to cancel this selection key from the selector
+                sk.cancel();
+            } catch (Exception e) {
+                LOG.warn("ignoring exception during selectionkey cancel", e);
+            }
+        }
+    }

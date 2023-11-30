@@ -1,0 +1,74 @@
+    public static String load(Class cls, Properties properties, boolean pathsFirst) {
+        if (!isLoadLibraries() || cls == null) {
+            return null;
+        }
+
+        // Find the top enclosing class, to match the library filename
+        cls = getEnclosingClass(cls);
+        ClassProperties p = loadProperties(cls, properties, true);
+
+        // Force initialization of all the target classes in case they need it
+        List<String> targets = p.get("target");
+        if (targets.isEmpty()) {
+            if (p.getInheritedClasses() != null) {
+                for (Class c : p.getInheritedClasses()) {
+                    targets.add(c.getName());
+                }
+            }
+            targets.add(cls.getName());
+        }
+        for (String s : targets) {
+            try {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Loading class " + s);
+                }
+                Class.forName(s, true, cls.getClassLoader());
+            } catch (ClassNotFoundException ex) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Failed to load class " + s + ": " + ex);
+                }
+                Error e = new NoClassDefFoundError(ex.toString());
+                e.initCause(ex);
+                throw e;
+            }
+        }
+
+        String cacheDir = null;
+        try {
+            cacheDir = getCacheDir().getCanonicalPath();
+        } catch (IOException e) {
+            // no cache dir, no worries
+        }
+
+        // Preload native libraries desired by our class
+        List<String> preloads = new ArrayList<String>();
+        preloads.addAll(p.get("platform.preload"));
+        preloads.addAll(p.get("platform.link"));
+        UnsatisfiedLinkError preloadError = null;
+        for (String preload : preloads) {
+            try {
+                URL[] urls = findLibrary(cls, p, preload, pathsFirst);
+                String filename = loadLibrary(urls, preload);
+                if (cacheDir != null && filename.startsWith(cacheDir)) {
+                    createLibraryLink(filename, p, preload);
+                }
+            } catch (UnsatisfiedLinkError e) {
+                preloadError = e;
+            }
+        }
+
+        try {
+            String library = p.getProperty("platform.library");
+            URL[] urls = findLibrary(cls, p, library, pathsFirst);
+            String filename = loadLibrary(urls, library);
+            if (cacheDir != null && filename.startsWith(cacheDir)) {
+                createLibraryLink(filename, p, library);
+            }
+            return filename;
+        } catch (UnsatisfiedLinkError e) {
+            if (preloadError != null && e.getCause() == null) {
+                e.initCause(preloadError);
+            }
+            throw e;
+        }
+    }

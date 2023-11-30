@@ -1,0 +1,44 @@
+    public static void main(String... args) throws InterruptedException {
+
+        // Manually grok the command argument in order to conditionally apply different options.
+        if (args.length < 1) {
+            System.err.println("Missing command argument.");
+            printCmdUsage(System.err);
+            System.exit(1);
+        }
+
+        Config.Command command = null;
+
+        try {
+            command = Config.Command.valueOf(args[0].toUpperCase());
+        }
+        catch (IllegalArgumentException ex) {
+            System.err.println("Unknown command: " + args[0]);
+            printCmdUsage(System.err);
+            System.exit(1);
+        }
+
+        Config config;
+        Dispatcher dispatcher;
+
+        switch (command) {
+            case INSERT:
+                config = new InsertConfig();
+                parseArguments(config, args);
+                dispatcher = new InsertDispatcher((InsertConfig) config);
+                break;
+            case SELECT:
+                config = new SelectConfig();
+                parseArguments(config, args);
+                dispatcher = new SelectDispatcher((SelectConfig) config);
+                break;
+            default:
+                throw new RuntimeException("Unknown command enum; Report as bug!!");
+        }
+
+        dispatcher.go();
+        dispatcher.printReport();
+
+        System.exit(0);
+
+    }

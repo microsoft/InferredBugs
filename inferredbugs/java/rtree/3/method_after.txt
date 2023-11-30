@@ -1,0 +1,17 @@
+    public <T, S extends Geometry> RTree<T, S> deserialize(long sizeBytes, InputStream is,
+            Func1<byte[], T> deserializer) throws IOException {
+        byte[] bytes = readFully(is, (int) sizeBytes);
+        Tree_ t = Tree_.getRootAsTree_(ByteBuffer.wrap(bytes));
+        Node_ node = t.root();
+        Context<T, S> context = new Context<T, S>(t.context().minChildren(),
+                t.context().maxChildren(), new SelectorRStar(), new SplitterRStar(),
+                new FactoryImmutable<T, S>());
+        final Node<T, S> root;
+        if (node.childrenLength() > 0)
+            root = new NonLeafFlatBuffersStatic<T, S>(node, context, deserializer);
+        else {
+            List<Entry<T, S>> entries = FlatBuffersHelper.createEntries(node, deserializer);
+            root = new LeafDefault<T, S>(entries, context);
+        }
+        return SerializerHelper.create(Optional.of(root), (int) t.size(), context);
+    }

@@ -1,0 +1,22 @@
+    @Test
+    public void testSelectTransactedChained() throws Exception {
+        Database db = db();
+        db //
+                .select("select score from person where name=?") //
+                .parameters("FRED", "JOSEPH") //
+                .transacted() //
+                .transactedValuesOnly() //
+                .getAs(Integer.class) //
+                .doOnNext(
+                        tx -> log.debug(tx.isComplete() ? "complete" : String.valueOf(tx.value())))//
+                .flatMap(tx -> tx //
+                        .select("select name from person where score = ?") //
+                        .parameter(tx.value()) //
+                        .valuesOnly() //
+                        .getAs(String.class)) //
+                .test() //
+                .awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                .assertNoErrors() //
+                .assertValues("FRED", "JOSEPH") //
+                .assertComplete();
+    }

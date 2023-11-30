@@ -1,0 +1,31 @@
+    protected static void normalizeX(Dataset data, Map<Object, Double> minColumnValues, Map<Object, Double> maxColumnValues) {
+        for(Integer rId : data) {
+            Record r = data.get(rId);
+            AssociativeArray xData = new AssociativeArray(r.getX());
+            
+            for(Object column : minColumnValues.keySet()) {
+                Double value = xData.getDouble(column);
+                if(value==null) { //if we have a missing value don't perform any normalization
+                    continue;
+                }
+                
+                Double min = minColumnValues.get(column);
+                Double max = maxColumnValues.get(column);
+                
+                //it is important how we will handle 0 normalized values because
+                //0-valued features are considered inactive.
+                double normalizedValue;
+                if(min.equals(max)) {
+                    normalizedValue = (min>0.0)?1.0:0.0; //set it 0.0 ONLY if the feature is always inactive and 1.0 if it has a non-zero value
+                }
+                else {
+                    normalizedValue = (value-min)/(max-min);
+                }
+                
+                xData.put(column, normalizedValue);
+            }
+            
+            r = new Record(xData, r.getY(), r.getYPredicted(), r.getYPredictedProbabilities());
+            data.set(rId, r);
+        }
+    }

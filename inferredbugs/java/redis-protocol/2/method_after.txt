@@ -1,0 +1,35 @@
+  protected <T> Promise<T> execute(final Class<T> clazz, Command command) {
+    final Promise<T> reply = new Promise<T>() {
+      @Override
+      public void set(T value) {
+        // Check the type and fail if the wrong type
+        if (!clazz.isInstance(value)) {
+          setException(new RedisException("Incorrect type for " + value + " should be " + clazz.getName() + " but is " + value.getClass().getName()));
+        } else {
+          super.set(value);
+        }
+      }
+    };
+    if (subscribed.get()) {
+      reply.setException(new RedisException("Already subscribed, cannot send this command"));
+    } else {
+      ChannelFuture write;
+      writerLock.acquireUninterruptibly();
+      queue.add(reply);
+      write = channel.write(command);
+      write.addListener(new ChannelFutureListener() {
+        @Override
+        public void operationComplete(ChannelFuture future) throws Exception {
+          writerLock.release();
+          if (future.isSuccess()) {
+            // Netty doesn't call these in order
+          } else if (future.isCancelled()) {
+            reply.cancel(true);
+          } else {
+            reply.setException(future.getCause());
+          }
+        }
+      });
+    }
+    return reply;
+  }

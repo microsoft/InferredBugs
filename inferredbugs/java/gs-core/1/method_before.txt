@@ -1,0 +1,33 @@
+ protected void checkZIndexAndShadow(Rule oldRule, Rule newRule) {
+		if (oldRule != null) {
+			if (oldRule.selector.getId() != null
+					|| oldRule.selector.getClazz() != null) {
+				// We may accelerate things a bit when a class or id style is
+				// modified,
+				// since only the groups listed in the style are concerned (we
+				// are at the
+				// bottom of the inheritance tree).
+				if (oldRule.getGroups() != null)
+					for (String s : oldRule.getGroups()) {
+						StyleGroup group = groups.get(s);
+						zIndex.groupChanged(group);
+						shadow.groupChanged(group);
+					}
+			} else {
+				// For kind styles "NODE", "EDGE", "GRAPH", "SPRITE", we must
+				// reset
+				// the whole Z and shadows for the kind, since several styles
+				// may
+				// have changed.
+
+				Selector.Type type = oldRule.selector.type;
+
+				for (StyleGroup group : groups.values()) {
+					if (group.getType() == type) {
+						zIndex.groupChanged(group);
+						shadow.groupChanged(group);
+					}
+				}
+			}
+		}
+	}

@@ -1,0 +1,28 @@
+    private void refreshSrvIfNeed() {
+        try {
+
+            if (!CollectionUtils.isEmpty(serverList)) {
+                LogUtils.LOG.debug("server list provided by user: " + serverList);
+                return;
+            }
+
+            if (System.currentTimeMillis() - lastSrvRefTime < vipSrvRefInterMillis) {
+                return;
+            }
+
+            List<String> list = getServerListFromEndpoint();
+
+            if (list.isEmpty()) {
+                throw new Exception("Can not acquire vipserver list");
+            }
+
+            if (!CollectionUtils.isEqualCollection(list, serversFromEndpoint)) {
+                LogUtils.LOG.info("SERVER-LIST", "server list is updated: " + list);
+            }
+
+            serversFromEndpoint = list;
+            lastSrvRefTime = System.currentTimeMillis();
+        } catch (Throwable e) {
+            LogUtils.LOG.warn("failed to update server list", e);
+        }
+    }

@@ -1,0 +1,47 @@
+    private Object createRelationshipEntity(Edge edge, Object startEntity, Object endEntity) {
+
+        ClassInfo relationClassInfo = getRelationshipEntity(edge);
+        if (relationClassInfo == null) {
+            throw new MappingException("Could not find a class to map for relation " + edge);
+        }
+
+        Map<String, Object> allProps = new HashMap<>(toMap(edge.getPropertyList()));
+        getCompositeProperties(edge.getPropertyList(), relationClassInfo).forEach( (k, v) -> {
+            allProps.put(k.getName(), v);
+        });
+        // also add start and end node as valid constructor values
+        allProps.put(relationClassInfo.getStartNodeReader().getName(), startEntity);
+        allProps.put(relationClassInfo.getEndNodeReader().getName(), endEntity);
+
+        // create and hydrate the new RE
+        Object relationshipEntity = entityFactory
+            .newObject(relationClassInfo.getUnderlyingClass(), allProps);
+        EntityUtils.setIdentity(relationshipEntity, edge.getId(), metadata);
+
+        // REs also have properties
+        setProperties(edge.getPropertyList(), relationshipEntity);
+
+        // register it in the mapping context
+        mappingContext.addRelationshipEntity(relationshipEntity, edge.getId());
+
+        // set the start and end entities
+        ClassInfo relEntityInfo = metadata.classInfo(relationshipEntity);
+
+        FieldInfo startNodeWriter = relEntityInfo.getStartNodeReader();
+        if (startNodeWriter != null) {
+            startNodeWriter.write(relationshipEntity, startEntity);
+        } else {
+            throw new RuntimeException(
+                "Cannot find a writer for the StartNode of relational entity " + relEntityInfo.name());
+        }
+
+        FieldInfo endNodeWriter = relEntityInfo.getEndNodeReader();
+        if (endNodeWriter != null) {
+            endNodeWriter.write(relationshipEntity, endEntity);
+        } else {
+            throw new RuntimeException(
+                "Cannot find a writer for the EndNode of relational entity " + relEntityInfo.name());
+        }
+
+        return relationshipEntity;
+    }

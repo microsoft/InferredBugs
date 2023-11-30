@@ -1,0 +1,26 @@
+    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
+          int maxItems, AtomicInteger externalSize,
+          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+        this.memoryManager = memoryManager;
+        this.maxItems = maxItems;
+        this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
+        this.entryIndex = new AtomicInteger(FIRST_ITEM);
+
+        this.sortedCount = new AtomicInteger(0);
+        this.minKey = minKey;
+        this.creator = new AtomicReference<>(creator);
+        if (creator == null) {
+            this.state = new AtomicReference<>(State.NORMAL);
+        } else {
+            this.state = new AtomicReference<>(State.INFANT);
+        }
+        this.next = new AtomicMarkableReference<>(null, false);
+        this.pendingOps = new AtomicInteger();
+        this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
+        this.statistics = new Statistics();
+        this.comparator = comparator;
+        this.externalSize = externalSize;
+
+        this.keySerializer = keySerializer;
+        this.valueSerializer = valueSerializer;
+    }

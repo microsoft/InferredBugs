@@ -1,0 +1,41 @@
+    private String doHttpPost(URL url, String body) throws IOException {		
+        System.out.println("POST " + url.toString() + " " + body);
+        HttpURLConnection connection = JdkHttpTransport.createConnection(config, url, headers, false);
+        connection.setInstanceFollowRedirects(true);
+        connection.setDoOutput(true);
+        connection.setRequestMethod("POST");
+        
+        OutputStream out = connection.getOutputStream();
+        InputStream in;
+        out.write(body.getBytes());
+        out.flush();
+        out.close();     
+        
+
+        System.out.print("HTTP " + connection.getResponseCode());
+        if(connection.getResponseCode() >= 400) {
+            in = connection.getErrorStream();
+        } else {
+            in = connection.getInputStream();
+        }
+        
+        BufferedInputStream bin = new BufferedInputStream(in);
+
+        StringBuilder responseBuilder = new StringBuilder();
+
+        //read the server response body
+        byte[] buffer = new byte[1024];
+        int bytesRead = 0;
+        while ((bytesRead = bin.read(buffer)) != -1) {
+            responseBuilder.append(new String(buffer, 0, bytesRead));
+        }
+        bin.close();
+        String serverResponse = responseBuilder.toString();
+        System.out.print(serverResponse + "\r\n");
+        
+        if(connection.getResponseCode() >= 400) {
+            throw new IllegalStateException(serverResponse);
+        } else {
+            return serverResponse;
+        }
+    }

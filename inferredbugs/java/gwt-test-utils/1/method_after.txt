@@ -1,0 +1,49 @@
+   private Object findInList(final Object current, final Method m, Node mapEq, String map)
+            throws IllegalArgumentException, IllegalAccessException, InvocationTargetException {
+      if (m.getParameterTypes().length != 1 && m.getParameterTypes()[0] != int.class) {
+         fail("Unable to navigate " + current.getClass().getCanonicalName() + " with method "
+                  + m.getName());
+      }
+      Method countM = GwtReflectionUtils.getMethod(current.getClass(), m.getName() + "Count");
+
+      if (countM == null) {
+         fail("Count method not found in " + current.getClass().getCanonicalName() + " method "
+                  + m.getName());
+         return null;
+      }
+
+      if (countM.getParameterTypes().length > 0) {
+         fail("Too many parameter in count method " + current.getClass().getCanonicalName()
+                  + " method " + countM.getName());
+      }
+
+      logger.debug("Searching in list, field " + mapEq + ", value " + map);
+      final int count = (Integer) countM.invoke(current);
+      return findInIterable(new Iterable<Object>() {
+
+         public Iterator<Object> iterator() {
+            return new Iterator<Object>() {
+
+               int counter = 0;
+
+               public boolean hasNext() {
+                  return counter < count;
+               }
+
+               public Object next() {
+                  try {
+                     return m.invoke(current, counter++);
+                  } catch (Exception e) {
+                     throw new GwtTestCsvException("Iterator exception", e);
+                  }
+               }
+
+               public void remove() {
+                  throw new UnsupportedOperationException("Remove not implemented");
+               }
+
+            };
+         }
+
+      }, mapEq, map, current, m);
+   }

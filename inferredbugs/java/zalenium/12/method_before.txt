@@ -1,0 +1,21 @@
+    public void stopContainer(String containerId) {
+        try {
+            List<Task> tasks = dockerClient.listTasks();
+            for (Task task : tasks) {
+                ContainerStatus containerStatus = task.status().containerStatus();
+                if (containerStatus != null && containerStatus.containerId().equals(containerId)) {
+                    String serviceId = task.serviceId();
+                    Service.Criteria criteria = Service.Criteria.builder()
+                            .serviceId(serviceId)
+                            .build();
+                    List<Service> services = dockerClient.listServices(criteria);
+                    if (!CollectionUtils.isEmpty(services)) {
+                        dockerClient.removeService(serviceId);
+                    }
+                }
+            }
+        } catch (DockerException | InterruptedException e) {
+            logger.warn(nodeId + " Error while stopping the container", e);
+            ga.trackException(e);
+        }
+    }

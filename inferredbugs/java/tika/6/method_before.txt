@@ -1,0 +1,21 @@
+    public void parse(
+            InputStream stream, ContentHandler handler, Metadata metadata)
+            throws IOException, SAXException, TikaException {
+        ZipInputStream zip = new ZipInputStream(stream);
+        ZipEntry entry = zip.getNextEntry();
+        while (entry != null) {
+            if (entry.getName().equals("mimetype")) {
+                StringBuilder buffer = new StringBuilder();
+                Reader reader = new InputStreamReader(zip, "UTF-8");
+                for (int ch = reader.read(); ch != -1; ch = reader.read()) {
+                    buffer.append((char) ch);
+                }
+                metadata.set(Metadata.CONTENT_TYPE, buffer.toString());
+            } else if (entry.getName().equals("meta.xml")) {
+                meta.parse(zip, new DefaultHandler(), metadata);
+            } else if (entry.getName().equals("content.xml")) {
+                content.parse(zip, handler, metadata);
+            }
+            entry = zip.getNextEntry();
+        }
+    }

@@ -1,0 +1,24 @@
+  public synchronized boolean validate(SharedTorrent torrent, Piece piece) throws IOException {
+		if (this.seeder) {
+			logger.trace("Skipping validation of {} (seeder mode).", this);
+			this.valid = true;
+			return true;
+		}
+
+		logger.trace("Validating {}...", this);
+		this.valid = false;
+
+		try {
+			// TODO: remove cast to int when large ByteBuffer support is
+			// implemented in Java.
+			ByteBuffer buffer = this._read(0, this.length);
+			byte[] data = new byte[(int)this.length];
+			buffer.get(data);
+      final byte[] calculatedHash = Torrent.hash(data);
+      this.valid = Arrays.equals(calculatedHash, this.hash);
+		} catch (NoSuchAlgorithmException nsae) {
+			logger.error("{}", nsae);
+		}
+
+		return this.isValid();
+	}

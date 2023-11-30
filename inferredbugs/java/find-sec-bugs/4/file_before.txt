@@ -1,0 +1,458 @@
+/**
+ * Find Security Bugs
+ * Copyright (c) Philippe Arteau, All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.0 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library.
+ */
+package com.h3xstream.findsecbugs.taintanalysis;
+
+import edu.umd.cs.findbugs.ba.AbstractFrameModelingVisitor;
+import edu.umd.cs.findbugs.ba.DataflowAnalysisException;
+import edu.umd.cs.findbugs.ba.InvalidBytecodeException;
+import edu.umd.cs.findbugs.ba.generic.GenericSignatureParser;
+import edu.umd.cs.findbugs.classfile.MethodDescriptor;
+import edu.umd.cs.findbugs.util.ClassName;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+import org.apache.bcel.Constants;
+import org.apache.bcel.generic.AALOAD;
+import org.apache.bcel.generic.AASTORE;
+import org.apache.bcel.generic.ACONST_NULL;
+import org.apache.bcel.generic.ANEWARRAY;
+import org.apache.bcel.generic.ARETURN;
+import org.apache.bcel.generic.CHECKCAST;
+import org.apache.bcel.generic.ConstantPoolGen;
+import org.apache.bcel.generic.FieldOrMethod;
+import org.apache.bcel.generic.INVOKEINTERFACE;
+import org.apache.bcel.generic.INVOKESPECIAL;
+import org.apache.bcel.generic.INVOKESTATIC;
+import org.apache.bcel.generic.INVOKEVIRTUAL;
+import org.apache.bcel.generic.InvokeInstruction;
+import org.apache.bcel.generic.LDC;
+import org.apache.bcel.generic.LDC2_W;
+import org.apache.bcel.generic.LoadInstruction;
+import org.apache.bcel.generic.NEW;
+import org.apache.bcel.generic.StoreInstruction;
+
+/**
+ * Visitor to make instruction transfer of taint values easier
+ *
+ * @author David Formanek (Y Soft Corporation, a.s.)
+ */
+public class TaintFrameModelingVisitor extends AbstractFrameModelingVisitor<Taint, TaintFrame> {
+
+    private static final String TO_STRING_METHOD = "toString()Ljava/lang/String;";
+    private static final String EQUALS_METHOD = "equals(Ljava/lang/Object;)Z";
+    private static final Set<String> SAFE_OBJECT_TYPES;
+    private static final Set<String> IMMUTABLE_OBJECT_TYPES;
+    private final MethodDescriptor methodDescriptor;
+    private final int parameterStackSize;
+    private final TaintMethodSummaryMap methodSummaries;
+    private final TaintMethodSummary analyzedMethodSummary;
+    private final Set<Integer> writtenIndeces;
+
+    static {
+        // these data types cannot have taint state other than SAFE or NULL
+        SAFE_OBJECT_TYPES = new HashSet<String>(9);
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Boolean;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Character;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Double;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Float;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Integer;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Long;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Byte;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/Short;");
+        SAFE_OBJECT_TYPES.add("Ljava/lang/BigDecimal;");
+        // these data types are not modified, when passed as a parameter to an unknown method
+        IMMUTABLE_OBJECT_TYPES = new HashSet<String>(SAFE_OBJECT_TYPES.size() + 1);
+        IMMUTABLE_OBJECT_TYPES.addAll(SAFE_OBJECT_TYPES);
+        IMMUTABLE_OBJECT_TYPES.add("Ljava/lang/String;");
+    }
+
+    public TaintFrameModelingVisitor(ConstantPoolGen cpg, MethodDescriptor method,
+            TaintMethodSummaryMap methodSummaries) {
+        super(cpg);
+        if (method == null) {
+            throw new NullPointerException("null method descriptor");
+        }
+        if (methodSummaries == null) {
+            throw new NullPointerException("null method summaries");
+        }
+        this.methodDescriptor = method;
+        this.methodSummaries = methodSummaries;
+        this.parameterStackSize = getParameterStackSize(method.getSignature(), method.isStatic());
+        this.analyzedMethodSummary = new TaintMethodSummary();
+        this.writtenIndeces = new HashSet<Integer>();
+    }
+
+    private static int getParameterStackSize(String signature, boolean isStatic) {
+        assert signature != null && !signature.isEmpty();
+        // static methods does not have reference to this
+        int stackSize = isStatic ? 0 : 1;
+        GenericSignatureParser parser = new GenericSignatureParser(signature);
+        Iterator<String> iterator = parser.parameterSignatureIterator();
+        while (iterator.hasNext()) {
+            String parameter = iterator.next();
+            if (parameter.equals("D") || parameter.equals("J")) {
+                // double and long types takes two slots
+                stackSize += 2;
+            } else {
+                stackSize++;
+            }
+        }
+        return stackSize;
+    }
+
+    private static Collection<Integer> getMutableStackIndices(String signature) {
+        assert signature != null && !signature.isEmpty();
+        ArrayList<Integer> indices = new ArrayList<Integer>();
+        int stackIndex = 0;
+        GenericSignatureParser parser = new GenericSignatureParser(signature);
+        Iterator<String> iterator = parser.parameterSignatureIterator();
+        while (iterator.hasNext()) {
+            String parameter = iterator.next();
+            if ((parameter.startsWith("L") || parameter.startsWith("["))
+                    && !IMMUTABLE_OBJECT_TYPES.contains(parameter)) {
+                indices.add(stackIndex);
+            }
+            if (parameter.equals("D") || parameter.equals("J")) {
+                // double and long types takes two slots
+                stackIndex += 2;
+            } else {
+                stackIndex++;
+            }
+        }
+        for (int i = 0; i < indices.size(); i++) {
+            int reverseIndex = stackIndex - indices.get(i) - 1;
+            assert reverseIndex >= 0;
+            indices.set(i, reverseIndex);
+        }
+        return indices;
+    }
+
+    @Override
+    public Taint getDefaultValue() {
+        return new Taint(Taint.State.UNKNOWN);
+    }
+
+    @Override
+    public void visitLDC(LDC obj) {
+        pushSafe();
+    }
+
+    @Override
+    public void visitLDC2_W(LDC2_W obj) {
+        // double and long type takes two slots in BCEL
+        pushSafe();
+        pushSafe();
+    }
+
+    @Override
+    public void visitACONST_NULL(ACONST_NULL obj) {
+        getFrame().pushValue(new Taint(Taint.State.NULL));
+    }
+
+    @Override
+    public void visitNEW(NEW obj) {
+        pushSafe();
+    }
+
+    @Override
+    public void handleStoreInstruction(StoreInstruction obj) {
+        try {
+            int numConsumed = obj.consumeStack(cpg);
+            if (numConsumed == Constants.UNPREDICTABLE) {
+                throw new InvalidBytecodeException("Unpredictable stack consumption");
+            }
+            int index = obj.getIndex();
+            while (numConsumed-- > 0) {
+                Taint value = getFrame().popValue();
+                writtenIndeces.add(index);
+                getFrame().setValue(index++, value);
+            }
+        } catch (DataflowAnalysisException ex) {
+            throw new InvalidBytecodeException(ex.toString(), ex);
+        }
+    }
+
+    @Override
+    public void handleLoadInstruction(LoadInstruction obj) {
+        int numProduced = obj.produceStack(cpg);
+        if (numProduced == Constants.UNPREDICTABLE) {
+            throw new InvalidBytecodeException("Unpredictable stack production");
+        }
+        int index = obj.getIndex() + numProduced;
+        while (numProduced-- > 0) {
+            Taint value = getFrame().getValue(--index);
+            // set local variable origin of a stack value
+            value.setLocalVariableIndex(index);
+            if (!writtenIndeces.contains(index)) {
+                // it must be parameter if not written to local variable
+                int stackOffset = parameterStackSize - index - 1;
+                assert stackOffset >= 0; // since there is unwritten index
+                value.addTaintParameter(stackOffset);
+            }
+            getFrame().pushValue(new Taint(value));
+        }
+    }
+
+    @Override
+    public void visitINVOKEINTERFACE(INVOKEINTERFACE obj) {
+        visitInvoke(obj);
+    }
+
+    @Override
+    public void visitINVOKESPECIAL(INVOKESPECIAL obj) {
+        visitInvoke(obj);
+    }
+
+    @Override
+    public void visitINVOKESTATIC(INVOKESTATIC obj) {
+        visitInvoke(obj);
+    }
+
+    @Override
+    public void visitINVOKEVIRTUAL(INVOKEVIRTUAL obj) {
+        visitInvoke(obj);
+    }
+
+    @Override
+    public void visitANEWARRAY(ANEWARRAY obj) {
+        try {
+            getFrame().popValue();
+            pushSafe();
+        } catch (DataflowAnalysisException ex) {
+            throw new InvalidBytecodeException("Array length not in the stack", ex);
+        }
+    }
+
+    @Override
+    public void visitAASTORE(AASTORE obj) {
+        try {
+            Taint valueTaint = getFrame().popValue();
+            getFrame().popValue(); // array index
+            Taint arrayTaint = getFrame().popValue();
+            Taint merge = Taint.merge(valueTaint, arrayTaint);
+            setLocalVariableTaint(merge, arrayTaint);
+            Taint stackTop = null;
+            if (getFrame().getStackDepth() > 0) {
+                stackTop = getFrame().getTopValue();
+            }
+            // varargs use duplicated values
+            if (stackTop == arrayTaint) {
+                getFrame().popValue();
+                getFrame().pushValue(new Taint(merge));
+            }
+        } catch (DataflowAnalysisException ex) {
+            throw new InvalidBytecodeException("Not enough values on the stack", ex);
+        }
+    }
+
+    @Override
+    public void visitAALOAD(AALOAD obj) {
+        try {
+            getFrame().popValue(); // array index
+            // just transfer the taint from array to value at any index
+        } catch (DataflowAnalysisException ex) {
+            throw new InvalidBytecodeException("Not enough values on the stack", ex);
+        }
+    }
+
+    @Override
+    public void visitCHECKCAST(CHECKCAST obj) {
+        // keep the top of stack unchanged
+    }
+
+    /**
+     * Regroup the method invocations (INVOKEINTERFACE, INVOKESPECIAL,
+     * INVOKESTATIC, INVOKEVIRTUAL)
+     *
+     * @param obj one of the invoke instructions
+     */
+    private void visitInvoke(InvokeInstruction obj) {
+        assert obj != null;
+        TaintMethodSummary methodSummary = getMethodSummary(obj);
+        Taint taint = getMethodTaint(methodSummary);
+        assert taint != null;
+        if (taint.isUnknown()) {
+            taint.addTaintLocation(getTaintLocation(), false);
+        }
+        taintMutableArguments(methodSummary, obj);
+        transferTaintToMutables(methodSummary, taint); // adds variable index to taint too
+        modelInstruction(obj, getNumWordsConsumed(obj), getNumWordsProduced(obj), new Taint(taint));
+    }
+
+    private TaintMethodSummary getMethodSummary(InvokeInstruction obj) {
+        String signature = obj.getSignature(cpg);
+        String returnType = getReturnType(signature);
+        if (SAFE_OBJECT_TYPES.contains(returnType)) {
+            return TaintMethodSummary.SAFE_SUMMARY;
+        }
+        String className = getSlashedClassName(obj);
+        String methodName = obj.getMethodName(cpg);
+        String methodNameWithSig = methodName + signature;
+        String fullMethodName = className + "." + methodNameWithSig;
+        TaintMethodSummary methodSummary = methodSummaries.get(fullMethodName);
+        if (methodSummary != null) {
+            return methodSummary;
+        }
+        if (TO_STRING_METHOD.equals(methodNameWithSig)) {
+            return TaintMethodSummary.DEFAULT_TOSTRING_SUMMARY;
+        }
+        if (EQUALS_METHOD.equals(methodNameWithSig)) {
+            return TaintMethodSummary.DEFAULT_EQUALS_SUMMARY;
+        }
+        if (Constants.CONSTRUCTOR_NAME.equals(methodName)
+                && !SAFE_OBJECT_TYPES.contains("L" + className + ";")) {
+            int stackSize = getParameterStackSize(signature, false);
+            return TaintMethodSummary.getDefaultConstructorSummary(stackSize);
+        }
+        return methodSummary;
+    }
+
+    private static String getReturnType(String signature) {
+        assert signature != null && signature.contains(")");
+        return signature.substring(signature.indexOf(')') + 1);
+    }
+
+    private String getSlashedClassName(FieldOrMethod obj) {
+        assert obj != null;
+        String className = obj.getReferenceType(cpg).toString();
+        return ClassName.toSlashedClassName(className);
+    }
+
+    private Taint getMethodTaint(TaintMethodSummary methodSummary) {
+        if (methodSummary == null) {
+            return getDefaultValue();
+        }
+        Taint taint = methodSummary.getOutputTaint();
+        assert taint != null;
+        assert taint != methodSummary.getOutputTaint() : "defensive copy not made";
+        if (taint.isUnknown() && taint.hasTaintParameters()) {
+            Taint merge = mergeTransferParameters(taint.getTaintParameters());
+            assert merge != null;
+            return Taint.merge(taint.getNonParametricTaint(), merge);
+        }
+        if (taint.isTainted()) {
+            taint.addTaintLocation(getTaintLocation(), true);
+        }
+        return taint;
+    }
+
+    private void taintMutableArguments(TaintMethodSummary methodSummary, InvokeInstruction obj) {
+        if (methodSummary != null
+                && methodSummary != TaintMethodSummary.SAFE_SUMMARY
+                && !Constants.CONSTRUCTOR_NAME.equals(obj.getMethodName(cpg))) {
+            return;
+        }
+        Collection<Integer> mutableStackIndices = getMutableStackIndices(obj.getSignature(cpg));
+        for (Integer index : mutableStackIndices) {
+            assert index >= 0 && index < getFrame().getStackDepth();
+            try {
+                Taint taint = new Taint(getFrame().getStackValue(index));
+                taint.setState(Taint.State.merge(taint.getState(), Taint.State.UNKNOWN));
+                getFrame().setValue(getFrame().getStackLocation(index), taint);
+                setLocalVariableTaint(taint, taint);
+            } catch (DataflowAnalysisException ex) {
+                throw new InvalidBytecodeException("Not enough values on the stack", ex);
+            }
+        }
+    }
+    
+    private Taint mergeTransferParameters(Collection<Integer> transferParameters) {
+        assert transferParameters != null && !transferParameters.isEmpty();
+        Taint taint = null;
+        for (Integer transferParameter : transferParameters) {
+            try {
+                Taint value = getFrame().getStackValue(transferParameter);
+                taint = Taint.merge(taint, value);
+            } catch (DataflowAnalysisException ex) {
+                throw new RuntimeException("Bad transfer parameter specification", ex);
+            }
+        }
+        assert taint != null;
+        return taint;
+    }
+
+    private void transferTaintToMutables(TaintMethodSummary methodSummary, Taint taint) {
+        assert taint != null;
+        if (methodSummary == null || !methodSummary.hasMutableStackIndeces()) {
+            return;
+        }
+        try {
+            int stackDepth = getFrame().getStackDepth();
+            for (Integer mutableStackIndex : methodSummary.getMutableStackIndeces()) {
+                assert mutableStackIndex >= 0;
+                if (mutableStackIndex >= stackDepth) {
+                    if (!Constants.CONSTRUCTOR_NAME.equals(methodDescriptor.getName())) {
+                        assert false : "Out of bounds mutables in " + methodDescriptor;
+                    }
+                    continue; // ignore if assertions disabled or if in constructor
+                }
+                Taint stackValue = getFrame().getStackValue(mutableStackIndex);
+                setLocalVariableTaint(taint, stackValue);
+                getFrame().setValue(getFrame().getStackLocation(mutableStackIndex), new Taint(taint));
+            }
+        } catch (DataflowAnalysisException ex) {
+            assert false; // stack depth is checked
+        }
+    }
+
+    private void setLocalVariableTaint(Taint valueTaint, Taint indexTaint) {
+        assert valueTaint != null && indexTaint != null;
+        if (!indexTaint.hasValidLocalVariableIndex()) {
+            return;
+        }
+        int index = indexTaint.getLocalVariableIndex();
+        if (index >= getFrame().getNumLocals()) {
+            assert false : "Out of bounds local variable index in " + methodDescriptor;
+            return; // ignore if assertions disabled
+        }
+        valueTaint.setLocalVariableIndex(index);
+        getFrame().setValue(index, valueTaint);
+    }
+    
+    private void pushSafe() {
+        getFrame().pushValue(new Taint(Taint.State.SAFE));
+    }
+
+    private TaintLocation getTaintLocation() {
+        return new TaintLocation(methodDescriptor, getLocation().getHandle().getPosition());
+    }
+
+    @Override
+    public void visitARETURN(ARETURN obj) {
+        try {
+            Taint returnTaint = getFrame().getTopValue();
+            Taint currentTaint = analyzedMethodSummary.getOutputTaint();
+            analyzedMethodSummary.setOuputTaint(Taint.merge(returnTaint, currentTaint));
+        } catch (DataflowAnalysisException ex) {
+            throw new InvalidBytecodeException("empty stack before reference return", ex);
+        }
+        handleNormalInstruction(obj);
+    }
+
+    public TaintMethodSummary getAnalyzedMethodSummary() {
+        assert analyzedMethodSummary != null;
+        if (SAFE_OBJECT_TYPES.contains(getReturnType(methodDescriptor.getSignature()))
+                && (analyzedMethodSummary.getOutputTaint() == null
+                || analyzedMethodSummary.getOutputTaint().getState() != Taint.State.NULL)) {
+            return TaintMethodSummary.SAFE_SUMMARY;
+        }
+        return analyzedMethodSummary;
+    }
+}

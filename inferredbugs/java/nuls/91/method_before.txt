@@ -1,0 +1,20 @@
+    public void start() {
+        try {
+            ChannelFuture future = boot.connect(node.getIp(), node.getSeverPort()).sync();
+            if (future.isSuccess()) {
+                socketChannel = (SocketChannel) future.channel();
+            } else {
+                System.out.println("---------------client start !success remove node-----------------" + node.getId());
+                getNetworkService().removeNode(node.getId());
+            }
+            future.channel().closeFuture().sync();
+        } catch (Exception e) {
+            Log.debug("-------------NettyClient start error: " + e.getMessage());
+            //maybe time out or refused or something
+            if (socketChannel != null) {
+                socketChannel.close();
+            }
+            System.out.println("---------------client start exception remove node-----------------" + node.getId());
+            getNetworkService().removeNode(node.getId());
+        }
+    }

@@ -1,0 +1,29 @@
+    private void readFile(File path) throws IOException {
+        if (log.isDebugEnabled()) {
+            log.debug("Reading file {}", path);
+        }
+        StringBuffer buf = new StringBuffer();
+        buf.append("C");
+        buf.append("0644"); // what about perms
+        buf.append(" ");
+        buf.append(path.length()); // length
+        buf.append(" ");
+        buf.append(path.getName());
+        buf.append("\n");
+        out.write(buf.toString().getBytes());
+        out.flush();
+        readAck();
+
+        InputStream is = new FileInputStream(path);
+        byte[] buffer = new byte[8192];
+        for (;;) {
+            int len = is.read(buffer, 0, buffer.length);
+            if (len == -1) {
+                break;
+            }
+            out.write(buffer, 0, len);
+        }
+        is.close();
+        ack();
+        readAck();
+    }

@@ -1,0 +1,34 @@
+    @Test
+    public void rtmStart() throws Exception {
+        // TODO: "prefs" support
+        SlackConfig config = new SlackConfig();
+        config.setLibraryMaintainerMode(false);
+        config.getHttpClientResponseHandlers().add(new JsonDataRecordingListener());
+        Slack slack = Slack.getInstance(config);
+
+        String channelName = "test" + System.currentTimeMillis();
+        TestChannelGenerator channelGenerator = new TestChannelGenerator(testConfig, channelCreationToken);
+        Conversation channel = channelGenerator.createNewPublicChannel(channelName);
+        try {
+            String channelId = channel.getId();
+
+            // need to invite the bot user to the created channel before starting an RTM session
+            inviteBotUser(channelId);
+
+            Thread.sleep(3000);
+
+            try (RTMClient rtm = slack.rtmStart(botToken)) {
+                User user = rtm.getConnectedBotUser();
+
+                assertThat(user.getId(), is(notNullValue()));
+                assertThat(user.getTeamId(), is(notNullValue()));
+                assertThat(user.getName(), is(notNullValue()));
+                assertThat(user.getProfile(), is(notNullValue()));
+                assertThat(user.getProfile().getBotId(), is(notNullValue()));
+
+                verifyRTMClientBehavior(channelId, rtm);
+            }
+        } finally {
+            channelGenerator.archiveChannel(channel);
+        }
+    }

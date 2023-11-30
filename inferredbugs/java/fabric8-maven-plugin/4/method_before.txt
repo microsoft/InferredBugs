@@ -1,0 +1,62 @@
+    protected void downloadGoFabric8(File destFile) throws MojoExecutionException {
+        File file = null;
+        try {
+            file = File.createTempFile("fabric8", ".bin");
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to create a temporary file for the download");
+        }
+        log.debug("Downloading gofabric8 to temporary file: " + file.getAbsolutePath());
+
+        String version;
+        try {
+            version = IOHelpers.readFully(new URL(gofabric8VersionURL));
+            log.info("Downloading version " + version + " of gofabric8 to " + destFile + " ...");
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to load gofabric8 version from: " + gofabric8VersionURL + ". " + e, e);
+        }
+
+        String platform = getPlatform();
+        String osArch = System.getProperty("os.arch");
+        String arch = Architectures.AMD64;
+        if (osArch.toLowerCase().contains("arm")) {
+            arch = Architectures.ARM;
+        }
+        String releaseUrl = "https://github.com/fabric8io/gofabric8/releases/download/v" + version + "/gofabric8-" + platform + "-" + arch;
+        if (platform.equals("windows")) {
+            releaseUrl += ".exe";
+        }
+        URL downloadUrl;
+        try {
+            downloadUrl = new URL(releaseUrl);
+        } catch (MalformedURLException e) {
+            throw new MojoExecutionException("Failed to create URL: " + releaseUrl + ". " + e, e);
+        }
+        InputStream inputStream;
+        try {
+            inputStream = downloadUrl.openStream();
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to open URL: " + releaseUrl + ". " + e, e);
+        }
+        try (OutputStream out = new FileOutputStream(file)) {
+            IOHelpers.copy(inputStream, out);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to download URL: " + releaseUrl + " to file: " + file + ". " + e, e);
+        }
+        file.setExecutable(true);
+        // TODO: Very checksum and potentially signature
+
+        // lets check we can execute the binary before we try to replace it if it already exists
+        runCommand(file.getAbsolutePath() + " version" + batchModeArgument, "gofabric8 version" + batchModeArgument, "gofabric8");
+
+        boolean result = file.renameTo(destFile);
+        if (!result) {
+            // lets try copy it instead as this could be an odd linux issue with renaming files
+            try {
+                IOHelpers.copy(new FileInputStream(file), new FileOutputStream(destFile));
+                destFile.setExecutable(true);
+            } catch (IOException e) {
+                throw new MojoExecutionException("Failed to copy temporary file " + file + " to " + destFile + ": " + e, e);
+            }
+        }
+        log.info("Downloaded gofabric8 version " + version + " platform: " + platform + " arch:" + arch + " on: " + System.getProperty("os.name") + " " + arch + " to: " + destFile);
+    }

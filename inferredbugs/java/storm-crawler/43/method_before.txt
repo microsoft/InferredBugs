@@ -1,0 +1,96 @@
+    @Override
+    public Date schedule(Status status, Metadata metadata) {
+        LOG.debug("Scheduling status: {}, metadata: {}", status, metadata);
+
+        String signature = metadata.getFirstValue(SIGNATURE_KEY);
+        String oldSignature = metadata.getFirstValue(SIGNATURE_OLD_KEY);
+
+        if (status != Status.FETCHED) {
+
+            // reset all metadata
+            metadata.remove(SIGNATURE_MODIFIED_KEY);
+            metadata.remove(FETCH_INTERVAL_KEY);
+            metadata.remove(SIGNATURE_KEY);
+            metadata.remove(SIGNATURE_OLD_KEY);
+
+            // fall-back to DefaultScheduler
+            return super.schedule(status, metadata);
+        }
+
+        Calendar now = Calendar.getInstance(Locale.ROOT);
+
+        String signatureModified = metadata
+                .getFirstValue(SIGNATURE_MODIFIED_KEY);
+
+        boolean changed = false;
+
+        final String modifiedTimeString = httpDateFormat.format(now.getTime());
+
+        if (signature == null || oldSignature == null) {
+            // no decision possible by signature comparison if
+            // - document not parsed (intentionally or not) or
+            // - signature not generated or
+            // - old signature not copied
+
+            if (metadata.getFirstValue("fetch.statusCode").equals("304")) {
+                // HTTP 304 Not Modified
+            } else {
+                // fall-back to DefaultScheduler
+                LOG.debug("No signature for FETCHED page: {}", metadata);
+                return super.schedule(status, metadata);
+            }
+
+        } else if (signature.equals(oldSignature)) {
+            // unchanged, remove old signature (do not keep same signature
+            // twice)
+            metadata.remove(SIGNATURE_OLD_KEY);
+            if (signatureModified == null)
+                signatureModified = modifiedTimeString;
+        } else {
+            // change detected by signature comparison
+            changed = true;
+            signatureModified = modifiedTimeString;
+            if (setLastModified)
+                metadata.setValue(HttpHeaders.LAST_MODIFIED, modifiedTimeString);
+        }
+
+        String fetchInterval = metadata.getFirstValue(FETCH_INTERVAL_KEY);
+        int interval = defaultfetchInterval;
+        if (fetchInterval != null) {
+            interval = Integer.parseInt(fetchInterval);
+        } else {
+            // initialize from DefaultScheduler
+            Optional<Integer> customInterval = super.checkCustomInterval(
+                    metadata, status);
+            if (customInterval.isPresent())
+                interval = customInterval.get();
+            else
+                interval = defaultfetchInterval;
+            fetchInterval = Integer.toString(interval);
+        }
+
+        if (changed) {
+            // shrink fetch interval (slow down decrementing if already close to
+            // the minimum interval)
+            interval = (int) ((1.0f - fetchIntervalDecRate) * interval + fetchIntervalDecRate
+                    * minFetchInterval);
+            LOG.debug(
+                    "Signature has changed, fetchInterval decreased from {} to {}",
+                    fetchInterval, interval);
+
+        } else {
+            // no change or not modified, increase fetch interval
+            interval = (int) (interval * (1.0f + fetchIntervalIncRate));
+            if (interval > maxFetchInterval)
+                interval = maxFetchInterval;
+            LOG.debug("Unchanged, fetchInterval increased from {} to {}",
+                    fetchInterval, interval);
+        }
+
+        metadata.setValue(FETCH_INTERVAL_KEY, Integer.toString(interval));
+        metadata.setValue(SIGNATURE_MODIFIED_KEY, signatureModified);
+
+        now.add(Calendar.MINUTE, interval);
+
+        return now.getTime();
+    }

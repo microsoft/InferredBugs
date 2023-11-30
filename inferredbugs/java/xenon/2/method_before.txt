@@ -1,0 +1,26 @@
+    void startOrSynchService(Operation post, Service child) {
+        Service s = findService(post.getUri().getPath());
+        if (s == null) {
+            startService(post, child);
+            return;
+        }
+
+        Operation synchPut = Operation.createPut(post.getUri())
+                .setBody(new ServiceDocument())
+                .addPragmaDirective(Operation.PRAGMA_DIRECTIVE_NO_FORWARDING)
+                .setReplicationDisabled(true)
+                .addRequestHeader(Operation.REPLICATION_PHASE_HEADER,
+                        Operation.REPLICATION_PHASE_SYNCHRONIZE)
+                .setReferer(post.getReferer())
+                .setCompletion((o, e) -> {
+                    if (e != null) {
+                        post.setStatusCode(o.getStatusCode()).setBodyNoCloning(o.getBodyRaw())
+                                .fail(e);
+                        return;
+                    }
+
+                    post.complete();
+                });
+
+        sendRequest(synchPut);
+    }

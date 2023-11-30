@@ -1,0 +1,24 @@
+    @Test
+    public void authPlain() throws IOException {
+        withConnection((printStream, reader) -> {
+            // No such user
+            assertThat(reader.readLine()).startsWith("+OK POP3 GreenMail Server v");
+            printStream.print("AUTH PLAIN dGVzdAB0ZXN0AHRlc3RwYXNz" + CRLF /* test / test / testpass */);
+            assertThat(reader.readLine()).isEqualTo("-ERR Authentication failed: User <test> doesn't exist");
+
+            try {
+                greenMail.getManagers().getUserManager()
+                        .createUser("test@localhost", "test", "testpass");
+            } catch (UserException e) {
+                throw new IllegalStateException(e);
+            }
+
+            // Invalid pwd
+            printStream.print("AUTH PLAIN dGVzdAB0ZXN0AHRlc3RwY" + CRLF /* test / test / <invalid> */);
+            assertThat(reader.readLine()).isEqualTo("-ERR Authentication failed, expected base64 encoding : Last unit does not have enough valid bits");
+
+            // Successful auth
+            printStream.print("AUTH PLAIN dGVzdAB0ZXN0AHRlc3RwYXNz" + CRLF /* test / test / <invalid> */);
+            assertThat(reader.readLine()).isEqualTo("+OK");
+        });
+    }

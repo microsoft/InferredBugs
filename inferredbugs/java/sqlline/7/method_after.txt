@@ -1,0 +1,26 @@
+  @Test
+  public void testPromptWithConnection() {
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    try {
+      final SqlLine.Status status =
+          begin(sqlLine, os, false, "-e", "!set maxwidth 80");
+      assertThat(status, equalTo(SqlLine.Status.OK));
+      final DispatchCallback dc = new DispatchCallback();
+      sqlLine.runCommands(dc, "!connect "
+          + SqlLineArgsTest.ConnectionSpec.H2.url + " "
+          + SqlLineArgsTest.ConnectionSpec.H2.username + " \"\"");
+
+      // custom prompt with data from connection
+      final SqlLineOpts opts = sqlLine.getOpts();
+      opts.set(BuiltInProperty.PROMPT, "%u@%n>");
+      opts.set(BuiltInProperty.RIGHT_PROMPT, "//%d%c");
+      assertThat(sqlLine.getPromptHandler().getPrompt().toAnsi(),
+          is("jdbc:h2:mem:@SA>"));
+      assertThat(sqlLine.getPromptHandler().getRightPrompt().toAnsi(),
+          is("//H20"));
+      sqlLine.getDatabaseConnection().close();
+    } catch (Exception e) {
+      // fail
+      throw new RuntimeException(e);
+    }
+  }

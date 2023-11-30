@@ -1,0 +1,43 @@
+ public void doWrite(Query query) throws Exception {
+
+		List<String> typeNames = this.getTypeNames();
+
+		DatagramSocket socket = new DatagramSocket();
+		try {
+			for (Result result : query.getResults()) {
+				if (isDebugEnabled()) {
+					log.debug(result.toString());
+				}
+
+				Map<String, Object> resultValues = result.getValues();
+				if (resultValues != null) {
+					for (Entry<String, Object> values : resultValues.entrySet()) {
+						if (JmxUtils.isNumeric(values.getValue())) {
+							StringBuilder sb = new StringBuilder();
+
+							sb.append(JmxUtils.getKeyString(query, result, values, typeNames, rootPrefix));
+
+							sb.append(":");
+							sb.append(values.getValue().toString());
+							sb.append("|");
+							sb.append("c\n");
+
+							String line = sb.toString();
+							byte[] sendData = sb.toString().trim().getBytes();
+
+							if (isDebugEnabled()) {
+								log.debug("StatsD Message: " + line.trim());
+							}
+
+							DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddress, port);
+							socket.send(sendPacket);
+						}
+					}
+				}
+			}
+		} finally {
+			if (socket != null && ! socket.isClosed()) {
+				socket.close();
+			}
+		}
+	}

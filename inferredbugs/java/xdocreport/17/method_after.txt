@@ -1,0 +1,56 @@
+    private void visitHeadersFooters( IXWPFMasterPage masterPage, CTSectPr sectPr )
+        throws Exception
+    {
+        // see titlePg at http://officeopenxml.com/WPsection.php i
+        // Specifies whether the section should have a different header and
+        // footer
+        // for its first page.
+        // If the element is set to true (e.g., <w:titlePg/>),
+        // then the section will use a first page header;
+        // if it is false (e.g., <w:titlePg w:val="false"/>)
+        // (the default value), then the first page uses the odd page header. If
+        // the element is set to true but the
+        // first page header type is omitted, then a blank header is created.
+        boolean titlePage = XWPFUtils.isCTOnOff( sectPr.getTitlePg() );
+        Map<Integer, Object> previousHeaders = headers;
+        Map<Integer, Object> previousFooters = footers;
+        headers = new HashMap<Integer, Object>();
+        footers = new HashMap<Integer, Object>();
+        for ( CTHdrFtrRef reference : sectPr.getHeaderReferenceList() )
+        {
+            STHdrFtr type = reference.xgetType();
+            int typeValue = type == null ? STHdrFtr.INT_DEFAULT : type.enumValue().intValue();
+            if ( typeValue != STHdrFtr.INT_FIRST || titlePage )
+            {
+                masterPage.setType( typeValue );
+                documentHandler.visitHeaderRef( reference, sectPr, masterPage );
+                masterPage.setType( typeValue );
+                headers.put( typeValue, masterPage.getHeader() );
+            }
+        }
+        for ( CTHdrFtrRef reference : sectPr.getFooterReferenceList() )
+        {
+            STHdrFtr type = reference.xgetType();
+            int typeValue = type == null ? STHdrFtr.INT_DEFAULT : type.enumValue().intValue();
+            if ( typeValue != STHdrFtr.INT_FIRST || titlePage )
+            {
+                masterPage.setType( typeValue );
+                documentHandler.visitFooterRef( reference, sectPr, masterPage );
+                masterPage.setType( typeValue );
+                footers.put( typeValue, masterPage.getFooter() );
+            }
+        }
+        if ( titlePage )
+        {
+            inheritHeader( masterPage, STHdrFtr.INT_FIRST, previousHeaders );
+            inheritFooter( masterPage, STHdrFtr.INT_FIRST, previousFooters );
+        }
+        if ( evenAndOddHeaders )
+        {
+            inheritHeader( masterPage, STHdrFtr.INT_EVEN, previousHeaders );
+            inheritFooter( masterPage, STHdrFtr.INT_EVEN, previousFooters );
+        }
+        inheritHeader( masterPage, STHdrFtr.INT_DEFAULT, previousHeaders );
+        inheritFooter( masterPage, STHdrFtr.INT_DEFAULT, previousFooters );
+        masterPage.setType( STHdrFtr.INT_FIRST );
+    }

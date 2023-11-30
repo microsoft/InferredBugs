@@ -1,0 +1,14 @@
+    @Test
+    public void testSelectWithComparison()
+    {
+        List<Tuple> expected = computeExpected("SELECT orderkey FROM lineitem WHERE tax < discount", FIXED_INT_64);
+
+        RowSourceBuilder orderKey = createTupleStream(lineitemData, Column.LINEITEM_ORDERKEY, FIXED_INT_64);
+        TupleStream discount = createTupleStream(lineitemData, Column.LINEITEM_DISCOUNT, DOUBLE);
+        TupleStream tax = createTupleStream(lineitemData, Column.LINEITEM_TAX, DOUBLE);
+
+        ComparisonOperator comparison = new ComparisonOperator(tax, discount, new DoubleLessThanComparison());
+        FilterOperator result = new FilterOperator(orderKey.getTupleInfo(), orderKey, comparison);
+
+        assertEqualsIgnoreOrder(tuples(result), expected);
+    }

@@ -1,0 +1,12 @@
+    @Test
+    public void authPlainWithContinuation() throws IOException, UserException {
+        greenMail.getManagers().getUserManager()
+                .createUser("test@localhost", "test", "testpass");
+        withConnection((printStream, reader) -> {
+            assertThat(reader.readLine()).startsWith("+OK POP3 GreenMail Server v");
+            printStream.print("AUTH PLAIN" + CRLF /* test / test / testpass */);
+            assertThat(reader.readLine()).isEqualTo(AuthCommand.CONTINUATION);
+            printStream.print("dGVzdAB0ZXN0AHRlc3RwYXNz" + CRLF /* test / test / <invalid> */);
+            assertThat(reader.readLine()).isEqualTo("+OK");
+        });
+    }

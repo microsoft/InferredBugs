@@ -1,0 +1,55 @@
+    public ConsoleReader getConsoleReader(InputStream inputStream)
+        throws IOException
+    {
+        Terminal terminal = TerminalFactory.create();
+
+        if (inputStream != null) {
+            // ### NOTE:  fix for sf.net bug 879425.
+            reader =
+                new ConsoleReader(
+                    inputStream,
+                    System.out);
+        } else {
+            reader = new ConsoleReader();
+        }
+
+        // setup history
+        ByteArrayInputStream historyBuffer = null;
+
+        if (new File(opts.getHistoryFile()).isFile()) {
+            try {
+                // save the current contents of the history buffer. This gets
+                // around a bug in JLine where setting the output before the
+                // input will clobber the history input, but setting the
+                // input before the output will cause the previous commands
+                // to not be saved to the buffer.
+                InputStream historyIn = new BufferedInputStream(
+                    new FileInputStream(
+                        opts.getHistoryFile()));
+                ByteArrayOutputStream hist = new ByteArrayOutputStream();
+                int n;
+                while ((n = historyIn.read()) != -1) {
+                    hist.write(n);
+                }
+                historyIn.close();
+
+                historyBuffer = new ByteArrayInputStream(hist.toByteArray());
+            } catch (Exception e) {
+                handleException(e);
+            }
+        }
+
+        try {
+            FileHistory history = new FileHistory( new File (opts.getHistoryFile() ) ) ;
+            if (null != historyBuffer) {
+              history.load( historyBuffer );
+            }
+            reader.setHistory( history );
+        } catch (Exception e) {
+            handleException(e);
+        }
+
+        reader.addCompleter( new SQLLineCompleter() );
+
+        return reader;
+    }

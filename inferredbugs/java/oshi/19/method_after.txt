@@ -1,0 +1,44 @@
+    public static UsbDevice[] getUsbDevices() {
+        // Start by collecting information for all PNP devices. While in theory
+        // these could be individually queried with a WHERE clause, grabbing
+        // them all up front incurs minimal memory overhead in exchange for
+        // faster access later
+
+        // Clear maps
+        nameMap.clear();
+        vendorMap.clear();
+        serialMap.clear();
+
+        // Query Win32_PnPEntity to populate the maps
+        Map<String, List<String>> usbMap = WmiUtil.selectStringsFrom(null, "Win32_PnPEntity",
+                "Name,Manufacturer,PnPDeviceID", null);
+        for (int i = 0; i < usbMap.get("Name").size(); i++) {
+            String pnpDeviceID = usbMap.get("PnPDeviceID").get(i);
+            nameMap.put(pnpDeviceID, usbMap.get("Name").get(i));
+            if (usbMap.get("Manufacturer").get(i).length() > 0) {
+                vendorMap.put(pnpDeviceID, usbMap.get("Manufacturer").get(i));
+            }
+        }
+
+        // Get serial # for disk drives or other physical media
+        usbMap = WmiUtil.selectStringsFrom(null, "Win32_DiskDrive", "PNPDeviceID,SerialNumber", null);
+        for (int i = 0; i < usbMap.get("PNPDeviceID").size(); i++) {
+            serialMap.put(usbMap.get("PNPDeviceID").get(i),
+                    ParseUtil.hexStringToString(usbMap.get("PNPDeviceID").get(i)));
+        }
+        usbMap = WmiUtil.selectStringsFrom(null, "Win32_PhysicalMedia", "PNPDeviceID,SerialNumber", null);
+        for (int i = 0; i < usbMap.get("PNPDeviceID").size(); i++) {
+            serialMap.put(usbMap.get("PNPDeviceID").get(i),
+                    ParseUtil.hexStringToString(usbMap.get("PNPDeviceID").get(i)));
+        }
+
+        // Build the device tree. Start with the USB Controllers
+        // and recurse downward to devices as needed
+        usbMap = WmiUtil.selectStringsFrom(null, "Win32_USBController", "PNPDeviceID", null);
+        List<UsbDevice> controllerDevices = new ArrayList<UsbDevice>();
+        for (String controllerDeviceId : usbMap.get("PNPDeviceID")) {
+            putChildrenInDeviceTree(controllerDeviceId, 0);
+            controllerDevices.add(getDeviceAndChildren(controllerDeviceId));
+        }
+        return controllerDevices.toArray(new UsbDevice[controllerDevices.size()]);
+    }

@@ -1,0 +1,20 @@
+  private Map<String, List<CompletableFuture<DataStreamReply>>> streamWrite(
+      List<String> paths, FileStoreClient fileStoreClient) throws IOException {
+    Map<String, List<CompletableFuture<DataStreamReply>>> fileMap = new HashMap<>();
+    for(String path : paths) {
+      File file = new File(path);
+      FileInputStream fis = new FileInputStream(file);
+      final DataStreamOutput dataStreamOutput = fileStoreClient.getStreamOutput(path, (int) file.length());
+
+      if (dataStreamType.equals("DirectByteBuffer")) {
+        fileMap.put(path, writeByDirectByteBuffer(dataStreamOutput, fis.getChannel()));
+      } else if (dataStreamType.equals("MappedByteBuffer")) {
+        fileMap.put(path, writeByMappedByteBuffer(dataStreamOutput, fis.getChannel()));
+      } else if (dataStreamType.equals("NettyFileRegion")) {
+        fileMap.put(path, writeByNettyFileRegion(dataStreamOutput, file));
+      } else {
+        System.err.println("Error: dataStreamType should be one of DirectByteBuffer, MappedByteBuffer, transferTo");
+      }
+    }
+    return fileMap;
+  }

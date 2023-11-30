@@ -1,0 +1,52 @@
+    public BinaryPackageControlFile createDeb(Compression compression) throws PackagingException {
+
+        File tempData = null;
+        File tempControl = null;
+
+        try {
+            tempData = File.createTempFile("deb", "data");
+            tempControl = File.createTempFile("deb", "control");
+
+            console.info("Building data");
+            DataBuilder dataBuilder = new DataBuilder(console);
+            final StringBuilder md5s = new StringBuilder();
+            final BigInteger size = dataBuilder.buildData(dataProducers, tempData, md5s, compression);
+
+            console.info("Building control");
+            ControlBuilder controlBuilder = new ControlBuilder(console, variableResolver);
+            final BinaryPackageControlFile packageControlFile = controlBuilder.buildControl(control.listFiles(), size, md5s, tempControl);
+            
+            if (!packageControlFile.isValid()) {
+                throw new PackagingException("Control file fields are invalid " + packageControlFile.invalidFields() +
+                    ". The following fields are mandatory: " + packageControlFile.getMandatoryFields() +
+                    ". Please check your pom.xml/build.xml and your control file.");
+            }
+
+            deb.getParentFile().mkdirs();
+            
+            
+            ArArchiveOutputStream ar = new ArArchiveOutputStream(new FileOutputStream(deb));
+            
+            addTo(ar, "debian-binary", "2.0\n");
+            addTo(ar, "control.tar.gz", tempControl);
+            addTo(ar, "data.tar" + compression.getExtension(), tempData);
+
+            ar.close();
+            
+            return packageControlFile;
+
+        } catch (Exception e) {
+            throw new PackagingException("Could not create deb package", e);
+        } finally {
+            if (tempData != null) {
+                if (!tempData.delete()) {
+                    console.warn("Could not delete the temporary file " + tempData);
+                }
+            }
+            if (tempControl != null) {
+                if (!tempControl.delete()) {
+                    console.warn("Could not delete the temporary file " + tempControl);
+                }
+            }
+        }
+    }

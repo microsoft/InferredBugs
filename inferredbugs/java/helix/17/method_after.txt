@@ -1,0 +1,30 @@
+  @Override
+  public void process(ClusterEvent event) throws Exception
+  {
+    ClusterDataCache cache = event.getAttribute("ClusterDataCache");
+    Map<String, ResourceGroup> resourceGroupMap = event
+        .getAttribute(AttributeName.RESOURCE_GROUPS.toString());
+    MessageGenerationOutput messageGenOutput = event
+        .getAttribute(AttributeName.MESSAGES_ALL.toString());
+    if (cache == null || resourceGroupMap == null || messageGenOutput == null)
+    {
+      throw new StageException("Missing attributes in event:" + event
+          + ". Requires DataCache|RESOURCE_GROUPS|MESSAGES_ALL");
+    }
+
+    MessageSelectionStageOutput output = new MessageSelectionStageOutput();
+
+    for (String resourceGroupName : resourceGroupMap.keySet())
+    {
+      ResourceGroup resourceGroup = resourceGroupMap.get(resourceGroupName);
+      StateModelDefinition stateModelDef = cache.getStateModelDef(resourceGroup.getStateModelDefRef());
+      for (ResourceKey resource : resourceGroup.getResourceKeys())
+      {
+        List<Message> messages = messageGenOutput.getMessages(
+            resourceGroupName, resource);
+        List<Message> selectedMessages = selectMessages(messages, stateModelDef);
+        output.addMessages(resourceGroupName, resource, selectedMessages);
+      }
+    }
+    event.addAttribute(AttributeName.MESSAGES_SELECTED.toString(), output);
+  }

@@ -1,0 +1,23 @@
+    @Override
+    public SymbolReference<MethodDeclaration> solveMethod(String name, List<TypeUsage> parameterTypes, TypeSolver typeSolver) {
+        List<MethodDeclaration> methods = new ArrayList<>();
+        for (Method method : Arrays.stream(clazz.getDeclaredMethods()).filter((m) -> m.getName().equals(name)).sorted(new MethodComparator()).collect(Collectors.toList())) {
+            if (method.isBridge() || method.isSynthetic()) continue;
+            MethodDeclaration methodDeclaration = new ReflectionMethodDeclaration(method, typeSolver);
+            methods.add(methodDeclaration);
+        }
+        if (getSuperClass(typeSolver) != null) {
+            ClassDeclaration superClass = (ClassDeclaration)getSuperClass(typeSolver).getTypeDeclaration();
+            SymbolReference<MethodDeclaration> ref = superClass.solveMethod(name, parameterTypes, typeSolver);
+            if (ref.isSolved()) {
+                methods.add(ref.getCorrespondingDeclaration());
+            }
+        }
+        for (InterfaceDeclaration interfaceDeclaration : getInterfaces(typeSolver)) {
+            SymbolReference<MethodDeclaration> ref = interfaceDeclaration.solveMethod(name, parameterTypes, typeSolver);
+            if (ref.isSolved()) {
+                methods.add(ref.getCorrespondingDeclaration());
+            }
+        }
+        return MethodResolutionLogic.findMostApplicable(methods, name, parameterTypes, typeSolver);
+    }

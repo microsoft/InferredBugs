@@ -1,0 +1,77 @@
+    public List<CodeOwner> getBlameInfoExternal(int codeLinesSize, String repoName, String repoLocations, String fileName) {
+        List<CodeOwner> codeOwners = new ArrayList<>(codeLinesSize);
+
+        // -w is to ignore whitespace bug
+        ProcessBuilder processBuilder = new ProcessBuilder(this.GITBINARYPATH, "blame", "-c", "-w", fileName);
+        // The / part is required due to centos bug for version 1.1.1
+        processBuilder.directory(new File(repoLocations + "/" + repoName));
+
+        Process process = null;
+
+        try {
+            process = processBuilder.start();
+
+            InputStream is = process.getInputStream();
+            InputStreamReader isr = new InputStreamReader(is);
+            BufferedReader br = new BufferedReader(isr);
+            String line;
+            DateFormat df = new SimpleDateFormat("yyyy-mm-dd kk:mm:ss");
+
+            HashMap<String, CodeOwner> owners = new HashMap<>();
+
+            boolean foundSomething = false;
+
+            while ((line = br.readLine()) != null) {
+                Singleton.getLogger().info("Blame line " + repoName + fileName + ": " + line);
+                String[] split = line.split("\t");
+
+                if (split.length > 2 && split[1].length() != 0) {
+                    foundSomething = true;
+                    String author = split[1].substring(1);
+                    int commitTime = (int) (System.currentTimeMillis() / 1000);
+                    try {
+                        commitTime = (int) (df.parse(split[2]).getTime() / 1000);
+                    }
+                    catch(ParseException ex) {
+                        Singleton.getLogger().info("time parse expection for " + repoName + fileName);
+                    }
+
+                    if (owners.containsKey(author)) {
+                        CodeOwner codeOwner = owners.get(author);
+                        codeOwner.incrementLines();
+
+                        int timestamp = codeOwner.getMostRecentUnixCommitTimestamp();
+
+                        if (commitTime > timestamp) {
+                            codeOwner.setMostRecentUnixCommitTimestamp(commitTime);
+                        }
+                        owners.put(author, codeOwner);
+                    } else {
+                        owners.put(author, new CodeOwner(author, 1, commitTime));
+                    }
+                }
+            }
+
+            if (foundSomething == false) {
+                // External call for CentOS issue
+                String[] split = fileName.split("/");
+
+                if ( split.length != 1) {
+                    codeOwners = getBlameInfoExternal(codeLinesSize, repoName, repoLocations, String.join("/", Arrays.asList(split).subList(1, split.length)));
+                }
+
+            } else {
+                codeOwners = new ArrayList<>(owners.values());
+            }
+
+        } catch (IOException | StringIndexOutOfBoundsException ex) {
+            Singleton.getLogger().info("getBlameInfoExternal repoloc: " + repoLocations + "/" + repoName);
+            Singleton.getLogger().info("getBlameInfoExternal fileName: " + fileName);
+            Singleton.getLogger().warning("ERROR - caught a " + ex.getClass() + " in " + this.getClass() + " getBlameInfoExternal for " + repoName + " " + fileName + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(process);
+        }
+
+        return codeOwners;
+    }

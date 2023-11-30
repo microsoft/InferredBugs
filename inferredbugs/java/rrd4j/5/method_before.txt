@@ -1,0 +1,44 @@
+    public void release(RrdDb rrdDb) throws IOException {
+        // null pointer should not kill the thread, just ignore it
+        if (rrdDb == null) {
+            return;
+        }
+
+        String canonicalPath = rrdDb.getCanonicalPath();
+        RrdEntry ref;
+        try {
+            ref = getEntry(canonicalPath);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("release interrupted for " + rrdDb, e);
+        }
+
+        if (ref.count.get() <= 0) {
+            throw new IllegalStateException("Could not release [" + canonicalPath + "], the file was never requested");
+        }
+        if (ref.count.decrementAndGet() <= 0  && ref.rrdDb != null) {
+            ref.rrdDb.close();
+            ref.rrdDb = null;
+            capacity.release();
+            ref.count.set(0);
+            ref.rlock.release();
+            ref.ulock.release();
+        }
+
+        if(ref.count.get() == 0) {
+            try {
+                //Got exclusive access to the pool
+                poolLock.writeLock().lockInterruptibly();
+                ref = pool.get(canonicalPath);
+                //It if failed, some one is working on it, so that's up to him to manage the cleaning
+                if(ref != null && ref.rlock.tryAcquire()) {
+                    if(ref.count.get() == 0)
+                        pool.remove(canonicalPath);
+                    ref.rlock.release();
+                }
+                poolLock.writeLock().unlock();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("release interrupted for " + rrdDb, e);
+            }
+        }
+
+    }

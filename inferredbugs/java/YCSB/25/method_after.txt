@@ -1,0 +1,42 @@
+  protected net.spy.memcached.MemcachedClient createMemcachedClient()
+      throws Exception {
+    ConnectionFactoryBuilder connectionFactoryBuilder =
+        new ConnectionFactoryBuilder();
+
+    connectionFactoryBuilder.setReadBufferSize(Integer.parseInt(
+        getProperties().getProperty(READ_BUFFER_SIZE_PROPERTY,
+                                    DEFAULT_READ_BUFFER_SIZE)));
+
+    connectionFactoryBuilder.setOpTimeout(Integer.parseInt(
+        getProperties().getProperty(OP_TIMEOUT_PROPERTY, DEFAULT_OP_TIMEOUT)));
+
+    String protocolString = getProperties().getProperty(PROTOCOL_PROPERTY);
+    connectionFactoryBuilder.setProtocol(
+        protocolString == null ? DEFAULT_PROTOCOL
+                         : ConnectionFactoryBuilder.Protocol.valueOf(protocolString.toUpperCase()));
+
+    String failureString = getProperties().getProperty(FAILURE_MODE_PROPERTY);
+    connectionFactoryBuilder.setFailureMode(
+        failureString == null ? FAILURE_MODE_PROPERTY_DEFAULT
+                              : FailureMode.valueOf(failureString));
+
+    // Note: this only works with IPv4 addresses due to its assumption of
+    // ":" being the separator of hostname/IP and port; this is not the case
+    // when dealing with IPv6 addresses.
+    //
+    // TODO(mbrukman): fix this.
+    List<InetSocketAddress> addresses = new ArrayList<InetSocketAddress>();
+    String[] hosts = getProperties().getProperty(HOSTS_PROPERTY).split(",");
+    for (String address : hosts) {
+      int colon = address.indexOf(":");
+      int port = DEFAULT_PORT;
+      String host = address;
+      if (colon != -1) {
+        port = Integer.parseInt(address.substring(colon + 1));
+        host = address.substring(0, colon);
+      }
+      addresses.add(new InetSocketAddress(host, port));
+    }
+    return new net.spy.memcached.MemcachedClient(
+        connectionFactoryBuilder.build(), addresses);
+  }

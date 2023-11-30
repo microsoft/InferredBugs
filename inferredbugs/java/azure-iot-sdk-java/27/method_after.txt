@@ -1,0 +1,36 @@
+    @Test
+    @StandardTierHubOnlyTest
+    public void invokeMethodSucceed() throws Exception
+    {
+        testInstance.transportClient.open();
+
+        for (int i = 0; i < testInstance.clientArrayList.size(); i++)
+        {
+            DeviceMethodStatusCallBack subscribedCallback = new DeviceMethodStatusCallBack();
+
+            ((DeviceClient)testInstance.clientArrayList.get(i)).subscribeToDeviceMethod(new SampleDeviceMethodCallback(), null, subscribedCallback, null);
+
+            long startTime = System.currentTimeMillis();
+            while (!subscribedCallback.isSubscribed)
+            {
+                Thread.sleep(200);
+
+                if (System.currentTimeMillis() - startTime > METHOD_SUBSCRIBE_TIMEOUT_MILLISECONDS)
+                {
+                    fail(buildExceptionMessage("Timed out waiting for device to subscribe to methods", testInstance.clientArrayList.get(i)));
+                }
+            }
+
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            RunnableInvoke runnableInvoke = new RunnableInvoke(methodServiceClient, testInstance.devicesList[i].getDeviceId(), METHOD_NAME, METHOD_PAYLOAD, countDownLatch);
+            new Thread(runnableInvoke).start();
+            countDownLatch.await(3, TimeUnit.MINUTES);
+
+            MethodResult result = runnableInvoke.getResult();
+            Assert.assertNotNull(buildExceptionMessage(runnableInvoke.getException() == null ? "Runnable returns null without exception information" : runnableInvoke.getException().getMessage(), testInstance.clientArrayList.get(i)), result);
+            Assert.assertEquals(buildExceptionMessage("result was not success, but was: " + result.getStatus(), testInstance.clientArrayList.get(i)), (long)METHOD_SUCCESS,(long)result.getStatus());
+            Assert.assertEquals(buildExceptionMessage("Received unexpected payload", testInstance.clientArrayList.get(i)), runnableInvoke.getExpectedPayload(), METHOD_NAME + ":" + result.getPayload().toString());
+        }
+
+        testInstance.transportClient.closeNow();
+    }

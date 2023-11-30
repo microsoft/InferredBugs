@@ -1,0 +1,53 @@
+  @Override
+  public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
+
+    AnnotationAttributes annoAttrs = AnnotationAttributes.fromMap(importingClassMetadata.getAnnotationAttributes(MapperScan.class.getName()));
+    ClassPathMapperScanner scanner = new ClassPathMapperScanner(registry);
+
+    // this check is needed in Spring 3.1
+    if (resourceLoader != null) {
+      scanner.setResourceLoader(resourceLoader);
+    }
+
+    Class<? extends Annotation> annotationClass = annoAttrs.getClass("annotationClass");
+    if (!Annotation.class.equals(annotationClass)) {
+      scanner.setAnnotationClass(annotationClass);
+    }
+
+    Class<?> markerInterface = annoAttrs.getClass("markerInterface");
+    if (!Class.class.equals(markerInterface)) {
+      scanner.setMarkerInterface(markerInterface);
+    }
+
+    Class<? extends BeanNameGenerator> generatorClass = annoAttrs.getClass("nameGenerator");
+    if (!BeanNameGenerator.class.equals(generatorClass)) {
+      scanner.setBeanNameGenerator(BeanUtils.instantiateClass(generatorClass));
+    }
+
+    Class<? extends MapperFactoryBean> mapperFactoryBeanClass = annoAttrs.getClass("factoryBean");
+    if (!MapperFactoryBean.class.equals(mapperFactoryBeanClass)) {
+      scanner.setMapperFactoryBean(BeanUtils.instantiateClass(mapperFactoryBeanClass));
+    }
+
+    scanner.setSqlSessionTemplateBeanName(annoAttrs.getString("sqlSessionTemplateRef"));
+    scanner.setSqlSessionFactoryBeanName(annoAttrs.getString("sqlSessionFactoryRef"));
+
+    List<String> basePackages = new ArrayList<>();
+    basePackages.addAll(
+        Arrays.stream(annoAttrs.getStringArray("value"))
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toList()));
+
+    basePackages.addAll(
+        Arrays.stream(annoAttrs.getStringArray("basePackages"))
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toList()));
+
+    basePackages.addAll(
+        Arrays.stream(annoAttrs.getClassArray("basePackageClasses"))
+            .map(ClassUtils::getPackageName)
+            .collect(Collectors.toList()));
+
+    scanner.registerFilters();
+    scanner.doScan(StringUtils.toStringArray(basePackages));
+  }

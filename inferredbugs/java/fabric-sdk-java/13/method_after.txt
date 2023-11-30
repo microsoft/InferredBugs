@@ -1,0 +1,141 @@
+    synchronized boolean connect(final TransactionContext transactionContext) throws EventHubException {
+        if (connected) {
+            logger.warn(format("%s already connected.", toString()));
+            return true;
+        }
+        eventStream = null;
+
+        final CountDownLatch finishLatch = new CountDownLatch(1);
+
+        logger.debug(format("EventHub %s is connecting.", name));
+
+        lastConnectedAttempt = System.currentTimeMillis();
+
+        Endpoint endpoint = new Endpoint(url, properties);
+        managedChannel = endpoint.getChannelBuilder().build();
+
+        clientTLSCertificateDigest = endpoint.getClientTLSCertificateDigest();
+
+        events = EventsGrpc.newStub(managedChannel);
+
+        final ArrayList<Throwable> threw = new ArrayList<>();
+
+        final StreamObserver<PeerEvents.Event> eventStreamLocal = new StreamObserver<PeerEvents.Event>() {
+            @Override
+            public void onNext(PeerEvents.Event event) {
+
+                logger.debug(format("EventHub %s got  event type: %s", EventHub.this.name, event.getEventCase().name()));
+
+                if (event.getEventCase() == PeerEvents.Event.EventCase.BLOCK) {
+                    try {
+                        eventQue.addBEvent(new BlockEvent(EventHub.this, event));  //add to channel queue
+                    } catch (InvalidProtocolBufferException e) {
+                        EventHubException eventHubException = new EventHubException(format("%s onNext error %s", this, e.getMessage()), e);
+                        logger.error(eventHubException.getMessage());
+                        threw.add(eventHubException);
+                    }
+                } else if (event.getEventCase() == PeerEvents.Event.EventCase.REGISTER) {
+
+                    connected = true;
+                    connectedTime = System.currentTimeMillis();
+                    finishLatch.countDown();
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                if (shutdown) { //IF we're shutdown don't try anything more.
+                    logger.trace(format("%s was shutdown.", EventHub.this.toString()));
+                    connected = false;
+                    eventStream = null;
+                    finishLatch.countDown();
+                    return;
+                }
+
+                final boolean isTerminated = managedChannel.isTerminated();
+                final boolean isChannelShutdown = managedChannel.isShutdown();
+
+                logger.error(format("%s terminated is %b shutdown is %b has error %s ", EventHub.this.toString(), isTerminated, isChannelShutdown,
+                        t.getMessage()), new EventHubException(t));
+                threw.add(t);
+                finishLatch.countDown();
+
+                //              logger.error("Error in stream: " + t.getMessage(), new EventHubException(t));
+                if (t instanceof StatusRuntimeException) {
+                    StatusRuntimeException sre = (StatusRuntimeException) t;
+                    Status sreStatus = sre.getStatus();
+                    logger.error(format("%s :StatusRuntimeException Status %s.  Description %s ", EventHub.this, sreStatus + "", sreStatus.getDescription()));
+                    if (sre.getStatus().getCode() == Status.Code.INTERNAL || sre.getStatus().getCode() == Status.Code.UNAVAILABLE) {
+
+                        connected = false;
+                        eventStream = null;
+                        disconnectedTime = System.currentTimeMillis();
+                        try {
+                            if (!isChannelShutdown) {
+                                managedChannel.shutdownNow();
+                            }
+                            if (null != disconnectedHandler) {
+                                try {
+                                    disconnectedHandler.disconnected(EventHub.this);
+                                } catch (Exception e) {
+                                    logger.warn(format("Eventhub %s  %s", EventHub.this.name, e.getMessage()), e);
+                                    eventQue.eventError(e);
+                                }
+                            }
+                        } catch (Exception e) {
+                            logger.warn(format("Eventhub %s Failed shutdown msg:  %s", EventHub.this.name, e.getMessage()), e);
+                        }
+                    }
+                }
+
+            }
+
+            @Override
+            public void onCompleted() {
+
+                logger.warn(format("Stream completed %s", EventHub.this.toString()));
+                finishLatch.countDown();
+
+            }
+        };
+
+        sender = events.chat(eventStreamLocal);
+        try {
+            blockListen(transactionContext);
+        } catch (CryptoException e) {
+            throw new EventHubException(e);
+        }
+
+        try {
+            if (!finishLatch.await(EVENTHUB_CONNECTION_WAIT_TIME, TimeUnit.MILLISECONDS)) {
+                EventHubException evh = new EventHubException(format("EventHub %s failed to connect in %s ms.", name, EVENTHUB_CONNECTION_WAIT_TIME));
+                logger.debug(evh.getMessage(), evh);
+
+                throw evh;
+            }
+            logger.trace(format("Eventhub %s Done waiting for reply!", name));
+
+        } catch (InterruptedException e) {
+            logger.error(e);
+        }
+
+        if (!threw.isEmpty()) {
+            eventStream = null;
+            connected = false;
+            Throwable t = threw.iterator().next();
+
+            EventHubException evh = new EventHubException(t.getMessage(), t);
+            logger.error(format("EventHub %s Error in stream. error: " + t.getMessage(), toString()), evh);
+            throw evh;
+
+        }
+
+        logger.debug(format("Eventhub %s connect is done with connect status: %b ", name, connected));
+
+        if (connected) {
+            eventStream = eventStreamLocal;
+        }
+
+        return connected;
+
+    }

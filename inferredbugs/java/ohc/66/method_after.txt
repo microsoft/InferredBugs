@@ -1,0 +1,30 @@
+    OffHeapMap(OHCacheBuilder builder, long freeCapacity)
+    {
+        this.freeCapacity = freeCapacity;
+
+        this.throwOOME = builder.isThrowOOME();
+
+        this.lock = builder.isUnlocked() ? null : new ReentrantLock();
+
+        int hts = builder.getHashTableSize();
+        if (hts <= 0)
+            hts = 8192;
+        if (hts < 256)
+            hts = 256;
+        int bl = builder.getBucketLength();
+        if (bl <= 0)
+            bl = 8;
+        int buckets = (int) Util.roundUpToPowerOf2(hts, MAX_TABLE_SIZE);
+        entriesPerBucket = (int) Util.roundUpToPowerOf2(bl, MAX_TABLE_SIZE);
+        table = Table.create(buckets, entriesPerBucket, throwOOME);
+        if (table == null)
+            throw new RuntimeException("unable to allocate off-heap memory for segment");
+
+        float lf = builder.getLoadFactor();
+        if (lf <= .0d)
+            lf = .75f;
+        if (lf >= 1d)
+            throw new IllegalArgumentException("load factor must not be greater that 1");
+        this.loadFactor = lf;
+        threshold = (long) ((double) table.size() * loadFactor);
+    }

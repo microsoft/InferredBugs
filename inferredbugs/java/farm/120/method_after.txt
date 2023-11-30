@@ -1,0 +1,22 @@
+    @Test
+    public void rejectsIfAlreadyApplied() throws Exception {
+        final Farm farm = new PropsFarm(new FkFarm());
+        final People people = new People(farm).bootstrap();
+        final String uid = "yegor256";
+        people.touch(uid);
+        people.apply(uid, Instant.now());
+        final Request req = new RqWithUser.WithInit(
+            farm,
+            new RqFake("POST", "/join-post")
+        );
+        people.breakup(uid);
+        MatcherAssert.assertThat(
+            new TkApp(farm).act(
+                new RqWithBody(
+                    req,
+                    "personality=INTJ-A&stackoverflow=187241"
+                )
+            ),
+            new HmRsHeader("Set-Cookie", Matchers.iterableWithSize(2))
+        );
+    }

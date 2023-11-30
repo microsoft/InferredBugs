@@ -1,0 +1,26 @@
+    @Override
+    public <T> void unmarshal(Class<T> type, Consumer<? super T> consumer) {
+        HSSFWorkbook workbook = (HSSFWorkbook) workbook();
+        Optional<String> maybeSheetName = this.getSheetName(type, options);
+
+        hssfFormulaEvaluator = HSSFFormulaEvaluator.create(workbook, null, null);
+        Sheet sheet = this.getSheetToProcess(workbook, options, maybeSheetName.orElse(null));
+
+        int skip = options.skip();
+        int maxPhysicalNumberOfRows = sheet.getPhysicalNumberOfRows() + 1 - skip;
+
+        loadColumnTitles(sheet, maxPhysicalNumberOfRows);
+        AnnotationUtil.validateMandatoryNameColumns(options, type, columnIndexPerTitle.keySet());
+
+        for (Row currentRow : sheet) {
+            if (!skip(currentRow, skip) && !isRowEmpty(currentRow)) {
+                internalCount += 1;
+
+                if (limit != 0 && internalCount > limit)
+                    return;
+
+                T instance = deserializeRowToInstance(currentRow, type);
+                consumer.accept(instance);
+            }
+        }
+    }

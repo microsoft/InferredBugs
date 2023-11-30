@@ -1,0 +1,14 @@
+    @Test
+    public void finishSpan_userSuppliedTimestamp() {
+        Span finished = new Span().setName("foo").setTimestamp(1000L); // Set by user
+        state.setCurrentLocalSpan(finished);
+
+        PowerMockito.when(System.currentTimeMillis()).thenReturn(2L);
+
+        localTracer.finishSpan();
+
+        verify(mockReporter).report(finished.toZipkin());
+        verifyNoMoreInteractions(mockReporter);
+
+        assertEquals(1000L, finished.getDuration().longValue());
+    }

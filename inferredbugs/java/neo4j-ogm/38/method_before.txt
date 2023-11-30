@@ -1,0 +1,48 @@
+    @Override
+    public RelationalReader getIterableReader(ClassInfo classInfo, Class<?> parameterType, String relationshipType, String relationshipDirection) {
+        if(iterableReaderCache.get(classInfo) == null) {
+            iterableReaderCache.put(classInfo, new HashMap<DirectedRelationshipForType, RelationalReader>());
+        }
+        DirectedRelationshipForType directedRelationshipForType = new DirectedRelationshipForType(relationshipType,relationshipDirection, parameterType);
+        if(iterableReaderCache.get(classInfo).containsKey(directedRelationshipForType)) {
+            return iterableReaderCache.get(classInfo).get(directedRelationshipForType);
+        }
+
+        //1st find a method annotated with type and direction
+        MethodInfo methodInfo = getIterableGetterMethodInfo(classInfo, parameterType, relationshipType, relationshipDirection, STRICT_MODE);
+        if (methodInfo != null) {
+            MethodReader methodReader =  new MethodReader(classInfo, methodInfo);
+            iterableReaderCache.get(classInfo).put(directedRelationshipForType, methodReader);
+            return methodReader;
+        }
+
+        //2nd find a field annotated with type and direction
+        FieldInfo fieldInfo = getIterableFieldInfo(classInfo, parameterType, relationshipType, relationshipDirection, STRICT_MODE);
+        if (fieldInfo != null) {
+            FieldReader fieldReader = new FieldReader(classInfo, fieldInfo);
+            iterableReaderCache.get(classInfo).put(directedRelationshipForType, fieldReader);
+            return fieldReader;
+        }
+
+        //If relationshipDirection=INCOMING, we should have found an annotated field already
+
+        if(!relationshipDirection.equals(Relationship.INCOMING)) {
+            //3rd find a method with implied type and direction
+            methodInfo = getIterableGetterMethodInfo(classInfo, parameterType, relationshipType, relationshipDirection, INFERRED_MODE);
+            if (methodInfo != null) {
+                MethodReader methodReader = new MethodReader(classInfo, methodInfo);
+                iterableReaderCache.get(classInfo).put(directedRelationshipForType, methodReader);
+                return methodReader;
+            }
+
+            //4th find a field with implied type and direction
+            fieldInfo = getIterableFieldInfo(classInfo, parameterType, relationshipType, relationshipDirection, INFERRED_MODE);
+            if (fieldInfo != null) {
+                FieldReader fieldReader = new FieldReader(classInfo, fieldInfo);
+                iterableReaderCache.get(classInfo).put(directedRelationshipForType, fieldReader);
+                return fieldReader;
+            }
+        }
+        iterableReaderCache.get(classInfo).put(directedRelationshipForType, null);
+        return null;
+    }

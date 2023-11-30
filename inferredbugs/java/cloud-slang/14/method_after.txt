@@ -1,0 +1,49 @@
+    public Long trigger(SlangTestCase testCase, CompilationArtifact compilationArtifact,
+                        Map<String, ? extends Serializable> inputs,
+                        Map<String, ? extends Serializable> systemProperties) {
+        String testCaseName = testCase.getName();
+        String result = testCase.getResult();
+
+        //add start event
+        Set<String> handlerTypes = new HashSet<>();
+        handlerTypes.add(ScoreLangConstants.EVENT_EXECUTION_FINISHED);
+        handlerTypes.add(ScoreLangConstants.SLANG_EXECUTION_EXCEPTION);
+        handlerTypes.add(ScoreLangConstants.EVENT_OUTPUT_END);
+        handlerTypes.add(EventConstants.SCORE_ERROR_EVENT);
+        handlerTypes.add(EventConstants.SCORE_FAILURE_EVENT);
+        handlerTypes.add(EventConstants.SCORE_FINISHED_EVENT);
+
+        TriggerTestCaseEventListener testsEventListener = new TriggerTestCaseEventListener(testCaseName, result);
+        slang.subscribeOnEvents(testsEventListener, handlerTypes);
+
+        Long executionId = slang.run(compilationArtifact, inputs, systemProperties);
+
+        while (!testsEventListener.isFlowFinished()) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException ignore) {}
+        }
+        slang.unSubscribeOnEvents(testsEventListener);
+
+        ReturnValues executionReturnValues = testsEventListener.getExecutionReturnValues();
+        String executionResult = executionReturnValues.getResult();
+
+        String errorMessageFlowExecution = testsEventListener.getErrorMessage();
+
+        if (BooleanUtils.isTrue(testCase.getThrowsException())) {
+            if(StringUtils.isBlank(errorMessageFlowExecution)) {
+                throw new RuntimeException("Failed test: " + testCaseName + " - " + testCase.getDescription() + "\nFlow " + compilationArtifact.getExecutionPlan().getName() +" did not throw an exception as expected");
+            }
+            return executionId;
+        }
+
+        if(StringUtils.isNotBlank(errorMessageFlowExecution)){
+            // unexpected exception occurred during flow execution
+            throw new RuntimeException("Error occured while running test: " + testCaseName + " - " + testCase.getDescription() + "\n" + errorMessageFlowExecution);
+        }
+
+        if (result != null && !result.equals(executionResult)){
+            throw new RuntimeException("Failed test: " + testCaseName +" - " + testCase.getDescription() + "\nExpected result: " + result + "\nActual result: " + executionResult);
+        }
+        return executionId;
+    }

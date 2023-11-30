@@ -1,0 +1,25 @@
+    @Override
+    public void enrich(KubernetesListBuilder builder) {
+        final ServiceConfiguration defaultServiceConfig = extractDefaultServiceConfig();
+        final Service defaultService = serviceHandler.getService(defaultServiceConfig,null);
+
+        if (hasServices(builder)) {
+            builder.accept(new Visitor<ServiceBuilder>() {
+                @Override
+                public void visit(ServiceBuilder service) {
+                    mergeServices(service, defaultService);
+                }
+            });
+        } else {
+            if (defaultService != null) {
+                ServiceSpec spec = defaultService.getSpec();
+                if (spec != null) {
+                    List<ServicePort> ports = spec.getPorts();
+                    if (ports != null) {
+                        log.info("Adding a default Service with ports [%s]", formatPortsAsList(ports));
+                        builder.addToServiceItems(defaultService);
+                    }
+                }
+            }
+        }
+    }

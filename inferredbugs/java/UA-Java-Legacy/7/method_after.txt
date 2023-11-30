@@ -1,0 +1,100 @@
+ public void sendRequest(ServiceRequest request, int secureChannelId, int requestId) throws ServiceResultException {
+		if (request == null)
+			logger.warn("sendRequest: request=null");
+		
+		boolean asymm = request instanceof OpenSecureChannelRequest;
+		final Socket s = getSocket();
+		logger.debug("sendRequest: socket={}", s);
+		try {
+			if (s == null || !s.isConnected() || s.isClosed()) {
+				throw new ServiceResultException(Bad_ServerNotConnected);
+			}
+			logger.debug("sendRequest: {} Sending Request rid:{}", secureChannelId, requestId);
+			logger.trace("sendrequest: request={}", request);
+
+			SecurityToken token = null;
+
+			// Count message size
+			SizeCalculationOutputStream calcBuf = new SizeCalculationOutputStream();
+			BinaryEncoder calc = new BinaryEncoder(calcBuf);
+			calc.setEncoderContext(ctx);
+			calc.putMessage(request);
+			int len = calcBuf.getLength();
+
+			if (secureChannelId != 0) {
+				token = getSecurityTokenToUse(secureChannelId);
+			}
+			logger.debug("sendRequest: token={}", token);
+
+			SecurityMode securityMode = getSecurityMode(asymm, request, token);
+			int keySize = token != null ? token.getSecurityPolicy().getEncryptionKeySize() : 0;
+			logger.debug("sendRequest: keySize={}", keySize);
+			// Lock output stream, but getChunkFactory must also be guarded
+			// with lock
+			// as the connection may otherwise be disposed in between
+			ChunkFactory cf = getChunkFactory(asymm, securityMode, keySize);
+			if (cf != null) {
+				MessageBuffers buffers = encodeMessage(cf, len, request);
+				if (buffers != null) {
+					ByteBuffer[] chunks = buffers.getChunks();
+					ByteBuffer[] plaintexts = buffers.getPlaintexts();
+					if ((chunks != null) & (plaintexts != null)) {
+						try {
+							lock.lock();
+							try {
+								if (asymm) {
+									// Capture ClientNonce of the request
+									// message
+									ByteString clientNonce = ((OpenSecureChannelRequest) request).getClientNonce();
+									clientNonces.put(requestId, clientNonce);
+									//
+
+									for (int i = 0; i < chunks.length; i++) {
+										boolean finalChunk = i == chunks.length - 1;
+										sendAsymmChunk(secureChannelId, requestId, securityMode, chunks[i], plaintexts[i], finalChunk);
+										plaintexts[i] = null;
+										chunks[i] = null;
+									}
+
+								} else {
+
+									activeTokenIdMap.put(secureChannelId, token);
+									SequenceNumber seq = sequenceNumbers.get(secureChannelId);
+
+									// Add chunk headers
+									for (int i = 0; i < chunks.length; i++) {
+										ByteBuffer chunk = chunks[i];
+										final ByteBuffer plaintext = plaintexts[i];
+										boolean finalChunk = chunk == chunks[chunks.length - 1];
+										int msgType = TcpMessageType.MSGC;
+										if(finalChunk) msgType = TcpMessageType.MSGF;
+										if(request instanceof CloseSecureChannelRequest)
+											msgType = TcpMessageType.CLOSE | TcpMessageType.FINAL;
+										sendSymmChunk(requestId, token, seq, chunk, plaintext, msgType);
+										plaintexts[i] = null;
+										chunks[i] = null;
+									}
+								}
+
+								out.flush();
+
+							} catch (IOException e) {
+								clientNonces.remove(requestId);
+								logger.info(addr + " Connect failed", e);
+								close();
+								throw new ServiceResultException(Bad_CommunicationError, e);
+							}
+						} finally {
+							lock.unlock();
+						}
+					}
+				}
+			}
+		} catch (RuntimeException e) {
+			logger.warn(
+					String.format(
+							"sendRequest %s failed: socket=%s, asymm=%s",
+							request.getClass().getName(), s, asymm), e);
+			throw e;
+		}
+	}

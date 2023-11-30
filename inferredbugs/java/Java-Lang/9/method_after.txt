@@ -1,0 +1,38 @@
+    @Test
+    public void testAcquireOverlap() throws Exception {
+        File path = newTempraryFile("vmf-acquire-overlap");
+
+        VanillaMappedFile   vmf    = VanillaMappedFile.readWrite(path);
+        VanillaMappedBlocks blocks = VanillaMappedBlocks.readWrite(path,128);
+
+        VanillaMappedBuffer b1 = blocks.acquire(0);
+        b1.writeLong(1);
+        b1.release();
+
+        assertEquals(0, b1.refCount());
+        assertTrue(b1.unmapped());
+
+        VanillaMappedBuffer b2 = blocks.acquire(1);
+        b2.writeLong(2);
+        b2.release();
+
+        assertEquals(0, b2.refCount());
+        assertTrue(b2.unmapped());
+
+        VanillaMappedBuffer b3 = blocks.acquire(2);
+        b3.writeLong(3);
+        b3.release();
+
+        assertEquals(0, b3.refCount());
+        assertTrue(b3.unmapped());
+
+        VanillaMappedBuffer b4 = vmf.sliceAt(0, 128 * 3);
+        assertEquals(1, b4.refCount());
+        assertEquals(384, b4.size());
+        assertEquals(1L, b4.readLong(0));
+        assertEquals(2L, b4.readLong(128));
+        assertEquals(3L, b4.readLong(256));
+
+        vmf.close();
+        blocks.close();
+    }

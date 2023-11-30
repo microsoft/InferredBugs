@@ -1,0 +1,29 @@
+    @Override
+    public ValidateResult validate(AliasTransaction tx) {
+        Alias alias = tx.getTxData();
+        if (StringUtils.isBlank(alias.getAddress()) || new Address(alias.getAddress()).getHash().length != 23) {
+            return ValidateResult.getFailedResult("The address format error");
+        }
+        if (!StringUtils.validAlias(alias.getAlias())) {
+            return ValidateResult.getFailedResult("The alias is between 3 to 20 characters");
+        }
+
+        List<Transaction> txList = getLedgerService().getCacheTxList(TransactionConstant.TX_TYPE_SET_ALIAS);
+        if (txList != null && tx.size() > 0) {
+            for (Transaction trx : txList) {
+                Alias a = ((AliasTransaction) trx).getTxData();
+                if(alias.getAddress().equals(a.getAlias())) {
+                    return ValidateResult.getFailedResult("The alias has been occupied");
+                }
+                if(alias.getAlias().equals(a.getAlias())){
+                    return ValidateResult.getFailedResult("The alias has been occupied");
+                }
+            }
+        }
+
+        AliasPo aliasPo = getAliasDataService().get(alias.getAlias());
+        if (aliasPo != null) {
+            return ValidateResult.getFailedResult("The alias has been occupied");
+        }
+        return ValidateResult.getSuccessResult();
+    }

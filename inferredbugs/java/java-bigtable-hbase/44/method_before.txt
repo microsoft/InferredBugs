@@ -1,0 +1,34 @@
+  HeaderCacheElement syncRefresh() {
+    try (Closeable ss = Tracing.getTracer().spanBuilder("CredentialsRefresh").startScopedSpan()) {
+      return asyncRefresh().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      LOG.warn("Interrupted while trying to refresh google credentials.", e);
+      Thread.currentThread().interrupt();
+      return new HeaderCacheElement(
+          Status.UNAUTHENTICATED
+              .withDescription("Authentication was interrupted.")
+              .withCause(e)
+      );
+    } catch (ExecutionException e) {
+      LOG.warn("ExecutionException while trying to refresh google credentials.", e);
+      return new HeaderCacheElement(
+          Status.UNAUTHENTICATED
+              .withDescription("ExecutionException during Authentication.")
+              .withCause(e)
+      );
+    } catch (TimeoutException e) {
+      LOG.warn("TimeoutException while trying to refresh google credentials.", e);
+      return new HeaderCacheElement(
+          Status.UNAUTHENTICATED
+              .withDescription("TimeoutException during Authentication.")
+              .withCause(e)
+      );
+    } catch (Exception e) {
+      LOG.warn("Unexpected execption while trying to refresh google credentials.", e);
+      return new HeaderCacheElement(
+          Status.UNAUTHENTICATED
+              .withDescription("Unexpected execption during Authentication.")
+              .withCause(e)
+      );
+    }
+  }

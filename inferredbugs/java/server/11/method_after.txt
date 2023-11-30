@@ -1,0 +1,23 @@
+    public void removeSubscription(String topic, String clientID) {
+        TreeNode oldRoot;
+        NodeCouple couple;
+        do {
+            oldRoot = subscriptions.get();
+            couple = recreatePath(topic, oldRoot);
+
+            //do the job
+            //search for the subscription to remove
+            Subscription toBeRemoved = null;
+            for (Subscription sub : couple.createdNode.subscriptions()) {
+                if (sub.topicFilter.equals(topic) && sub.getClientId().equals(clientID)) {
+                    toBeRemoved = sub;
+                    break;
+                }
+            }
+
+            if (toBeRemoved != null) {
+                couple.createdNode.subscriptions().remove(toBeRemoved);
+            }
+            //spin lock repeating till we can, swap root, if can't swap just re-do the operation
+        } while(!subscriptions.compareAndSet(oldRoot, couple.root));
+    }

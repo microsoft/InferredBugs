@@ -1,0 +1,31 @@
+    public static Parser getParser(File file, LiusConfig tc)
+            throws IOException, LiusException {
+        String mimeType = MimeTypesUtils.getMimeType(file);
+        ParserConfig pc = tc.getParserConfig(mimeType);
+        String className = pc.getParserClass();
+        Parser parser = null;
+        Class<?> parserClass = null;
+        if (className != null) {
+            try {
+                logger.info("Loading parser class = " + className
+                        + " MimeType = " + mimeType);
+
+                parserClass = Class.forName(className);
+                parser = (Parser) parserClass.newInstance();
+
+            } catch (ClassNotFoundException e) {
+                logger.error(e.getMessage());
+
+            } catch (InstantiationException e) {
+                logger.error(e.getMessage());
+            } catch (IllegalAccessException e) {
+                logger.error(e.getMessage());
+            }
+            parser.setMimeType(mimeType);
+            parser.configure(tc);
+            parser.setInputStream(new FileInputStream(file));
+
+        }
+
+        return parser;
+    }

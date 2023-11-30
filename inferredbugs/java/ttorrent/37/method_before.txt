@@ -1,0 +1,59 @@
+  private HTTPTrackerMessage sendAnnounce(final URL url) throws AnnounceException {
+    HttpURLConnection conn = null;
+    InputStream in = null;
+    try {
+      conn = (HttpURLConnection)url.openConnection();
+      conn.setConnectTimeout(10000);
+      conn.setReadTimeout(10000);
+      in = conn.getInputStream();
+    } catch (IOException ioe) {
+      if (conn != null) {
+        in = conn.getErrorStream();
+      }
+    }
+
+    // At this point if the input stream is null it means we have neither a
+    // response body nor an error stream from the server. No point in going
+    // any further.
+    if (in == null) {
+      throw new AnnounceException("No response or unreachable tracker!");
+    }
+
+    try {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      byte[] buf = new byte[8192];
+      int len;
+      while ((len=in.read(buf)) > 0){
+        baos.write(buf, 0, len);
+      }
+
+      // Parse and handle the response
+      return HTTPTrackerMessage.parse(ByteBuffer.wrap(baos.toByteArray()));
+    } catch (IOException ioe) {
+      throw new AnnounceException("Error reading tracker response!", ioe);
+    } catch (MessageValidationException mve) {
+      throw new AnnounceException("Tracker message violates expected " +
+              "protocol (" + mve.getMessage() + ")", mve);
+    } finally {
+      // Make sure we close everything down at the end to avoid resource
+      // leaks.
+      try {
+        in.close();
+      } catch (IOException ioe) {
+        logger.info("Problem ensuring error stream closed!");
+        logger.debug("Problem ensuring error stream closed!", ioe);
+      }
+
+      // This means trying to close the error stream as well.
+      InputStream err = conn.getErrorStream();
+      if (err != null) {
+        try {
+          err.close();
+        } catch (IOException ioe) {
+          logger.info("Problem ensuring error stream closed!");
+          logger.debug("Problem ensuring error stream closed!", ioe);
+        }
+      }
+    }
+  }

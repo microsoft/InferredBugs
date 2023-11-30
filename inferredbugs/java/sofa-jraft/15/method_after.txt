@@ -1,0 +1,44 @@
+    public boolean commitAt(long firstLogIndex, long lastLogIndex, PeerId peer) {
+        //TODO  use lock-free algorithm here?
+        final long stamp = stampedLock.writeLock();
+        long lastCommittedIndex = 0;
+        try {
+            if (pendingIndex == 0) {
+                return false;
+            }
+            if (lastLogIndex < pendingIndex) {
+                return true;
+            }
+
+            if (lastLogIndex >= pendingIndex + pendingMetaQueue.size()) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+
+            final long startAt = Math.max(pendingIndex, firstLogIndex);
+            Ballot.PosHint hint = new Ballot.PosHint();
+            for (long logIndex = startAt; logIndex <= lastLogIndex; logIndex++) {
+                final Ballot bl = this.pendingMetaQueue.get((int) (logIndex - pendingIndex));
+                hint = bl.grant(peer, hint);
+                if (bl.isGranted()) {
+                    lastCommittedIndex = logIndex;
+                }
+            }
+            if (lastCommittedIndex == 0) {
+                return true;
+            }
+            // When removing a peer off the raft group which contains even number of
+            // peers, the quorum would decrease by 1, e.g. 3 of 4 changes to 2 of 3. In
+            // this case, the log after removal may be committed before some previous
+            // logs, since we use the new configuration to deal the quorum of the
+            // removal request, we think it's safe to commit all the uncommitted
+            // previous logs, which is not well proved right now
+            pendingMetaQueue.removeRange(0, (int) (lastCommittedIndex - pendingIndex) + 1);
+            LOG.debug("Committed log fromIndex={}, toIndex={}.", pendingIndex, lastCommittedIndex);
+            pendingIndex = lastCommittedIndex + 1;
+            this.lastCommittedIndex = lastCommittedIndex;
+        } finally {
+            stampedLock.unlockWrite(stamp);
+        }
+        this.waiter.onCommitted(lastCommittedIndex);
+        return true;
+    }

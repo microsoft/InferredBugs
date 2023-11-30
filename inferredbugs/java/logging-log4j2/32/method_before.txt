@@ -1,0 +1,32 @@
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        // TODO: refactor PluginManager.decode() into this module?
+        pluginCategories = new ConcurrentHashMap<String, ConcurrentMap<String, PluginEntry>>();
+        final Enumeration<URL> resources = PluginProcessor.class.getClassLoader().getResources(CACHE_FILE);
+        while (resources.hasMoreElements()) {
+            final URL url = resources.nextElement();
+            final ObjectInput in = new ObjectInputStream(new BufferedInputStream(url.openStream()));
+            try {
+                final int count = in.readInt();
+                for (int i = 0; i < count; i++) {
+                    final String category = in.readUTF();
+                    pluginCategories.putIfAbsent(category, new ConcurrentHashMap<String, PluginEntry>());
+                    final ConcurrentMap<String, PluginEntry> m = pluginCategories.get(category);
+                    final int entries = in.readInt();
+                    for (int j = 0; j < entries; j++) {
+                        final PluginEntry entry = new PluginEntry();
+                        entry.setKey(in.readUTF());
+                        entry.setClassName(in.readUTF());
+                        entry.setName(in.readUTF());
+                        entry.setPrintable(in.readBoolean());
+                        entry.setDefer(in.readBoolean());
+                        entry.setCategory(category);
+                        m.putIfAbsent(entry.getKey(), entry);
+                    }
+                    pluginCategories.putIfAbsent(category, m);
+                }
+            } finally {
+                in.close();
+            }
+        }
+    }

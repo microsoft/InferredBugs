@@ -1,0 +1,27 @@
+    private void validatePod(Pod pod) {
+        assertEquals(ImmutableMap.of("some-label", "some-label-value"), pod.getMetadata().getLabels());
+
+        // check containers
+        Map<String, Container> containers = pod.getSpec().getContainers().stream()
+                .collect(Collectors.toMap(Container::getName, Function.identity()));
+        assertEquals(2, containers.size());
+
+        assertEquals("busybox", containers.get("busybox").getImage());
+        assertEquals("jenkins/jnlp-slave:alpine", containers.get("jnlp").getImage());
+
+        // check volumes and volume mounts
+        Map<String, Volume> volumes = pod.getSpec().getVolumes().stream()
+                .collect(Collectors.toMap(Volume::getName, Function.identity()));
+        assertEquals(3, volumes.size());
+        assertNotNull(volumes.get("workspace-volume"));
+        assertNotNull(volumes.get("empty-volume"));
+        assertNotNull(volumes.get("host-volume"));
+
+        List<VolumeMount> mounts = containers.get("busybox").getVolumeMounts();
+        assertEquals(2, mounts.size());
+        assertEquals(new VolumeMount("/container/data", "host-volume", null, null), mounts.get(0));
+        assertEquals(new VolumeMount("/home/jenkins", "workspace-volume", false, null), mounts.get(1));
+
+        mounts = containers.get("jnlp").getVolumeMounts();
+        assertEquals(1, mounts.size());
+    }

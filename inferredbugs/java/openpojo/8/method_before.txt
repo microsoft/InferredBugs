@@ -1,0 +1,34 @@
+    @Test
+    public void defaultRandomGeneratorServicePrePopulated() {
+        // JDK 5 only supports 42 of the 44 possible types. (java.util.ArrayDeque does not exist in JDK5).
+        String javaVersion = System.getProperty("java.version");
+        if (javaVersion.startsWith("1.6") || javaVersion.startsWith("1.7") || javaVersion.startsWith("1.8")) {
+            System.out.println("Found that many types: " + expectedDefaultTypes.size());
+            for (Class<?> expectedEntry : expectedDefaultTypes) {
+                boolean found = false;
+                for (Class<?> foundEntry : randomGeneratorService.getRegisteredTypes()) {
+                    if (expectedEntry == foundEntry) found = true;
+                }
+                if (!found) System.out.println("\"" + expectedEntry.getName() + "\"");
+            }
+            System.out.println("Registered and not in the expected list!!");
+            for (Class<?> foundEntry : randomGeneratorService.getRegisteredTypes()) {
+                boolean found = false;
+                for (Class<?> expectedEntry : expectedDefaultTypes) {
+                    if (expectedEntry == foundEntry) found = true;
+                }
+                if (!found) System.out.println("\"" + foundEntry.getName() + "\"");
+            }
+            Affirm.affirmEquals("Types added / removed?", expectedTypes, randomGeneratorService.getRegisteredTypes().size());
+        } else {
+            if (javaVersion.startsWith("1.5")) {
+                Affirm.affirmEquals("Types added / removed?", expectedTypes - 1, // (java.util.ArrayDeque does not exist
+                        // in JDK5),
+                        randomGeneratorService.getRegisteredTypes().size());
+            } else {
+                Affirm.fail("Unknown java version found " + System.getProperty("java.version") + " please check the " +
+                        "correct number of expected registered classes and register type here - (found " + randomGeneratorService
+                        .getRegisteredTypes().size() + ")");
+            }
+        }
+    }

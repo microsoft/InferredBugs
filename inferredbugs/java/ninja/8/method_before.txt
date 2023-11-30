@@ -1,0 +1,55 @@
+    public String makePostRequestWithFormParameters(String url,
+                                                    Map<String, String> headers,
+                                                    Map<String, String> formParameters) {
+
+        StringBuffer sb = new StringBuffer();
+
+        try {
+
+            HttpPost postRequest = new HttpPost(url);
+
+            if (headers != null) {
+                // add all headers
+                for (Entry<String, String> header : headers.entrySet()) {
+                    postRequest.addHeader(header.getKey(), header.getValue());
+                }
+            }
+
+            // add form parameters:
+            List<BasicNameValuePair> formparams = new ArrayList<BasicNameValuePair>();
+            if (formParameters != null) {
+
+                for (Entry<String, String> parameter : formParameters
+                        .entrySet()) {
+
+                    formparams.add(new BasicNameValuePair(parameter.getKey(),
+                            parameter.getValue()));
+                }
+
+            }
+
+            // encode form parameters and add
+            UrlEncodedFormEntity entity = new UrlEncodedFormEntity(formparams);
+            postRequest.setEntity(entity);
+
+            HttpResponse response;
+
+            response = httpClient.execute(postRequest);
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    response.getEntity().getContent(), "UTF-8"));
+
+            String output;
+            while ((output = br.readLine()) != null) {
+                sb.append(output);
+            }
+
+            postRequest.releaseConnection();
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return sb.toString();
+
+    }

@@ -1,0 +1,31 @@
+  @Test
+  public void testInitArgsForUserNameAndPasswordWithSpaces() {
+    try {
+      final DatabaseConnection[] databaseConnection = new DatabaseConnection[1];
+      new MockUp<sqlline.DatabaseConnections>() {
+        @Mock
+        public void setConnection(DatabaseConnection connection) {
+          databaseConnection[0] = connection;
+        }
+      };
+
+      ByteArrayOutputStream os = new ByteArrayOutputStream();
+      String[] connectionArgs = new String[]{
+          "-u", ConnectionSpec.H2.url, "-n", "\"user'\\\" name\"",
+          "-p", "\"user \\\"'\\\"password\"",
+          "-e", "!set maxwidth 80"};
+      begin(sqlLine, os, false, connectionArgs);
+
+      assertEquals(ConnectionSpec.H2.url, databaseConnection[0].getUrl());
+      Properties infoProperties =
+          FieldReflection.getFieldValue(
+              databaseConnection[0].getClass().getDeclaredField("info"),
+              databaseConnection[0]);
+      assertNotNull(infoProperties);
+      assertEquals("user'\" name", infoProperties.getProperty("user"));
+      assertEquals("user \"'\"password",
+          infoProperties.getProperty("password"));
+    } catch (Throwable t) {
+      throw new RuntimeException(t);
+    }
+  }

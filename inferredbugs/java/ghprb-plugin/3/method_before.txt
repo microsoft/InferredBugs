@@ -1,0 +1,38 @@
+ public void check(Map<Integer,GhprbPullRequest> pulls){
+		if(repo == null) try {
+				repo = gh.getRepository(reponame);
+				if(repo == null){
+					Logger.getLogger(GhprbRepo.class.getName()).log(Level.SEVERE, "Could not retrieve repo named {0} (Do you have properly set 'GitHub project' field in job configuration?)", reponame);
+				}
+		} catch (IOException ex) {
+			Logger.getLogger(GhprbRepo.class.getName()).log(Level.SEVERE, "Could not retrieve repo named " + reponame + " (Do you have properly set 'GitHub project' field in job configuration?)", ex);
+		}
+		List<GHPullRequest> prs;
+		try {
+			prs = repo.getPullRequests(GHIssueState.OPEN);
+		} catch (IOException ex) {
+			Logger.getLogger(GhprbRepo.class.getName()).log(Level.SEVERE, "Could not retrieve pull requests.", ex);
+			return;
+		}
+		Set<Integer> closedPulls = new HashSet<Integer>(pulls.keySet());
+
+		for(GHPullRequest pr : prs){
+			Integer id = pr.getNumber();
+			GhprbPullRequest pull;
+			if(pulls.containsKey(id)){
+				pull = pulls.get(id);
+			}else{
+				pull = new GhprbPullRequest(pr, this);
+				pulls.put(id, pull);
+			}
+			try {
+				pull.check(pr,this);
+			} catch (IOException ex) {
+				Logger.getLogger(GhprbRepo.class.getName()).log(Level.SEVERE, "Couldn't check pull request #" + id, ex);
+			}
+			closedPulls.remove(id);
+		}
+		
+		removeClosed(closedPulls, pulls);
+		checkBuilds();
+	}

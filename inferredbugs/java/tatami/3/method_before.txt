@@ -1,0 +1,58 @@
+    public void replyToStatus(String content, String replyTo) throws ArchivedGroupException, ReplyStatusException {
+        AbstractStatus abstractOriginalStatus = statusRepository.findStatusById(replyTo);
+        if (abstractOriginalStatus != null &&
+                !abstractOriginalStatus.getType().equals(StatusType.STATUS) &&
+                !abstractOriginalStatus.getType().equals(StatusType.SHARE)) {
+
+            log.debug("Can not reply to a status of this type");
+            throw new ReplyStatusException();
+        }
+        if (abstractOriginalStatus != null &&
+                abstractOriginalStatus.getType().equals(StatusType.SHARE)) {
+
+            Share share = (Share) abstractOriginalStatus;
+            AbstractStatus abstractRealOriginalStatus = statusRepository.findStatusById(share.getOriginalStatusId());
+            abstractOriginalStatus = abstractRealOriginalStatus;
+        }
+
+        Status originalStatus = (Status) abstractOriginalStatus;
+        Group group = null;
+        if (originalStatus.getGroupId() != null) {
+            group = groupService.getGroupById(originalStatus.getDomain(), originalStatus.getGroupId());
+
+            if (group.isArchivedGroup()) {
+                throw new ArchivedGroupException();
+            }
+        }
+        if (!originalStatus.getReplyTo().equals("")) {
+            // Original status is also a reply, replying to the real original status instead
+            AbstractStatus abstractRealOriginalStatus = statusRepository.findStatusById(originalStatus.getDiscussionId());
+            if (abstractRealOriginalStatus == null ||
+                    !abstractRealOriginalStatus.getType().equals(StatusType.STATUS)) {
+
+                throw new ReplyStatusException();
+            }
+            Status realOriginalStatus = (Status) abstractRealOriginalStatus;
+
+            Status replyStatus = createStatus(
+                    content,
+                    realOriginalStatus.getStatusPrivate(),
+                    group,
+                    realOriginalStatus.getStatusId(),
+                    originalStatus.getStatusId(),
+                    originalStatus.getUsername());
+
+            discussionRepository.addReplyToDiscussion(realOriginalStatus.getStatusId(), replyStatus.getStatusId());
+        } else {
+            // The original status of the discussion is the one we reply to
+            Status replyStatus =
+                    createStatus(content,
+                            originalStatus.getStatusPrivate(),
+                            group,
+                            replyTo,
+                            replyTo,
+                            originalStatus.getUsername());
+
+            discussionRepository.addReplyToDiscussion(originalStatus.getStatusId(), replyStatus.getStatusId());
+        }
+    }

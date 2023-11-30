@@ -1,0 +1,38 @@
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+        SocketChannel channel = (SocketChannel) ctx.channel();
+        String nodeId = IpUtil.getNodeId(channel.remoteAddress());
+        Log.debug("---------------------- server channelRegistered ------------------------- " + nodeId);
+
+        String remoteIP = channel.remoteAddress().getHostString();
+        Map<String, Node> nodeMap = null;
+                //getNetworkService().getNodes();
+        for (Node node : nodeMap.values()) {
+            if (node.getIp().equals(remoteIP)) {
+                if (node.getType() == Node.OUT) {
+                    String localIP = InetAddress.getLocalHost().getHostAddress();
+                    boolean isLocalServer = IpUtil.judgeIsLocalServer(localIP, remoteIP);
+                    if (!isLocalServer) {
+                        ctx.channel().close();
+                        return;
+                    } else {
+//                        System.out.println("----------------sever client register each other remove node-----------------" + node.getId());
+                        getNetworkService().removeNode(node.getId());
+                    }
+                }
+            }
+        }
+
+        // if has a node with same ip, and it's a out node, close this channel
+        // if More than 10 in nodes of the same IP, close this channel
+        int count = 0;
+        for (Node n : nodeMap.values()) {
+            if (n.getIp().equals(remoteIP)) {
+                count++;
+                if (count >= NetworkConstant.SAME_IP_MAX_COUNT) {
+                    ctx.channel().close();
+                    return;
+                }
+            }
+        }
+    }

@@ -1,0 +1,34 @@
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testMutation() throws IOException, InterruptedException {
+    final ReentrantLock lock = new ReentrantLock();
+    final Condition mutateRowAsyncCalled = lock.newCondition();
+    when(mockClient.mutateRowAsync(any(MutateRowRequest.class)))
+        .thenAnswer(
+            new Answer<ListenableFuture<Empty>>() {
+              @Override
+              public ListenableFuture<Empty> answer(InvocationOnMock invocation) throws Throwable {
+                lock.lock();
+                try {
+                  mutateRowAsyncCalled.signalAll();
+                  return mockFuture;
+                } finally {
+                  lock.unlock();
+                }
+              }
+            });
+    BigtableBufferedMutator underTest = createMutator(new Configuration(false));
+    underTest.mutate(SIMPLE_PUT);
+    Assert.assertTrue(underTest.hasInflightRequests());
+    // Leave some time for the async worker to handle the request.
+    lock.lock();
+    try {
+      mutateRowAsyncCalled.await(100, TimeUnit.SECONDS);
+    } finally {
+      lock.unlock();
+    }
+    verify(mockClient, times(1)).mutateRowAsync(any(MutateRowRequest.class));
+    Assert.assertTrue(underTest.hasInflightRequests());
+    completeCall();
+    Assert.assertFalse(underTest.hasInflightRequests());
+  }

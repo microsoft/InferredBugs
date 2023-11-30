@@ -1,0 +1,18 @@
+    @Test
+    public void testInsertBlobAndReadBlobAsInputStream() {
+        Database db = db();
+        byte[] bytes = "some text here".getBytes();
+        db.update("insert into person_blob(name,document) values(?,?)") //
+                .parameters("FRED", new ByteArrayInputStream(bytes)) //
+                .counts() //
+                .test().awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                .assertValue(1) //
+                .assertComplete();
+        db.select("select document from person_blob where name='FRED'") //
+                .getAs(InputStream.class) //
+                .map(is -> read(is)) //
+                .map(b -> new String(b)) //
+                .test().awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                .assertValue("some text here") //
+                .assertComplete();
+    }

@@ -1,0 +1,22 @@
+    boolean linkExports(final Linkage linkage) throws ModuleLoadException {
+        final HashMap<String, List<LocalLoader>> exportsMap = new HashMap<String, List<LocalLoader>>();
+        final Dependency[] dependencies = linkage.getSourceList();
+        final long start = Metrics.getCurrentCPUTime();
+        long subtractTime = 0L;
+        try {
+            final Set<Visited> visited = new FastCopyHashSet<Visited>(16);
+            final FastCopyHashSet<PathFilter> filterStack = new FastCopyHashSet<PathFilter>(8);
+            subtractTime += addExportedPaths(dependencies, exportsMap, filterStack, visited);
+            synchronized (this) {
+                if (this.linkage == linkage) {
+                    this.linkage = new Linkage(linkage.getSourceList(), LINKED_EXPORTS, linkage.getAllPaths(), exportsMap);
+                    notifyAll();
+                    return true;
+                }
+                // else all our efforts were just wasted since someone changed the deps in the meantime
+                return false;
+            }
+        } finally {
+            moduleLoader.addLinkTime(Metrics.getCurrentCPUTime() - start - subtractTime);
+        }
+    }

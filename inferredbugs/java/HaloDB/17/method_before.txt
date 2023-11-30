@@ -1,0 +1,42 @@
+    void mergeTombstoneFiles() throws IOException {
+        if (!options.isCleanUpTombstonesDuringOpen()) {
+            logger.info("CleanUpTombstonesDuringOpen is not enabled, returning");
+            return;
+        }
+
+        File[] tombStoneFiles = dbDirectory.listTombstoneFiles();
+
+        logger.info("About to merge {} tombstone files ...", tombStoneFiles.length);
+        TombstoneFile mergedTombstoneFile = null;
+
+        // Use compaction job rate as write rate limiter to avoid IO impact
+        final RateLimiter rateLimiter = RateLimiter.create(options.getCompactionJobRate());
+
+        for (File file : tombStoneFiles) {
+            TombstoneFile tombstoneFile = new TombstoneFile(file, options, dbDirectory);
+            if (currentTombstoneFile != null && tombstoneFile.getName().equals(currentTombstoneFile.getName())) {
+                continue; // not touch current tombstone file
+            }
+
+            tombstoneFile.open();
+            TombstoneFile.TombstoneFileIterator iterator = tombstoneFile.newIterator();
+
+            long count = 0;
+            while (iterator.hasNext()) {
+                TombstoneEntry entry = iterator.next();
+                rateLimiter.acquire(entry.size());
+                count++;
+                mergedTombstoneFile = rollOverTombstoneFile(entry, mergedTombstoneFile);
+                mergedTombstoneFile.write(entry);
+            }
+            if (count > 0) {
+                logger.debug("Merged {} tombstones from {} to {}",
+                    count, tombstoneFile.getName(), mergedTombstoneFile.getName());
+            }
+            tombstoneFile.close();
+            tombstoneFile.delete();
+        }
+
+        logger.info("Tombstone files count, before merge:{}, after merge:{}",
+            tombStoneFiles.length, dbDirectory.listTombstoneFiles().length);
+    }

@@ -1,0 +1,101 @@
+    @Override
+    public WFCMessage.PullMessageResult fetchMessage(String user, String exceptClientId, long fromMessageId, int pullType) {
+        WFCMessage.PullMessageResult.Builder builder = WFCMessage.PullMessageResult.newBuilder();
+
+        HazelcastInstance hzInstance = m_Server.getHazelcastInstance();
+        IMap<Long, MessageBundle> mIMap = hzInstance.getMap(MESSAGES_MAP);
+
+        MemorySessionStore.Session session = m_Server.getStore().sessionsStore().getSession(exceptClientId);
+        session.refreshLastActiveTime();
+        if (pullType != ProtoConstants.PullType.Pull_ChatRoom) {
+            session.setUnReceivedMsgs(0);
+        } else {
+            session.refreshLastChatroomActiveTime();
+        }
+
+        String chatroomId = null;
+        if (pullType == ProtoConstants.PullType.Pull_ChatRoom) {
+            chatroomId = (String)m_Server.getHazelcastInstance().getMap(USER_CHATROOM).get(user);
+        }
+
+
+        long head = fromMessageId;
+        long current = fromMessageId;
+
+        TreeMap<Long, Long> maps;
+
+        if (pullType != ProtoConstants.PullType.Pull_ChatRoom) {
+            maps = userMessages.get(user);
+            if (maps == null) {
+                loadUserMessages(user);
+            }
+            maps = userMessages.get(user);
+        } else {
+            maps = chatroomMessages.get(user);
+            if (maps == null) {
+                mWriteLock.lock();
+                try {
+                    maps = chatroomMessages.get(user);
+                    if (maps == null) {
+                        maps = new TreeMap<>();
+                        chatroomMessages.put(user, maps);
+                    }
+                } finally {
+                    mWriteLock.unlock();
+                }
+            }
+        }
+
+        mReadLock.lock();
+        int size = 0;
+        try {
+            if (pullType != ProtoConstants.PullType.Pull_ChatRoom) {
+                userMaxPullSeq.compute(user, (s, aLong) -> {
+                    if (aLong == null || aLong < fromMessageId) {
+                        return fromMessageId;
+                    } else {
+                        return aLong;
+                    }
+                });
+            }
+
+            while (true) {
+                Map.Entry<Long, Long> entry = maps.higherEntry(current);
+                if (entry == null) {
+                    break;
+                }
+                current = entry.getKey();
+                long targetMessageId = entry.getValue();
+
+                MessageBundle bundle = mIMap.get(targetMessageId);
+
+                if (bundle != null) {
+                    if (exceptClientId == null || !exceptClientId.equals(bundle.getFromClientId()) || !user.equals(bundle.getFromUser())) {
+
+                        if (pullType == ProtoConstants.PullType.Pull_ChatRoom) {
+                            if (!bundle.getMessage().getConversation().getTarget().equals(chatroomId)) {
+                                continue;
+                            }
+                        }
+
+                        size += bundle.getMessage().getSerializedSize();
+                        if (size >= 1 * 1024 * 1024) { //3M
+                            break;
+                        }
+                        builder.addMessage(bundle.getMessage());
+                    }
+                }
+            }
+
+            Map.Entry<Long, Long> lastEntry = maps.lastEntry();
+            if (lastEntry != null) {
+                head = lastEntry.getKey();
+            }
+        } finally {
+            mReadLock.unlock();
+        }
+
+        builder.setCurrent(current);
+        builder.setHead(head);
+        return builder.build();
+    }

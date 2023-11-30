@@ -1,0 +1,44 @@
+ static
+	private MapValues createMapValues(FieldName name, Object identifier, List<Feature> features, List<Double> coefficients){
+		ListIterator<Feature> featureIt = features.listIterator();
+		ListIterator<Double> coefficientIt = coefficients.listIterator();
+
+		PMMLEncoder encoder = null;
+
+		List<Object> inputValues = new ArrayList<>();
+		List<Double> outputValues = new ArrayList<>();
+
+		while(featureIt.hasNext()){
+			Feature feature = featureIt.next();
+			Double coefficient = coefficientIt.next();
+
+			if(!(feature instanceof BinaryFeature)){
+				continue;
+			}
+
+			BinaryFeature binaryFeature = (BinaryFeature)feature;
+			if(!(name).equals(binaryFeature.getName())){
+				continue;
+			}
+
+			featureIt.remove();
+			coefficientIt.remove();
+
+			if(encoder == null){
+				encoder = binaryFeature.getEncoder();
+			}
+
+			inputValues.add(binaryFeature.getValue());
+			outputValues.add(coefficient);
+		}
+
+		MapValues mapValues = PMMLUtil.createMapValues(name, inputValues, outputValues)
+			.setDefaultValue(0d);
+
+		DerivedField derivedField = encoder.createDerivedField(FieldName.create("lookup(" + name.getValue() + (identifier != null ? (", " + identifier) : "") + ")"), OpType.CONTINUOUS, DataType.DOUBLE, mapValues);
+
+		featureIt.add(new ContinuousFeature(encoder, derivedField));
+		coefficientIt.add(1d);
+
+		return mapValues;
+	}

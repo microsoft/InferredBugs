@@ -1,0 +1,47 @@
+    private PropertyMapping getPropertyMapping(List<MapperReference> mapperReferences, List<Method> methods,
+                                               Method method, Parameter parameter, ExecutableElement sourceAccessor,
+                                               ExecutableElement targetAcessor, String dateFormat) {
+        Type sourceType = typeFactory.getReturnType( sourceAccessor );
+        Type targetType = null;
+        String conversionString = null;
+        conversionString = parameter.getName() + "." + sourceAccessor.getSimpleName().toString() + "()";
+
+        if ( Executables.isSetterMethod( targetAcessor ) ) {
+            targetType = typeFactory.getSingleParameter( targetAcessor ).getType();
+        }
+        else if ( Executables.isGetterMethod( targetAcessor ) ) {
+            targetType = typeFactory.getReturnType( targetAcessor );
+        }
+
+        MethodReference propertyMappingMethod = getMappingMethodReference(
+            mapperReferences,
+            methods,
+            sourceType,
+            targetType
+        );
+        TypeConversion conversion = getConversion(
+            sourceType,
+            targetType,
+            dateFormat,
+            conversionString
+        );
+
+        PropertyMapping property = new PropertyMapping(
+            parameter.getName(),
+            Executables.getPropertyName( sourceAccessor ),
+            sourceAccessor.getSimpleName().toString(),
+            sourceType,
+            Executables.getPropertyName( targetAcessor ),
+            targetAcessor.getSimpleName().toString(),
+            targetType,
+            propertyMappingMethod,
+            conversion
+        );
+
+        reportErrorIfPropertyCanNotBeMapped(
+            method,
+            property
+        );
+
+        return property;
+    }

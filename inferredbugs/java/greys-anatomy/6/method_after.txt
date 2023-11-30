@@ -1,0 +1,59 @@
+    public byte[] transform(
+            ClassLoader loader,
+            String className,
+            Class<?> classBeingRedefined,
+            ProtectionDomain protectionDomain,
+            byte[] classfileBuffer) throws IllegalClassFormatException {
+
+
+        // 这里要再次过滤一次，为啥？因为在transform的过程中，有可能还会再诞生新的类
+        // 所以需要将之前需要转换的类集合传递下来，再次进行判断
+        if (!matchingClasses.contains(classBeingRedefined)) {
+            return null;
+        }
+
+
+        final ClassReader cr;
+
+        // 首先先检查是否在缓存中存在Class字节码
+        // 因为要支持多人协作,存在多人同时增强的情况
+        final byte[] byteOfClassInCache = classBytesCache.get(classBeingRedefined);
+        if (null != byteOfClassInCache) {
+            cr = new ClassReader(byteOfClassInCache);
+        }
+
+        // 如果没有命中缓存,则从原始字节码开始增强
+        else {
+            cr = new ClassReader(classfileBuffer);
+        }
+
+        // 字节码增强
+        final ClassWriter cw = new ClassWriter(cr, COMPUTE_FRAMES | COMPUTE_MAXS);
+
+        try {
+
+            // 生成增强字节码
+            cr.accept(new AdviceWeaver(adviceId, cr.getClassName(), methodNameMatcher, affect, cw), EXPAND_FRAMES);
+            final byte[] enhanceClassByteArray = cw.toByteArray();
+
+            // 生成成功,推入缓存
+            classBytesCache.put(classBeingRedefined, enhanceClassByteArray);
+
+            // 成功计数
+            affect.cCnt(1);
+
+//            // dump
+//            final java.io.OutputStream os = new FileOutputStream(new java.io.File("/tmp/AgentTest.class"));
+//            os.write(enhanceClassByteArray);
+//            os.flush();
+//            os.close();
+
+            return enhanceClassByteArray;
+        } catch (Throwable t) {
+            if (logger.isLoggable(WARNING)) {
+                logger.log(WARNING, format("transform class[%s] failed. ClassLoader=%s;", className, loader), t);
+            }
+        }
+
+        return null;
+    }

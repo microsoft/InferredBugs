@@ -1,0 +1,44 @@
+    InternalOakMap(K minKey,
+                   OakSerializer<K> keySerializer,
+                   OakSerializer<V> valueSerializer,
+                   OakComparator<K> oakComparator,
+                   MemoryManager memoryManager,
+                   int chunkMaxItems) {
+
+        this.size = new AtomicInteger(0);
+        this.memoryManager = memoryManager;
+
+        this.keySerializer = keySerializer;
+        this.valueSerializer = valueSerializer;
+
+        this.comparator = oakComparator;
+
+        this.minKey = ByteBuffer.allocate(this.keySerializer.calculateSize(minKey));
+        this.minKey.position(0);
+        this.keySerializer.serialize(minKey, this.minKey);
+
+        // This is a trick for letting us search through the skiplist using both serialized and unserialized keys.
+        // Might be nicer to replace it with a proper visitor
+        Comparator<Object> mixedKeyComparator = (o1, o2) -> {
+            if (o1 instanceof ByteBuffer) {
+                if (o2 instanceof ByteBuffer) {
+                    return oakComparator.compareSerializedKeys((ByteBuffer) o1, (ByteBuffer) o2);
+                } else {
+                    // Note the inversion of arguments, hence sign flip
+                    return (-1) * oakComparator.compareKeyAndSerializedKey((K) o2, (ByteBuffer) o1);
+                }
+            } else {
+                if (o2 instanceof ByteBuffer) {
+                    return oakComparator.compareKeyAndSerializedKey((K) o1, (ByteBuffer) o2);
+                } else {
+                    return oakComparator.compareKeys((K) o1, (K) o2);
+                }
+            }
+        };
+        this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
+
+        Chunk<K, V> head = new Chunk<>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
+                this.size, keySerializer, valueSerializer);
+        this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
+        this.head = new AtomicReference<>(head);
+    }

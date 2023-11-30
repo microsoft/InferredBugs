@@ -1,0 +1,37 @@
+    @Override
+    public void run() {
+        checkRunningStat();
+        initComponent();
+        logger.info("Spider " + getUUID() + " started!");
+        final AtomicInteger threadAlive = new AtomicInteger(0);
+        while (!Thread.currentThread().isInterrupted() && stat.get() == STAT_RUNNING) {
+            Request request = scheduler.poll(this);
+            if (request == null) {
+                if (threadAlive.get() == 0 && exitWhenComplete) {
+                    break;
+                }
+                // wait until new url added
+                waitNewUrl();
+            } else {
+                final Request requestFinal = request;
+                threadAlive.incrementAndGet();
+                executorService.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            processRequest(requestFinal);
+                        } catch (Exception e) {
+                            logger.error("download " + requestFinal + " error", e);
+                        } finally {
+                            threadAlive.decrementAndGet();
+                            signalNewUrl();
+                        }
+                    }
+                });
+            }
+        }
+        executorService.shutdown();
+        stat.set(STAT_STOPPED);
+        // release some resources
+        destroy();
+    }

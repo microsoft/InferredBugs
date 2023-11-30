@@ -1,0 +1,18 @@
+  @Test public void tooDeeplyNestedObjects() throws IOException {
+    Object root = Boolean.TRUE;
+    for (int i = 0; i < 32; i++) {
+      root = singletonMap("a", root);
+    }
+    JsonReader reader = new JsonValueReader(root);
+    for (int i = 0; i < 31; i++) {
+      reader.beginObject();
+      assertThat(reader.nextName()).isEqualTo("a");
+    }
+    try {
+      reader.beginObject();
+      fail();
+    } catch (JsonDataException expected) {
+      assertThat(expected).hasMessage(
+          "Nesting too deep at $.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.");
+    }
+  }

@@ -1,0 +1,25 @@
+    private static void copyFile(String sourcePath, String destPath, boolean saveBackup)
+            throws IOException {
+        File source = new File(sourcePath);
+        File dest = new File(destPath);
+        if (saveBackup) {
+            String backupPath = getBackupPath(destPath);
+            File backup = new File(backupPath);
+            deleteFile(backup);
+            if (!dest.renameTo(backup)) {
+                throw new IOException("Could not create backup file " + backupPath);
+            }
+        }
+        deleteFile(dest);
+        if (!source.renameTo(dest)) {
+            //Rename failed so try to copy and erase
+            try(FileChannel sourceStream = new FileInputStream(source).getChannel(); FileChannel destinationStream = new FileOutputStream(dest).getChannel()) {
+                long count = 0;
+                final long size = sourceStream.size();
+                while(count < size) {
+                    count += destinationStream.transferFrom(sourceStream, count, size-count);
+                }
+                deleteFile(source);
+            }
+        }
+    }

@@ -1,0 +1,26 @@
+    void doConnect() {
+        // Device client does not have retry on the initial open() call. Will need to be re-opened by the calling application
+        while (connectionStatus == ConnectionStatus.CONNECTING) {
+            synchronized (lock) {
+                if(connectionStatus == ConnectionStatus.CONNECTING) {
+                    try {
+                        log.debug("[connect] - Opening the device client instance...");
+                        client.open();
+                        connectionStatus = ConnectionStatus.CONNECTED;
+                        break;
+                    }
+                    catch (Exception ex) {
+                        log.error("[connect] - Exception thrown while opening DeviceClient instance: ", ex);
+                    }
+                }
+            }
+
+            try {
+                log.debug("[connect] - Sleeping for 10 secs before attempting another open()");
+                Thread.sleep(SLEEP_TIME_BEFORE_RECONNECTING_IN_SECONDS * 1000);
+            }
+            catch (InterruptedException ex) {
+                log.error("[connect] - Exception in thread sleep: ", ex);
+            }
+        }
+    }

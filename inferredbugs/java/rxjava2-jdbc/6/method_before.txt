@@ -1,0 +1,42 @@
+    @Test
+    public void testHealthCheck() throws InterruptedException {
+        TestScheduler scheduler = new TestScheduler();
+        AtomicBoolean once = new AtomicBoolean(true);
+        NonBlockingConnectionPool pool = Pools //
+                .nonBlocking() //
+                .connectionProvider(DatabaseCreator.connectionProvider()) //
+                .maxIdleTime(10, TimeUnit.MINUTES) //
+                .idleTimeBeforeHealthCheck(0, TimeUnit.MINUTES) //
+                .healthy(c -> {
+                    log.debug("doing health check");
+                    return !once.compareAndSet(true, false);
+                }) //
+                .returnToPoolDelayAfterHealthCheckFailure(1, TimeUnit.MINUTES) //
+                .scheduler(scheduler) //
+                .maxPoolSize(1) //
+                .build();
+
+        try (Database db = Database.from(pool)) {
+            db.select( //
+                    "select score from person where name=?") //
+                    .parameters("FRED") //
+                    .getAs(Integer.class) //
+                    .test() //
+                    .assertValueCount(1) //
+                    .assertComplete();
+            TestSubscriber<Integer> ts = db
+                    .select( //
+                            "select score from person where name=?") //
+                    .parameters("FRED") //
+                    .getAs(Integer.class) //
+                    .test() //
+                    .assertValueCount(0);
+            scheduler.advanceTimeBy(1, TimeUnit.MINUTES);
+            Thread.sleep(200);
+            ts.assertValueCount(1);
+            Thread.sleep(200);
+            ts.assertValue(21) //
+                    .assertComplete();
+        }
+
+    }

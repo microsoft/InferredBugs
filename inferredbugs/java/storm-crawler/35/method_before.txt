@@ -1,0 +1,76 @@
+    @Override
+    public void open(Map stormConf, TopologyContext context,
+            SpoutOutputCollector collector) {
+
+        indexName = ConfUtils.getString(stormConf, ESStatusIndexNameParamName,
+                "status");
+        docType = ConfUtils.getString(stormConf, ESStatusDocTypeParamName,
+                "status");
+        maxInFlightURLsPerBucket = ConfUtils.getInt(stormConf,
+                ESStatusMaxInflightParamName, 1);
+        maxBufferSize = ConfUtils.getInt(stormConf,
+                ESStatusBufferSizeParamName, 100);
+        randomSort = ConfUtils.getBoolean(stormConf, ESRandomSortParamName,
+                true);
+        maxSecSinceQueriedDate = ConfUtils.getInt(stormConf,
+                ESMaxSecsSinceQueriedDateParamName, -1);
+
+        sortField = ConfUtils.getString(stormConf, ESStatusSortFieldParamName,
+                "nextFetchDate");
+
+        // one ES client per JVM
+        synchronized (ElasticSearchSpout.class) {
+            try {
+                if (client == null) {
+                    client = ElasticSearchConnection.getClient(stormConf,
+                            ESBoltType);
+                }
+            } catch (Exception e1) {
+                LOG.error("Can't connect to ElasticSearch", e1);
+                throw new RuntimeException(e1);
+            }
+        }
+
+        // if more than one instance is used we expect their number to be the
+        // same as the number of shards
+        int totalTasks = context
+                .getComponentTasks(context.getThisComponentId()).size();
+        if (totalTasks > 1) {
+            // determine the number of shards so that we can restrict the
+            // search
+            ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(
+                    indexName);
+            ClusterSearchShardsResponse shardresponse = client.admin()
+                    .cluster().searchShards(request).actionGet();
+            ClusterSearchShardsGroup[] shardgroups = shardresponse.getGroups();
+            if (totalTasks != shardgroups.length) {
+                throw new RuntimeException(
+                        "Number of ES spout instances should be the same as number of shards ("
+                                + shardgroups.length + ") but is " + totalTasks);
+            }
+            shardID = shardgroups[context.getThisTaskIndex()].getShardId();
+            LOG.info("Assigned shard ID {}", shardID);
+        }
+
+        partitioner = new URLPartitioner();
+        partitioner.configure(stormConf);
+
+        _collector = collector;
+
+        this.eventCounter = context.registerMetric("counters",
+                new MultiCountMetric(), 10);
+
+        context.registerMetric("beingProcessed", new IMetric() {
+            @Override
+            public Object getValueAndReset() {
+                return beingProcessed.size();
+            }
+        }, 10);
+
+        context.registerMetric("buffer_size", new IMetric() {
+            @Override
+            public Object getValueAndReset() {
+                return buffer.size();
+            }
+        }, 10);
+    }

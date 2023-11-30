@@ -1,0 +1,16 @@
+    public static GaugeRollup buildFromGaugeRollups(Points<GaugeRollup> input) throws IOException {
+        GaugeRollup rollup = new GaugeRollup();
+        
+        rollup.computeFromRollups(BasicRollup.recast(input, IBasicRollup.class));
+        
+        Points.Point<SimpleNumber> latest = rollup.latestValue;
+        
+        for (Map.Entry<Long, Points.Point<GaugeRollup>> entry : input.getPoints().entrySet()) {
+            if (latest == null || entry.getValue().getTimestamp() > latest.getTimestamp())
+                latest = entry.getValue().getData().latestValue;
+        }
+        
+        rollup.latestValue = latest;
+        
+        return rollup;
+    }

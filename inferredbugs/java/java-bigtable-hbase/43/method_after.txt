@@ -1,0 +1,33 @@
+  Future<HeaderCacheElement> asyncRefresh() {
+    LOG.trace("asyncRefresh");
+
+    synchronized (lock) {
+      try {
+        if (futureToken != null) {
+          return futureToken;
+        }
+        if (headerCache.getCacheState() == CacheState.Good) {
+          return Futures.immediateFuture(headerCache);
+        }
+
+        Future<HeaderCacheElement> future = executor.submit(new Callable<HeaderCacheElement>() {
+          @Override
+          public HeaderCacheElement call() throws Exception {
+            return updateToken();
+          }
+        });
+
+        if (!future.isDone()) {
+          this.futureToken = future;
+        }
+        return future;
+      } catch (RuntimeException e) {
+        futureToken = null;
+        LOG.warn("Got an unexpected exception while trying to refresh google credentials.", e);
+        return Futures.immediateFuture(new HeaderCacheElement(
+          Status.UNAUTHENTICATED
+              .withDescription("Unexpected error trying to authenticate")
+              .withCause(e)));
+      }
+    }
+  }

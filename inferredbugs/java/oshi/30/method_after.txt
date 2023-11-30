@@ -1,0 +1,18 @@
+    private void populateReadWriteMaps() {
+        // Although the field names say "PerSec" this is the Raw Data from which
+        // the associated fields are populated in the Formatted Data class, so
+        // in fact this is the data we want
+        Map<String, List<Object>> vals = WmiUtil.selectObjectsFrom(null, "Win32_PerfRawData_PerfDisk_PhysicalDisk",
+                "Name,DiskReadsPerSec,DiskReadBytesPerSec,DiskWritesPerSec,DiskWriteBytesPerSec,PercentDiskTime", null,
+                READ_WRITE_TYPES);
+        for (int i = 0; i < vals.get("Name").size(); i++) {
+            String index = ((String) vals.get("Name").get(i)).split("\\s+")[0];
+            readMap.put(index, (long) vals.get("DiskReadsPerSec").get(i));
+            readByteMap.put(index, ParseUtil.parseLongOrDefault((String) vals.get("DiskReadBytesPerSec").get(i), 0L));
+            writeMap.put(index, (long) vals.get("DiskWritesPerSec").get(i));
+            writeByteMap.put(index, ParseUtil.parseLongOrDefault((String) vals.get("DiskWriteBytesPerSec").get(i), 0L));
+            // Units are 100-ns, divide to get ms
+            xferTimeMap.put(index,
+                    ParseUtil.parseLongOrDefault((String) vals.get("PercentDiskTime").get(i), 0L) / 10000L);
+        }
+    }

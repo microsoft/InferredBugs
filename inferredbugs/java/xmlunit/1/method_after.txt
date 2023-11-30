@@ -1,0 +1,68 @@
+    public ComparisonResult evaluate(Comparison comparison, ComparisonResult outcome) {
+        Comparison.Detail controlDetails = comparison.getControlDetails();
+        Node controlTarget = controlDetails.getTarget();
+        Comparison.Detail testDetails = comparison.getTestDetails();
+        Node testTarget = testDetails.getTarget();
+
+        // comparing textual content of elements
+        if (comparison.getType() == ComparisonType.TEXT_VALUE) {
+            return evaluateConsideringPlaceholders((String) controlDetails.getValue(),
+                (String) testDetails.getValue(), outcome);
+
+        // two versions of "test document has no text-like node but control document has"
+        } else if (comparison.getType() == ComparisonType.CHILD_NODELIST_LENGTH &&
+                Integer.valueOf(1).equals(controlDetails.getValue()) &&
+                Integer.valueOf(0).equals(testDetails.getValue()) &&
+                isTextLikeNode(controlTarget.getFirstChild().getNodeType())) {
+            String controlNodeChildValue = controlTarget.getFirstChild().getNodeValue();
+            return evaluateConsideringPlaceholders(controlNodeChildValue, null, outcome);
+
+        } else if (comparison.getType() == ComparisonType.CHILD_LOOKUP && controlTarget != null &&
+                isTextLikeNode(controlTarget.getNodeType())) {
+            String controlNodeValue = controlTarget.getNodeValue();
+            return evaluateConsideringPlaceholders(controlNodeValue, null, outcome);
+
+        // may be comparing TEXT to CDATA
+        } else if (comparison.getType() == ComparisonType.NODE_TYPE
+                   && isTextLikeNode(controlTarget.getNodeType())
+                   && isTextLikeNode(testTarget.getNodeType())) {
+            return evaluateConsideringPlaceholders(controlTarget.getNodeValue(), testTarget.getNodeValue(), outcome);
+
+        // comparing textual content of attributes
+        } else if (comparison.getType() == ComparisonType.ATTR_VALUE) {
+            return evaluateConsideringPlaceholders((String) controlDetails.getValue(),
+                (String) testDetails.getValue(), outcome);
+
+        // two versions of "test document has no attribute but control document has"
+        } else if (comparison.getType() == ComparisonType.ELEMENT_NUM_ATTRIBUTES) {
+            Map<QName, String> controlAttrs = Nodes.getAttributes(controlTarget);
+            Map<QName, String> testAttrs = Nodes.getAttributes(testTarget);
+
+            int cAttrsMatched = 0;
+            for (Map.Entry<QName, String> cAttr : controlAttrs.entrySet()) {
+                String testValue = testAttrs.get(cAttr.getKey());
+                if (testValue == null) {
+                    ComparisonResult o = evaluateConsideringPlaceholders(cAttr.getValue(), null, outcome);
+                    if (o != ComparisonResult.EQUAL) {
+                        return outcome;
+                    }
+                } else {
+                    cAttrsMatched++;
+                }
+            }
+            if (cAttrsMatched != testAttrs.size()) {
+                // there are unmatched test attributes
+                return outcome;
+            }
+            return ComparisonResult.EQUAL;
+
+        } else if (comparison.getType() == ComparisonType.ATTR_NAME_LOOKUP && controlTarget != null
+            && controlDetails.getValue() != null) {
+            String controlAttrValue = Nodes.getAttributes(controlTarget).get((QName) controlDetails.getValue());
+            return evaluateConsideringPlaceholders(controlAttrValue, null, outcome);
+
+        // default, don't apply any placeholders at all
+        } else {
+            return outcome;
+        }
+    }

@@ -1,0 +1,28 @@
+    @Test
+    public void testFunctionsBasic() throws Exception {
+        URL resource = getClass().getResource("/yaml/functions/functions_test_flow.sl");
+        URI operation = getClass().getResource("/yaml/functions/functions_test_op.sl").toURI();
+        Set<SlangSource> path = Sets.newHashSet(SlangSource.fromFile(operation));
+        CompilationArtifact compilationArtifact = slang.compile(SlangSource.fromFile(resource.toURI()), path);
+
+        Map<String, Serializable> userInputs = prepareUserInputs();
+        Set<SystemProperty> systemProperties = prepareSystemProperties();
+
+        // trigger ExecutionPlan
+        RuntimeInformation runtimeInformation = triggerWithData(compilationArtifact, userInputs, systemProperties);
+
+        Map<String, StepData> executionData = runtimeInformation.getTasks();
+
+        StepData flowData = executionData.get(EXEC_START_PATH);
+        StepData taskData = executionData.get(FIRST_STEP_PATH);
+        Assert.assertNotNull("flow data is null", flowData);
+        Assert.assertNotNull("task data is null", taskData);
+
+        verifyFlowInputs(flowData);
+        verifyTaskArguments(taskData);
+        verifyTaskPublishValues(taskData);
+        verifyFlowOutputs(flowData);
+
+        // verify 'get' function worked in result expressions
+        Assert.assertEquals("Function evaluation problem in result expression", "FUNCTIONS_KEY_EXISTS", flowData.getResult());
+    }

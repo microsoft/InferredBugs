@@ -1,0 +1,21 @@
+    public List<WordAnalysis> analyzeWithoutCache(String word) {
+        String s = normalize(word); // TODO: this may cause problem for some foreign words.
+        if (s.length() == 0) {
+            return Collections.emptyList();
+        }
+        List<WordAnalysis> res = wordAnalyzer.analyze(s);
+        if (res.size() == 0) {
+            res.addAll(analyzeWordsWithSingleQuote(s));
+        }
+        if (res.size() == 0 && useUnidentifiedTokenAnalyzer) {
+            invalidateCache(s);
+            res.addAll(unidentifiedTokenAnalyzer.analyze(s));
+        }
+        if (res.size() == 0) {
+            res.add(new WordAnalysis(
+                    DictionaryItem.UNKNOWN,
+                    s,
+                    Lists.newArrayList(WordAnalysis.InflectionalGroup.UNKNOWN)));
+        }
+        return res;
+    }

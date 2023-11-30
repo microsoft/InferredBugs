@@ -1,0 +1,14 @@
+ @PreAuthorize("isAuthenticated()")
+	public String fetchNewToken(Optional<Long> expirationMillis,
+			Optional<String> optionalUsername) {
+		
+		UserDto<ID> currentUser = LemonUtils.currentUser();
+		String username = optionalUsername.orElse(currentUser.getUsername());
+		
+		LemonUtils.ensureAuthority(currentUser.getUsername().equals(username) ||
+				currentUser.isGoodAdmin(), "com.naturalprogrammer.spring.notGoodAdminOrSameUser");
+		
+		return LemonSecurityConfig.TOKEN_PREFIX +
+				jwtService.createToken(JwtService.AUTH_AUDIENCE, username,
+				expirationMillis.orElse(properties.getJwt().getExpirationMillis()));
+	}

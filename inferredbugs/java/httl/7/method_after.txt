@@ -1,0 +1,59 @@
+    public static String encodeObject( java.io.Serializable serializableObject, int options )
+    throws java.io.IOException {
+
+        if( serializableObject == null ){
+            throw new NullPointerException( "Cannot serialize a null object." );
+        }   // end if: null
+        
+        // Streams
+        java.io.ByteArrayOutputStream  baos  = null; 
+        java.io.OutputStream           b64os = null;
+        java.util.zip.GZIPOutputStream gzos  = null;
+        java.io.ObjectOutputStream     oos   = null;
+        
+        
+        try {
+            // ObjectOutputStream -> (GZIP) -> Base64 -> ByteArrayOutputStream
+            baos  = new java.io.ByteArrayOutputStream();
+            b64os = new Base64.OutputStream( baos, ENCODE | options );
+            if( (options & GZIP) != 0 ){
+                // Gzip
+                gzos = new java.util.zip.GZIPOutputStream(b64os);
+                oos = new java.io.ObjectOutputStream( gzos );
+            } else {
+                // Not gzipped
+                oos = new java.io.ObjectOutputStream( b64os );
+            }
+            oos.writeObject( serializableObject );
+        }   // end try
+        catch( java.io.IOException e ) {
+            // Catch it and then throw it immediately so that
+            // the finally{} block is called for cleanup.
+            throw e;
+        }   // end catch
+        finally {
+            try {
+				if (oos != null) oos.close();
+			} finally {
+				try {
+					if (gzos != null) gzos.close();
+				} finally {
+					try {
+    					if (b64os != null) b64os.close();
+    				} finally {
+    					if (baos != null) baos.close();
+    				}
+				}
+			}
+        }   // end finally
+        
+        // Return value according to relevant encoding.
+        try {
+            return new String( baos.toByteArray(), PREFERRED_ENCODING );
+        }   // end try
+        catch (java.io.UnsupportedEncodingException uue){
+            // Fall back to some Java default
+            return new String( baos.toByteArray() );
+        }   // end catch
+        
+    }

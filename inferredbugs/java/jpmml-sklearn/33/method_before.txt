@@ -1,0 +1,34 @@
+ public void encodeFeatures(SkLearnEncoder encoder){
+		List<Object[]> steps = getFeatures();
+
+		for(int row = 0; row < steps.size(); row++){
+			Object[] step = steps.get(row);
+
+			List<String> ids = new ArrayList<>();
+			List<Feature> features = new ArrayList<>();
+
+			List<String> names = getNameList(step);
+			for(String name : names){
+				ids.add(name);
+
+				DataField dataField = encoder.createDataField(FieldName.create(name));
+
+				Feature feature = new WildcardFeature(encoder, dataField);
+
+				features.add(feature);
+			}
+
+			List<Transformer> transformers = getTransformerList(step);
+			for(int column = 0; column < transformers.size(); column++){
+				Transformer transformer = transformers.get(column);
+
+				for(Feature feature : features){
+					encoder.updateType(feature.getName(), transformer.getOpType(), transformer.getDataType());
+				}
+
+				features = transformer.encodeFeatures(ids, features, encoder);
+			}
+
+			encoder.addRow(ids, features);
+		}
+	}

@@ -1,0 +1,60 @@
+    protected static void extractDummies(Dataset data, Map<Object, Object> referenceLevels) {
+
+        Map<Object, Dataset.ColumnType> columnTypes = data.getColumns();
+        if(referenceLevels.isEmpty()) {
+            //Training Mode
+            
+            //find the referenceLevels for each categorical variable
+            for(Integer rId: data) {
+                Record r = data.get(rId);
+                for(Map.Entry<Object, Object> entry: r.getX().entrySet()) {
+                    Object column = entry.getKey();
+                    if(referenceLevels.containsKey(column)==false) { //already set?
+                        if(covert2dummy(columnTypes.get(column))==false) { 
+                            continue; //only ordinal and categorical are converted into dummyvars
+                        }
+                        Object value = entry.getValue();
+                        referenceLevels.put(column, value);
+                    }
+                }
+            }
+        }
+        
+        //Replace variables with dummy versions
+        for(Integer rId: data) {
+            Record r = data.get(rId);
+            
+            AssociativeArray xData = new AssociativeArray(r.getX());
+            
+            boolean modified = false;
+            for(Object column : r.getX().keySet()) {
+                if(covert2dummy(columnTypes.get(column))==false) { 
+                    continue;
+                }
+                Object value = xData.get(column);
+                
+                xData.remove(column); //remove the original column
+                modified = true;
+                
+                Object referenceLevel= referenceLevels.get(column);
+                
+                if(referenceLevel != null && //not unknown variable
+                   !referenceLevel.equals(value)) { //not equal to reference level
+                    
+                    //create a new column
+                    List<Object> newColumn = Arrays.<Object>asList(column,value);
+                    
+                    //add a new dummy variable for this column-value combination
+                    xData.put(newColumn, true); 
+                }
+            }
+            
+            if(modified) {
+                r = new Record(xData, r.getY(), r.getYPredicted(), r.getYPredictedProbabilities());
+                data.set(rId, r);
+            }
+        }
+        
+        //Reset Meta info
+        data.resetMeta();
+    }

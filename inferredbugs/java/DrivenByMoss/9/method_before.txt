@@ -1,0 +1,32 @@
+    protected void moveUp ()
+    {
+        // There is no device on the track move upwards to the track view
+        final CursorDeviceProxy cd = this.model.getCursorDevice ();
+        if (!cd.hasSelectedDevice ())
+        {
+            this.surface.getViewManager ().getActiveView ().executeTriggerCommand (Commands.COMMAND_TRACK, ButtonEvent.DOWN);
+            return;
+        }
+
+        // Parameter banks are shown -> show devices
+        final ModeManager modeManager = this.surface.getModeManager ();
+        final DeviceParamsMode deviceParamsMode = (DeviceParamsMode) modeManager.getMode (Modes.MODE_DEVICE_PARAMS);
+        if (!deviceParamsMode.isShowDevices ())
+        {
+            deviceParamsMode.setShowDevices (true);
+            return;
+        }
+
+        // Devices are shown, if nested show the layers otherwise move up to the tracks
+        if (cd.isNested ())
+        {
+            cd.selectParent ();
+            modeManager.setActiveMode (Modes.MODE_DEVICE_LAYER);
+            deviceParamsMode.setShowDevices (false);
+            cd.selectChannel ();
+            return;
+        }
+
+        // Move up to the track
+        this.surface.getViewManager ().getActiveView ().executeTriggerCommand (Commands.COMMAND_TRACK, ButtonEvent.DOWN);
+    }

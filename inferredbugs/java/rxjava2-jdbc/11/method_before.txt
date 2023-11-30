@@ -1,0 +1,40 @@
+    private void testHealthCheck(Predicate<Connection> healthy) throws InterruptedException {
+        TestScheduler scheduler = new TestScheduler();
+
+        NonBlockingConnectionPool2 pool = Pools //
+                .nonBlocking() //
+                .connectionProvider(DatabaseCreator.connectionProvider()) //
+                .maxIdleTime(10, TimeUnit.MINUTES) //
+                .idleTimeBeforeHealthCheck(0, TimeUnit.MINUTES) //
+                .healthy(healthy) //
+                .returnToPoolDelayAfterHealthCheckFailure(1, TimeUnit.MINUTES) //
+                .scheduler(scheduler) //
+                .maxPoolSize(1) //
+                .build();
+
+        try (Database db = Database.from(pool)) {
+            TestSubscriber<Integer> ts0 = db.select( //
+                    "select score from person where name=?") //
+                    .parameter("FRED") //
+                    .getAs(Integer.class) //
+                    .test();
+            ts0.assertValueCount(0) //
+                    .assertNotComplete();
+            scheduler.advanceTimeBy(1, TimeUnit.MINUTES);
+            ts0.assertValueCount(1) //
+                    .assertComplete();
+            TestSubscriber<Integer> ts = db.select( //
+                    "select score from person where name=?") //
+                    .parameter("FRED") //
+                    .getAs(Integer.class) //
+                    .test() //
+                    .assertValueCount(0);
+            System.out.println("done2");
+            scheduler.advanceTimeBy(1, TimeUnit.MINUTES);
+            Thread.sleep(200);
+            ts.assertValueCount(1);
+            Thread.sleep(200);
+            ts.assertValue(21) //
+                    .assertComplete();
+        }
+    }

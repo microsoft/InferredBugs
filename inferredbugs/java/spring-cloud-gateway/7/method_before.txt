@@ -1,0 +1,24 @@
+ @Override
+	public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
+		GatewayExchange exchange = GatewayExchange.fromPayload(REQUEST_CHANNEL, payload);
+		Tags tags = getTags(exchange);
+		Tags responderTags = tags.and("source", "responder");
+		return findRSocketOrCreatePending(exchange)
+				.flatMapMany(rSocket -> {
+					Tags requesterTags = tags.and("source", "requester");
+					Flux<Payload> flux = Flux.from(payloads)
+							.doOnNext(s -> count("forward.request.channel.payload", requesterTags))
+							.doOnError(t -> count("forward.request.channel.error", requesterTags))
+							.doFinally(s -> count("forward.request.channel", requesterTags));
+
+					if (rSocket instanceof ResponderRSocket) {
+						ResponderRSocket socket = (ResponderRSocket) rSocket;
+						return socket.requestChannel(payload, flux)
+								.log(GatewayRSocket.class.getName()+".request-channel", Level.FINE);
+					}
+					return rSocket.requestChannel(flux);
+				})
+				.doOnNext(s -> count("forward.request.channel.payload", responderTags))
+				.doOnError(t -> count("forward.request.channel.error", responderTags))
+				.doFinally(s -> count("forward.request.channel", responderTags));
+	}

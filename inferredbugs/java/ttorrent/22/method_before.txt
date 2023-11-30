@@ -1,0 +1,33 @@
+  private void createMultipleSeedersWithDifferentPieces(File baseFile, int piecesCount, int pieceSize, int numSeeders,
+                                                        List<Client> clientList) throws IOException, InterruptedException, NoSuchAlgorithmException, URISyntaxException {
+
+    List<byte[]> piecesList = new ArrayList<byte[]>(piecesCount);
+    FileInputStream fin = new FileInputStream(baseFile);
+    for (int i=0; i<piecesCount; i++){
+      byte[] piece = new byte[pieceSize];
+      fin.read(piece);
+      piecesList.add(piece);
+    }
+    fin.close();
+
+    final long torrentFileLength = baseFile.length();
+    Torrent torrent = Torrent.create(baseFile, null, this.tracker.getAnnounceURI(), null,  "Test", pieceSize);
+    File torrentFile = new File(baseFile.getParentFile(), baseFile.getName() + ".torrent");
+    torrent.save(torrentFile);
+
+
+    for (int i=0; i<numSeeders; i++){
+      final File baseDir = tempFiles.createTempDir();
+      final File seederPiecesFile = new File(baseDir, baseFile.getName());
+      RandomAccessFile raf = new RandomAccessFile(seederPiecesFile, "rw");
+      raf.setLength(torrentFileLength);
+      for (int pieceIdx=i; pieceIdx<piecesCount; pieceIdx += numSeeders){
+        raf.seek(pieceIdx*pieceSize);
+        raf.write(piecesList.get(pieceIdx));
+      }
+      Client client = createClient();
+      clientList.add(client);
+      client.addTorrent(new SharedTorrent(torrent, baseDir, false));
+      client.share();
+    }
+  }

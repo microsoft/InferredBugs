@@ -1,0 +1,47 @@
+    public static void readXml(String fname) throws CoreException {
+        printX("Loading "+fname+"\n");
+        resetErrors();
+        resetWarnings();
+
+        // close existing subtitleStream
+        if (subtitleStream != null) {
+            subtitleStream.close();
+        }
+
+
+        supXml = new SupXml(fname);
+        subtitleStream = supXml;
+
+        inMode = InputMode.XML;
+
+        // decode first frame
+        subtitleStream.decode(0);
+        subVobTrg = new SubPictureDVD();
+
+        // automatically set luminance thresholds for VobSub conversion
+        int maxLum = subtitleStream.getPalette().getY()[subtitleStream.getPrimaryColorIndex()] & 0xff;
+        int[] luminanceThreshold = new int[2];
+        configuration.setLuminanceThreshold(luminanceThreshold);
+        if (maxLum > 30) {
+            luminanceThreshold[0] = maxLum*2/3;
+            luminanceThreshold[1] = maxLum/3;
+        } else {
+            luminanceThreshold[0] = 210;
+            luminanceThreshold[1] = 160;
+        }
+
+        // find language idx
+        for (int i=0; i < LANGUAGES.length; i++) {
+            if (LANGUAGES[i][2].equalsIgnoreCase(supXml.getLanguage())) {
+                configuration.setLanguageIdx(i);
+                break;
+            }
+        }
+
+        // set frame rate
+        configuration.setFpsSrc(supXml.getFps());
+        configuration.setFpsSrcCertain(true);
+        if (Core.keepFps) {
+            configuration.setFpsTrg(configuration.getFPSSrc());
+        }
+    }

@@ -1,0 +1,28 @@
+    protected void configure(Map config, T instance) throws Exception {
+        final Set<Attribute> attributes = describe();
+
+        for (Attribute attribute : attributes) {
+            final String name = attribute.getName();
+            final Object sub = removeIgnoreCase(config, name);
+            if (sub != null) {
+                final Class k = attribute.getType();
+                final Configurator configurator = Configurator.lookup(k);
+                if (configurator == null) throw new IllegalStateException("No configurator implementation to manage "+k);
+                if (attribute.isMultiple()) {
+                    List values = new ArrayList<>();
+                    for (Object o : (List) sub) {
+                        Object value = configurator.configure(o);
+                        values.add(value);
+                    }
+                    attribute.setValue(instance, values);
+                } else {
+                    Object value = configurator.configure(sub);
+                    attribute.setValue(instance, value);
+                }
+            }
+        }
+        if (!config.isEmpty()) {
+            final String invalid = StringUtils.join(config.keySet(), ',');
+            throw new IllegalArgumentException("Invalid configuration elements for type " + instance.getClass() + " : " + invalid);
+        }
+    }

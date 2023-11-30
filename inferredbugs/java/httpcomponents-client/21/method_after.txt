@@ -1,0 +1,33 @@
+    public HttpResponse execute(HttpHost target, HttpRequest request, HttpContext context)
+            throws IOException {
+
+        // default response context
+        setResponseStatus(context, CacheResponseStatus.CACHE_MISS);
+
+        String via = generateViaHeader(request);
+        
+        if (clientRequestsOurOptions(request)) {
+            setResponseStatus(context, CacheResponseStatus.CACHE_MODULE_RESPONSE);
+            return new OptionsHttp11Response();
+        }
+
+        HttpResponse fatalErrorResponse = getFatallyNoncompliantResponse(
+                request, context);
+        if (fatalErrorResponse != null) return fatalErrorResponse;
+
+        request = requestCompliance.makeRequestCompliant(request);
+        request.addHeader("Via",via);
+
+        flushEntriesInvalidatedByRequest(target, request);
+
+        if (!cacheableRequestPolicy.isServableFromCache(request)) {
+            return callBackend(target, request, context);
+        }
+
+        HttpCacheEntry entry = satisfyFromCache(target, request);
+        if (entry == null) {
+            return handleCacheMiss(target, request, context);
+        }
+
+        return handleCacheHit(target, request, context, entry);
+    }

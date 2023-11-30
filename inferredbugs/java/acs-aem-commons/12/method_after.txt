@@ -1,0 +1,30 @@
+    @Override
+    protected final void doGet(final SlingHttpServletRequest request, final SlingHttpServletResponse response) throws
+            ServletException, IOException {
+
+        // Get the transform names from the suffix
+        final List<NamedImageTransformer> selectedNamedImageTransformers = getNamedImageTransformers(request);
+
+        // Collect and combine the image transformers and their params
+        final ValueMap imageTransformersWithParams = getImageTransformersWithParams(selectedNamedImageTransformers);
+
+        final Image image = this.resolveImage(request);
+        final String mimeType = this.getMimeType(request, image);
+        Layer layer = this.getLayer(image);
+        
+        if (layer == null) {
+            response.setStatus(SlingHttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        
+        // Transform the image
+        layer = this.transform(layer, imageTransformersWithParams);
+
+        // Get the quality
+        final double quality = this.getQuality(mimeType,
+                imageTransformersWithParams.get(TYPE_QUALITY, EMPTY_PARAMS));
+
+        response.setContentType(mimeType);
+        layer.write(mimeType, quality, response.getOutputStream());
+        response.flushBuffer();
+    }

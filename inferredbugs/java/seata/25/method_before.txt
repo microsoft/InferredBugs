@@ -1,0 +1,28 @@
+    public static void main(String[] args) throws InterruptedException, TimeoutException, ExecutionException {
+        ProtocolV1Client client = new ProtocolV1Client();
+        client.connect("127.0.0.1", 8811, 500);
+
+        Map<String, String> head = new HashMap<>();
+        head.put("tracerId", "xxadadadada");
+        head.put("token", "adadadad");
+
+        BranchCommitRequest body = new BranchCommitRequest();
+        body.setBranchId(12345L);
+        body.setApplicationData("application");
+        body.setBranchType(BranchType.AT);
+        body.setResourceId("resource-1234");
+        body.setXid("xid-1234");
+
+        RpcMessage rpcMessage = new RpcMessage();
+        rpcMessage.setId(client.idGenerator.incrementAndGet());
+        rpcMessage.setCodec(CodecType.SEATA.getCode());
+        rpcMessage.setCompressor(ProtocolConstants.CONFIGURED_COMPRESSOR);
+        rpcMessage.setHeadMap(head);
+        rpcMessage.setBody(body);
+        rpcMessage.setMessageType(ProtocolConstants.MSGTYPE_RESQUEST);
+
+        Future future = client.send(rpcMessage.getId(), rpcMessage);
+        RpcMessage resp = (RpcMessage) future.get(200, TimeUnit.SECONDS);
+
+        System.out.println(resp.getId() + " " + resp.getBody());
+    }

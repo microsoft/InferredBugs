@@ -1,0 +1,41 @@
+    protected static void denormalizeY(Dataset data, Map<Object, Double> minColumnValues, Map<Object, Double> maxColumnValues) {
+        
+        if(data.isEmpty()) {
+            return;
+        }
+        
+        TypeInference.DataType dataType = data.getYDataType();
+        if(dataType==TypeInference.DataType.NUMERICAL || dataType==null) {
+            
+            for(Integer rId : data) {
+                Record r = data.get(rId);
+                
+                //do the same for the response variable Y
+                Double min = minColumnValues.get(Dataset.yColumnName);
+                Double max = maxColumnValues.get(Dataset.yColumnName);
+                
+                Object denormalizedY = null;
+                Object denormalizedYPredicted = null;
+                if(min.equals(max)) {
+                    if(r.getY()!=null) {
+                        denormalizedY = min;
+                    }
+                    if(r.getYPredicted()!=null) {
+                        denormalizedYPredicted = min;
+                    }
+                }
+                else {
+                    if(r.getY()!=null) {
+                        denormalizedY = TypeInference.toDouble(r.getY())*(max-min) + min;
+                    }
+                    
+                    Double YPredicted = TypeInference.toDouble(r.getYPredicted());
+                    if(YPredicted!=null) {
+                        denormalizedYPredicted = YPredicted*(max-min) + min;
+                    }
+                }
+                
+                data.set(rId, new Record(r.getX(), denormalizedY, denormalizedYPredicted, r.getYPredictedProbabilities()));
+            }
+        }
+    }

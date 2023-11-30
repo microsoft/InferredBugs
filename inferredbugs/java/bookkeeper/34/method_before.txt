@@ -1,0 +1,55 @@
+    @Test
+    public void testMultiLedger() throws IOException {
+        try {
+            // Create a ledger
+            lh = bkc.createLedger(digestType, ledgerPassword);
+            lh2 = bkc.createLedger(digestType, ledgerPassword);
+
+            long ledgerId = lh.getId();
+            long ledgerId2 = lh2.getId();
+
+            // bkc.initMessageDigest("SHA1");
+            LOG.info("Ledger ID 1: " + lh.getId() + ", Ledger ID 2: " + lh2.getId());
+            for (int i = 0; i < numEntriesToWrite; i++) {
+                lh.addEntry(new byte[0]);
+                lh2.addEntry(new byte[0]);
+            }
+
+            lh.close();
+            lh2.close();
+
+            lh = bkc.openLedger(ledgerId, digestType, ledgerPassword);
+            lh2 = bkc.openLedger(ledgerId2, digestType, ledgerPassword);
+
+            LOG.debug("Number of entries written: " + lh.getLastAddConfirmed() + ", " + lh2.getLastAddConfirmed());
+            assertTrue("Verifying number of entries written lh (" + lh.getLastAddConfirmed() + ")", lh
+                       .getLastAddConfirmed() == (numEntriesToWrite - 1));
+            assertTrue("Verifying number of entries written lh2 (" + lh2.getLastAddConfirmed() + ")", lh2
+                       .getLastAddConfirmed() == (numEntriesToWrite - 1));
+
+            ls = lh.readEntries(0, numEntriesToWrite - 1);
+            int i = 0;
+            while (ls.hasMoreElements()) {
+                ByteBuffer result = ByteBuffer.wrap(ls.nextElement().getEntry());
+                LOG.debug("Length of result: " + result.capacity());
+
+                assertTrue("Checking if entry " + i + " has zero bytes", result.capacity() == 0);
+            }
+            lh.close();
+            ls = lh2.readEntries(0, numEntriesToWrite - 1);
+            i = 0;
+            while (ls.hasMoreElements()) {
+                ByteBuffer result = ByteBuffer.wrap(ls.nextElement().getEntry());
+                LOG.debug("Length of result: " + result.capacity());
+
+                assertTrue("Checking if entry " + i + " has zero bytes", result.capacity() == 0);
+            }
+            lh2.close();
+        } catch (BKException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to BookKeeper exception");
+        } catch (InterruptedException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to interruption");
+        }
+    }

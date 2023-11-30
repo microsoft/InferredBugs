@@ -1,0 +1,48 @@
+  @Override
+  protected int runWithJobId(final Namespace options, final HeliosClient client,
+                             final PrintStream out, final boolean json, final JobId jobId,
+                             final BufferedReader stdin)
+      throws ExecutionException, InterruptedException {
+    final List<String> hosts = options.getList(hostsArg.getDest());
+    final Deployment job = Deployment.of(jobId,
+                                         options.getBoolean(noStartArg.getDest()) ? STOP : START);
+
+    if (!json) {
+      out.printf("Deploying %s on %s%n", job, hosts);
+    }
+
+    int code = 0;
+
+    final HostResolver resolver = HostResolver.create(client);
+
+    final List<String> resolvedHosts = Lists.newArrayList();
+    for (final String candidateHost : hosts) {
+      final String host = resolver.resolveName(candidateHost);
+      resolvedHosts.add(host);
+      if (!json) {
+        out.printf("%s: ", host);
+      }
+      final String token = options.getString(tokenArg.getDest());
+      final JobDeployResponse result = client.deploy(job, host, token).get();
+      if (result.getStatus() == JobDeployResponse.Status.OK) {
+        if (!json) {
+          out.printf("done%n");
+        } else {
+          out.printf(result.toJsonString());
+        }
+      } else {
+        if (!json) {
+          out.printf("failed: %s%n", result);
+        } else {
+          out.printf(result.toJsonString());
+        }
+        code = 1;
+      }
+    }
+
+    if (code == 0 && options.getBoolean(watchArg.getDest())) {
+      JobWatchCommand.watchJobsOnHosts(out, true, resolvedHosts, ImmutableList.of(jobId),
+                                       options.getInt(intervalArg.getDest()), client);
+    }
+    return code;
+  }

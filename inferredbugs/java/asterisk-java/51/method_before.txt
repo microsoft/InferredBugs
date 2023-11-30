@@ -1,0 +1,140 @@
+    OriginateResult originate(final EndPoint local, final EndPoint target, final HashMap<String, String> myVars,
+            final CallerID callerID, final Integer timeout, final boolean hideCallerId, final String context)
+    {
+        OriginateBaseClass.logger.warn("originate called");
+        this.originateSeen = false;
+        this.channelSeen = false;
+
+        if (this.hungup)
+        {
+            // the monitored channel already hungup so just return false and
+            // shutdown
+            return null;
+        }
+
+        OriginateBaseClass.logger.warn("originate connection endPoint \n" + local + " to endPoint " + target //$NON-NLS-2$
+                + " vars " + myVars);
+        ManagerResponse response = null;
+
+        final AsteriskSettings settings = PBXFactory.getActiveProfile();
+
+        final OriginateAction originate = new OriginateAction();
+        this.originateID = originate.getActionId();
+
+        channelId = "" + (System.currentTimeMillis() / 1000) + ".AJ" + originateSeed.incrementAndGet();
+        originate.setChannelId(channelId);
+
+        Integer localTimeout = timeout;
+
+        if (timeout == null)
+        {
+            localTimeout = 30000;
+            try
+            {
+                localTimeout = settings.getDialTimeout() * 1000;
+            }
+            catch (final Exception e)
+            {
+                OriginateBaseClass.logger.error("Invalid dial timeout value");
+            }
+        }
+
+        // Whilst the originate document says that it takes a channel it
+        // actually takes an
+        // end point. I haven't check but I'm skeptical that you can actually
+        // originate to
+        // a channel as the doco talks about 'dialing the channel'. I suspect
+        // this
+        // may be part of asterisk's sloppy terminology.
+        if (local.isLocal())
+        {
+            originate.setEndPoint(local);
+            originate.setOption("/n");
+        }
+        else
+        {
+            originate.setEndPoint(local);
+        }
+
+        originate.setContext(context);
+        originate.setExten(target);
+        originate.setPriority(1);
+
+        // Set the caller id.
+        if (hideCallerId)
+        {
+            // hide callerID
+            originate.setCallingPres(32);
+        }
+        else
+        {
+            originate.setCallerId(callerID);
+        }
+
+        originate.setVariables(myVars);
+        originate.setAsync(true);
+        originate.setTimeout(localTimeout);
+
+        try
+        {
+            // Just add us as an asterisk event listener.
+            this.startListener();
+
+            response = pbx.sendAction(originate, localTimeout);
+            OriginateBaseClass.logger.warn("Originate.sendAction completed");
+            if (response.getResponse().compareToIgnoreCase("Success") != 0)
+            {
+                OriginateBaseClass.logger
+                        .error("Error Originating call" + originate.toString() + " : " + response.getMessage());//$NON-NLS-2$
+                throw new ManagerCommunicationException(response.getMessage(), null);
+            }
+
+            // wait the set timeout +1 second to allow for
+            // asterisk to start the originate
+            if (!originateLatch.await(localTimeout + 1000, TimeUnit.MILLISECONDS))
+            {
+                logger.error("Originate Latch timed out");
+            }
+        }
+        catch (final InterruptedException e)
+        {
+            OriginateBaseClass.logger.debug(e, e);
+        }
+        catch (final Exception e)
+        {
+            OriginateBaseClass.logger.error(e, e);
+        }
+        finally
+        {
+            this.close();
+        }
+
+        if (this.originateSuccess)
+        {
+            this.result.setSuccess(true);
+            this.result.setChannelData(this.newChannel);
+            OriginateBaseClass.logger.warn("new channel ok: " + this.newChannel);
+        }
+        else
+        {
+            OriginateBaseClass.logger.warn("originate failed to connect endPoint: " + local + " to ext " + target); //$NON-NLS-2$
+
+            if (this.newChannel != null)
+            {
+                try
+                {
+                    logger.warn("Hanging up");
+                    pbx.hangup(this.newChannel);
+                }
+                catch (IllegalArgumentException | IllegalStateException | PBXException e)
+                {
+                    logger.error(e, e);
+
+                }
+            }
+        }
+
+        logger.warn("Manager Events seen " + managerEventsSeen.get());
+
+        return this.result;
+    }

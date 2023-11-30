@@ -1,0 +1,25 @@
+    @Override
+    public PropertyReader getPropertyReader(final ClassInfo classInfo, String propertyName) {
+        if(propertyReaderCache.get(classInfo) == null) {
+            propertyReaderCache.put(classInfo, new HashMap<String, PropertyReader>());
+        }
+        PropertyReader reader =  propertyReaderCache.get(classInfo).get(propertyName);
+        if(reader != null) {
+            return reader;
+        }
+
+        MethodInfo getterInfo = classInfo.propertyGetter(propertyName);
+        PropertyReader propertyReader =  determinePropertyAccessor(classInfo, propertyName, getterInfo, new AccessorFactory<PropertyReader>() {
+            @Override
+            public PropertyReader makeMethodAccessor(MethodInfo methodInfo) {
+                return new MethodReader(classInfo, methodInfo);
+            }
+
+            @Override
+            public PropertyReader makeFieldAccessor(FieldInfo fieldInfo) {
+                return new FieldReader(classInfo, fieldInfo);
+            }
+        });
+        propertyReaderCache.get(classInfo).put(propertyName, propertyReader);
+        return propertyReader;
+    }

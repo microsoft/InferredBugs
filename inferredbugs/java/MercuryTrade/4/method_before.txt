@@ -1,0 +1,32 @@
+    private void loadConfigFile(){
+        JSONParser parser = new JSONParser();
+        try {
+            JSONObject root = (JSONObject) parser.parse(new FileReader(CONFIG_FILE));
+
+            JSONArray buttons = (JSONArray) root.get("buttons");
+            cachedButtonsConfig = new HashMap<>();
+            for (JSONObject next : (Iterable<JSONObject>) buttons) {
+                cachedButtonsConfig.put((String) next.get("title"), (String) next.get("value"));
+            }
+
+            JSONArray framesSetting = (JSONArray) root.get("framesSettings");
+            cachedFramesSettings = new HashMap<>();
+            for (JSONObject next : (Iterable<JSONObject>) framesSetting) {
+                JSONObject location = (JSONObject) next.get("location");
+                JSONObject size = (JSONObject) next.get("size");
+                FrameSettings settings = new FrameSettings(
+                        new Point(((Long)location.get("frameX")).intValue(), ((Long)location.get("frameY")).intValue()),
+                        new Dimension(((Long)size.get("width")).intValue(),((Long)size.get("height")).intValue())
+                );
+                cachedFramesSettings.put((String) next.get("frameClassName"), settings);
+            }
+            whisperNotifier = WhisperNotifierStatus.valueOf((String)root.get("whisperNotifier"));
+            decayTime = ((Long)root.get("decayTime")).intValue();
+            minOpacity = ((Long)root.get("minOpacity")).intValue();
+            maxOpacity = ((Long)root.get("maxOpacity")).intValue();
+            showOnStartUp = (boolean) root.get("showOnStartUp");
+            showPatchNotes = (boolean) root.get("showPatchNotes");
+        } catch (Exception e) {
+            logger.error("Error in loadConfigFile: ",e);
+        }
+    }

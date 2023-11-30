@@ -1,0 +1,23 @@
+ protected void state4ENTITY() throws ProtocolException {
+		boolean done = skip(CR, LF);
+		if (!done) { 
+			return; 
+		}
+		
+		// content length
+		if (httpMessage.getFirstHeader(HttpHeaderType.CONTENT_LENGTH.getName()) != null) {
+			entity = new HttpEntity();
+			entity.setContentType(getContentType(httpMessage));
+			state = ENTITY_LENGTH;
+		}
+		// chunked
+		else if (TRANSFER_ENCODING_CHUNKED.equals(httpMessage.getFirstHeader(HttpHeaderType.TRANSFER_ENCODING.getName()).getValue())) {
+			entity = new HttpChunkEntity();
+			entity.setContentType(getContentType(httpMessage));
+			state = ENTITY_CHUNKED_SIZE;
+		}
+		// no entity
+		else {
+			state = END;
+		}
+	}

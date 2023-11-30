@@ -1,0 +1,71 @@
+    private void filmStartenWiederholenStoppen(boolean alle, boolean starten /* starten/wiederstarten oder stoppen */) {
+        // bezieht sich immer auf "alle" oder nur die markierten
+        // Film der noch keinen Starts hat wird gestartet
+        // Film dessen Start schon auf fertig/fehler steht wird wieder gestartet
+        // bei !starten wird der Film gestoppt
+        String[] urls;
+        // ==========================
+        // erst mal die URLs sammeln
+        if (alle) {
+            urls = new String[tabelle.getRowCount()];
+            for (int i = 0; i < tabelle.getRowCount(); ++i) {
+                urls[i] = tabelle.getModel().getValueAt(i, DatenDownload.DOWNLOAD_URL_NR).toString();
+            }
+        } else {
+            int[] rows = tabelle.getSelectedRows();
+            urls = new String[rows.length];
+            if (rows.length >= 0) {
+                for (int i = 0; i < rows.length; i++) {
+                    int row = tabelle.convertRowIndexToModel(rows[i]);
+                    urls[i] = tabelle.getModel().getValueAt(row, DatenDownload.DOWNLOAD_URL_NR).toString();
+                }
+            } else {
+                new HinweisKeineAuswahl().zeigen(parentComponent);
+            }
+        }
+        // ========================
+        // und jetzt abarbeiten
+        for (String url : urls) {
+            Start s = ddaten.starterClass.getStart(url);
+            DatenDownload download = ddaten.listeDownloads.getDownloadByUrl(url);
+            if (starten) {
+                // --------------
+                // starten
+                if (s != null) {
+                    if (s.status > Start.STATUS_RUN) {
+                        // wenn er noch läuft gibts nix
+                        // wenn er schon fertig ist, erst mal fragen vor dem erneuten Starten
+                        int a = JOptionPane.showConfirmDialog(parentComponent, "Film nochmal starten?  ==> " + s.datenDownload.arr[DatenDownload.DOWNLOAD_TITEL_NR], "Fertiger Download", JOptionPane.YES_NO_OPTION);
+                        if (a != JOptionPane.YES_OPTION) {
+                            // weiter mit der nächsten URL
+                            continue;
+                        }
+                        ddaten.starterClass.filmLoeschen(url);
+                        if (s.datenDownload.istAbo()) {
+                            // bei Abos Url auch aus dem Logfile löschen, der Film ist damit wieder auf "Anfang"
+                            ddaten.erledigteAbos.urlAusLogfileLoeschen(url);
+
+                        }
+                    }
+                }
+                // jetzt noch starten/wiederstarten
+                // Start erstellen und zur Liste hinzufügen
+                download.starten(ddaten);
+            } else {
+                // ---------------
+                // stoppen
+                if (s != null) {
+                    // wenn kein s -> dann gibts auch nichts zum stoppen oder wieder-starten
+                    if (s.status <= Start.STATUS_RUN) {
+                        // löschen -> nur wenn noch läuft, sonst gibts nichts mehr zum löschen
+                        ddaten.starterClass.filmLoeschen(url);
+                        if (s.datenDownload.istAbo()) {
+                            // bei Abos Url auch aus dem Logfile löschen, der Film ist damit wieder auf "Anfang"
+                            ddaten.erledigteAbos.urlAusLogfileLoeschen(url);
+                        }
+                    }
+                    download.startMelden(DatenDownload.PROGRESS_NICHT_GESTARTET);
+                }
+            }
+        }
+    }

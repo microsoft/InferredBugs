@@ -1,0 +1,18 @@
+    private void advanceCommitIndex(RaftMessage.AppendEntriesRequest request) {
+        long newCommitIndex = Math.min(request.getCommitIndex(),
+                request.getPrevLogIndex() + request.getEntriesCount());
+        raftNode.setCommitIndex(newCommitIndex);
+        if (raftNode.getLastAppliedIndex() < raftNode.getCommitIndex()) {
+            // apply state machine
+            for (long index = raftNode.getLastAppliedIndex() + 1;
+                 index <= raftNode.getCommitIndex(); index++) {
+                RaftMessage.LogEntry entry = raftNode.getRaftLog().getEntry(index);
+                if (entry.getType() == RaftMessage.EntryType.ENTRY_TYPE_DATA) {
+                    raftNode.getStateMachine().apply(entry.getData().toByteArray());
+                } else if (entry.getType() == RaftMessage.EntryType.ENTRY_TYPE_CONFIGURATION) {
+                    raftNode.applyConfiguration(entry);
+                }
+                raftNode.setLastAppliedIndex(index);
+            }
+        }
+    }

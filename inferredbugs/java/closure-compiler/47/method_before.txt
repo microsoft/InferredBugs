@@ -1,0 +1,51 @@
+  private void initEdgeEnvsFwd() {
+    // TODO(user): Revisit what we throw away after the bwd analysis
+    DiGraphNode<Node, ControlFlowGraph.Branch> entry = cfg.getEntry();
+    DiGraphEdge<Node, ControlFlowGraph.Branch> entryOutEdge =
+        cfg.getOutEdges(entry.getValue()).get(0);
+    TypeEnv entryEnv = envs.get(entryOutEdge);
+    initEdgeEnvs(new TypeEnv());
+
+    // For function scopes, add the formal parameters and the free variables
+    // from outer scopes to the environment.
+    if (currentScope.isFunction()) {
+      Set<String> formalsAndOuters = currentScope.getOuterVars();
+      formalsAndOuters.addAll(currentScope.getFormals());
+      if (currentScope.hasThis()) {
+        formalsAndOuters.add("this");
+      }
+      for (String name : formalsAndOuters) {
+        JSType declType = currentScope.getDeclaredTypeOf(name);
+        JSType initType;
+        if (declType == null) {
+          initType = envGetType(entryEnv, name);
+        } else if (declType.getFunTypeIfSingletonObj() != null &&
+            declType.getFunTypeIfSingletonObj().isConstructor()) {
+          initType =
+              declType.getFunTypeIfSingletonObj().createConstructorObject();
+        } else {
+          initType = declType;
+        }
+        entryEnv = envPutType(entryEnv, name, initType.withLocation(name));
+      }
+      entryEnv = envPutType(entryEnv, RETVAL_ID, JSType.UNDEFINED);
+    }
+
+    // For all scopes, add local variables and (local) function definitions
+    // to the environment.
+    for (String local : currentScope.getLocals()) {
+      entryEnv = envPutType(entryEnv, local, JSType.UNDEFINED);
+    }
+    for (String fnName : currentScope.getLocalFunDefs()) {
+      JSType summaryType = summaries.get(currentScope.getScope(fnName));
+      FunctionType fnType = summaryType.getFunType();
+      if (fnType.isConstructor()) {
+        summaryType = fnType.createConstructorObject();
+      } else {
+        summaryType = summaryType.withProperty("prototype", JSType.TOP_OBJECT);
+      }
+      entryEnv = envPutType(entryEnv, fnName, summaryType);
+    }
+    println("Keeping env: ", entryEnv);
+    envs.put(entryOutEdge, entryEnv);
+  }

@@ -1,0 +1,36 @@
+    void readCharacterProperty(String charDef) throws IOException {
+        try (InputStream input = (charDef == null) ? openFromJar("char.def") : new FileInputStream(charDef);
+                InputStreamReader isReader = new InputStreamReader(input, StandardCharsets.UTF_8);
+                LineNumberReader reader = new LineNumberReader(isReader)) {
+            while (true) {
+                String line = reader.readLine();
+                if (line == null) {
+                    break;
+                }
+                if (line.matches("\\s*") || line.startsWith("#")) {
+                    continue;
+                }
+                String[] cols = line.split("\\s+");
+                if (cols.length < 2) {
+                    throw new IllegalArgumentException("invalid format at line " + reader.getLineNumber());
+                }
+                if (cols[0].startsWith("0x")) {
+                    continue;
+                }
+                CategoryType type = CategoryType.valueOf(cols[0]);
+                if (type == null) {
+                    throw new IllegalArgumentException(cols[0] + " is invalid type at line " + reader.getLineNumber());
+                }
+                if (categories.containsKey(type)) {
+                    throw new IllegalArgumentException(
+                            cols[0] + " is already defined at line " + reader.getLineNumber());
+                }
+                CategoryInfo info = new CategoryInfo();
+                info.type = type;
+                info.isInvoke = (!cols[1].equals("0"));
+                info.isGroup = (!cols[2].equals("0"));
+                info.length = Integer.parseInt(cols[3]);
+                categories.put(type, info);
+            }
+        }
+    }

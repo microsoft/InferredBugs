@@ -1,0 +1,225 @@
+    void run_sequence_search(int solveKind, SimpleNode kind, SearchItem si) {
+
+        singleSearch = false;
+	//kind.dump("");
+	
+        this.si = si;
+
+        if (options.getVerbose()) {
+            String solve = "notKnown";
+            switch (solveKind) {
+                case 0:
+                    solve = "%% satisfy";
+                    break; // satisfy
+                case 1:
+                    Var costMin = (getCost((ASTSolveExpr) kind.jjtGetChild(0)) != null) ?
+                        getCost((ASTSolveExpr) kind.jjtGetChild(0)) :
+                        getCostFloat((ASTSolveExpr) kind.jjtGetChild(0));
+                    solve = "%% minimize(" + costMin + ") ";
+		    minimize = true;
+                    break; // minimize
+
+                case 2:
+                    Var costMax = (getCost((ASTSolveExpr) kind.jjtGetChild(0)) != null) ?
+                        getCost((ASTSolveExpr) kind.jjtGetChild(0)) :
+                        getCostFloat((ASTSolveExpr) kind.jjtGetChild(0));
+                    solve = "%% maximize(" + costMax + ") ";
+                    break; // maximize
+                default:
+                    throw new RuntimeException("Internal error in " + getClass().getName());
+            }
+            System.out.println(solve + " : " + si);
+        }
+
+        DepthFirstSearch<Var> masterLabel = null;
+        DepthFirstSearch<Var> last_search = null;
+        SelectChoicePoint<Var> masterSelect = null;
+        list_seq_searches = new ArrayList<Search<Var>>();
+
+        for (int i = 0; i < si.getSearchItems().size(); i++) {
+            if (i == 0) { // master search
+                masterLabel = sub_search(si.getSearchItems().get(i), masterLabel, true);
+                last_search = getLastSearch(masterLabel);
+                masterSelect = variable_selection;
+                if (!print_search_info)
+                    masterLabel.setPrintInfo(false);
+            } else {
+                DepthFirstSearch<Var> label = sub_search(si.getSearchItems().get(i), last_search, false);
+                last_search.addChildSearch(label);
+                last_search = getLastSearch(label);
+                if (!print_search_info)
+                    last_search.setPrintInfo(false);
+            }
+        }
+
+        DepthFirstSearch<Var>[] complementary_search = setSubSearchForAll(last_search, options);
+        for (DepthFirstSearch<Var> aComplementary_search : complementary_search) {
+            if (aComplementary_search != null) {
+                list_seq_searches.add(aComplementary_search);
+                if (!print_search_info)
+                    aComplementary_search.setPrintInfo(false);
+            }
+        }
+
+        Result = false;
+        Var cost = null;
+        Var max_cost = null;
+        optimization = false;
+
+        final_search_seq = list_seq_searches.get(list_seq_searches.size() - 1);
+
+	long currentTime = timer.getCPUTime();
+	initTime = currentTime - startCPU;
+        startCPU = currentTime;
+
+        int to = options.getTimeOut();
+        if (to > 0)
+            for (Search s : list_seq_searches)
+                s.setTimeOutMilliseconds(to);
+
+        int ns = options.getNumberSolutions();
+        if (si.exploration() == null || si.exploration().equals("complete"))
+            switch (solveKind) {
+                case 0: // satisfy
+
+                    FloatDomain.intervalPrint(options.getInterval()); // print intervals for float variables
+
+                    if (options.getAll()) { // all solutions
+			if (restartCalculator != null)
+			    throw new IllegalArgumentException("Flatzinc option for search for all solutions (-a) cannot be used in restart search.");
+
+                        for (int i = 0; i < si.getSearchItems().size(); i++) {  //list_seq_searches.size(); i++) {
+                            list_seq_searches.get(i).getSolutionListener().searchAll(true);
+                            list_seq_searches.get(i).getSolutionListener().recordSolutions(false);
+                            if (ns > 0)
+                                list_seq_searches.get(i).getSolutionListener().setSolutionLimit(ns);
+                        }
+                    }
+
+                    if (options.runSearch())
+			if (restartCalculator != null) {
+			    label = masterLabel;
+			    rs = new RestartSearch<>(store, masterLabel, masterSelect, restartCalculator);
+			    Result = rs.labeling();
+			}
+			else {
+			    label = masterLabel;
+			    Result = masterLabel.labeling(store, masterSelect);
+			}
+                    else {
+                        // storing flatiznc defined search
+                        flatzincDFS = masterLabel;
+                        flatzincVariableSelection = masterSelect;
+                        flatzincCost = null;
+                        return;
+                    }
+
+                    break;
+
+                case 1: // minimize
+                    optimization = true;
+
+                    FloatDomain.intervalPrint(options.getInterval()); // print intervals for float variables
+
+                    cost = getCost((ASTSolveExpr) kind.jjtGetChild(0));
+                    if (cost != null)
+                        costVariable = cost;
+                    else {
+                        cost = getCostFloat((ASTSolveExpr) kind.jjtGetChild(0));
+                        costVariable = cost;
+                   }
+
+                    // Result = restart_search(masterLabel, masterSelect, cost, true);
+
+                    for (Search<Var> list_seq_searche : list_seq_searches)
+                        list_seq_searche.setOptimize(true);
+
+                    if (ns > 0) {
+                        for (int i = 0; i < list_seq_searches.size() - 1; i++) {
+                            ((DepthFirstSearch) list_seq_searches.get(i)).respectSolutionListenerAdvice = true;
+			    ((DepthFirstSearch) list_seq_searches.get(i)).getSolutionListener().setSolutionLimit(ns);
+			}
+			final_search_seq.getSolutionListener().setSolutionLimit(ns);
+                        ((DepthFirstSearch) final_search_seq).respectSolutionListenerAdvice = true;
+                    }
+
+                    if (options.runSearch())
+			if (restartCalculator != null) {
+			    label = masterLabel;
+			    rs = new RestartSearch<>(store, masterLabel, masterSelect, restartCalculator, cost);
+			    Result = rs.labeling();
+			}
+			else {
+			    label = masterLabel;
+			    Result = masterLabel.labeling(store, masterSelect, cost);
+			}
+                    else {
+                        // storing flatiznc defined search
+                        flatzincDFS = masterLabel;
+                        flatzincVariableSelection = masterSelect;
+                        flatzincCost = cost;
+                        return;
+                    }
+
+                    break;
+                case 2: //maximize
+                    optimization = true;
+                    // cost = getCost((ASTSolveExpr)kind.jjtGetChild(0));
+
+                    FloatDomain.intervalPrint(options.getInterval()); // print intervals for float variables
+
+                    cost = getCost((ASTSolveExpr) kind.jjtGetChild(0));
+                    if (cost != null) { // maximize
+                        max_cost = new IntVar(store, "-" + cost.id(), IntDomain.MinInt, IntDomain.MaxInt);
+                        pose(new XplusYeqC((IntVar) max_cost, (IntVar) cost, 0));
+                        costVariable = max_cost;
+                    } else {
+                        cost = getCostFloat((ASTSolveExpr) kind.jjtGetChild(0));
+                        max_cost = new FloatVar(store, "-" + cost.id(), VariablesParameters.MIN_FLOAT, VariablesParameters.MAX_FLOAT);
+                        pose(new PplusQeqR((FloatVar) max_cost, (FloatVar) cost, new FloatVar(store, 0.0, 0.0)));
+                        costVariable = max_cost;
+                    }
+
+                    // Result = restart_search(masterLabel, masterSelect, cost, false);
+
+                    for (Search<Var> list_seq_searche : list_seq_searches)
+                        list_seq_searche.setOptimize(true);
+
+                    if (ns > 0) {
+                        for (int i = 0; i < list_seq_searches.size() - 1; i++)
+                            ((DepthFirstSearch) list_seq_searches.get(i)).respectSolutionListenerAdvice = true;
+                        final_search_seq.getSolutionListener().setSolutionLimit(ns);
+                        ((DepthFirstSearch) final_search_seq).respectSolutionListenerAdvice = true;
+                    }
+
+                    if (options.runSearch())
+			if (restartCalculator != null) {
+			    label = masterLabel;
+			    rs = new RestartSearch<>(store, masterLabel, masterSelect, restartCalculator, max_cost);
+			    Result = rs.labeling();
+			}
+			else {
+			    label = masterLabel;
+			    Result = masterLabel.labeling(store, masterSelect, max_cost);
+			}
+                    else {
+                        // storing flatiznc defined search
+                        flatzincDFS = masterLabel;
+                        flatzincVariableSelection = masterSelect;
+                        flatzincCost = max_cost;
+                        return;
+                    }
+
+                    break;
+            }
+        else {
+            throw new IllegalArgumentException(
+                "Not recognized or supported " + si.exploration() + " search explorarion strategy ; compilation aborted");
+        }
+
+        if (!options.getAll() && lastSolution != null)
+            helperSolutionPrinter(lastSolution.toString());
+
+        printStatisticsForSeqSearch(false, Result);
+
+    }

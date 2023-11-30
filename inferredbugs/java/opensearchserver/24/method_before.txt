@@ -1,0 +1,42 @@
+ public void run(ResultScoreDoc[] fetchedDocs, int fetchLength)
+			throws IOException {
+
+		collapsedDoc = null;
+
+		if (fetchedDocs == null)
+			return;
+
+		if (fetchLength > fetchedDocs.length)
+			fetchLength = fetchedDocs.length;
+
+		OpenBitSet collapsedSet = new OpenBitSet(fetchLength);
+
+		String lastTerm = null;
+		int adjacent = 0;
+		collapsedDocCount = 0;
+		for (int i = 0; i < fetchLength; i++) {
+			String term = fetchedDocs[i].collapseTerm;
+			if (term != null && term.equals(lastTerm)) {
+				if (++adjacent >= collapseMax)
+					collapsedSet.set(i);
+			} else {
+				lastTerm = term;
+				adjacent = 0;
+			}
+		}
+		collapsedDocCount = (int) collapsedSet.cardinality();
+
+		collapsedDoc = new ResultScoreDoc[fetchLength - collapsedDocCount];
+
+		int currentPos = 0;
+		ResultScoreDoc collapseDoc = null;
+		for (int i = 0; i < fetchLength; i++) {
+			if (!collapsedSet.get(i)) {
+				collapseDoc = fetchedDocs[i];
+				collapseDoc.collapseCount = 0;
+				collapsedDoc[currentPos++] = collapseDoc;
+			} else {
+				collapseDoc.collapseCount++;
+			}
+		}
+	}

@@ -1,0 +1,61 @@
+    private void useLatestSnapshots( ModifiedPomXMLEventReader pom, Collection dependencies )
+        throws XMLStreamException, MojoExecutionException, ArtifactMetadataRetrievalException
+    {
+        int segment = determineUnchangedSegment(allowMajorUpdates, allowMinorUpdates,
+                allowIncrementalUpdates);
+
+        Iterator i = dependencies.iterator();
+
+        while ( i.hasNext() )
+        {
+            Dependency dep = (Dependency) i.next();
+
+            if ( isExcludeReactor() && isProducedByReactor( dep ) )
+            {
+                getLog().info( "Ignoring reactor dependency: " + toString( dep ) );
+                continue;
+            }
+
+            String version = dep.getVersion();
+            Matcher versionMatcher = matchSnapshotRegex.matcher( version );
+            if ( !versionMatcher.matches() )
+            {
+                getLog().debug( "Looking for latest snapshot of " + toString( dep ) );
+                Artifact artifact = this.toArtifact( dep );
+                if ( !isIncluded( artifact ) )
+                {
+                    continue;
+                }
+
+                ArtifactVersions versions = getHelper().lookupArtifactVersions( artifact, false );
+                final VersionComparator versionComparator = versions.getVersionComparator();
+                final DefaultArtifactVersion lowerBound = new DefaultArtifactVersion( version );
+                if ( segment + 1 > versionComparator.getSegmentCount( lowerBound ) )
+                {
+                    getLog().info( "Ignoring " + toString( dep ) + " as the version number is too short" );
+                    continue;
+                }
+                ArtifactVersion upperBound = segment >= 0 ? versionComparator.incrementSegment( lowerBound, segment ) : null;
+                getLog().info("Upper bound: " + ( upperBound == null ? "none" : upperBound.toString() ) );
+                ArtifactVersion[] newer = versions.getVersions( lowerBound, upperBound, true, false, false );
+                getLog().debug( "Candidate versions " + Arrays.asList(newer));
+                String latestVersion = null;
+                for ( int j = 0; j < newer.length; j++ )
+                {
+                    String newVersion = newer[j].toString();
+                    if ( matchSnapshotRegex.matcher( newVersion ).matches() )
+                    {
+                        latestVersion = newVersion;
+                    }
+                }
+                if ( latestVersion != null )
+                {
+                    if ( PomHelper.setDependencyVersion( pom, dep.getGroupId(), dep.getArtifactId(), version,
+                                                         latestVersion ) )
+                    {
+                        getLog().info( "Updated " + toString( dep ) + " to version " + latestVersion );
+                    }
+                }
+            }
+        }
+    }

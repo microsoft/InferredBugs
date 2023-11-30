@@ -1,0 +1,29 @@
+    public List<ColumnInfo> getMetaData(String tableName) throws SQLException {
+        // 获取主键
+        ResultSet keyResultSet = connection.getMetaData().getPrimaryKeys(null, null, tableName);
+        String primaryKey = null;
+        if (keyResultSet.next()) {
+            primaryKey = keyResultSet.getObject(4).toString();
+        }
+        // 获取表注释
+        ResultSet tableResultSet = connection.getMetaData().getTables(null, connection.getSchema(), tableName.toUpperCase(), new String[]{"TABLE"});
+        String tableRemarks = null;
+        if (tableResultSet.next()) {
+            tableRemarks = tableResultSet.getString("REMARKS") == null ? "Unknown Table" : tableResultSet.getString("REMARKS");
+        }
+        // 获取列信息
+        List<ColumnInfo> columnInfos = new ArrayList<>();
+        ResultSet columnResultSet = connection.getMetaData().getColumns(null, connection.getSchema(), tableName.toUpperCase(), "%");
+        while (columnResultSet.next()) {
+            boolean isPrimaryKey;
+            if (columnResultSet.getString("COLUMN_NAME").equals(primaryKey)) {
+                isPrimaryKey = true;
+            } else {
+                isPrimaryKey = false;
+            }
+            ColumnInfo info = new ColumnInfo(columnResultSet.getString("COLUMN_NAME"), columnResultSet.getString("TYPE_NAME"), columnResultSet.getString("REMARKS"), tableRemarks, isPrimaryKey);
+            columnInfos.add(info);
+        }
+        columnResultSet.close();
+        return columnInfos;
+    }

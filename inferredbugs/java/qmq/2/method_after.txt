@@ -1,0 +1,48 @@
+    private void register(final DynamicConfig config) {
+        BrokerRole role = BrokerConfig.getBrokerRole();
+        if(role != BrokerRole.BACKUP) throw new RuntimeException("Only support backup");
+
+        final SlaveSyncClient slaveSyncClient = new SlaveSyncClient(config);
+        final MasterSlaveSyncManager masterSlaveSyncManager = new MasterSlaveSyncManager(slaveSyncClient);
+
+        StorageConfig storageConfig = dummyConfig(config);
+        final CheckpointManager checkpointManager = new CheckpointManager(BrokerConfig.getBrokerRole(), storageConfig, null);
+
+        final FixedExecOrderEventBus bus = new FixedExecOrderEventBus();
+        final BackupKeyGenerator keyGenerator = new BackupKeyGenerator(dicService);
+        final KvStore.StoreFactory factory = new FactoryStoreImpl().createStoreFactory(config, dicService, keyGenerator);
+        this.indexStore = factory.createMessageIndexStore();
+        this.recordStore = factory.createRecordStore();
+        this.deadMessageStore = factory.createDeadMessageStore();
+        IndexLog log = new IndexLog(storageConfig, checkpointManager);
+        final IndexLogSyncDispatcher dispatcher = new IndexLogSyncDispatcher(log);
+
+        FixedExecOrderEventBus.Listener<MessageQueryIndex> indexProcessor = getConstructIndexListener(keyGenerator
+                , messageQueryIndex -> log.commit(messageQueryIndex.getCurrentOffset()));
+        bus.subscribe(MessageQueryIndex.class, indexProcessor);
+        masterSlaveSyncManager.registerProcessor(dispatcher.getSyncType(), new BackupMessageLogSyncProcessor(dispatcher));
+
+        // action
+        final RocksDBStore rocksDBStore = new RocksDBStoreImpl(config);
+        final BatchBackup<ActionRecord> recordBackup = new RecordBatchBackup(this.config, keyGenerator, rocksDBStore, recordStore);
+        backupManager.registerBatchBackup(recordBackup);
+        final SyncLogIterator<Action, ByteBuf> actionIterator = new ActionSyncLogIterator();
+        BackupActionLogSyncProcessor actionLogSyncProcessor = new BackupActionLogSyncProcessor(checkpointManager, config, actionIterator, recordBackup);
+        masterSlaveSyncManager.registerProcessor(SyncType.action, actionLogSyncProcessor);
+
+        scheduleFlushManager.register(actionLogSyncProcessor);
+
+        masterSlaveSyncManager.registerProcessor(SyncType.heartbeat, new HeartBeatProcessor(checkpointManager));
+
+        LogIterateService<MessageQueryIndex> iterateService = new LogIterateService<>("index", new StorageConfigImpl(config), log, checkpointManager.getIndexIterateCheckpoint(), bus);
+        IndexFileStore indexFileStore = new IndexFileStore(log, config);
+        scheduleFlushManager.register(indexFileStore);
+
+        messageService = new MessageServiceImpl(config, indexStore, deadMessageStore, recordStore);
+
+        scheduleFlushManager.scheduleFlush();
+        backupManager.start();
+        iterateService.start();
+        masterSlaveSyncManager.startSync();
+        addResourcesInOrder(scheduleFlushManager, backupManager, masterSlaveSyncManager);
+    }

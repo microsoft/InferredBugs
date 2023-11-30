@@ -1,0 +1,38 @@
+    public static byte[] decompressModifiedHuffman(final byte[] compressed,
+            final int width, final int height) throws ImageReadException {
+        final BitInputStreamFlexible inputStream = new BitInputStreamFlexible(
+                new ByteArrayInputStream(compressed));
+        BitArrayOutputStream outputStream = null;
+        boolean canThrow = false;
+        try {
+            outputStream = new BitArrayOutputStream();
+            for (int y = 0; y < height; y++) {
+                int color = WHITE;
+                int rowLength;
+                for (rowLength = 0; rowLength < width;) {
+                    final int runLength = readTotalRunLength(inputStream, color);
+                    for (int i = 0; i < runLength; i++) {
+                        outputStream.writeBit(color);
+                    }
+                    color = 1 - color;
+                    rowLength += runLength;
+                }
+    
+                if (rowLength == width) {
+                    inputStream.flushCache();
+                    outputStream.flush();
+                } else if (rowLength > width) {
+                    throw new ImageReadException("Unrecoverable row length error in image row " + y);
+                }
+            }
+            final byte[] ret = outputStream.toByteArray();
+            canThrow = true;
+            return ret;
+        } finally {
+            try {
+                IoUtils.closeQuietly(canThrow, outputStream);
+            } catch (final IOException ioException) {
+                throw new ImageReadException("I/O error", ioException);
+            }
+        }
+    }

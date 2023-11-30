@@ -1,0 +1,127 @@
+    @Override
+    public Object execute() {
+        boolean lockRemoved = false;
+
+        try {
+            // Configure command before execution
+            introspector.getHystrixProperties()
+                    .entrySet()
+                    .forEach(entry -> setProperty(entry.getKey(), entry.getValue()));
+
+            // Get lock and check breaker delay
+            if (introspector.hasCircuitBreaker()) {
+                breakerHelper.lock();       // acquire exclusive access to command data
+
+                // OPEN_MP -> HALF_OPEN_MP
+                if (breakerHelper.getState() == State.OPEN_MP) {
+                    long delayNanos = TimeUtil.convertToNanos(introspector.getCircuitBreaker().delay(),
+                            introspector.getCircuitBreaker().delayUnit());
+                    if (breakerHelper.getCurrentStateNanos() > delayNanos) {
+                        breakerHelper.setState(State.HALF_OPEN_MP);
+                    }
+                }
+                logCircuitBreakerState("Enter");
+            }
+
+            // Record state of breaker
+            boolean wasBreakerOpen = isCircuitBreakerOpen();
+
+            // Track invocation in a bulkhead
+            if (introspector.hasBulkhead()) {
+                bulkheadHelper.trackInvocation(this);
+            }
+
+            // Execute command
+            Object result = null;
+            Throwable throwable = null;
+            long startNanos = System.nanoTime();
+            try {
+                result = super.execute();
+            } catch (Throwable t) {
+                throwable = t;
+            }
+
+            executionTime = System.nanoTime() - startNanos;
+            boolean hasFailed = (throwable != null);
+
+            if (introspector.hasCircuitBreaker()) {
+                // Keep track of failure ratios
+                breakerHelper.pushResult(throwable == null);
+
+                // Query breaker states
+                boolean breakerOpening = false;
+                boolean isClosedNow = !wasBreakerOpen;
+
+                /*
+                 * Special logic for MP circuit breakers to support failOn. If not a
+                 * throwable to fail on, restore underlying breaker and return.
+                 */
+                if (hasFailed) {
+                    final Throwable throwableFinal = throwable;
+                    Class<? extends Throwable>[] throwableClasses = introspector.getCircuitBreaker().failOn();
+                    boolean failOn = Arrays.asList(throwableClasses)
+                            .stream()
+                            .anyMatch(c -> c.isAssignableFrom(throwableFinal.getClass()));
+                    if (!failOn) {
+                        updateMetricsAfter(throwable, wasBreakerOpen, isClosedNow, breakerOpening);
+                        logCircuitBreakerState("Exit 1");
+                        throw ExceptionUtil.toWrappedException(throwable);
+                    }
+                }
+
+                // CLOSED_MP -> OPEN_MP
+                if (breakerHelper.getState() == State.CLOSED_MP) {
+                    double failureRatio = breakerHelper.getFailureRatio();
+                    if (failureRatio >= introspector.getCircuitBreaker().failureRatio()) {
+                        breakerHelper.setState(State.OPEN_MP);
+                        breakerOpening = true;
+                    }
+                }
+
+                // HALF_OPEN_MP -> OPEN_MP
+                if (hasFailed) {
+                    if (breakerHelper.getState() == State.HALF_OPEN_MP) {
+                        breakerHelper.setState(State.OPEN_MP);
+                    }
+                    updateMetricsAfter(throwable, wasBreakerOpen, isClosedNow, breakerOpening);
+                    logCircuitBreakerState("Exit 2");
+                    throw ExceptionUtil.toWrappedException(throwable);
+                }
+
+                // Otherwise, increment success count
+                breakerHelper.incSuccessCount();
+
+                // HALF_OPEN_MP -> CLOSED_MP
+                if (breakerHelper.getState() == State.HALF_OPEN_MP) {
+                    if (breakerHelper.getSuccessCount() == introspector.getCircuitBreaker().successThreshold()) {
+                        breakerHelper.setState(State.CLOSED_MP);
+                        breakerHelper.resetCommandData();
+                        lockRemoved = true;
+                        isClosedNow = true;
+                    }
+                }
+
+                updateMetricsAfter(throwable, wasBreakerOpen, isClosedNow, breakerOpening);
+            }
+
+            // Untrack invocation in a bulkhead
+            if (introspector.hasBulkhead()) {
+                bulkheadHelper.untrackInvocation(this);
+            }
+
+            // Display circuit breaker state at exit
+            logCircuitBreakerState("Exit 3");
+
+            // Outcome of execution
+            if (throwable != null) {
+                throw ExceptionUtil.toWrappedException(throwable);
+            } else {
+                return result;
+            }
+        } finally {
+            // Free lock unless command data was reset
+            if (introspector.hasCircuitBreaker() && !lockRemoved) {
+                breakerHelper.unlock();
+            }
+        }
+    }

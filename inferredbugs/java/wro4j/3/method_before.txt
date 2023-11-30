@@ -1,0 +1,15 @@
+  @Test
+  public void testNoProcessorWroManagerFactory() throws IOException {
+    final WroManagerFactory factory = new ServletContextAwareWroManagerFactory();
+    manager = factory.getInstance();
+    manager.setModelFactory(getValidModelFactory());
+    final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+    final OutputStream os = System.out;
+    final HttpServletResponse response = Context.get().getResponse();
+
+    final InputStream actualStream = WroTestUtils.convertToInputStream(os);
+    Mockito.when(response.getOutputStream()).thenReturn(new DelegatingServletOutputStream(os));
+    Mockito.when(request.getRequestURI()).thenReturn("/app/g1.css");
+    manager.process(request, response);
+    WroTestUtils.compare(getInputStream("classpath:ro/isdc/wro/manager/noProcessorsResult.css"), actualStream);
+  }

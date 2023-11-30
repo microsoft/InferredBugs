@@ -1,0 +1,15 @@
+    long getNextSendIndex() {
+        // Fast path
+        if (this.inflights.isEmpty()) {
+            return this.nextIndex;
+        }
+        // Too many in-flight requests.
+        if (this.inflights.size() > this.raftOptions.getMaxReplicatorInflightMsgs()) {
+            return -1L;
+        }
+        // Last request should be a AppendEntries request and has some entries.
+        if (this.rpcInFly != null && this.rpcInFly.isSendingLogEntries()) {
+            return this.rpcInFly.startIndex + this.rpcInFly.count;
+        }
+        return -1L;
+    }

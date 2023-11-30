@@ -1,0 +1,49 @@
+    private void unpackDependencies() throws MojoExecutionException {
+        getLog().info("Unpacking kumuluzee-loader dependency.");
+
+        try {
+            // get plugin JAR
+            String pluginJarPath = getPluginJarPath();
+            JarFile pluginJar = new JarFile(new File(pluginJarPath));
+
+            // extract loader JAR from plugin JAR
+            JarEntry pluginJarloaderJarEntry = pluginJar.getJarEntry(LOADER_JAR);
+            InputStream loaderJarInputStream = pluginJar.getInputStream(pluginJarloaderJarEntry);
+
+            File tmpDirectory = new File(System.getProperty("java.io.tmpdir"), "EeBootLoader");
+            if (!tmpDirectory.exists()) {
+                tmpDirectory.mkdir();
+            }
+            chmod777(tmpDirectory);
+
+            File tmpLoaderJarFile = File.createTempFile(TEMP_DIR_NAME_PREFIX, null, tmpDirectory);
+            tmpLoaderJarFile.deleteOnExit();
+            chmod777(tmpLoaderJarFile);
+
+            FileUtils.copyInputStreamToFile(loaderJarInputStream, tmpLoaderJarFile);
+
+            // extract loader JAR contents
+            JarFile loaderJar = new JarFile(tmpLoaderJarFile);
+            loaderJar
+                    .stream()
+                    .parallel()
+                    .filter(loaderJarEntry -> loaderJarEntry.getName().toLowerCase().endsWith(CLASS_SUFFIX))
+                    .forEach(loaderJarEntry -> {
+                        try {
+                            File file = new File(outputDirectory, "classes" + File.separator + loaderJarEntry.getName());
+                            if (file.getParentFile() != null) {
+                                file.getParentFile().mkdirs();
+                            }
+
+                            InputStream inputStream = loaderJar.getInputStream(loaderJarEntry);
+                            FileUtils.copyInputStreamToFile(inputStream, file);
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    });
+
+            loaderJar.close();
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to unpack kumuluzee-loader dependency: " + e.getMessage() + ".");
+        }
+    }

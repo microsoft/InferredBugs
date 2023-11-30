@@ -1,0 +1,104 @@
+    @Test
+    public void testAll() throws Exception {
+
+        int timeoutPerSub = 1000;
+
+        ServerConfig serverConfig = new ServerConfig()
+            .setProtocol("bolt")
+            .setHost("0.0.0.0")
+            .setPort(12200);
+
+        ProviderConfig<?> provider = new ProviderConfig();
+        provider.setInterfaceId("com.alipay.xxx.TestService")
+            .setUniqueId("unique123Id")
+            .setApplication(new ApplicationConfig().setAppName("test-server"))
+            .setProxy("javassist")
+            .setRegister(true)
+            .setRegistry(registryConfig)
+            .setSerialization("hessian2")
+            .setServer(serverConfig)
+            .setWeight(222)
+            .setTimeout(3000);
+
+        // 注册
+        registry.register(provider);
+
+        ConsumerConfig<?> consumer = new ConsumerConfig();
+        consumer.setInterfaceId("com.alipay.xxx.TestService")
+            .setUniqueId("unique123Id")
+            .setApplication(new ApplicationConfig().setAppName("test-server"))
+            .setProxy("javassist")
+            .setSubscribe(true)
+            .setSerialization("java")
+            .setInvokeType("sync")
+            .setTimeout(4444);
+
+        String tag0 = MeshRegistryHelper.buildMeshKey(provider, serverConfig.getProtocol());
+        String tag1 = MeshRegistryHelper.buildMeshKey(consumer, consumer.getProtocol());
+        Assert.assertEquals(tag1, tag0);
+
+        // 订阅
+        MeshRegistryTest.MockProviderInfoListener providerInfoListener = new MeshRegistryTest.MockProviderInfoListener();
+        consumer.setProviderInfoListener(providerInfoListener);
+        List<ProviderGroup> groups = registry.subscribe(consumer);
+        providerInfoListener.updateAllProviders(groups);
+        Map<String, ProviderGroup> ps = providerInfoListener.getData();
+        Assert.assertTrue(ps.size() == 1);
+
+        // 反注册
+        CountDownLatch latch = new CountDownLatch(1);
+        providerInfoListener.setCountDownLatch(latch);
+        registry.unRegister(provider);
+        latch.await(timeoutPerSub, TimeUnit.MILLISECONDS);
+        //mesh 并不直接感知.
+        Assert.assertTrue(ps.size() == 1);
+
+        // 一次发2个端口的再次注册
+        latch = new CountDownLatch(1);
+        providerInfoListener.setCountDownLatch(latch);
+        provider.getServer().add(new ServerConfig()
+            .setProtocol("bolt")
+            .setHost("0.0.0.0")
+            .setPort(12201));
+        registry.register(provider);
+        latch.await(timeoutPerSub * 2, TimeUnit.MILLISECONDS);
+
+        // 重复订阅
+        ConsumerConfig<?> consumer2 = new ConsumerConfig();
+        consumer2.setInterfaceId("com.alipay.xxx.TestService")
+            .setUniqueId("unique123Id")
+            .setApplication(new ApplicationConfig().setAppName("test-server"))
+            .setProxy("javassist")
+            .setSubscribe(true)
+            .setSerialization("java")
+            .setInvokeType("sync")
+            .setTimeout(4444);
+        CountDownLatch latch2 = new CountDownLatch(1);
+        MeshRegistryTest.MockProviderInfoListener providerInfoListener2 = new MeshRegistryTest.MockProviderInfoListener();
+        providerInfoListener2.setCountDownLatch(latch2);
+        consumer2.setProviderInfoListener(providerInfoListener2);
+        List<ProviderGroup> groups2 = registry.subscribe(consumer2);
+        providerInfoListener2.updateAllProviders(groups2);
+
+        Map<String, ProviderGroup> ps2 = providerInfoListener2.getData();
+        Assert.assertTrue(ps2.size() == 1);
+
+        // 取消订阅者1
+        registry.unSubscribe(consumer);
+
+        // 批量反注册，判断订阅者2的数据
+        latch = new CountDownLatch(1);
+        providerInfoListener2.setCountDownLatch(latch);
+        List<ProviderConfig> providerConfigList = new ArrayList<ProviderConfig>();
+        providerConfigList.add(provider);
+        registry.batchUnRegister(providerConfigList);
+
+        latch.await(timeoutPerSub, TimeUnit.MILLISECONDS);
+        Assert.assertTrue(ps2.size() == 1);
+
+        // 批量取消订阅
+        List<ConsumerConfig> consumerConfigList = new ArrayList<ConsumerConfig>();
+        consumerConfigList.add(consumer2);
+        registry.batchUnSubscribe(consumerConfigList);
+
+    }

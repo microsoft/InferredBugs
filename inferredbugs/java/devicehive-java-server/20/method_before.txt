@@ -1,0 +1,119 @@
+    @Override
+    public List<NetworkVO> list(String name, String namePattern, String sortField, boolean sortOrderAsc, Integer take,
+                              Integer skip, Optional<HivePrincipal> principalOptional) {
+        String sortFunc = sortMap.get(sortField);
+        if (sortFunc == null) {
+            sortFunc = sortMap.get("name");
+        }
+
+        BucketMapReduce.Builder builder = new BucketMapReduce.Builder()
+                .withNamespace(NETWORK_NS)
+                .withMapPhase(Function.newAnonymousJsFunction("function(riakObject, keyData, arg) { " +
+                        "                if(riakObject.values[0].metadata['X-Riak-Deleted']){ return []; } " +
+                        "                else { return Riak.mapValuesJson(riakObject, keyData, arg); }}"))
+                .withReducePhase(Function.newAnonymousJsFunction("function(values, arg) {" +
+                        "return values.filter(function(v) {" +
+                        "if (v === [] || v.name === null) { return false; }" +
+                        "return true;" +
+                        "})" +
+                        "}"));
+
+        if (name != null) {
+            String func = String.format(
+                    "function(values, arg) {" +
+                            "return values.filter(function(v) {" +
+                            "var name = v.name;" +
+                            "return name == '%s';" +
+                            "})" +
+                            "}", name);
+            Function function = Function.newAnonymousJsFunction(func);
+            builder.withReducePhase(function);
+        } else if (namePattern != null) {
+            namePattern = namePattern.replace("%", "");
+            String func = String.format(
+                    "function(values, arg) {" +
+                            "return values.filter(function(v) {" +
+                            "var name = v.name;" +
+                            "if (name === null) { return false; }" +
+                            "return name.indexOf('%s') > -1;" +
+                            "})" +
+                            "}", namePattern);
+            Function function = Function.newAnonymousJsFunction(func);
+            builder.withReducePhase(function);
+        }
+
+        if (principalOptional.isPresent()) {
+            HivePrincipal principal = principalOptional.get();
+            if (principal != null && !principal.getRole().equals(HiveRoles.ADMIN)) {
+                User user = principal.getUser();
+                if (user == null && principal.getKey() != null) {
+                    user = principal.getKey().getUser();
+                }
+
+                if (user != null && !user.isAdmin()) {
+                    Set<Long> networks = userNetworkDao.findNetworksForUser(user.getId());
+                    String functionString =
+                            "function(values, arg) {" +
+                                    "return values.filter(function(v) {" +
+                                    "var networkId = v.id;" +
+                                    "return arg.indexOf(networkId) > -1;" +
+                                    "})" +
+                                    "}";
+                    Function reduceFunction = Function.newAnonymousJsFunction(functionString);
+                    builder.withReducePhase(reduceFunction, networks);
+                }
+
+                if (principal.getKey() != null && principal.getKey().getPermissions() != null) {
+                    Set<AccessKeyPermission> permissions = principal.getKey().getPermissions();
+                    Set<Long> ids = new HashSet<>();
+                    for (AccessKeyPermission permission : permissions) {
+                        Set<Long> id = permission.getNetworkIdsAsSet();
+                        if (id != null) {
+                            ids.addAll(id);
+                        }
+                    }
+
+                    String functionString =
+                            "function(values, arg) {" +
+                                    "return values.filter(function(v) {" +
+                                    "return arg.indexOf(v.id) > -1;" +
+                                    "})" +
+                                    "}";
+                    Function reduceFunction = Function.newAnonymousJsFunction(functionString);
+                    if (!ids.isEmpty()) builder.withReducePhase(reduceFunction, ids);
+                } else if (principal.getDevice() != null) {
+                    String functionString =
+                            "function(values, arg) {" +
+                                    "return values.filter(function(v) {" +
+                                    "var devices = v.devices;" +
+                                    "if (devices == null) return false;" +
+                                    "return devices.indexOf(arg) > -1;" +
+                                    "})" +
+                                    "}";
+                    Function reduceFunction = Function.newAnonymousJsFunction(functionString);
+                    builder.withReducePhase(reduceFunction, principal.getDevice());
+                }
+            }
+        }
+
+        builder.withReducePhase(Function.newNamedJsFunction("Riak.reduceSort"),
+                String.format(sortFunc, sortOrderAsc ? ">" : "<"),
+                true);
+
+        if (take == null)
+            take = Constants.DEFAULT_TAKE;
+        if (skip == null)
+            skip = 0;
+
+        BucketMapReduce bmr = builder.build();
+        RiakFuture<MapReduce.Response, BinaryValue> future = client.executeAsync(bmr);
+        try {
+            MapReduce.Response response = future.get();
+            return response.getResultsFromAllPhases(NetworkVO.class).stream()
+                    .skip(skip)
+                    .limit(take)
+                    .collect(Collectors.toList());
+        } catch (InterruptedException | ExecutionException e) {
+            throw new HivePersistenceLayerException("Cannot get list of networks.", e);
+        }
+    }

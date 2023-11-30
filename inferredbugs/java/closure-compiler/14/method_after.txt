@@ -1,0 +1,127 @@
+  private UndiGraph<Var, Void> computeVariableNamesInterferenceGraph(
+      NodeTraversal t, ControlFlowGraph<Node> cfg, Set<Var> escaped) {
+    UndiGraph<Var, Void> interferenceGraph =
+        LinkedUndirectedGraph.create();
+
+    // For all variables V not in unsafeCrossRange,
+    // LiveRangeChecker(V, X) and LiveRangeChecker(Y, V) will never add a edge
+    // to the interferenceGraph. In other words, we don't need to use
+    // LiveRangeChecker on variable pair (A, B) if both A and B are not
+    // in the unsafeCrossRangeSet. See PrescreenCrossLiveRange for details.
+    Set<Var> unsafeCrossRangeSet = Sets.newHashSet();
+    Scope scope = t.getScope();
+
+    for (DiGraphNode<Node, Branch> cfgNode : cfg.getDirectedGraphNodes()) {
+      if (cfg.isImplicitReturn(cfgNode)) {
+        continue;
+      }
+
+      for (Iterator<Var> i = scope.getVars(); i.hasNext();) {
+        final Var v = i.next();
+
+        if (!unsafeCrossRangeSet.contains(v)) {
+          FlowState<LiveVariableLattice> state = cfgNode.getAnnotation();
+          PrescreenCrossLiveRange check =
+              new PrescreenCrossLiveRange(v, state.getOut());
+
+          NodeTraversal.traverse(compiler, cfgNode.getValue(), check);
+
+          if (!check.isSafe()) {
+            unsafeCrossRangeSet.add(v);
+          }
+        }
+      }
+    }
+
+    // First create a node for each non-escaped variable.
+    for (Iterator<Var> i = scope.getVars(); i.hasNext();) {
+      Var v = i.next();
+      if (!escaped.contains(v)) {
+
+        // TODO(user): In theory, we CAN coalesce function names just like
+        // any variables. Our Liveness analysis captures this just like it as
+        // described in the specification. However, we saw some zipped and
+        // and unzipped size increase after this. We are not totally sure why
+        // that is but, for now, we will respect the dead functions and not play
+        // around with it.
+        if (!NodeUtil.isFunction(v.getParentNode())) {
+          interferenceGraph.createNode(v);
+        }
+      }
+    }
+
+    // Go through each variable and try to connect them.
+    for (Iterator<Var> i1 = scope.getVars(); i1.hasNext();) {
+      Var v1 = i1.next();
+
+      NEXT_VAR_PAIR:
+      for (Iterator<Var> i2 = scope.getVars(); i2.hasNext();) {
+        Var v2 = i2.next();
+
+        // Skip duplicate pairs.
+        if (v1.index >= v2.index) {
+          continue;
+        }
+
+        if (!interferenceGraph.hasNode(v1) ||
+            !interferenceGraph.hasNode(v2)) {
+          // Skip nodes that were not added. They are globals and escaped
+          // locals. Also avoid merging a variable with itself.
+          continue NEXT_VAR_PAIR;
+        }
+
+        if (v1.getParentNode().getType() == Token.LP &&
+            v2.getParentNode().getType() == Token.LP) {
+          interferenceGraph.connectIfNotFound(v1, null, v2);
+          continue NEXT_VAR_PAIR;
+        }
+
+        // Go through every CFG node in the program and look at
+        // this variable pair. If they are both live at the same
+        // time, add an edge between them and continue to the next pair.
+        NEXT_CROSS_CFG_NODE:
+        for (DiGraphNode<Node, Branch> cfgNode : cfg.getDirectedGraphNodes()) {
+          if (cfg.isImplicitReturn(cfgNode)) {
+            continue NEXT_CROSS_CFG_NODE;
+          }
+
+          FlowState<LiveVariableLattice> state = cfgNode.getAnnotation();
+          // Check the live states and add edge when possible.
+          if ((state.getIn().isLive(v1) && state.getIn().isLive(v2)) ||
+              (state.getOut().isLive(v1) && state.getOut().isLive(v2))) {
+            interferenceGraph.connectIfNotFound(v1, null, v2);
+            continue NEXT_VAR_PAIR;
+          }
+        }
+
+        // v1 and v2 might not have an edge between them! woohoo. there's
+        // one last sanity check that we have to do: we have to check
+        // if there's a collision *within* the cfg node.
+        if (!unsafeCrossRangeSet.contains(v1) &&
+            !unsafeCrossRangeSet.contains(v2)) {
+          continue NEXT_VAR_PAIR;
+        }
+
+        NEXT_INTRA_CFG_NODE:
+        for (DiGraphNode<Node, Branch> cfgNode : cfg.getDirectedGraphNodes()) {
+          if (cfg.isImplicitReturn(cfgNode)) {
+            continue NEXT_INTRA_CFG_NODE;
+          }
+          FlowState<LiveVariableLattice> state = cfgNode.getAnnotation();
+          boolean v1OutLive = state.getOut().isLive(v1);
+          boolean v2OutLive = state.getOut().isLive(v2);
+          CombinedLiveRangeChecker checker = new CombinedLiveRangeChecker(
+              new LiveRangeChecker(v1, v2OutLive ? null : v2),
+              new LiveRangeChecker(v2, v1OutLive ? null : v1));
+          NodeTraversal.traverse(
+              compiler,
+              cfgNode.getValue(),
+              checker);
+          if (checker.connectIfCrossed(interferenceGraph)) {
+            continue NEXT_VAR_PAIR;
+          }
+        }
+      }
+    }
+    return interferenceGraph;
+  }

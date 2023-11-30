@@ -1,0 +1,31 @@
+    public void startTlsClient(TlsConfig config) {
+        TlsContext tlsContext = new TlsContext(config);
+        WorkflowExecutor workflowExecutor = WorkflowExecutorFactory.createWorkflowExecutor(config.getExecutorType(),
+                tlsContext);
+
+        try {
+            workflowExecutor.executeWorkflow();
+        } catch (WorkflowExecutionException ex) {
+            LOGGER.info("The TLS protocol flow was not executed completely, follow the debug messages for more information.");
+            LOGGER.debug(ex.getLocalizedMessage(), ex);
+        }
+
+        if (config.getWorkflowOutput() != null && !config.getWorkflowOutput().isEmpty()) {
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(config.getWorkflowOutput());
+                WorkflowTraceSerializer.write(fos, tlsContext.getWorkflowTrace());
+            } catch (FileNotFoundException ex) {
+                java.util.logging.Logger.getLogger(TLSClient.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (JAXBException | IOException ex) {
+                LOGGER.info("Could not serialize WorkflowTrace.");
+                LOGGER.debug(ex);
+            } finally {
+                try {
+                    fos.close();
+                } catch (IOException ex) {
+                    LOGGER.debug(ex);
+                }
+            }
+        }
+    }

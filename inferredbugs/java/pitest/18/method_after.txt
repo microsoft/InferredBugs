@@ -1,0 +1,18 @@
+  private void runTestInSeperateProcessForMutationRange(
+      final MutationStatusMap mutations, final Collection<ClassName> tests)
+      throws IOException, InterruptedException {
+
+    Collection<MutationDetails> remainingMutations = mutations
+        .getUnrunMutations();
+    final MutationTestProcess worker = createWorker(tests, remainingMutations);
+    worker.start();
+
+    setFirstMutationToStatusOfStartedInCaseSlaveFailsAtBoot(mutations,
+        remainingMutations);
+
+    final ExitCode exitCode = waitForSlaveToDie(worker);
+    worker.results(mutations);
+
+    correctResultForProcessExitCode(mutations, exitCode);
+
+  }

@@ -1,0 +1,31 @@
+    @Override
+    public Map<String, Set<String>> readPluginsStorages() {
+        log.debug("Reading extensions storages from plugins");
+        Map<String, Set<String>> result = new LinkedHashMap<>();
+
+        List<PluginWrapper> plugins = pluginManager.getPlugins();
+        for (PluginWrapper plugin : plugins) {
+            String pluginId = plugin.getDescriptor().getPluginId();
+            log.debug("Reading extensions storage from plugin '{}'", pluginId);
+            Set<String> bucket = new HashSet<>();
+
+            try {
+                URL url = ((PluginClassLoader) plugin.getPluginClassLoader()).findResource(getExtensionsResource());
+                if (url != null) {
+                    log.debug("Read '{}'", url.getFile());
+                    Reader reader = new InputStreamReader(url.openStream(), "UTF-8");
+                    LegacyExtensionStorage.read(reader, bucket);
+                } else {
+                    log.debug("Cannot find '{}'", getExtensionsResource());
+                }
+
+                debugExtensions(bucket);
+
+                result.put(pluginId, bucket);
+            } catch (IOException e) {
+                log.error(e.getMessage(), e);
+            }
+        }
+
+        return result;
+    }

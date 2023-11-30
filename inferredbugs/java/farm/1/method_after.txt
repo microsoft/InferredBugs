@@ -1,0 +1,39 @@
+    @Test
+    public void modifiesProject() throws Exception {
+        final Item item = new FkItem();
+        final String pid = "34EA54SZZ";
+        try (final Catalog catalog = new Catalog(item)) {
+            catalog.bootstrap();
+            catalog.add("34EA54SW9");
+            catalog.add("34EA54S87");
+            catalog.add(pid);
+            catalog.add("34EA54S8F");
+        }
+        try (final Item citem = new CatalogItem(
+            item, String.format("//project[@id!='%s']", pid)
+        )) {
+            new Xocument(citem.path()).modify(
+                new Directives()
+                    .xpath("/catalog/project")
+                    .add("link")
+                    .attr("rel", "github")
+                    .attr("href", "yegor256/pdd")
+            );
+        }
+        try (final Item citem = new CatalogItem(
+            item, String.format("//project[@id!='%s' ]", pid)
+        )) {
+            MatcherAssert.assertThat(
+                new Xocument(citem.path()).xpath(
+                    "//project/link[@rel]/@href"
+                ),
+                Matchers.not(Matchers.emptyIterable())
+            );
+        }
+        MatcherAssert.assertThat(
+            new Xocument(item.path()).xpath(
+                "//project[not(link)]/@id"
+            ),
+            Matchers.not(Matchers.emptyIterable())
+        );
+    }

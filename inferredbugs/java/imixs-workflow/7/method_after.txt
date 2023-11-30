@@ -1,0 +1,47 @@
+ public List<ItemCollection> getActivities() {
+		if (activityList != null)
+			return activityList;
+
+		activityList = new ArrayList<ItemCollection>();
+
+		if (getWorkitem() == null)
+			return activityList;
+
+		int processId = getWorkitem().getItemValueInteger("$processid");
+
+		if (processId == 0)
+			return activityList;
+
+		// verify if modelversion is defined by workitem
+		String sversion = getWorkitem().getItemValueString("$modelversion");
+		if (sversion == null || "".equals(sversion)) {
+			try {
+				// try to get latest version...
+				sversion = this.getModelService().getLatestVersionByWorkitem(
+						getWorkitem());
+			} catch (ModelException e) {
+				logger.warning("[WorkflwoControler] unable to getactivitylist: "
+						+ e.getMessage());
+			}
+		}
+		// get Workflow-Activities by version 
+		List<ItemCollection> col = null;
+		col = this.getModelService().getPublicActivities(processId, sversion);
+		if (col == null || col.size() == 0) {
+			// try to upgrade model version
+			try {
+				sversion = this.getModelService().getLatestVersionByWorkitem(
+						getWorkitem());
+				col = this.getModelService().getPublicActivities(processId,
+						sversion);
+			} catch (ModelException e) {
+				logger.warning("[WorkflwoControler] unable to getactivitylist: "
+						+ e.getMessage());
+			}
+		}
+
+		for (ItemCollection aworkitem : col) {
+			activityList.add(aworkitem);
+		}
+		return activityList;
+	}

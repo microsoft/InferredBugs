@@ -1,0 +1,11 @@
+    @Override
+    public boolean putConfigIfAbsent(String dataId, String content, long timeoutMills) {
+        ConfigFuture configFuture = new ConfigFuture(dataId, content, ConfigFuture.ConfigOperation.PUTIFABSENT, timeoutMills);
+        consulNotifierExecutor.execute(() -> {
+            PutParams putParams = new PutParams();
+            //Setting CAS to 0 means that this is an atomic operation, created when key does not exist.
+            putParams.setCas(CAS);
+            complete(getConsulClient().setKVValue(dataId, content, putParams), configFuture);
+        });
+        return (Boolean) configFuture.get();
+    }

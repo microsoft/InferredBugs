@@ -1,0 +1,129 @@
+    long addPaths(Dependency[] dependencies, Map<String, List<LocalLoader>> map, FastCopyHashSet<PathFilter> filterStack, FastCopyHashSet<ClassFilter> classFilterStack, final FastCopyHashSet<PathFilter> resourceFilterStack, Set<Visited> visited) throws ModuleLoadException {
+        long subtract = 0L;
+        moduleLoader.incScanCount();
+        for (Dependency dependency : dependencies) {
+            if (dependency instanceof ModuleDependency) {
+                final ModuleDependency moduleDependency = (ModuleDependency) dependency;
+                final ModuleLoader moduleLoader = moduleDependency.getModuleLoader();
+                final ModuleIdentifier id = moduleDependency.getIdentifier();
+                final Module module;
+
+                try {
+                    long pauseStart = Metrics.getCurrentCPUTime();
+                    try {
+                        module = moduleLoader.preloadModule(id);
+                    } finally {
+                        subtract += Metrics.getCurrentCPUTime() - pauseStart;
+                    }
+                } catch (ModuleLoadException ex) {
+                    if (moduleDependency.isOptional()) {
+                        continue;
+                    } else {
+                        throw ex;
+                    }
+                }
+                if (module == null) {
+                    if (!moduleDependency.isOptional()) {
+                        throw new ModuleNotFoundException(id.toString());
+                    }
+                    continue;
+                }
+
+                final PathFilter importFilter = dependency.getImportFilter();
+                final FastCopyHashSet<PathFilter> nestedFilters;
+                final FastCopyHashSet<ClassFilter> nestedClassFilters;
+                final FastCopyHashSet<PathFilter> nestedResourceFilters;
+                if (filterStack.contains(importFilter)) {
+                    nestedFilters = filterStack;
+                } else {
+                    nestedFilters = filterStack.clone();
+                    nestedFilters.add(importFilter);
+                }
+                final ClassFilter classImportFilter = dependency.getClassImportFilter();
+                if (classImportFilter == ClassFilters.acceptAll() || classFilterStack.contains(classImportFilter)) {
+                    nestedClassFilters = classFilterStack;
+                } else {
+                    nestedClassFilters = classFilterStack.clone();
+                    if (classImportFilter != ClassFilters.acceptAll()) nestedClassFilters.add(classImportFilter);
+                }
+                final PathFilter resourceImportFilter = dependency.getResourceImportFilter();
+                if (resourceImportFilter == PathFilters.acceptAll() || resourceFilterStack.contains(resourceImportFilter)) {
+                    nestedResourceFilters = resourceFilterStack;
+                } else {
+                    nestedResourceFilters = resourceFilterStack.clone();
+                    if (resourceImportFilter != PathFilters.acceptAll()) nestedResourceFilters.add(resourceImportFilter);
+                }
+                subtract += module.addExportedPaths(module.getDependencies(), map, nestedFilters, nestedClassFilters, nestedResourceFilters, visited);
+            } else if (dependency instanceof ModuleClassLoaderDependency) {
+                final ModuleClassLoaderDependency classLoaderDependency = (ModuleClassLoaderDependency) dependency;
+                LocalLoader localLoader = classLoaderDependency.getLocalLoader();
+                for (Object filter : classFilterStack.getRawArray()) {
+                    if (filter != null && filter != ClassFilters.acceptAll()) {
+                        localLoader = LocalLoaders.createClassFilteredLocalLoader((ClassFilter) filter, localLoader);
+                    }
+                }
+                for (Object filter : resourceFilterStack.getRawArray()) {
+                    if (filter != null && filter != PathFilters.acceptAll()) {
+                        localLoader = LocalLoaders.createPathFilteredLocalLoader((PathFilter) filter, localLoader);
+                    }
+                }
+                ClassFilter classFilter = classLoaderDependency.getClassImportFilter();
+                if (classFilter != ClassFilters.acceptAll()) {
+                    localLoader = LocalLoaders.createClassFilteredLocalLoader(classFilter, localLoader);
+                }
+                PathFilter resourceFilter = classLoaderDependency.getResourceImportFilter();
+                if (resourceFilter != PathFilters.acceptAll()) {
+                    localLoader = LocalLoaders.createPathFilteredLocalLoader(resourceFilter, localLoader);
+                }
+                final PathFilter importFilter = classLoaderDependency.getImportFilter();
+                final Set<String> paths = classLoaderDependency.getPaths();
+                for (String path : paths) {
+                    if (importFilter.accept(path)) {
+                        List<LocalLoader> list = map.get(path);
+                        if (list == null) {
+                            map.put(path, list = new ArrayList<LocalLoader>());
+                            list.add(localLoader);
+                        } else if (! list.contains(localLoader)) {
+                            list.add(localLoader);
+                        }
+                    }
+                }
+            } else if (dependency instanceof LocalDependency) {
+                final LocalDependency localDependency = (LocalDependency) dependency;
+                LocalLoader localLoader = localDependency.getLocalLoader();
+                for (Object filter : classFilterStack.getRawArray()) {
+                    if (filter != null && filter != ClassFilters.acceptAll()) {
+                        localLoader = LocalLoaders.createClassFilteredLocalLoader((ClassFilter) filter, localLoader);
+                    }
+                }
+                for (Object filter : resourceFilterStack.getRawArray()) {
+                    if (filter != null && filter != PathFilters.acceptAll()) {
+                        localLoader = LocalLoaders.createPathFilteredLocalLoader((PathFilter) filter, localLoader);
+                    }
+                }
+                final ClassFilter classFilter = localDependency.getClassImportFilter();
+                if (classFilter != ClassFilters.acceptAll()) {
+                    localLoader = LocalLoaders.createClassFilteredLocalLoader(classFilter, localLoader);
+                }
+                final PathFilter resourceFilter = localDependency.getResourceImportFilter();
+                if (resourceFilter != PathFilters.acceptAll()) {
+                    localLoader = LocalLoaders.createPathFilteredLocalLoader(resourceFilter, localLoader);
+                }
+                final PathFilter importFilter = localDependency.getImportFilter();
+                final Set<String> paths = localDependency.getPaths();
+                for (String path : paths) {
+                    if (importFilter.accept(path)) {
+                        List<LocalLoader> list = map.get(path);
+                        if (list == null) {
+                            map.put(path, list = new ArrayList<LocalLoader>());
+                            list.add(localLoader);
+                        } else if (! list.contains(localLoader)) {
+                            list.add(localLoader);
+                        }
+                    }
+                }
+            }
+            // else unknown dep type so just skip
+        }
+        return subtract;
+    }

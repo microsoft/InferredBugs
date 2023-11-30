@@ -1,0 +1,52 @@
+  public static void main(final String[] args) {
+
+    addMemoryWatchDog();
+    Writer w = null;
+
+    try {
+      final File input = new File(args[0]);
+
+      LOG.fine("Input file is " + input);
+
+      final BufferedReader br = new BufferedReader(new InputStreamReader(
+          new FileInputStream(input)));
+
+      final SlaveArguments paramsFromParent = (SlaveArguments) IsolationUtils
+          .fromTransportString(br.readLine());
+
+      Log.setVerbose(paramsFromParent.isVerbose());
+
+      final File outputFile = new File(paramsFromParent.outputFileName);
+      w = new OutputStreamWriter(new FileOutputStream(outputFile));
+      LOG.fine("Output file is " + outputFile);
+
+      System.setProperties(paramsFromParent.systemProperties);
+
+      br.close();
+
+      final F2<Class<?>, byte[], Boolean> hotswap = new F2<Class<?>, byte[], Boolean>() {
+
+        public Boolean apply(final Class<?> a, final byte[] b) {
+          return HotSwapAgent.hotSwap(a, b);
+        }
+
+      };
+
+      final Reporter r = new DefaultReporter(w);
+
+      final MutationTestWorker worker = new MutationTestWorker(hotswap,
+          paramsFromParent.config.createMutator(IsolationUtils
+              .getContextClassLoader()), IsolationUtils.getContextClassLoader());
+
+      worker.run(paramsFromParent.mutations, r, new TimeOutDecoratedTestSource(
+          paramsFromParent.timeoutStrategy, paramsFromParent.tests));
+
+    } catch (final Exception ex) {
+      LOG.log(Level.WARNING, "Error during mutation test", ex);
+      safelyCloseWriter(w);
+      System.exit(ExitCode.UNKNOWN_ERROR.getCode());
+    } finally {
+      safelyCloseWriter(w);
+    }
+
+  }

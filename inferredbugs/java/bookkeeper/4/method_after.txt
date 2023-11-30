@@ -1,0 +1,30 @@
+    FileInfo getFileInfo(Long ledger, byte masterKey[]) throws IOException {
+        synchronized(fileInfoCache) {
+            FileInfo fi = fileInfoCache.get(ledger);
+            if (fi == null) {
+                File lf = findIndexFile(ledger);
+                if (lf == null) {
+                    if (masterKey == null) {
+                        throw new Bookie.NoLedgerException(ledger);
+                    }
+                    File dir = pickDirs(ledgerDirectories);
+                    String ledgerName = getLedgerName(ledger);
+                    lf = new File(dir, ledgerName);
+                    // A new ledger index file has been created for this Bookie.
+                    // Add this new ledger to the set of active ledgers.
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("New ledger index file created for ledgerId: " + ledger);
+                    }
+                    activeLedgerManager.addActiveLedger(ledger, true);
+                }
+                evictFileInfoIfNecessary();
+                fi = new FileInfo(lf, masterKey);
+                fileInfoCache.put(ledger, fi);
+                openLedgers.add(ledger);
+            }
+            if (fi != null) {
+                fi.use();
+            }
+            return fi;
+        }
+    }

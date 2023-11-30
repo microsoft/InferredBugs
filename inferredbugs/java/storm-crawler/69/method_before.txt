@@ -1,0 +1,34 @@
+    @Override
+    public void filter(String url, byte[] content, DocumentFragment doc,
+            ParseResult parse) {
+
+        // check whether the metadata already contains a lang value
+        // in which case we might want to skip
+        if (mdSkip != null) {
+            String existingVal = parse.get(url).getMetadata()
+                    .getFirstValue(mdSkip);
+            if (StringUtils.isNotBlank(existingVal)) {
+                return;
+            }
+        }
+
+        String text = parse.get(url).getText();
+        if (StringUtils.isBlank(text)) {
+            return;
+        }
+
+        TextObject textObject = textObjectFactory.forText(text);
+        synchronized (languageDetector) {
+            List<DetectedLanguage> probs = languageDetector
+                    .getProbabilities(textObject);
+            if (probs == null || probs.size() == 0) {
+                return;
+            }
+            for (DetectedLanguage lang : probs) {
+                if (lang.getProbability() >= minProb) {
+                    String code = lang.getLocale().getLanguage();
+                    parse.get(url).getMetadata().addValue(mdKey, code);
+                }
+            }
+        }
+    }

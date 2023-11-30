@@ -1,0 +1,99 @@
+    @Test
+    public void testCRUD() throws IOException, InterruptedException {
+
+        Path path = Paths.get(folder.newFolder("directory" + UUID.randomUUID()).getPath());
+        LuceneIndex index = new LuceneIndex("ks",
+                                            "cf",
+                                            "idx",
+                                            path,
+                                            IndexConfig.DEFAULT_RAM_BUFFER_MB,
+                                            IndexConfig.DEFAULT_MAX_MERGE_MB,
+                                            IndexConfig.DEFAULT_MAX_CACHED_MB,
+                                            new StandardAnalyzer(),
+                                            REFRESH_SECONDS,
+                                            null);
+        Sort sort = new Sort(new SortField("field", SortField.Type.STRING));
+        index.init(sort);
+        assertEquals(0, index.getNumDocs());
+
+        Term term1 = new Term("field", "value1");
+        Document document1 = new Document();
+        document1.add(new StringField("field", "value1", Field.Store.NO));
+        document1.add(new SortedDocValuesField("field", new BytesRef("value1")));
+        index.upsert(term1, document1);
+
+        Term term2 = new Term("field", "value2");
+        Document document2 = new Document();
+        document2.add(new StringField("field", "value2", Field.Store.NO));
+        document2.add(new SortedDocValuesField("field", new BytesRef("value2")));
+        index.upsert(term2, document2);
+
+        index.commit();
+        Thread.sleep(REFRESH_MILLISECONDS);
+        assertEquals(2, index.getNumDocs());
+
+        Query query = new WildcardQuery(new Term("field", "value*"));
+        Set<String> fields = Sets.newHashSet("field");
+        Map<Document, ScoreDoc> results;
+
+        // Search
+        SearcherManager searcherManager = index.getSearcherManager();
+        IndexSearcher searcher = searcherManager.acquire();
+
+        try {
+            results = index.search(searcher, query, null, null, 1, fields, true);
+            assertEquals(1, results.size());
+            ScoreDoc last1 = results.values().iterator().next();
+            results = index.search(searcher, query, null, last1, 1, fields, true);
+            assertEquals(1, results.size());
+
+            results = index.search(searcher, query, null, null, 1, fields, false);
+            assertEquals(1, results.size());
+            ScoreDoc last2 = results.values().iterator().next();
+            results = index.search(searcher, query, null, last2, 1, fields, false);
+            assertEquals(1, results.size());
+
+            results = index.search(searcher, query, sort, null, 1, fields, false);
+            assertEquals(1, results.size());
+            ScoreDoc last3 = results.values().iterator().next();
+            results = index.search(searcher, query, sort, last3, 1, fields, false);
+            assertEquals(1, results.size());
+        } finally {
+            searcherManager.release(searcher);
+        }
+
+        // Delete by term
+        index.delete(term1);
+        index.commit();
+        Thread.sleep(WAIT_MILLISECONDS);
+        assertEquals(1, index.getNumDocs());
+
+        // Delete by query
+        index.upsert(term1, document1);
+        index.commit();
+        Thread.sleep(WAIT_MILLISECONDS);
+        assertEquals(2, index.getNumDocs());
+        index.delete(new TermQuery(term1));
+        Thread.sleep(WAIT_MILLISECONDS);
+        assertEquals(1, index.getNumDocs());
+
+        // Upsert
+        index.upsert(term1, document1);
+        index.upsert(term2, document2);
+        index.upsert(term2, document2);
+        index.commit();
+        Thread.sleep(WAIT_MILLISECONDS);
+        assertEquals(2, index.getNumDocs());
+
+        // Truncate
+        index.truncate();
+        index.commit();
+        Thread.sleep(WAIT_MILLISECONDS);
+        assertEquals(0, index.getNumDocs());
+
+        // Delete
+        index.delete();
+
+        // Cleanup
+        folder.delete();
+    }

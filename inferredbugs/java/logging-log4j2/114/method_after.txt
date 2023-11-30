@@ -1,0 +1,17 @@
+    private void verifyFile(final int count) throws Exception {
+        // String expected = "[\\w]* \\[\\s*\\] INFO TestLogger - Test$";
+        final String expected = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3} \\[[^\\]]*\\] INFO TestLogger - Test";
+        final Pattern pattern = Pattern.compile(expected);
+        int lines = 0;
+        try (final BufferedReader is = new BufferedReader(new InputStreamReader(new FileInputStream(FILE_NAME)))) {
+            String str = Strings.EMPTY;
+            while (is.ready()) {
+                str = is.readLine();
+                // System.out.println(str);
+                ++lines;
+                final Matcher matcher = pattern.matcher(str);
+                assertTrue("Unexpected data: " + str, matcher.matches());
+            }
+        }
+        Assert.assertEquals(count, lines);
+    }

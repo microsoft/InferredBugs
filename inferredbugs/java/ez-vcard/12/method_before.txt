@@ -1,0 +1,213 @@
+ @Test
+	public void evolutionVCard() throws Exception {
+		VCardReader reader = new VCardReader(new InputStreamReader(getClass().getResourceAsStream("John_Doe_EVOLUTION.vcf")));
+		reader.setCompatibilityMode(CompatibilityMode.EVOLUTION);
+		VCard vcard = reader.readNext();
+
+		//VERSION
+		assertEquals(VCardVersion.V3_0, vcard.getVersion());
+
+		//URL
+		{
+			Iterator<UrlType> it = vcard.getUrls().iterator();
+
+			UrlType t = it.next();
+			assertEquals("http://www.ibm.com", t.getValue());
+			assertEquals("0abc9b8d-0845-47d0-9a91-3db5bb74620d", t.getSubTypes().getFirst("X-COUCHDB-UUID"));
+
+			assertFalse(it.hasNext());
+		}
+
+		//TEL
+		{
+			Iterator<TelephoneType> it = vcard.getTelephoneNumbers().iterator();
+
+			TelephoneType t = it.next();
+			assertEquals("905-666-1234", t.getValue());
+			Set<TelephoneTypeParameter> types = t.getTypes();
+			assertEquals(1, types.size());
+			assertTrue(types.contains(TelephoneTypeParameter.CELL));
+			assertEquals("c2fa1caa-2926-4087-8971-609cfc7354ce", t.getSubTypes().getFirst("X-COUCHDB-UUID"));
+
+			t = it.next();
+			assertEquals("905-555-1234", t.getValue());
+			types = t.getTypes();
+			assertEquals(2, types.size());
+			assertTrue(types.contains(TelephoneTypeParameter.WORK));
+			assertTrue(types.contains(TelephoneTypeParameter.VOICE));
+			assertEquals("fbfb2722-4fd8-4dbf-9abd-eeb24072fd8e", t.getSubTypes().getFirst("X-COUCHDB-UUID"));
+
+			assertFalse(it.hasNext());
+		}
+
+		//UID
+		{
+			UidType t = vcard.getUid();
+			assertEquals("477343c8e6bf375a9bac1f96a5000837", t.getValue());
+		}
+
+		//N
+		{
+			StructuredNameType t = vcard.getStructuredName();
+			assertEquals("Doe", t.getFamily());
+			assertEquals("John", t.getGiven());
+			List<String> list = t.getAdditional();
+			assertEquals(Arrays.asList("Richter, James"), list);
+			list = t.getPrefixes();
+			assertEquals(Arrays.asList("Mr."), list);
+			list = t.getSuffixes();
+			assertEquals(Arrays.asList("Sr."), list);
+		}
+
+		//FN
+		{
+			FormattedNameType t = vcard.getFormattedName();
+			assertEquals("Mr. John Richter, James Doe Sr.", t.getValue());
+		}
+
+		//NICKNAME
+		{
+			NicknameType t = vcard.getNickname();
+			assertEquals(Arrays.asList("Johny"), t.getValues());
+		}
+
+		//ORG
+		{
+			OrganizationType t = vcard.getOrganization();
+			assertEquals(Arrays.asList("IBM", "Accounting", "Dungeon"), t.getValues());
+		}
+
+		//TITLE
+		{
+			Iterator<TitleType> it = vcard.getTitles().iterator();
+
+			TitleType t = it.next();
+			assertEquals("Money Counter", t.getValue());
+
+			assertFalse(it.hasNext());
+		}
+
+		//CATEGORIES
+		{
+			CategoriesType t = vcard.getCategories();
+			assertEquals(Arrays.asList("VIP"), t.getValues());
+		}
+
+		//NOTE
+		{
+			Iterator<NoteType> it = vcard.getNotes().iterator();
+			NoteType t = it.next();
+			assertEquals("THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.", t.getValue());
+			assertFalse(it.hasNext());
+		}
+
+		//EMAIL
+		{
+			Iterator<EmailType> it = vcard.getEmails().iterator();
+
+			EmailType t = it.next();
+			assertEquals("john.doe@ibm.com", t.getValue());
+			Set<EmailTypeParameter> types = t.getTypes();
+			assertEquals(1, types.size());
+			assertTrue(types.contains(new EmailTypeParameter("work"))); //non-standard type
+			assertEquals("83a75a5d-2777-45aa-bab5-76a4bd972490", t.getSubTypes().getFirst("X-COUCHDB-UUID"));
+
+			assertFalse(it.hasNext());
+		}
+
+		//ADR
+		{
+			Iterator<AddressType> it = vcard.getAddresses().iterator();
+
+			AddressType t = it.next();
+			assertEquals("ASB-123", t.getPoBox());
+			assertEquals(null, t.getExtendedAddress());
+			assertEquals("15 Crescent moon drive", t.getStreetAddress());
+			assertEquals("Albaney", t.getLocality());
+			assertEquals("New York", t.getRegion());
+			assertEquals("12345", t.getPostalCode());
+			//the space between "United" and "States" is lost because it was included with the folding character and ignored (see .vcf file)
+			assertEquals("UnitedStates of America", t.getCountry());
+
+			Set<AddressTypeParameter> types = t.getTypes();
+			assertEquals(1, types.size());
+			assertTrue(types.contains(AddressTypeParameter.HOME));
+
+			assertFalse(it.hasNext());
+		}
+
+		//BDAY
+		{
+			BirthdayType t = vcard.getBirthday();
+			Calendar c = Calendar.getInstance();
+			c.clear();
+			c.set(Calendar.YEAR, 1980);
+			c.set(Calendar.MONTH, Calendar.MARCH);
+			c.set(Calendar.DAY_OF_MONTH, 22);
+			Date expected = c.getTime();
+			assertEquals(expected, t.getDate());
+		}
+
+		//REV
+		{
+			RevisionType t = vcard.getRevision();
+			Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+			c.clear();
+			c.set(Calendar.YEAR, 2012);
+			c.set(Calendar.MONTH, Calendar.MARCH);
+			c.set(Calendar.DAY_OF_MONTH, 5);
+			c.set(Calendar.HOUR_OF_DAY, 13);
+			c.set(Calendar.MINUTE, 32);
+			c.set(Calendar.SECOND, 54);
+			assertEquals(c.getTime(), t.getTimestamp());
+		}
+
+		//extended types
+		{
+			assertEquals(7, countExtTypes(vcard));
+
+			Iterator<RawType> it = vcard.getExtendedType("X-COUCHDB-APPLICATION-ANNOTATIONS").iterator();
+			RawType t = it.next();
+			assertEquals("X-COUCHDB-APPLICATION-ANNOTATIONS", t.getTypeName());
+			assertEquals("{\"Evolution\":{\"revision\":\"2012-03-05T13:32:54Z\"}}", t.getValue());
+			assertFalse(it.hasNext());
+
+			it = vcard.getExtendedType("X-AIM").iterator();
+			t = it.next();
+			assertEquals("X-AIM", t.getTypeName());
+			assertEquals("johnny5@aol.com", t.getValue());
+			assertEquals("HOME", t.getSubTypes().getType());
+			assertEquals("cb9e11fc-bb97-4222-9cd8-99820c1de454", t.getSubTypes().getFirst("X-COUCHDB-UUID"));
+			assertFalse(it.hasNext());
+
+			it = vcard.getExtendedType("X-EVOLUTION-FILE-AS").iterator();
+			t = it.next();
+			assertEquals("X-EVOLUTION-FILE-AS", t.getTypeName());
+			assertEquals("Doe\\, John", t.getValue());
+			assertFalse(it.hasNext());
+
+			it = vcard.getExtendedType("X-EVOLUTION-SPOUSE").iterator();
+			t = it.next();
+			assertEquals("X-EVOLUTION-SPOUSE", t.getTypeName());
+			assertEquals("Maria", t.getValue());
+			assertFalse(it.hasNext());
+
+			it = vcard.getExtendedType("X-EVOLUTION-MANAGER").iterator();
+			t = it.next();
+			assertEquals("X-EVOLUTION-MANAGER", t.getTypeName());
+			assertEquals("Big Blue", t.getValue());
+			assertFalse(it.hasNext());
+
+			it = vcard.getExtendedType("X-EVOLUTION-ASSISTANT").iterator();
+			t = it.next();
+			assertEquals("X-EVOLUTION-ASSISTANT", t.getTypeName());
+			assertEquals("Little Red", t.getValue());
+			assertFalse(it.hasNext());
+
+			it = vcard.getExtendedType("X-EVOLUTION-ANNIVERSARY").iterator();
+			t = it.next();
+			assertEquals("X-EVOLUTION-ANNIVERSARY", t.getTypeName());
+			assertEquals("1980-03-22", t.getValue());
+			assertFalse(it.hasNext());
+		}
+	}

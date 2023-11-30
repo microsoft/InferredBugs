@@ -1,0 +1,17 @@
+    @Override
+    public void doFilter(final Logbook logbook, final HttpServletRequest httpRequest,
+            final HttpServletResponse httpResponse, final FilterChain chain) throws ServletException, IOException {
+
+        final RemoteRequest request = new RemoteRequest(httpRequest);
+        final Optional<Correlator> correlator = logRequestIfNecessary(logbook, request);
+
+        if (correlator.isPresent()) {
+            final LocalResponse response = new LocalResponse(httpResponse);
+
+            chain.doFilter(request, response);
+            response.getWriter().flush();
+            logResponse(correlator.get(), request, response);
+        } else {
+            chain.doFilter(httpRequest, httpResponse);
+        }
+    }

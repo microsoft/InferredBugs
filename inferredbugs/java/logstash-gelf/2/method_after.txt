@@ -1,0 +1,30 @@
+    public boolean sendMessage(GelfMessage message) {
+        if (shutdown) {
+            return false;
+        }
+
+        IOException exception = null;
+
+        for (int i = 0; i < deliveryAttempts; i++) {
+            try {
+                // reconnect if necessary
+                if (socket == null) {
+                    socket = createSocket();
+                }
+
+                socket.getOutputStream().write(message.toTCPBuffer().array());
+                return true;
+            } catch (IOException e) {
+                exception = e;
+                // if an error occours, signal failure
+                socket = null;
+            }
+        }
+
+        if (exception != null) {
+            errorReporter.reportError(exception.getMessage(), new IOException("Cannot send data to " + host + ":" + port,
+                    exception));
+        }
+
+        return false;
+    }

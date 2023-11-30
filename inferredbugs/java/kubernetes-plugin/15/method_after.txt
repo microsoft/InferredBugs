@@ -1,0 +1,49 @@
+    private boolean addProvisionedSlave(@Nonnull PodTemplate template, @CheckForNull Label label) throws Exception {
+        if (containerCap == 0) {
+            return true;
+        }
+
+        KubernetesClient client = connect();
+        String templateNamespace = template.getNamespace();
+        // If template's namespace is not defined, take the
+        // Kubernetes Namespace.
+        if (Strings.isNullOrEmpty(templateNamespace)) {
+            templateNamespace = client.getNamespace();
+        }
+
+        PodList slaveList = client.pods().inNamespace(templateNamespace).withLabels(getLabels()).list();
+        List<Pod> allActiveSlavePods = null;
+        // JENKINS-53370 check for nulls
+        if (slaveList != null && slaveList.getItems() != null) {
+            allActiveSlavePods = slaveList.getItems().stream() //
+                    .filter(x -> x.getStatus().getPhase().toLowerCase().matches("(running|pending)"))
+                    .collect(Collectors.toList());
+        }
+
+        Map<String, String> labelsMap = new HashMap<>(this.getLabels());
+        labelsMap.putAll(template.getLabelsMap());
+        PodList templateSlaveList = client.pods().inNamespace(templateNamespace).withLabels(labelsMap).list();
+        // JENKINS-53370 check for nulls
+        List<Pod> activeTemplateSlavePods = null;
+        if (templateSlaveList != null && templateSlaveList.getItems() != null) {
+            activeTemplateSlavePods = templateSlaveList.getItems().stream()
+                    .filter(x -> x.getStatus().getPhase().toLowerCase().matches("(running|pending)"))
+                    .collect(Collectors.toList());
+        }
+
+        if (allActiveSlavePods != null && containerCap <= allActiveSlavePods.size()) {
+            LOGGER.log(Level.INFO,
+                    "Total container cap of {0} reached, not provisioning: {1} running or pending in namespace {2} with Kubernetes labels {3}",
+                    new Object[] { containerCap, allActiveSlavePods.size(), templateNamespace, getLabels() });
+            return false;
+        }
+
+        if (activeTemplateSlavePods != null && allActiveSlavePods != null && template.getInstanceCap() <= activeTemplateSlavePods.size()) {
+            LOGGER.log(Level.INFO,
+                    "Template instance cap of {0} reached for template {1}, not provisioning: {2} running or pending in namespace {3} with label \"{4}\" and Kubernetes labels {5}",
+                    new Object[] { template.getInstanceCap(), template.getName(), allActiveSlavePods.size(),
+                            templateNamespace, label == null ? "" : label.toString(), labelsMap });
+            return false;
+        }
+        return true;
+    }

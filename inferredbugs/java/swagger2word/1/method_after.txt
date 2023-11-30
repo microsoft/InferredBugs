@@ -1,0 +1,48 @@
+    private ModelAttr getAndPutModelAttr(Map<String, Map<String, Object>> swaggerMap, Map<String, ModelAttr> resMap, String modeName) {
+        ModelAttr modeAttr;
+        if ((modeAttr = resMap.get("#/definitions/" + modeName)) == null) {
+            modeAttr = new ModelAttr();
+            resMap.put("#/definitions/" + modeName, modeAttr);
+        } else if (modeAttr.isCompleted()) {
+            return resMap.get("#/definitions/" + modeName);
+        }
+        Map<String, Object> modeProperties = (Map<String, Object>) swaggerMap.get(modeName).get("properties");
+        if (modeProperties == null) {
+            return null;
+        }
+        Iterator<Entry<String, Object>> mIt = modeProperties.entrySet().iterator();
+
+        List<ModelAttr> attrList = new ArrayList<>();
+        //解析属性
+        while (mIt.hasNext()) {
+            Entry<String, Object> mEntry = mIt.next();
+            Map<String, Object> attrInfoMap = (Map<String, Object>) mEntry.getValue();
+            ModelAttr child = new ModelAttr();
+            child.setName(mEntry.getKey());
+            child.setType((String) attrInfoMap.get("type"));
+            if (attrInfoMap.get("format") != null) {
+                child.setType(child.getType() + "(" + attrInfoMap.get("format") + ")");
+            }
+            child.setType(StringUtils.defaultIfBlank(child.getType(), "object"));
+
+            Object ref = attrInfoMap.get("$ref");
+            Object items = attrInfoMap.get("items");
+            if (ref != null || (items != null && (ref = ((Map) items).get("$ref")) != null)) {
+                String refName = ref.toString();
+                //截取 #/definitions/ 后面的
+                String clsName = refName.substring(14);
+                modeAttr.setCompleted(true);
+                ModelAttr refModel = getAndPutModelAttr(swaggerMap, resMap, clsName);
+                child.setProperties(refModel.getProperties());
+                child.setType(child.getType() + ":" + clsName);
+            }
+            child.setDescription((String) attrInfoMap.get("description"));
+            attrList.add(child);
+        }
+        Object title = swaggerMap.get(modeName).get("title");
+        Object description = swaggerMap.get(modeName).get("description");
+        modeAttr.setClassName(title == null ? "" : title.toString());
+        modeAttr.setDescription(description == null ? "" : description.toString());
+        modeAttr.setProperties(attrList);
+        return modeAttr;
+    }

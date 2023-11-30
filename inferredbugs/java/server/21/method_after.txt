@@ -1,0 +1,105 @@
+    @Override
+    public int getNotifyReceivers(String fromUser, WFCMessage.Message.Builder messageBuilder, Set<String> notifyReceivers, boolean ignoreMsg) {
+        WFCMessage.Message message = messageBuilder.build();
+        HazelcastInstance hzInstance = m_Server.getHazelcastInstance();
+        int type = message.getConversation().getType();
+        int pullType = ProtoConstants.PullType.Pull_Normal;
+
+        if (ignoreMsg) {
+            if (type == ProtoConstants.ConversationType.ConversationType_ChatRoom) {
+                pullType = ProtoConstants.PullType.Pull_ChatRoom;
+            }
+
+            if (message.getContent().getPersistFlag() != Transparent) {
+                notifyReceivers.add(fromUser);
+            }
+            return pullType;
+        }
+
+
+        if (type == ProtoConstants.ConversationType.ConversationType_Private) {
+            notifyReceivers.add(fromUser);
+            notifyReceivers.add(message.getConversation().getTarget());
+            pullType = ProtoConstants.PullType.Pull_Normal;
+        } else if (type == ProtoConstants.ConversationType.ConversationType_Group) {
+            notifyReceivers.add(fromUser);
+
+            if (!StringUtil.isNullOrEmpty(message.getToUser())) {
+                notifyReceivers.add(message.getToUser());
+            } else if(message.getToList()!=null && !message.getToList().isEmpty()) {
+                MultiMap<String, WFCMessage.GroupMember> groupMembers = hzInstance.getMultiMap(GROUP_MEMBERS);
+                Collection<WFCMessage.GroupMember> members = groupMembers.get(message.getConversation().getTarget());
+                if (members == null || members.size() == 0) {
+                    members = loadGroupMemberFromDB(hzInstance, message.getConversation().getTarget());
+                }
+                for (WFCMessage.GroupMember member : members) {
+                    if (member.getType() != GroupMemberType_Removed && message.getToList().contains(member.getMemberId())) {
+                        notifyReceivers.add(member.getMemberId());
+                    }
+                }
+            } else {
+                MultiMap<String, WFCMessage.GroupMember> groupMembers = hzInstance.getMultiMap(GROUP_MEMBERS);
+                Collection<WFCMessage.GroupMember> members = groupMembers.get(message.getConversation().getTarget());
+                if (members == null || members.size() == 0) {
+                    members = loadGroupMemberFromDB(hzInstance, message.getConversation().getTarget());
+                }
+                for (WFCMessage.GroupMember member : members) {
+                    if (member.getType() != GroupMemberType_Removed) {
+                        notifyReceivers.add(member.getMemberId());
+                    }
+                }
+            }
+
+            //如果是群助手的消息，返回pull type group，否则返回normal
+            //群助手还没有实现
+            pullType = ProtoConstants.PullType.Pull_Normal;
+        } else if (type == ProtoConstants.ConversationType.ConversationType_ChatRoom) {
+            boolean isDirect = !StringUtil.isNullOrEmpty(message.getToUser());
+            Collection<UserClientEntry> entries = getChatroomMembers(message.getConversation().getTarget());
+            for (UserClientEntry entry : entries) {
+                if (isDirect) {
+                    if (entry.userId.equals(message.getToUser())) {
+                        notifyReceivers.add(message.getToUser());
+                        break;
+                    }
+                } else {
+                    notifyReceivers.add(entry.userId);
+                }
+            }
+
+            pullType = ProtoConstants.PullType.Pull_ChatRoom;
+        } else if(type == ProtoConstants.ConversationType.ConversationType_Channel) {
+            WFCMessage.ChannelInfo channelInfo = getChannelInfo(message.getConversation().getTarget());
+            if (channelInfo != null) {
+                notifyReceivers.add(fromUser);
+                if (channelInfo.getOwner().equals(fromUser)) {
+                    Collection<String> listeners = getChannelListener(message.getConversation().getTarget());
+                    if (!StringUtil.isNullOrEmpty(message.getToUser())) {
+                        if (listeners.contains(message.getToUser())) {
+                            notifyReceivers.add(message.getToUser());
+                        }
+                    } else if(message.getToList() != null && !message.getToList().isEmpty()) {
+                        for (String to:message.getToList()) {
+                            if (listeners.contains(to)) {
+                                notifyReceivers.add(to);
+                            }
+                        }
+                    } else {
+                        notifyReceivers.addAll(listeners);
+                    }
+                } else {
+                    if (StringUtil.isNullOrEmpty(channelInfo.getCallback()) || channelInfo.getAutomatic() == 0) {
+                        notifyReceivers.add(channelInfo.getOwner());
+                    }
+                }
+            } else {
+                LOG.error("Channel not exist");
+            }
+        }
+
+        if (message.getContent().getPersistFlag() == Transparent) {
+            notifyReceivers.remove(fromUser);
+        }
+
+        return pullType;
+    }

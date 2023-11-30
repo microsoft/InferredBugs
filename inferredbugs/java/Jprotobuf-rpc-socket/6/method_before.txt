@@ -1,0 +1,28 @@
+    @Override
+    protected void reInit(final String service, final List<InetSocketAddress> list) throws Exception {
+        // store old
+        LoadBalanceProxyFactoryBean oldLbProxyBean = lbMap.get(service);
+        List<ProtobufRpcProxy<T>> oldProtobufRpcProxyList =
+                new ArrayList<ProtobufRpcProxy<T>>(protobufRpcProxyListMap.get(service));
+
+        // reinit naming service
+        loadBalanceStrategy.doReInit(service, new NamingService() {
+
+            @Override
+            public Map<String, List<InetSocketAddress>> list(Set<String> serviceSignatures) throws Exception {
+                Map<String, List<InetSocketAddress>> ret = new HashMap<String, List<InetSocketAddress>>();
+                ret.put(service, list);
+                return ret;
+            }
+
+        });
+
+        // create a new instance
+        doProxy(service, list);
+        try {
+            // try to close old
+            doClose(oldLbProxyBean, oldProtobufRpcProxyList);
+        } catch (Exception e) {
+            LOGGER.fatal(e.getMessage(), e);
+        }
+    }

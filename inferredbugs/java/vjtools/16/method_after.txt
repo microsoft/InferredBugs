@@ -1,0 +1,28 @@
+ private void updateGC() {
+		if (perfDataSupport) {
+			ygcCount.update(ygcCountCounter.longValue());
+			ygcTimeMills.update(perfData.tickToMills(ygcTimeCounter));
+			if (fullGcCountCounter != null) {
+				fullgcCount.update(fullGcCountCounter.longValue());
+				fullgcTimeMills.update(perfData.tickToMills(fullgcTimeCounter));
+			}
+		} else if (isJmxStateOk()) {
+			try {
+				JmxGarbageCollectorManager gcManager = jmxClient.getGarbageCollectorManager();
+
+				GarbageCollectorMXBean ygcMXBean = gcManager.getYoungCollector();
+				ygcStrategy = gcManager.getYgcStrategy();
+				ygcCount.update(ygcMXBean.getCollectionCount());
+				ygcTimeMills.update(ygcMXBean.getCollectionTime());
+
+				GarbageCollectorMXBean fullgcMXBean = gcManager.getFullCollector();
+				if (fullgcMXBean != null) {
+					fullgcStrategy = gcManager.getFgcStrategy();
+					fullgcCount.update(fullgcMXBean.getCollectionCount());
+					fullgcTimeMills.update(fullgcMXBean.getCollectionTime());
+				}
+			} catch (Exception e) {
+				handleJmxFetchDataError(e);
+			}
+		}
+	}

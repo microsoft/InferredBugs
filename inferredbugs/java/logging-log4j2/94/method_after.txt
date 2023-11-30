@@ -1,0 +1,15 @@
+    @Test
+    public void testConfig() {
+        final Configuration config = context.getConfiguration();
+        final Filter filter = config.getFilter();
+        assertNotNull("No StructuredDataFilter", filter);
+        assertTrue("Not a StructuredDataFilter", filter instanceof  StructuredDataFilter);
+        final StructuredDataFilter sdFilter = (StructuredDataFilter) filter;
+        assertFalse("Should not be And filter", sdFilter.isAnd());
+        final Map<String, List<String>> map = sdFilter.getMap();
+        assertNotNull("No Map", map);
+        assertFalse("No elements in Map", map.isEmpty());
+        assertEquals("Incorrect number of elements in Map", 1, map.size());
+        assertTrue("Map does not contain key eventId", map.containsKey("eventId"));
+        assertEquals("List does not contain 2 elements", 2, map.get("eventId").size());
+    }

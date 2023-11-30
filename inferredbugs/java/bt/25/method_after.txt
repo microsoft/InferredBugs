@@ -1,0 +1,62 @@
+    @Test
+    public void testDescriptors_WriteMultiFile() {
+
+        String torrentName = "xyz-torrent";
+        File torrentDirectory = new File(rootDirectory, torrentName);
+        String extension = "-multi.bin";
+
+        String fileName1 = 1 + extension,
+               fileName2 = 2 + extension,
+               fileName3 = 3 + extension,
+               fileName4 = 4 + extension,
+               fileName5 = 5 + extension,
+               fileName6 = 6 + extension;
+
+        IDataDescriptor descriptor = createDataDescriptor_MultiFile(fileName1, fileName2, fileName3, fileName4,
+                fileName5, fileName6, torrentDirectory);
+        List<IChunkDescriptor> chunks = descriptor.getChunkDescriptors();
+
+        chunks.get(0).writeBlock(sequence(8), 0);
+        chunks.get(0).writeBlock(sequence(8), 8);
+        assertTrue(chunks.get(0).verify());
+
+        chunks.get(1).writeBlock(sequence(4), 0);
+        chunks.get(1).writeBlock(sequence(4), 4);
+        chunks.get(1).writeBlock(sequence(4), 8);
+        chunks.get(1).writeBlock(sequence(4), 12);
+        assertTrue(chunks.get(1).verify());
+
+        // reverse order
+        chunks.get(2).writeBlock(sequence(11), 5);
+        chunks.get(2).writeBlock(sequence(3), 2);
+        chunks.get(2).writeBlock(sequence(2), 0);
+        assertFalse(chunks.get(2).verify());
+        chunks.get(2).writeBlock(new byte[]{1,2,1,2,3,1,2,3}, 0);
+        assertTrue(chunks.get(2).verify());
+
+        // "random" order
+        chunks.get(3).writeBlock(sequence(4), 4);
+        chunks.get(3).writeBlock(sequence(4), 0);
+        chunks.get(3).writeBlock(sequence(4), 12);
+        chunks.get(3).writeBlock(sequence(4), 8);
+        assertTrue(chunks.get(3).verify());
+
+        // block size same as chunk size
+        chunks.get(4).writeBlock(sequence(16), 0);
+        assertTrue(chunks.get(4).verify());
+
+        // 1-byte blocks
+        chunks.get(5).writeBlock(sequence(1), 0);
+        chunks.get(5).writeBlock(sequence(1), 15);
+        chunks.get(5).writeBlock(sequence(14), 1);
+        assertFalse(chunks.get(5).verify());
+        chunks.get(5).writeBlock(new byte[]{1,1,2,3,4,5,6,7,8,9,1,2,3,4,5,1}, 0);
+        assertTrue(chunks.get(5).verify());
+
+        assertFileHasContents(new File(torrentDirectory, fileName1), MULTI_FILE_1);
+        assertFileHasContents(new File(torrentDirectory, fileName2), MULTI_FILE_2);
+        assertFileHasContents(new File(torrentDirectory, fileName3), MULTI_FILE_3);
+        assertFileHasContents(new File(torrentDirectory, fileName4), MULTI_FILE_4);
+        assertFileHasContents(new File(torrentDirectory, fileName5), MULTI_FILE_5);
+        assertFileHasContents(new File(torrentDirectory, fileName6), MULTI_FILE_6);
+    }

@@ -1,0 +1,20 @@
+    public static ApiClient defaultClient() throws IOException {
+        String kubeConfig = System.getenv(ENV_KUBECONFIG);
+        if (kubeConfig != null) {
+            return fromConfig(new FileReader(kubeConfig));
+        }
+        File config = new File(
+            new File(System.getenv(KubeConfig.ENV_HOME),
+                     KubeConfig.KUBEDIR),
+            KubeConfig.KUBECONFIG);
+        if (config.exists()) {
+            return fromConfig(new FileReader(config));
+        }
+        File clusterCA = new File(SERVICEACCOUNT_CA_PATH);
+        if (clusterCA.exists()) {
+            return fromCluster();
+        }
+        ApiClient client = new ApiClient();
+        client.setBasePath(DEFAULT_FALLBACK_HOST);
+        return client;
+    }

@@ -1,0 +1,38 @@
+    public final List/* <AttachedNarArtifact> */getAttachedNarDependencies( List/* <NarArtifacts> */narArtifacts,
+                                                                            AOL archOsLinker, String type )
+        throws MojoExecutionException, MojoFailureException
+    {
+        boolean noarch = false;
+        AOL aol = archOsLinker;
+        if ( aol == null )
+        {
+            noarch = true;
+            aol = defaultAOL;
+        }
+
+        List artifactList = new ArrayList();
+        for ( Iterator i = narArtifacts.iterator(); i.hasNext(); )
+        {
+            Artifact dependency = (Artifact) i.next();
+            NarInfo narInfo = getNarInfo( dependency );
+            if ( noarch )
+            {
+                artifactList.addAll( getAttachedNarDependencies( dependency, null, NarConstants.NAR_NO_ARCH ) );
+            }
+
+            // use preferred binding, unless non existing.
+            String binding = narInfo.getBinding( aol, type != null ? type : Library.STATIC );
+
+            // FIXME kludge, but does not work anymore since AOL is now a class
+            if ( aol.equals( NarConstants.NAR_NO_ARCH ) )
+            {
+                // FIXME no handling of local
+                artifactList.addAll( getAttachedNarDependencies( dependency, null, NarConstants.NAR_NO_ARCH ) );
+            }
+            else
+            {
+                artifactList.addAll( getAttachedNarDependencies( dependency, aol, binding ) );
+            }
+        }
+        return artifactList;
+    }

@@ -1,0 +1,64 @@
+  private void createPropertyScopeFor(Symbol s) {
+    // In order to build a property scope for s, we will need to build
+    // a property scope for all its implicit prototypes first. This means
+    // that sometimes we will already have built its property scope
+    // for a previous symbol.
+    if (s.propertyScope != null) {
+      return;
+    }
+
+    SymbolScope parentPropertyScope = null;
+    ObjectType type = s.getType() == null ? null : s.getType().toObjectType();
+    if (type == null) {
+      return;
+    }
+
+    ObjectType proto = type.getParentScope();
+    if (proto != null && proto != type && proto.getConstructor() != null) {
+      Symbol parentSymbol = getSymbolForInstancesOf(proto.getConstructor());
+      if (parentSymbol != null) {
+        createPropertyScopeFor(parentSymbol);
+        parentPropertyScope = parentSymbol.getPropertyScope();
+      }
+    }
+
+    ObjectType instanceType = type;
+    Iterable<String> propNames = type.getOwnPropertyNames();
+    if (instanceType.isFunctionPrototypeType()) {
+      // Merge the properties of "Foo.prototype" and "new Foo()" together.
+      instanceType = instanceType.getOwnerFunction().getInstanceType();
+      Set<String> set = Sets.newHashSet(propNames);
+      Iterables.addAll(set, instanceType.getOwnPropertyNames());
+      propNames = set;
+    }
+
+    s.setPropertyScope(new SymbolScope(null, parentPropertyScope, type, s));
+    for (String propName : propNames) {
+      StaticSlot<JSType> newProp = instanceType.getSlot(propName);
+      if (newProp.getDeclaration() == null) {
+        // Skip properties without declarations. We won't know how to index
+        // them, because we index things by node.
+        continue;
+      }
+
+      // We have symbol tables that do not do type analysis. They just try
+      // to build a complete index of all objects in the program. So we might
+      // already have symbols for things like "Foo.bar". If this happens,
+      // throw out the old symbol and use the type-based symbol.
+      Symbol oldProp = getScope(s).getSlot(s.getName() + "." + propName);
+      if (oldProp != null) {
+        removeSymbol(oldProp);
+      }
+
+      Symbol newSym = copySymbolTo(newProp, s.propertyScope);
+      if (oldProp != null) {
+        if (newSym.getJSDocInfo() == null) {
+          newSym.setJSDocInfo(oldProp.getJSDocInfo());
+        }
+        newSym.setPropertyScope(oldProp.propertyScope);
+        for (Reference ref : oldProp.references.values()) {
+          newSym.defineReferenceAt(ref.getNode());
+        }
+      }
+    }
+  }

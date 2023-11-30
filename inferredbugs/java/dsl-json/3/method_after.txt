@@ -1,0 +1,74 @@
+ @Override
+	public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+		if (roundEnv.processingOver()) {
+			return false;
+		}
+		final DslJson<Object> dslJson = new DslJson<>(Settings.withRuntime().includeServiceLoader());
+		Set<Type> knownEncoders = dslJson.getRegisteredEncoders();
+		Set<Type> knownDecoders = dslJson.getRegisteredDecoders();
+		Set<String> allTypes = new HashSet<>();
+		for (Type t : knownEncoders) {
+			if (knownDecoders.contains(t)) {
+				allTypes.add(t.getTypeName());
+			}
+		}
+		final Analysis analysis = new Analysis(
+				processingEnv,
+				annotationUsage,
+				logLevel,
+				allTypes,
+				rawClass -> {
+					try {
+						Class<?> raw = Class.forName(rawClass);
+						return dslJson.canSerialize(raw) && dslJson.canDeserialize(raw);
+					} catch (Exception ignore) {
+						return false;
+					}
+				},
+				JsonIgnore,
+				NonNullable,
+				PropertyAlias,
+				JsonRequired,
+				Constructors,
+				Indexes,
+				unknownTypes,
+				false,
+				true,
+				true,
+				true);
+		Set<? extends Element> compiledJsons = roundEnv.getElementsAnnotatedWith(analysis.compiledJsonElement);
+		Set<? extends Element> jacksonCreators = withJackson && jacksonCreatorElement != null ? roundEnv.getElementsAnnotatedWith(jacksonCreatorElement) : new HashSet<>();
+		Set<? extends Element> jsonbCreators = withJsonb && jsonbCreatorElement != null ? roundEnv.getElementsAnnotatedWith(jsonbCreatorElement) : new HashSet<>();
+		if (!compiledJsons.isEmpty() || !jacksonCreators.isEmpty() || !jsonbCreators.isEmpty()) {
+			Set<? extends Element> jsonConverters = roundEnv.getElementsAnnotatedWith(analysis.converterElement);
+			List<String> configurations = analysis.processConverters(jsonConverters);
+			analysis.processAnnotation(analysis.compiledJsonType, compiledJsons);
+			if (!jacksonCreators.isEmpty() && jacksonCreatorType != null) {
+				analysis.processAnnotation(jacksonCreatorType, jacksonCreators);
+			}
+			if (!jsonbCreators.isEmpty() && jsonbCreatorType != null) {
+				analysis.processAnnotation(jsonbCreatorType, jsonbCreators);
+			}
+			Map<String, StructInfo> structs = analysis.analyze();
+			if (analysis.hasError()) {
+				return false;
+			}
+
+			try {
+				String className = "dsl_json_Annotation_Processor_External_Serialization";
+				Writer writer = processingEnv.getFiler().createSourceFile(className).openWriter();
+				buildCode(writer, structs, allowInline, allTypes);
+				writer.close();
+				writer = processingEnv.getFiler().createResource(StandardLocation.CLASS_OUTPUT, "", CONFIG).openWriter();
+				writer.write(className);
+				for (String conf : configurations) {
+					writer.write('\n');
+					writer.write(conf);
+				}
+				writer.close();
+			} catch (IOException e) {
+				processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "Failed saving compiled json serialization files");
+			}
+		}
+		return false;
+	}

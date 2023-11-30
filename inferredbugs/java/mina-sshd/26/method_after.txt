@@ -1,0 +1,133 @@
+    protected void doHandleMessage(Buffer buffer) throws Exception {
+        SshConstants.Message cmd = buffer.getCommand();
+        log.debug("Received packet {}", cmd);
+        switch (cmd) {
+            case SSH_MSG_DISCONNECT: {
+                int code = buffer.getInt();
+                String msg = buffer.getString();
+                log.info("Received SSH_MSG_DISCONNECT (reason={}, msg={})", code, msg);
+                close(false);
+                break;
+            }
+            case SSH_MSG_UNIMPLEMENTED: {
+                int code = buffer.getInt();
+                log.info("Received SSH_MSG_UNIMPLEMENTED #{}", code);
+                break;
+            }
+            case SSH_MSG_DEBUG: {
+                boolean display = buffer.getBoolean();
+                String msg = buffer.getString();
+                log.info("Received SSH_MSG_DEBUG (display={}) '{}'", display, msg);
+                break;
+            }
+            case SSH_MSG_IGNORE:
+                log.info("Received SSH_MSG_IGNORE");
+                break;
+            default:
+                switch (getState()) {
+                    case ReceiveKexInit:
+                        if (cmd != SshConstants.Message.SSH_MSG_KEXINIT) {
+                            log.error("Ignoring command " + cmd + " while waiting for " + SshConstants.Message.SSH_MSG_KEXINIT);
+                            break;
+                        }
+                        log.info("Received SSH_MSG_KEXINIT");
+                        receiveKexInit(buffer);
+                        negociate();
+                        kex = NamedFactory.Utils.create(factoryManager.getKeyExchangeFactories(), negociated[SshConstants.PROPOSAL_KEX_ALGS]);
+                        kex.init(this, serverVersion.getBytes(), clientVersion.getBytes(), I_S, I_C);
+                        setState(State.Kex);
+                        break;
+                    case Kex:
+                        buffer.rpos(buffer.rpos() - 1);
+                        if (kex.next(buffer)) {
+                            checkHost();
+                            sendNewKeys();
+                            setState(State.ReceiveNewKeys);
+                        }
+                        break;
+                    case ReceiveNewKeys:
+                        if (cmd != SshConstants.Message.SSH_MSG_NEWKEYS) {
+                            disconnect(SshConstants.SSH2_DISCONNECT_PROTOCOL_ERROR, "Protocol error: expected packet SSH_MSG_NEWKEYS, got " + cmd);
+                            return;
+                        }
+                        log.info("Received SSH_MSG_NEWKEYS");
+                        receiveNewKeys(false);
+                        sendAuthRequest();
+                        setState(State.AuthRequestSent);
+                        break;
+                    case AuthRequestSent:
+                        if (cmd != SshConstants.Message.SSH_MSG_SERVICE_ACCEPT) {
+                            disconnect(SshConstants.SSH2_DISCONNECT_PROTOCOL_ERROR, "Protocol error: expected packet SSH_MSG_SERVICE_ACCEPT, got " + cmd);
+                            return;
+                        }
+                        authFuture.setAuthed(false);
+                        setState(State.WaitForAuth);
+                        break;
+                    case WaitForAuth:
+                        // We're waiting for the client to send an authentication request
+                        // TODO: handle unexpected incoming packets
+                        break;
+                    case UserAuth:
+                        if (userAuth == null) {
+                            throw new IllegalStateException("State is userAuth, but no user auth pending!!!");
+                        }
+                        if (cmd == SshConstants.Message.SSH_MSG_USERAUTH_BANNER) {
+                            String welcome = buffer.getString();
+                            String lang = buffer.getString();
+                            log.debug("Welcome banner: " + welcome);
+                            UserInteraction ui = getClientFactoryManager().getUserInteraction();
+                            if (ui != null) {
+                                ui.welcome(welcome);
+                            }
+                        } else {
+                            buffer.rpos(buffer.rpos() - 1);
+                            processUserAuth(buffer);
+                        }
+                        break;
+                    case Running:
+                        switch (cmd) {
+                            case SSH_MSG_REQUEST_SUCCESS:
+                                requestSuccess(buffer);
+                                break;
+                            case SSH_MSG_REQUEST_FAILURE:
+                                requestFailure(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_OPEN:
+                                channelOpen(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_OPEN_CONFIRMATION:
+                                channelOpenConfirmation(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_OPEN_FAILURE:
+                                channelOpenFailure(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_REQUEST:
+                                channelRequest(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_DATA:
+                                channelData(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_EXTENDED_DATA:
+                                channelExtendedData(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_FAILURE:
+                                channelFailure(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_WINDOW_ADJUST:
+                                channelWindowAdjust(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_EOF:
+                                channelEof(buffer);
+                                break;
+                            case SSH_MSG_CHANNEL_CLOSE:
+                                channelClose(buffer);
+                                break;
+                            default:
+                                throw new IllegalStateException("Unsupported command: " + cmd);
+                        }
+                        break;
+                    default:
+                        throw new IllegalStateException("Unsupported state: " + getState());
+                }
+        }
+    }

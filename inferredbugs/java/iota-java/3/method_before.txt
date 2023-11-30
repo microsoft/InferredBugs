@@ -1,0 +1,37 @@
+    public void transactionObject(final String trytes) {
+
+        if (StringUtils.isEmpty(trytes)) {
+            log.warn("Warning: empty trytes in input for transactionObject");
+            return;
+        }
+
+        // validity check
+        for (int i = 2279; i < 2295; i++) {
+            if (trytes.charAt(i) != '9') {
+                log.warn("Trytes {} does not seem a valid tryte", trytes);
+                return;
+            }
+        }
+
+        int[] transactionTrits = Converter.trits(trytes);
+        int[] hash = new int[243];
+
+        ICurl curl = SpongeFactory.create(SpongeFactory.Mode.CURL);
+        // generate the correct transaction hash
+        curl.reset();
+        curl.absorb(transactionTrits, 0, transactionTrits.length);
+        curl.squeeze(hash, 0, hash.length);
+
+        this.setHash(Converter.trytes(hash));
+        this.setSignatureFragments(trytes.substring(0, 2187));
+        this.setAddress(trytes.substring(2187, 2268));
+        this.setValue(Converter.longValue(Arrays.copyOfRange(transactionTrits, 6804, 6837)));
+        this.setTag(trytes.substring(2295, 2322));
+        this.setTimestamp(Converter.longValue(Arrays.copyOfRange(transactionTrits, 6966, 6993)));
+        this.setCurrentIndex(Converter.longValue(Arrays.copyOfRange(transactionTrits, 6993, 7020)));
+        this.setLastIndex(Converter.longValue(Arrays.copyOfRange(transactionTrits, 7020, 7047)));
+        this.setBundle(trytes.substring(2349, 2430));
+        this.setTrunkTransaction(trytes.substring(2430, 2511));
+        this.setBranchTransaction(trytes.substring(2511, 2592));
+        this.setNonce(trytes.substring(2592, 2673));
+    }

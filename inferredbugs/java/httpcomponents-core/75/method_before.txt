@@ -1,0 +1,19 @@
+    @Override
+    protected void onRequestReceived(final HttpRequest request) throws IOException {
+        this.request = request;
+        if (request instanceof HttpEntityEnclosingRequest) {
+            HttpEntity entity = ((HttpEntityEnclosingRequest) this.request).getEntity();
+            if (entity != null) {
+                long len = entity.getContentLength();
+                if (len > Integer.MAX_VALUE) {
+                    throw new ContentTooLongException("Entity content is too long: " + len);
+                }
+                if (len < 0) {
+                    len = 4096;
+                }
+                this.buf = new SimpleInputBuffer((int) len, HeapByteBufferAllocator.INSTANCE);
+                ((HttpEntityEnclosingRequest) this.request).setEntity(
+                        new ContentBufferEntity(entity, this.buf));
+            }
+        }
+    }

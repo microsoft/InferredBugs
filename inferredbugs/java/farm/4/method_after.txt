@@ -1,0 +1,27 @@
+    @Test
+    public void recordsChangesToClaims() throws Exception {
+        final Bucket bucket = new FkBucket(
+            Files.createTempDirectory("").toFile(),
+            "the-bucket"
+        );
+        final Farm farm = new SyncFarm(
+            new FtFarm(new PropsFarm(new S3Farm(bucket)))
+        );
+        final Project project = farm.find("@id='ABCZZFE03'").iterator().next();
+        final Claims claims = new Claims(project);
+        final AtomicLong cid = new AtomicLong(1L);
+        final int threads = 10;
+        MatcherAssert.assertThat(
+            inc -> {
+                final long num = cid.getAndIncrement();
+                new ClaimOut().cid(num).type("hello").postTo(project);
+                claims.remove(num);
+                return true;
+            },
+            new RunsInThreads<>(new AtomicInteger(), threads)
+        );
+        MatcherAssert.assertThat(
+            new Footprint(farm, project).collection().count(),
+            Matchers.equalTo((long) threads)
+        );
+    }

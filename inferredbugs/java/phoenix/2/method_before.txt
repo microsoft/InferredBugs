@@ -1,0 +1,70 @@
+    @Override
+    public int newKey(ImmutableBytesWritable key, byte[][] values) {
+        int nValues = values.length;
+        while (nValues > 0 && (values[nValues-1] == null || values[nValues-1].length == 0)) {
+            nValues--;
+        }
+        int i = 0;
+        TrustedByteArrayOutputStream os = new TrustedByteArrayOutputStream(SchemaUtil.estimateKeyLength(this));
+        try {
+            Integer bucketNum = this.getBucketNum();
+            if (bucketNum != null) {
+                // Write place holder for salt byte
+                i++;
+                os.write(QueryConstants.SEPARATOR_BYTE_ARRAY);
+            }
+            List<PColumn> columns = getPKColumns();
+            int nColumns = columns.size();
+            PDataType type = null;
+            while (i < nValues && i < nColumns) {
+                // Separate variable length column values in key with zero byte
+                if (type != null && !type.isFixedWidth()) {
+                    os.write(SEPARATOR_BYTE);
+                }
+                PColumn column = columns.get(i);
+                type = column.getDataType();
+                // This will throw if the value is null and the type doesn't allow null
+                byte[] byteValue = values[i++];
+                if (byteValue == null) {
+                    byteValue = ByteUtil.EMPTY_BYTE_ARRAY;
+                }
+                // An empty byte array return value means null. Do this,
+                // since a type may have muliple representations of null.
+                // For example, VARCHAR treats both null and an empty string
+                // as null. This way we don't need to leak that part of the
+                // implementation outside of PDataType by checking the value
+                // here.
+                if (byteValue.length == 0 && !column.isNullable()) { 
+                    throw new ConstraintViolationException(name.getString() + "." + column.getName().getString() + " may not be null");
+                }
+                Integer	maxLength = column.getMaxLength();
+                if (maxLength != null && type.isFixedWidth() && byteValue.length <= maxLength) {
+                    byteValue = StringUtil.padChar(byteValue, maxLength);
+                } else if (maxLength != null && byteValue.length > maxLength) {
+                    throw new ConstraintViolationException(name.getString() + "." + column.getName().getString() + " may not exceed " + maxLength + " bytes (" + SchemaUtil.toString(type, byteValue) + ")");
+                }
+                os.write(byteValue, 0, byteValue.length);
+            }
+            // If some non null pk values aren't set, then throw
+            if (i < nColumns) {
+                PColumn column = columns.get(i);
+                type = column.getDataType();
+                if (type.isFixedWidth() || !column.isNullable()) {
+                    throw new ConstraintViolationException(name.getString() + "." + column.getName().getString() + " may not be null");
+                }
+            }
+            byte[] buf = os.getBuffer();
+            int size = os.size();
+            if (bucketNum != null) {
+                buf[0] = SaltingUtil.getSaltingByte(buf, 1, size-1, bucketNum);
+            }
+            key.set(buf,0,size);
+            return i;
+        } finally {
+            try {
+                os.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e); // Impossible
+            }
+        }
+    }

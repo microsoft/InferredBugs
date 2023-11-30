@@ -1,0 +1,27 @@
+    protected void starting(Class<?> testClass, String testName) {
+        SharedDriverStrategy strategy = sdsr.getSharedDriverStrategy(testClass, testName);
+
+        if (strategy == SharedDriverStrategy.ONCE) {
+            synchronized (FluentTestRunnerAdapter.class) {
+                if (sharedDriver == null) {
+                    initFluent(getDefaultDriver()).withDefaultUrl(getDefaultBaseUrl());
+                    sharedDriver = getDriver();
+                    Runtime.getRuntime().addShutdownHook(new SharedDriverOnceShutdownHook("SharedDriver-ONCE-ShutdownHook"));
+                } else {
+                    initFluent(sharedDriver).withDefaultUrl(getDefaultBaseUrl());
+                }
+            }
+        } else if (strategy == SharedDriverStrategy.PER_CLASS) {
+            synchronized (FluentTestRunnerAdapter.class) {
+                if (!isSharedDriverPerClass) {
+                    initFluent(getDefaultDriver()).withDefaultUrl(getDefaultBaseUrl());
+                    sharedDriver = getDriver();
+                    isSharedDriverPerClass = true;
+                } else {
+                    initFluent(sharedDriver).withDefaultUrl(getDefaultBaseUrl());
+                }
+            }
+        } else {
+            initFluent(getDefaultDriver()).withDefaultUrl(getDefaultBaseUrl());
+        }
+    }

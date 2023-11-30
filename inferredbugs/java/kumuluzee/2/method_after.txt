@@ -1,0 +1,51 @@
+    private void unpackDependencies() throws MojoExecutionException {
+
+        getLog().info("Unpacking kumuluzee-loader dependency.");
+
+        try {
+
+            // get plugin JAR
+            String pluginJarPath = getPluginJarPath();
+
+            Path pluginJarFile = Paths.get(pluginJarPath);
+
+            FileSystem pluginJarFs = FileSystems.newFileSystem(pluginJarFile, null);
+
+            Path loaderJarFile = pluginJarFs.getPath(LOADER_JAR);
+            Path tmpJar = Files.createTempFile(TEMP_DIR_NAME_PREFIX, ".tmp");
+
+            Files.copy(loaderJarFile, tmpJar, StandardCopyOption.REPLACE_EXISTING);
+
+            JarFile loaderJar = new JarFile(tmpJar.toFile());
+
+            loaderJar.stream().parallel()
+                    .filter(loaderJarEntry -> loaderJarEntry.getName().toLowerCase().endsWith(CLASS_SUFFIX))
+                    .forEach(loaderJarEntry -> {
+                        try {
+
+                            Path outputPath = Paths.get(outputDirectory, loaderJarEntry.getName());
+
+                            Path outputPathParent = outputPath.getParent();
+
+                            if (outputPathParent != null) {
+
+                                Files.createDirectories(outputPathParent);
+                            }
+
+                            InputStream inputStream = loaderJar.getInputStream(loaderJarEntry);
+
+                            Files.copy(inputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);
+
+                            inputStream.close();
+                        } catch (IOException ignored) {
+                        }
+                    });
+
+            loaderJar.close();
+
+            Files.delete(tmpJar);
+
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to unpack kumuluzee-loader dependency: " + e.getMessage() + ".");
+        }
+    }

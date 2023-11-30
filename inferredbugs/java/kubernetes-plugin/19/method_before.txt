@@ -1,0 +1,60 @@
+    @Test
+    public void runInPod() throws Exception {
+        List<PodTemplate> templates = null;
+        while (b.isBuilding() && (templates = podTemplatesWithLabel(name.getMethodName(), cloud.getAllTemplates())).isEmpty()) {
+            LOGGER.log(Level.INFO, "Waiting for runInPod template to be created");
+            Thread.sleep(1000);
+        }
+
+        // check if build failed
+        assertTrue("Build has failed early: " + b.getResult(), b.isBuilding() || Result.SUCCESS.equals(b.getResult()));
+
+        LOGGER.log(Level.INFO, "Found templates with label runInPod: {0}", templates);
+        for (PodTemplate template : cloud.getAllTemplates()) {
+            LOGGER.log(Level.INFO, "Cloud template \"{0}\" labels: {1}",
+                    new Object[] { template.getName(), template.getLabelSet() });
+        }
+
+        Map<String, String> labels = getLabels(cloud, this, name);
+        PodList pods = new PodListBuilder().withItems(Collections.emptyList()).build();
+        while (pods.getItems().isEmpty()) {
+            LOGGER.log(Level.INFO, "Waiting for pods to be created with labels: {0}", labels);
+            pods = cloud.connect().pods().withLabels(labels).list();
+            Thread.sleep(1000);
+        }
+
+        for (String msg : logs.getMessages()) {
+            System.out.println(msg);
+        }
+
+        assertThat(templates, hasSize(1));
+        PodTemplate template = templates.get(0);
+        List<PodAnnotation> annotations = template.getAnnotations();
+        assertNotNull(annotations);
+        boolean foundBuildUrl=false;
+        for(PodAnnotation pd : annotations)
+        {
+            if(pd.getKey().equals("buildUrl"))
+            {
+                assertTrue(pd.getValue().contains(p.getUrl()));
+                foundBuildUrl=true;
+            }
+        }
+        assertTrue(foundBuildUrl);
+        assertEquals(Integer.MAX_VALUE, template.getInstanceCap());
+        assertThat(template.getLabelsMap(), hasEntry("jenkins/" + name.getMethodName(), "true"));
+
+        assertThat(
+                "Expected one pod with labels " + labels + " but got: "
+                        + pods.getItems().stream().map(pod -> pod.getMetadata()).collect(Collectors.toList()),
+                pods.getItems(), hasSize(1));
+        Pod pod = pods.getItems().get(0);
+        LOGGER.log(Level.INFO, "One pod found: {0}", pod);
+        assertThat(pod.getMetadata().getLabels(), hasEntry("jenkins", "slave"));
+        assertThat("Pod labels are wrong: " + pod, pod.getMetadata().getLabels(), hasEntry("jenkins/" + name.getMethodName(), "true"));
+
+        r.assertBuildStatusSuccess(r.waitForCompletion(b));
+        r.assertLogContains("script file contents: ", b);
+        assertFalse("There are pods leftover after test execution, see previous logs",
+                deletePods(cloud.connect(), getLabels(cloud, this, name), true));
+    }

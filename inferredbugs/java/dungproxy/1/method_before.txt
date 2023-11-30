@@ -1,0 +1,24 @@
+    public AvProxy bind(String url, Object userID) {
+        if (testUrls.size() < 10) {
+            testUrls.add(url);
+        } else {
+            testUrls.set(random.nextInt(10), url);
+        }
+        if (consistentBuckets.size() < minSize) {
+            fresh();
+        }
+
+        readWriteLock.readLock().lock();
+        try {// 注意hash空间问题,之前是Integer,hash值就是字面值,导致hash空间只存在了正数空间
+            AvProxy hint = hint(userID == null ? String.valueOf(random.nextInt()).hashCode() : userID.hashCode());
+            if (userID != null && hint != null) {
+                if (!hint.equals(bindMap.get(userID))) {
+                    // IP 绑定改变事件
+                }
+                bindMap.put(userID, hint);
+            }
+            return hint;
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
+    }

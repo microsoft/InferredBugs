@@ -1,0 +1,19 @@
+  @Test
+  public void test_local_quotes_service() throws InterruptedException {
+    Microservices node = Microservices.builder()
+        .discoveryPort(port.incrementAndGet())
+        .services(new SimpleQuoteService()).build();
+
+    QuoteService service = node.call().api(QuoteService.class);
+
+    CountDownLatch latch = new CountDownLatch(3);
+    Flux<String> obs = service.quotes();
+
+    Disposable sub = obs.subscribe(onNext -> latch.countDown());
+
+    latch.await(4, TimeUnit.SECONDS);
+
+    sub.dispose();
+    assertTrue(latch.getCount() <= 0);
+    node.shutdown();
+  }

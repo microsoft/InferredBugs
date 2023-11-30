@@ -1,0 +1,38 @@
+    @Nullable
+    public Process startInterpreter(String pythonExe) {
+        String jsonizeStr;
+        Process p;
+
+        try {
+            InputStream jsonize =
+                    Thread.currentThread()
+                            .getContextClassLoader()
+                            .getResourceAsStream(dumpPythonResource);
+            jsonizeStr = _.readWholeStream(jsonize);
+        } catch (Exception e) {
+            _.die("Failed to open resource file:" + dumpPythonResource);
+            return null;
+        }
+
+        try {
+            FileWriter fw = new FileWriter(jsonizer);
+            fw.write(jsonizeStr);
+            fw.close();
+        } catch (Exception e) {
+            _.die("Failed to write into: " + jsonizer);
+            return null;
+        }
+
+        try {
+            ProcessBuilder builder = new ProcessBuilder(pythonExe, "-i", jsonizer);
+            builder.redirectErrorStream(true);
+            builder.redirectError(new File(parserLog));
+            builder.redirectOutput(new File(parserLog));
+            builder.environment().remove("PYTHONPATH");
+            p = builder.start();
+        } catch (Exception e) {
+            _.die("Failed to start Python");
+            return null;
+        }
+        return p;
+    }

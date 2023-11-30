@@ -1,0 +1,32 @@
+    @Override
+    public void execute(Tuple tuple) {
+        HashMap<String, String[]> metadata = (HashMap<String, String[]>) tuple
+                .getValueByField("metadata");
+
+        // TODO check that we have the right number of fields ?
+        String isSitemap = KeyValues.getValue(isSitemapKey, metadata);
+        if (!Boolean.valueOf(isSitemap)) {
+            // just pass it on
+            this.collector.emit(tuple.getValues());
+            this.collector.ack(tuple);
+            return;
+        }
+
+        // it does have the right key/value
+        byte[] content = tuple.getBinaryByField("content");
+        String url = tuple.getStringByField("url");
+        String ct = KeyValues.getValue(HttpHeaders.CONTENT_TYPE, metadata);
+        List<Values> outlinks = parseSiteMap(url, content, ct);
+
+        // send to status stream
+        for (Values ol : outlinks) {
+            collector.emit(Constants.StatusStreamName, ol);
+        }
+
+        // marking the main URL as successfully fetched
+        // regardless of whether we got a parse exception or not
+        collector.emit(Constants.StatusStreamName, new Values(url, metadata,
+                Status.FETCHED));
+
+        this.collector.ack(tuple);
+    }

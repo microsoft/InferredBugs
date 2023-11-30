@@ -1,0 +1,42 @@
+  private BestPossibleStateOutput compute(ClusterEvent event, Map<String, Resource> resourceMap,
+      CurrentStateOutput currentStateOutput) {
+    ClusterDataCache cache = event.getAttribute(AttributeName.ClusterDataCache.name());
+    BestPossibleStateOutput output = new BestPossibleStateOutput();
+
+    HelixManager helixManager = event.getAttribute(AttributeName.helixmanager.name());
+    ClusterStatusMonitor clusterStatusMonitor =
+        event.getAttribute(AttributeName.clusterStatusMonitor.name());
+
+    // Check whether the offline/disabled instance count in the cluster reaches the set limit,
+    // if yes, pause the rebalancer.
+    boolean isValid = validateOfflineInstancesLimit(cache,
+        (HelixManager) event.getAttribute(AttributeName.helixmanager.name()));
+
+    final List<String> failureResources = new ArrayList<>();
+    Iterator<Resource> itr = resourceMap.values().iterator();
+    while (itr.hasNext()) {
+      Resource resource = itr.next();
+      boolean result = false;
+      try {
+        result =
+            computeResourceBestPossibleState(event, cache, currentStateOutput, resource, output);
+      } catch (HelixException ex) {
+        LogUtil.logError(logger, _eventId,
+            "Exception when calculating best possible states for " + resource.getResourceName(),
+            ex);
+
+      }
+      if (!result) {
+        failureResources.add(resource.getResourceName());
+        LogUtil.logWarn(logger, _eventId,
+            "Failed to calculate best possible states for " + resource.getResourceName());
+      }
+    }
+
+    // Check and report if resource rebalance has failure
+    updateRebalanceStatus(!isValid || !failureResources.isEmpty(), failureResources, helixManager,
+        cache, clusterStatusMonitor,
+        "Failed to calculate best possible states for " + failureResources.size() + " resources.");
+
+    return output;
+  }

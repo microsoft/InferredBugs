@@ -1,0 +1,24 @@
+    @Test
+    public void authPlain() throws IOException, MessagingException, UserException {
+        try (Socket socket = new Socket(hostAddress, port)) {
+            assertThat(socket.isConnected()).isTrue();
+            PrintStream printStream = new PrintStream(socket.getOutputStream());
+            final BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+            // No such user
+            assertThat(reader.readLine()).startsWith("+OK POP3 GreenMail Server v");
+            printStream.print("AUTH PLAIN dGVzdAB0ZXN0AHRlc3RwYXNz" + CRLF /* test / test / testpass */);
+            assertThat(reader.readLine()).isEqualTo("-ERR Authentication failed: User <test> doesn't exist");
+
+            greenMail.getManagers().getUserManager().createUser("test@localhost", "test", "testpass");
+
+            // Invalid pwd
+            printStream.print("AUTH PLAIN dGVzdAB0ZXN0AHRlc3RwY" + CRLF /* test / test / <invalid> */);
+            assertThat(reader.readLine()).isEqualTo(
+                    "-ERR Authentication failed, expected base64 encoding : Last unit does not have enough valid bits");
+
+            // Successful auth
+            printStream.print("AUTH PLAIN dGVzdAB0ZXN0AHRlc3RwYXNz" + CRLF /* test / test / <invalid> */);
+            assertThat(reader.readLine()).isEqualTo("+OK");
+        }
+    }

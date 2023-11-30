@@ -1,0 +1,20 @@
+    @Path("{username}/session-stats")
+    @GET
+    @NoCache
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, UserStats> getSessionStats(final @PathParam("username") String username) {
+        logger.info("session-stats");
+        auth.requireView();
+        UserModel user = realm.getUser(username);
+        if (user == null) {
+            throw new NotFoundException("User not found");
+        }
+        Map<String, UserStats> stats = new HashMap<String, UserStats>();
+        for (ApplicationModel applicationModel : realm.getApplications()) {
+            if (applicationModel.getManagementUrl() == null) continue;
+            UserStats appStats = new ResourceAdminManager().getUserStats(realm, applicationModel, user);
+            if (appStats == null) continue;
+            if (appStats.isLoggedIn()) stats.put(applicationModel.getName(), appStats);
+        }
+        return stats;
+    }

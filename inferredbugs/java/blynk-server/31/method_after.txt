@@ -1,0 +1,31 @@
+    private Response singleDeviceOTA(ChannelHandlerContext ctx, String token, String path) {
+        TokenValue tokenValue = tokenManager.getTokenValueByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return badRequest("Invalid token.");
+        }
+
+        User user = tokenValue.user;
+        int dashId = tokenValue.dash.id;
+        int deviceId = tokenValue.device.id;
+
+        Session session = sessionDao.userSession.get(new UserKey(user));
+        if (session == null) {
+            log.debug("No session for user {}.", user.email);
+            return badRequest("Device wasn't connected yet.");
+        }
+
+        String body = otaManager.buildOTAInitCommandBody(path);
+        if (session.sendMessageToHardware(dashId, BLYNK_INTERNAL, 7777, body, deviceId)) {
+            log.debug("No device in session.");
+            return badRequest("No device in session.");
+        }
+
+        User initiator = ctx.channel().attr(AuthHeadersBaseHttpHandler.USER).get();
+        if (initiator != null) {
+            tokenValue.device.updateOTAInfo(initiator.email);
+        }
+
+        return ok(path);
+    }

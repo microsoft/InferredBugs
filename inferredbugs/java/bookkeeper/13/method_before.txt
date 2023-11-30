@@ -1,0 +1,25 @@
+    public void setMessageHandler(MessageHandler messageHandler) {
+        if (logger.isDebugEnabled())
+            logger.debug("Setting the messageHandler for topic: " + origSubData.topic.toStringUtf8()
+                         + ", subscriberId: " + origSubData.subscriberId.toStringUtf8());
+        synchronized (this) {
+            this.messageHandler = messageHandler;
+            // Once the MessageHandler is registered, see if we have any queued up
+            // subscription messages sent to us already from the server. If so,
+            // consume those first. Do this only if the MessageHandler registered is
+            // not null (since that would be the HedwigSubscriber.stopDelivery
+            // call).
+            if (messageHandler != null && subscribeMsgQueue != null && subscribeMsgQueue.size() > 0) {
+                if (logger.isDebugEnabled())
+                    logger.debug("Consuming " + subscribeMsgQueue.size() + " queued up messages for topic: "
+                                 + origSubData.topic.toStringUtf8() + ", subscriberId: "
+                                 + origSubData.subscriberId.toStringUtf8());
+                for (Message message : subscribeMsgQueue) {
+                    asyncMessageConsume(message);
+                }
+                // Now we can remove the queued up messages since they are all
+                // consumed.
+                subscribeMsgQueue.clear();
+            }
+        }
+    }

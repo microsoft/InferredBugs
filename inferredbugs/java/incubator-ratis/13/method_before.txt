@@ -1,0 +1,27 @@
+  private void setupServer(){
+    servers = new ArrayList<>(peers.size());
+    singleDataStreamStateMachines = new ArrayList<>(peers.size());
+    // start stream servers on raft peers.
+    for (int i = 0; i < peers.size(); i++) {
+      SingleDataStreamStateMachine singleDataStreamStateMachine = new SingleDataStreamStateMachine();
+      singleDataStreamStateMachines.add(singleDataStreamStateMachine);
+      DataStreamServerImpl streamServer;
+      if (i == 0) {
+        // only the first server routes requests to peers.
+        List<RaftPeer> otherPeers = new ArrayList<>(peers);
+        otherPeers.remove(peers.get(i));
+        streamServer = new DataStreamServerImpl(
+            peers.get(i), properties, null, singleDataStreamStateMachine, otherPeers);
+      } else {
+        streamServer = new DataStreamServerImpl(
+            peers.get(i), singleDataStreamStateMachine, properties, null);
+      }
+      servers.add(streamServer);
+      streamServer.getServerRpc().startServer();
+    }
+
+    // start peer clients on stream servers
+    for (DataStreamServerImpl streamServer : servers) {
+      ((NettyServerStreamRpc) streamServer.getServerRpc()).startClientToPeers();
+    }
+  }

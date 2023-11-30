@@ -1,0 +1,24 @@
+    public boolean seekOrReseek(Cell cell, boolean isSeek) throws IOException{
+        KeyValue kv = PhoenixKeyValueUtil.maybeCopyCell(cell);
+        KeyValue keyToSeek = kv;
+        KeyValue splitKeyValue = KeyValueUtil.createKeyValueFromKey(reader.getSplitkey());
+        if (reader.isTop()) {
+            if(getComparator().compare(kv, splitKeyValue) < 0){
+                if(!isSeek && realSeekDone()) {
+                    return true;
+                }
+                return seekOrReseekToProperKey(isSeek, keyToSeek);
+            }
+            keyToSeek = getKeyPresentInHFiles(kv.getRowArray());
+            return seekOrReseekToProperKey(isSeek, keyToSeek);
+        } else {
+            if (getComparator().compare(kv, splitKeyValue) >= 0) {
+                close();
+                return false;
+            }
+            if(!isSeek && reader.getRegionInfo().getStartKey().length == 0 && reader.getSplitRow().length > reader.getRegionStartKeyInHFile().length) {
+                keyToSeek = getKeyPresentInHFiles(kv.getRowArray());
+            }
+        }
+        return seekOrReseekToProperKey(isSeek, keyToSeek);
+    }

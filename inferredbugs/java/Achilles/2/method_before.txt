@@ -1,0 +1,28 @@
+ public Map<CQLQueryType, PreparedStatement> prepareClusteredCounterQueryMap(Session session, EntityMeta meta) {
+		PropertyMeta idMeta = meta.getIdMeta();
+		PropertyMeta counterMeta = meta.getFirstMeta();
+		String tableName = meta.getTableName();
+		String counterName = counterMeta.getPropertyName();
+
+		RegularStatement incrStatement = prepareWhereClauseForUpdate(idMeta,
+				update(tableName).with(incr(counterName, 100L)));
+		String incr = incrStatement.getQueryString().replaceAll("100", "?");
+
+		RegularStatement decrStatement = prepareWhereClauseForUpdate(idMeta,
+				update(tableName).with(decr(counterName, 100L)));
+		String decr = decrStatement.getQueryString().replaceAll("100", "?");
+
+		RegularStatement selectStatement = prepareWhereClauseForSelect(idMeta, select(counterName).from(tableName));
+		String select = selectStatement.getQueryString();
+
+		RegularStatement deleteStatement = prepareWhereClauseForDelete(idMeta, QueryBuilder.delete().from(tableName));
+		String delete = deleteStatement.getQueryString();
+
+		Map<CQLQueryType, PreparedStatement> clusteredCounterPSMap = new HashMap<AchillesCounter.CQLQueryType, PreparedStatement>();
+		clusteredCounterPSMap.put(INCR, session.prepare(incr.toString()));
+		clusteredCounterPSMap.put(DECR, session.prepare(decr.toString()));
+		clusteredCounterPSMap.put(SELECT, session.prepare(select.toString()));
+		clusteredCounterPSMap.put(DELETE, session.prepare(delete.toString()));
+
+		return clusteredCounterPSMap;
+	}

@@ -1,0 +1,74 @@
+    public void prepare() throws Exception {
+        if (prepared)
+            return;
+        // 初始化上下文
+        listeners.forEach((listener)->listener.whenPrepareBasic(this, EventType.before));
+        this.prepareBasic();
+        listeners.forEach((listener)->listener.whenPrepareBasic(this, EventType.after));
+
+        // 打印Banner,暂时不可配置具体的类
+        new SimpleBannerPrinter().printBanner(ctx);
+
+        // 配置信息要准备好
+
+        listeners.forEach((listener)->listener.whenPrepareConfigureLoader(this, EventType.before));
+        this.prepareConfigureLoader();
+        listeners.forEach((listener)->listener.whenPrepareConfigureLoader(this, EventType.after));
+
+        // 配置信息准备好后,进行外部jar包对象Scan
+        PropertiesProxy propertiesProxy = ctx.getConf();
+        if(propertiesProxy.containsKey(scansPaths)) {
+            log.debugf("has scansPaths...");
+            String scansPathsValue = propertiesProxy.get(scansPaths);
+            // 适配多路径
+            for (String path : scansPathsValue.split(";")) {
+                path = AppContext.getDefault().getBasePath() + File.separator + path;
+                log.debugf("scan path %s", path);
+                for (File jar : Files.ls(path, ".jar$", null)) {
+                    log.infof("addResourceFile:%s", jar.getPath());
+                    Scans.me().addResourceLocation(new JarResourceLocation(jar.getPath()));
+                }
+            }
+        }
+
+        // 创建IocLoader体系
+        listeners.forEach((listener)->listener.whenPrepareIocLoader(this, EventType.before));
+        prepareIocLoader();
+        listeners.forEach((listener)->listener.whenPrepareIocLoader(this, EventType.after));
+
+        // 加载各种starter
+        listeners.forEach((listener)->listener.whenPrepareStarterClassList(this, EventType.before));
+        prepareStarterClassList();
+        listeners.forEach((listener)->listener.whenPrepareStarterClassList(this, EventType.after));
+
+        // 打印配置文档
+        if (printProcDoc) {
+            PropDocReader docReader = new PropDocReader();
+            docReader.load(starterClasses);
+            if (getAppContext().getConf().get("nutz.propdoc.packages") != null) {
+                for (String pkg : Strings.splitIgnoreBlank(getAppContext().getConf().get("nutz.propdoc.packages"))) {
+                    for (Class<?> klass : Scans.me().scanPackage(pkg)) {
+                        if (klass.isInterface())
+                            continue;
+                        docReader.addClass(klass);
+                    }
+                }
+            }
+            Logs.get().info("Configure Manual:\r\n" + docReader.toMarkdown());
+        }
+
+        // 创建Ioc容器
+        listeners.forEach((listener)->listener.whenPrepareIoc(this, EventType.before));
+        prepareIoc();
+        listeners.forEach((listener)->listener.whenPrepareIoc(this, EventType.after));
+
+        // 生成Starter实例
+        listeners.forEach((listener)->listener.whenPrepareStarterInstance(this, EventType.before));
+        prepareStarterInstance();
+        listeners.forEach((listener)->listener.whenPrepareStarterInstance(this, EventType.after));
+
+        // 从Ioc容器检索Listener
+        listeners.addAll(ctx.getBeans(NbAppEventListener.class));
+        
+        prepared = true;
+    }

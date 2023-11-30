@@ -1,0 +1,57 @@
+    private void loadResource(Yaml yaml, InputStream yamlStream, String filename) {
+        Node loadedYaml = yaml.compose(new UnicodeReader(yamlStream));
+
+        if (loadedYaml == null) {
+            LOG.error("The file {} is empty", filename);
+            return;
+        }
+
+        // Get and check top level config
+        if (!(loadedYaml instanceof MappingNode)) {
+            fail(loadedYaml, filename, "File must be a Map");
+        }
+
+        MappingNode rootNode = (MappingNode) loadedYaml;
+
+        NodeTuple configNodeTuple = null;
+        for (NodeTuple tuple : rootNode.getValue()) {
+            String name = getKeyAsString(tuple, filename);
+            if ("config".equals(name)) {
+                configNodeTuple = tuple;
+                break;
+            }
+        }
+
+        String configKeyName = getKeyAsString(configNodeTuple, filename);
+        if (!configKeyName.equals("config")) {
+            fail(loadedYaml, filename, "The top level entry MUST be 'config'.");
+        }
+
+        SequenceNode configNode = getValueAsSequenceNode(configNodeTuple, filename);
+        List<Node> configList = configNode.getValue();
+
+        for (Node configEntry : configList) {
+            if (!(configEntry instanceof MappingNode)) {
+                fail(loadedYaml, filename, "The entry MUST be a mapping");
+            }
+
+            NodeTuple entry = getExactlyOneNodeTuple((MappingNode) configEntry, filename);
+            MappingNode actualEntry = getValueAsMappingNode(entry, filename);
+            String entryType = getKeyAsString(entry, filename);
+            switch (entryType) {
+                case "lookup":
+                    loadYamlLookup(actualEntry, filename);
+                    break;
+                case "matcher":
+                    loadYamlMatcher(actualEntry, filename);
+                    break;
+                case "test":
+                    loadYamlTestcase(actualEntry, filename);
+                    break;
+                default:
+                    throw new InvalidParserConfigurationException(
+                        "Yaml config.(" + filename + ":" + actualEntry.getStartMark().getLine() + "): " +
+                            "Found unexpected config entry: " + entryType + ", allowed are 'lookup, 'matcher' and 'test'");
+            }
+        }
+    }

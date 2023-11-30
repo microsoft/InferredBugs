@@ -1,0 +1,25 @@
+    private void reSendLocalTx() throws NulsException {
+        List<Transaction> txList = getLedgerCacheService().getUnconfirmTxList();
+        List<Transaction> helpList = new ArrayList<>();
+        for (Transaction tx : txList) {
+            if (TimeService.currentTimeMillis() - tx.getTime() < DateUtil.MINUTE_TIME * 2) {
+                continue;
+            }
+            ValidateResult result = getLedgerService().verifyTx(tx, helpList);
+            if (result.isFailed()) {
+                getLocalDataService().deleteUnCofirmTx(tx.getHash().getDigestHex());
+                ledgerCacheService.removeLocalTx(tx.getHash().getDigestHex());
+                continue;
+            }
+            Transaction transaction = getLedgerService().getTx(tx.getHash());
+            if (transaction != null) {
+                getLocalDataService().deleteUnCofirmTx(tx.getHash().getDigestHex());
+                ledgerCacheService.removeLocalTx(tx.getHash().getDigestHex());
+                continue;
+            }
+            helpList.add(tx);
+            TransactionEvent event = new TransactionEvent();
+            event.setEventBody(tx);
+            getEventBroadcaster().publishToLocal(event);
+        }
+    }

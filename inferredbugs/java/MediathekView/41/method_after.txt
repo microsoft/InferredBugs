@@ -1,0 +1,120 @@
+    private synchronized StringBuffer getUri(String sender, String addr, StringBuffer seite, String kodierung, int timeout, String meldung, int versuch, boolean lVersuch) {
+        int timeo = timeout;
+        boolean proxyB = false;
+        char[] zeichen = new char[1];
+        seite.setLength(0);
+        HttpURLConnection conn = null;
+        int code = 0;
+        InputStream in = null;
+        InputStreamReader inReader = null;
+        Proxy proxy = null;
+        SocketAddress saddr = null;
+        int ladeArt = LADE_ART_UNBEKANNT;
+        // immer etwas bremsen
+        try {
+            long w = wartenBasis * faktorWarten;
+            this.wait(w);
+        } catch (Exception ex) {
+            Log.fehlerMeldung(976120379, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", ex, sender);
+        }
+        try {
+            // conn = url.openConnection(Proxy.NO_PROXY);
+            conn = (HttpURLConnection) new URL(addr).openConnection();
+            conn.setRequestProperty("User-Agent", Daten.getUserAgent());
+            conn.setRequestProperty("User-Agent", Daten.getUserAgent());
+            System.setProperty("http.maxConnections", "600");
+            System.setProperty("http.keepAlive", "false");
+            conn.setRequestProperty("Accept-Encoding", "gzip, deflate");
+            if (timeout > 0) {
+                conn.setReadTimeout(timeout);
+                conn.setConnectTimeout(timeout);
+            }
+            // the encoding returned by the server
+            String encoding = conn.getContentEncoding();
+//            if (conn instanceof HttpURLConnection) {
+//                HttpURLConnection httpConnection = (HttpURLConnection) conn;
+//                code = httpConnection.getResponseCode();
+//                if (code >= 400) {
+//                    if (true) {
+//                        // wenn möglich, einen Proxy einrichten
+//                        Log.fehlerMeldung(236597125, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", "---Proxy---");
+//                        proxyB = true;
+//                        saddr = new InetSocketAddress("localhost", 9050);
+//                        proxy = new Proxy(Proxy.Type.SOCKS, saddr);
+//                        conn = url.openConnection(proxy);
+//                        conn.setRequestProperty("User-Agent", Daten.getUserAgent());
+//                        if (timeout > 0) {
+//                            conn.setReadTimeout(timeout);
+//                            conn.setConnectTimeout(timeout);
+//                        }
+//                    } else {
+//                        Log.fehlerMeldung(864123698, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", "returncode >= 400");
+//                    }
+//                }
+//            } else {
+//                Log.fehlerMeldung(949697315, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", "keine HTTPcon");
+//            }
+            //in = conn.getInputStream();
+
+            if (encoding != null && encoding.equalsIgnoreCase("gzip")) {
+                ladeArt = LADE_ART_GZIP;
+                in = new GZIPInputStream(conn.getInputStream());
+            } else if (encoding != null && encoding.equalsIgnoreCase("deflate")) {
+                ladeArt = LADE_ART_DEFLATE;
+                in = new InflaterInputStream(conn.getInputStream(), new Inflater(true));
+            } else {
+                ladeArt = LADE_ART_NIX;
+                in = conn.getInputStream();
+            }
+            inReader = new InputStreamReader(in, kodierung);
+////            while (!Daten.filmeLaden.getStop() && inReader.read(zeichen) != -1) {
+////                seite.append(zeichen);
+////                incSeitenZaehler(LISTE_SUMME_BYTE, sender, 1);
+////            }
+            char[] buff = new char[256];
+            int cnt;
+            while (!Daten.filmeLaden.getStop() && (cnt = inReader.read(buff)) > 0) {
+                seite.append(buff, 0, cnt);
+                incSeitenZaehler(LISTE_SUMME_BYTE, sender, cnt, ladeArt);
+            }
+        } catch (IOException ex) {
+            // consume error stream, otherwise, connection won't be reused
+            if (conn != null) {
+                try {
+                    InputStream i = conn.getErrorStream();
+                    if (i != null) {
+                        i.close();
+                    }
+                    if (inReader != null) {
+                        inReader.close();
+                    }
+                } catch (Exception e) {
+                    Log.fehlerMeldung(645105987, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", e, "");
+                }
+            }
+            if (lVersuch) {
+                String[] text;
+                if (meldung.equals("")) {
+                    text = new String[]{sender + " - timout: " + timeo + " Versuche: " + versuch, addr /*, (proxyB ? "Porxy - " : "")*/};
+                } else {
+                    text = new String[]{sender + " - timout: " + timeo + " Versuche: " + versuch, addr, meldung/*, (proxyB ? "Porxy - " : "")*/};
+                }
+                if (ex.getMessage().equals("Read timed out")) {
+                    Log.fehlerMeldung(502739817, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri: TimeOut", text);
+                } else {
+                    Log.fehlerMeldung(502739817, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", ex, text);
+                }
+            }
+        } catch (Exception ex) {
+            Log.fehlerMeldung(973969801, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", ex, "");
+        } finally {
+            try {
+                if (in != null) {
+                    in.close();
+                }
+            } catch (Exception ex) {
+                Log.fehlerMeldung(696321478, Log.FEHLER_ART_GETURL, GetUrl.class.getName() + ".getUri", ex, "");
+            }
+        }
+        return seite;
+    }

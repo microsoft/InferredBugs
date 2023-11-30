@@ -1,0 +1,100 @@
+ public Schema encodeSchema(SparkMLEncoder encoder){
+		T model = getTransformer();
+
+		Label label = null;
+
+		if(model instanceof HasLabelCol){
+			HasLabelCol hasLabelCol = (HasLabelCol)model;
+
+			String labelCol = hasLabelCol.getLabelCol();
+
+			Feature feature = encoder.getOnlyFeature(labelCol);
+
+			MiningFunction miningFunction = getMiningFunction();
+			switch(miningFunction){
+				case CLASSIFICATION:
+					{
+						if(feature instanceof BooleanFeature){
+							BooleanFeature booleanFeature = (BooleanFeature)feature;
+
+							label = new CategoricalLabel(booleanFeature.getName(), booleanFeature.getDataType(), booleanFeature.getValues());
+						} else
+
+						if(feature instanceof CategoricalFeature){
+							CategoricalFeature categoricalFeature = (CategoricalFeature)feature;
+
+							DataField dataField = (DataField)categoricalFeature.getField();
+
+							label = new CategoricalLabel(dataField);
+						} else
+
+						if(feature instanceof ContinuousFeature){
+							ContinuousFeature continuousFeature = (ContinuousFeature)feature;
+
+							int numClasses = 2;
+
+							if(model instanceof ClassificationModel){
+								ClassificationModel<?, ?> classificationModel = (ClassificationModel<?, ?>)model;
+
+								numClasses = classificationModel.numClasses();
+							}
+
+							List<String> categories = new ArrayList<>();
+
+							for(int i = 0; i < numClasses; i++){
+								categories.add(String.valueOf(i));
+							}
+
+							Field<?> field = encoder.toCategorical(continuousFeature.getName(), categories);
+
+							encoder.putOnlyFeature(labelCol, new CategoricalFeature(encoder, field, categories));
+
+							label = new CategoricalLabel(field.getName(), field.getDataType(), categories);
+						} else
+
+						{
+							throw new IllegalArgumentException("Expected a categorical or categorical-like continuous feature, got " + feature);
+						}
+					}
+					break;
+				case REGRESSION:
+					{
+						Field<?> field = encoder.toContinuous(feature.getName());
+
+						field.setDataType(DataType.DOUBLE);
+
+						label = new ContinuousLabel(field.getName(), field.getDataType());
+					}
+					break;
+				default:
+					throw new IllegalArgumentException("Mining function " + miningFunction + " is not supported");
+			}
+		}
+
+		if(model instanceof ClassificationModel){
+			ClassificationModel<?, ?> classificationModel = (ClassificationModel<?, ?>)model;
+
+			int numClasses = classificationModel.numClasses();
+
+			CategoricalLabel categoricalLabel = (CategoricalLabel)label;
+
+			SchemaUtil.checkSize(numClasses, categoricalLabel);
+		}
+
+		String featuresCol = model.getFeaturesCol();
+
+		List<Feature> features = encoder.getFeatures(featuresCol);
+
+		if(model instanceof PredictionModel){
+			PredictionModel<?, ?> predictionModel = (PredictionModel<?, ?>)model;
+
+			int numFeatures = predictionModel.numFeatures();
+			if(numFeatures != -1){
+				SchemaUtil.checkSize(numFeatures, features);
+			}
+		}
+
+		Schema result = new Schema(label, features);
+
+		return result;
+	}

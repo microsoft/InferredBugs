@@ -1,0 +1,21 @@
+ @Override
+	protected void init() {
+		super.init();
+		
+		objectsStartAddress = allocationStartAddress;
+		// Allocated objects must start aligned as address size from start address of allocated address
+		long addressMod = objectsStartAddress % JvmUtil.OBJECT_ADDRESS_SENSIVITY;
+		if (addressMod != 0) {
+			objectsStartAddress += (JvmUtil.OBJECT_ADDRESS_SENSIVITY - addressMod);
+		}
+		objectsEndAddress = objectsStartAddress + (objectCount * objectSize);
+
+		long sourceAddress = offHeapSampleObjectAddress + 4;
+		long copySize = objectSize - 4;
+		// Copy sample object to allocated memory region for each object
+		for (long l = 0; l < objectCount; l++) {
+			long targetAddress = objectsStartAddress + (l * objectSize);
+			directMemoryService.putInt(targetAddress, 0);
+			directMemoryService.copyMemory(sourceAddress, targetAddress + 4, copySize);
+		}
+	}

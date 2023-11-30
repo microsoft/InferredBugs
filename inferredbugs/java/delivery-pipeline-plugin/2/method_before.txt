@@ -1,0 +1,27 @@
+    public Pipeline createPipelineAggregated(Pipeline pipeline) {
+
+        List<Stage> stages = new ArrayList<>();
+        for (Stage stage : pipeline.getStages()) {
+
+
+            List<Task> tasks = new ArrayList<>();
+            AbstractBuild firstTask = getJenkinsJob(stage.getTasks().get(0)).getLastBuild();
+            AbstractBuild versionBuild = getFirstUpstreamBuild(firstTask);
+            String version = versionBuild.getDisplayName();
+            for (Task task : stage.getTasks()) {
+                AbstractProject job = getJenkinsJob(task);
+                AbstractBuild currentBuild = match(job.getBuilds(), versionBuild);
+
+                if (currentBuild != null) {
+                    tasks.add(new Task(task.getId(), task.getName(), resolveStatus(job, currentBuild), Jenkins.getInstance().getRootUrl() + currentBuild.getUrl(), getTestResult(currentBuild)));
+                } else {
+                    tasks.add(new Task(task.getId(), task.getName(), StatusFactory.idle(), task.getLink(), null));
+                }
+            }
+            stages.add(new Stage(stage.getName(), tasks, version));
+        }
+        //TODO add triggeredBy
+        return new Pipeline(pipeline.getName(), null, null, stages);
+
+
+    }

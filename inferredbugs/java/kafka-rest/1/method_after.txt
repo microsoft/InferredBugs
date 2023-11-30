@@ -1,0 +1,44 @@
+    @Test
+    public void testConsumerNormalOps() throws InterruptedException, ExecutionException {
+        // Tests create instance, read, and delete
+        final List<ConsumerRecord> referenceRecords = Arrays.asList(
+                new ConsumerRecord("k1".getBytes(), "v1".getBytes(), 0, 0),
+                new ConsumerRecord("k2".getBytes(), "v2".getBytes(), 1, 0),
+                new ConsumerRecord("k3".getBytes(), "v3".getBytes(), 2, 0)
+        );
+        Map<Integer,List<ConsumerRecord>> referenceSchedule = new HashMap<>();
+        referenceSchedule.put(50, referenceRecords);
+
+        Map<String,List<Map<Integer,List<ConsumerRecord>>>> schedules = new HashMap<>();
+        schedules.put(topicName, Arrays.asList(referenceSchedule));
+
+        expectCreate(schedules);
+        EasyMock.expect(mdObserver.topicExists(topicName)).andReturn(true);
+
+        EasyMock.replay(mdObserver, consumerFactory);
+
+        String cid = consumerManager.createConsumer(groupName, new ConsumerInstanceConfig());
+        consumerManager.readTopic(groupName, cid, topicName, new ConsumerManager.ReadCallback() {
+            @Override
+            public void onCompletion(List<ConsumerRecord> records, Exception e) {
+                assertNull(e);
+                assertEquals(referenceRecords, records);
+            }
+        }).get();
+        // With # of messages < max per request, this should finish at the per-request timeout
+        assertEquals(config.consumerRequestTimeoutMs, config.time.milliseconds());
+
+        consumerManager.commitOffsets(groupName, cid, new ConsumerManager.CommitCallback() {
+            @Override
+            public void onCompletion(List<TopicPartitionOffset> offsets, Exception e) {
+                assertNull(e);
+                // Mock consumer doesn't handle offsets, so we just check we get some output for the right partitions
+                assertNotNull(offsets);
+                assertEquals(3, offsets.size());
+            }
+        }).get();
+
+        consumerManager.deleteConsumer(groupName, cid);
+
+        EasyMock.verify(mdObserver, consumerFactory);
+    }

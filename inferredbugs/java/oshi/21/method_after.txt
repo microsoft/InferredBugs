@@ -1,0 +1,35 @@
+    @Override
+    public HWDiskStore[] getDisks() {
+        List<HWDiskStore> result;
+        result = new ArrayList<>();
+        readMap.clear();
+        writeMap.clear();
+        populateReadWriteMaps();
+
+        Map<String, List<Object>> vals = WmiUtil.selectObjectsFrom(null, "Win32_DiskDrive",
+                "Name,Manufacturer,Model,SerialNumber,Size,Index", null, DRIVE_TYPES);
+        for (int i = 0; i < vals.get("Name").size(); i++) {
+            HWDiskStore ds = new HWDiskStore();
+            ds.setName((String) vals.get("Name").get(i));
+            ds.setModel(String.format("%s %s", vals.get("Model").get(i), vals.get("Manufacturer").get(i)).trim());
+            // Most vendors store serial # as a hex string; convert
+            ds.setSerial(ParseUtil.hexStringToString((String) vals.get("SerialNumber").get(i)));
+            String index = vals.get("Index").get(i).toString();
+            if (readMap.containsKey(index)) {
+                ds.setReads(readMap.get(index));
+            }
+            if (writeMap.containsKey(index)) {
+                ds.setWrites(writeMap.get(index));
+            }
+            // If successful this line is the desired value
+            try {
+                ds.setSize(Long.parseLong((String) vals.get("Size").get(i)));
+            } catch (NumberFormatException e) {
+                // If we failed to parse, give up
+                // This is expected for an empty string on some drives
+                ds.setSize(0L);
+            }
+            result.add(ds);
+        }
+        return result.toArray(new HWDiskStore[result.size()]);
+    }

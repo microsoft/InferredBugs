@@ -1,0 +1,49 @@
+  private void analyzeFunctionBwd(
+      List<DiGraphNode<Node, ControlFlowGraph.Branch>> workset) {
+    for (DiGraphNode<Node, ControlFlowGraph.Branch> dn : workset) {
+      Node n = dn.getValue();
+      TypeEnv outEnv = getOutEnv(n);
+      TypeEnv inEnv;
+      System.out.println("\tBWD Statment: " + n);
+      System.out.println("\t\toutEnv: " + outEnv);
+      switch (n.getType()) {
+        case Token.EXPR_RESULT:
+          inEnv = analyzeExprBwd(n.getFirstChild(), outEnv, JSType.TOP).env;
+          break;
+        case Token.RETURN: {
+          Node retExp = n.getFirstChild();
+          if (retExp == null) {
+            inEnv = outEnv;
+          } else {
+            JSType declRetType = currentScope.getDeclaredType().getReturnType();
+            declRetType = declRetType == null ? JSType.UNKNOWN : declRetType;
+            inEnv = analyzeExprBwd(retExp, outEnv, declRetType).env;
+          }
+          break;
+        }
+        case Token.VAR: {
+          inEnv = null;
+          for (Node nameNode = n.getFirstChild(); nameNode != null;
+               nameNode = nameNode.getNext()) {
+            String varName = nameNode.getQualifiedName();
+            Node rhs = nameNode.getFirstChild();
+            JSType declType = currentScope.getDeclaredTypeOf(varName);
+            inEnv = envPutType(outEnv, varName, JSType.UNKNOWN);
+            if (rhs == null || currentScope.isLocalFunDef(varName)) {
+              continue;
+            }
+            JSType requiredType = (declType == null) ?
+                JSType.UNKNOWN : declType;
+            inEnv = analyzeExprBwd(rhs, inEnv,
+                JSType.meet(requiredType, envGetType(outEnv, varName))).env;
+          }
+          break;
+        }
+        default:
+          inEnv = outEnv;
+          break;
+      }
+      System.out.println("\t\tinEnv: " + inEnv);
+      setInEnv(n, inEnv);
+    }
+  }

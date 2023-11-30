@@ -1,0 +1,36 @@
+    public final void addThumbnail(final JcrPackage jcrPackage, Resource thumbnailResource) {
+        ResourceResolver resourceResolver = null;
+
+        if (jcrPackage == null) {
+            log.error("JCR Package is null; no package thumbnail needed for null packages!");
+            return;
+        }
+
+        boolean useDefault = thumbnailResource == null || !thumbnailResource.isResourceType(JcrConstants.NT_FILE);
+
+        try {
+            if (useDefault) {
+                log.debug("Using default ACS AEM Commons packager package icon.");
+                resourceResolver = resourceResolverFactory.getAdministrativeResourceResolver(null);
+                thumbnailResource = resourceResolver.getResource(DEFAULT_PACKAGE_THUMBNAIL_RESOURCE_PATH);
+            }
+
+            if (thumbnailResource == null || !thumbnailResource.isResourceType(JcrConstants.NT_FILE)) {
+                log.warn("Cannot find a specific OR a default package icon; no package icon will be used.");
+            } else {
+                final Node srcNode = thumbnailResource.adaptTo(Node.class);
+                final Node dstParentNode = jcrPackage.getDefinition().getNode();
+
+                JcrUtil.copy(srcNode, dstParentNode, NN_THUMBNAIL);
+                dstParentNode.getSession().save();
+            }
+        } catch (RepositoryException e) {
+            log.error("Could not add package thumbnail: {}", e.getMessage());
+        } catch (LoginException e) {
+            log.error("Could not add a default package thumbnail: {}", e.getMessage());
+        } finally {
+            if (resourceResolver != null) {
+                resourceResolver.close();
+            }
+        }
+    }

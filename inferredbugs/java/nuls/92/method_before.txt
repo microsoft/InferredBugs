@@ -1,0 +1,74 @@
+    private Block doPacking(PocMeetingMember self, PocMeetingRound round) throws NulsException, IOException {
+
+        Block bestBlock = this.blockService.getBestBlock();
+        List<Transaction> allTxList = txCacheManager.getTxList();
+        allTxList.sort(TxTimeComparator.getInstance());
+        BlockData bd = new BlockData();
+        bd.setHeight(bestBlock.getHeader().getHeight() + 1);
+        bd.setPreHash(bestBlock.getHeader().getHash());
+        BlockRoundData roundData = new BlockRoundData();
+        roundData.setRoundIndex(round.getIndex());
+        roundData.setConsensusMemberCount(round.getMemberCount());
+        roundData.setPackingIndexOfRound(self.getPackingIndexOfRound());
+        roundData.setRoundStartTime(round.getStartTime());
+        StringBuilder str = new StringBuilder();
+        str.append(self.getPackingAddress());
+        str.append(" ,order:" + self.getPackingIndexOfRound());
+        str.append(",packTime:" + new Date(self.getPackEndTime()));
+        str.append("\n");
+        BlockLog.debug("pack round:" + str);
+
+
+        bd.setRoundData(roundData);
+        List<Integer> outTxList = new ArrayList<>();
+        List<Transaction> packingTxList = new ArrayList<>();
+        List<NulsDigestData> outHashList = new ArrayList<>();
+        long totalSize = 0L;
+        for (int i = 0; i < allTxList.size(); i++) {
+            if ((self.getPackEndTime() - TimeService.currentTimeMillis()) <= 500L) {
+                break;
+            }
+            Transaction tx = allTxList.get(i);
+            tx.setBlockHeight(bd.getHeight());
+            if ((totalSize + tx.size()) >= PocConsensusConstant.MAX_BLOCK_SIZE) {
+                break;
+            }
+            outHashList.add(tx.getHash());
+            ValidateResult result = tx.verify();
+            if (result.isFailed()) {
+                Log.error(result.getMessage());
+                outTxList.add(i);
+                continue;
+            }
+            try {
+                ledgerService.approvalTx(tx);
+            } catch (Exception e) {
+                Log.error(e);
+                outTxList.add(i);
+                continue;
+            }
+            packingTxList.add(tx);
+            totalSize += tx.size();
+            confirmingTxCacheManager.putTx(tx);
+
+        }
+        txCacheManager.removeTx(outHashList);
+        if (totalSize < PocConsensusConstant.MAX_BLOCK_SIZE) {
+            addOrphanTx(packingTxList, totalSize, self,bd.getHeight());
+        }
+        addConsensusTx(bestBlock, packingTxList, self, round);
+        bd.setTxList(packingTxList);
+        Log.info("txCount:" + packingTxList.size());
+        Block newBlock = ConsensusTool.createBlock(bd, round.getLocalPacker());
+        System.out.printf("========height:" + newBlock.getHeader().getHeight() + ",time:" + DateUtil.convertDate(new Date(newBlock.getHeader().getTime())) + ",packEndTime:" +
+                DateUtil.convertDate(new Date(self.getPackEndTime())));
+        ValidateResult result = newBlock.verify();
+        if (result.isFailed()) {
+            Log.warn("packing block error:" + result.getMessage());
+            for (Transaction tx : newBlock.getTxs()) {
+                ledgerService.rollbackTx(tx);
+            }
+            return null;
+        }
+        return newBlock;
+    }

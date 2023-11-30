@@ -1,0 +1,44 @@
+  @ApiMethod(name = "processRegistrationResponse")
+  public List<String> processRegistrationResponse(
+      @Named("responseData") String responseData, User user)
+      throws OAuthRequestException, ResponseException {
+    if (user == null) {
+      throw new OAuthRequestException("User is not authenticated");
+    }
+
+    Gson gson = new Gson();
+    JsonElement element = gson.fromJson(responseData, JsonElement.class);
+    AuthenticatorAttestationResponse attestation =
+        new AuthenticatorAttestationResponse(element);
+
+    // TODO
+    String credentialId = BaseEncoding.base64Url().encode(
+        attestation.getAttestationObject().getAuthenticatorData().getAttData().getCredentialId());
+    String type = null;
+    String session = null;
+    PublicKeyCredential cred = new PublicKeyCredential(credentialId, type,
+        BaseEncoding.base64Url().decode(credentialId), attestation);
+
+    try {
+      switch (cred.getAttestationType()) {
+        case FIDOU2F:
+          U2fServer.registerCredential(cred, user.getEmail(), session, Constants.APP_ID);
+          break;
+        case ANDROIDSAFETYNET:
+          AndroidSafetyNetServer.registerCredential(
+              cred, user.getEmail(), session, Constants.APP_ID);
+          break;
+        default:
+          // This should never happen.
+      }
+    } catch (ServletException e) {
+      // TODO
+    }
+
+    Credential credential = new Credential(cred);
+    credential.save(user.getEmail());
+
+    List<String> resultList = new ArrayList<String>();
+    resultList.add(credential.toJson());
+    return resultList;
+  }

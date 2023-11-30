@@ -1,0 +1,35 @@
+    @Override
+    public T build() {
+        verify();
+        // first try to use a builder class if one is available
+        try {
+            LOGGER.debug("Building Plugin[name={}, class={}]. Searching for builder factory method...", pluginType.getElementName(),
+                    pluginType.getPluginClass().getName());
+            final Builder<T> builder = createBuilder(this.clazz);
+            if (builder != null) {
+                injectFields(builder);
+                final T result = builder.build();
+                LOGGER.debug("Built Plugin[name={}] OK from builder factory method.", pluginType.getElementName());
+                return result;
+            }
+        } catch (final Exception e) {
+            LOGGER.catching(Level.ERROR, e);
+            LOGGER.error("Unable to inject fields into builder class for plugin type {}, element {}.", this.clazz,
+                node.getName());
+        }
+        // or fall back to factory method if no builder class is available
+        try {
+            LOGGER.debug("Still building Plugin[name={}, class={}]. Searching for factory method...",
+                    pluginType.getElementName(), pluginType.getPluginClass().getName());
+            final Method factory = findFactoryMethod(this.clazz);
+            final Object[] params = generateParameters(factory);
+            @SuppressWarnings("unchecked")
+            final T plugin = (T) factory.invoke(null, params);
+            LOGGER.debug("Built Plugin[name={}] OK from factory method.", pluginType.getElementName());
+            return plugin;
+        } catch (final Exception e) {
+            LOGGER.catching(Level.ERROR, e);
+            LOGGER.error("Unable to invoke factory method in class {} for element {}.", this.clazz, this.node.getName());
+            return null;
+        }
+    }

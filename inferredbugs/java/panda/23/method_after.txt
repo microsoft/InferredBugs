@@ -1,0 +1,42 @@
+    public List<Parameter> parse(ParserData info, @Nullable Tokens tokens) {
+        if (TokensUtils.isEmpty(tokens)) {
+            return new ArrayList<>(0);
+        }
+
+        TokenRepresentation[] tokenRepresentations = tokens.toArray();
+        List<Parameter> parameters = new ArrayList<>(tokenRepresentations.length / 3 + 1);
+
+        if (tokens.size() == 0) {
+            return parameters;
+        }
+
+        for (int i = 0; i < tokenRepresentations.length; i += 3) {
+            TokenRepresentation parameterTypeRepresentation = tokenRepresentations[i];
+            TokenRepresentation parameterNameRepresentation = tokenRepresentations[i + 1];
+
+            String parameterType = parameterTypeRepresentation.getToken().getTokenValue();
+            String parameterName = parameterNameRepresentation.getToken().getTokenValue();
+
+            PandaScript script = info.getComponent(PandaComponents.PANDA_SCRIPT);
+            ModuleLoader moduleLoader = script.getModuleLoader();
+            ClassPrototypeReference type = moduleLoader.forClass(parameterType);
+
+            if (type == null) {
+                throw new PandaParserException("Unknown type '" + parameterType + "'");
+            }
+
+            Parameter parameter = new PandaParameter(type, parameterName);
+            parameters.add(parameter);
+
+            if (i + 2 < tokenRepresentations.length) {
+                TokenRepresentation separatorRepresentation = tokenRepresentations[i + 2];
+                Token separator = separatorRepresentation.getToken();
+
+                if (separator.getType() != TokenType.SEPARATOR) {
+                    throw new PandaParserException("Unexpected token " + separatorRepresentation);
+                }
+            }
+        }
+
+        return parameters;
+    }

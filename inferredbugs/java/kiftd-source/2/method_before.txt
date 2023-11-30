@@ -1,0 +1,32 @@
+ public void doDownloadFile(final HttpServletRequest request, final HttpServletResponse response) {
+		final String account = (String) request.getSession().getAttribute("ACCOUNT");
+		if (ConfigureReader.instance().authorized(account, AccountAuth.DOWNLOAD_FILES)) {
+			final String fileId = request.getParameter("fileId");
+			if (fileId != null) {
+				final Node f = this.fm.queryById(fileId);
+				if (f != null) {
+					final String fileBlocks = ConfigureReader.instance().getFileBlockPath();
+					final File fo = this.fbu.getFileFromBlocks(fileBlocks, f.getFilePath());
+					try {
+						final FileInputStream fis = new FileInputStream(fo);
+						response.setContentType("application/force-download");
+						response.setHeader("Content-Length", "" + fo.length());
+						response.addHeader("Content-Disposition",
+								"attachment;fileName=" + URLEncoder.encode(f.getFileName(), "UTF-8"));
+						final int buffersize = ConfigureReader.instance().getBuffSize();
+						final byte[] buffer = new byte[buffersize];
+						final BufferedInputStream bis = new BufferedInputStream(fis);
+						final OutputStream os = (OutputStream) response.getOutputStream();
+						int index = 0;
+						while ((index = bis.read(buffer)) != -1) {
+							os.write(buffer, 0, index);
+						}
+						bis.close();
+						fis.close();
+						this.lu.writeDownloadFileEvent(request, f);
+					} catch (Exception ex) {
+					}
+				}
+			}
+		}
+	}

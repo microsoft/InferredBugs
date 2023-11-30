@@ -1,0 +1,95 @@
+ @SuppressWarnings({ "unchecked", "rawtypes" })
+	@Override
+	public void endElement(String uri, String localName, String qName) throws SAXException {
+
+		// end of bpmn2:process
+		if (qName.equalsIgnoreCase("bpmn2:process")) {
+			if (currentWorkflowGroup != null) {
+				currentWorkflowGroup = null;
+			}
+		}
+
+		// end of bpmn2:task -
+		if (bImixsTask && qName.equalsIgnoreCase("bpmn2:task")) {
+			bImixsTask = false;
+			taskCache.put(bpmnID, currentEntity);
+		}
+
+		if (qName.equalsIgnoreCase("bpmn2:extensionElements")) {
+			bExtensionElements = false;
+		}
+
+		// end of bpmn2:intermediateCatchEvent -
+		if (bImixsEvent && (qName.equalsIgnoreCase("bpmn2:intermediateCatchEvent")
+				|| qName.equalsIgnoreCase("bpmn2:intermediateThrowEvent"))) {
+			bImixsEvent = false;
+			// we need to cache the activities because the sequenceflows must be
+			// analysed later
+			eventCache.put(bpmnID, currentEntity);
+		}
+
+		/*
+		 * End of a imixs:value
+		 */
+		if (qName.equalsIgnoreCase("imixs:value")) {
+			if (bExtensionElements && bItemValue && currentEntity != null && characterStream != null) {
+
+				String svalue = characterStream.toString();
+				List valueList = currentEntity.getItemValue(currentItemName);
+
+				if ("xs:boolean".equals(currentItemType.toLowerCase())) {
+					valueList.add(Boolean.valueOf(svalue));
+				} else if ("xs:integer".equals(currentItemType.toLowerCase())) {
+					valueList.add(Integer.valueOf(svalue));
+				} else {
+					valueList.add(svalue);
+				}
+
+				// item will only be added if it is not listed in the ignoreItem
+				// List!
+				if (!ignoreItemList.contains(currentItemName)) {
+					currentEntity.replaceItemValue(currentItemName, valueList);
+				}
+			}
+			bItemValue = false;
+			characterStream = null;
+		}
+
+		if (qName.equalsIgnoreCase("bpmn2:documentation")) {
+			if (currentEntity != null) {
+				currentEntity.replaceItemValue("rtfdescription", characterStream.toString());
+			}
+
+			// bpmn2:message?
+			if (bMessage) {
+				// cache the message...
+				messageCache.put(currentMessageName, characterStream.toString());
+				bMessage = false;
+			}
+
+			// bpmn2:annotation?
+			if (bAnnotation) {
+				// cache the annotation
+				annotationCache.put(currentAnnotationName, characterStream.toString());
+				bAnnotation = false;
+			}
+
+			characterStream = null;
+			bdocumentation = false;
+		}
+
+		// end of bpmn2:intermediateThrowEvent -
+		if (bLinkThrowEvent && !bLinkCatchEvent && (qName.equalsIgnoreCase("bpmn2:linkEventDefinition"))) {
+			bLinkThrowEvent = false;
+			// we need to cache the link name
+			linkThrowEventCache.put(bpmnID, currentLinkName);
+		}
+
+		// end of bpmn2:intermediateCatchEvent -
+		if (bLinkCatchEvent && !bLinkThrowEvent && (qName.equalsIgnoreCase("bpmn2:linkEventDefinition"))) {
+			bLinkCatchEvent = false;
+			// we need to cache the link name
+			linkCatchEventCache.put(currentLinkName, bpmnID);
+		}
+
+	}

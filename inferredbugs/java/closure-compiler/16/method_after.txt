@@ -1,0 +1,32 @@
+  private Node inlineReturnValue(Node callNode, Node fnNode) {
+    Node block = fnNode.getLastChild();
+    Node callParentNode = callNode.getParent();
+
+    // NOTE: As the normalize pass guarantees globals aren't being
+    // shadowed and an expression can't introduce new names, there is
+    // no need to check for conflicts.
+
+    // Create an argName -> expression map, checking for side effects.
+    Map<String, Node> argMap =
+        FunctionArgumentInjector.getFunctionCallParameterMap(
+            fnNode, callNode, this.safeNameIdSupplier);
+
+    Node newExpression;
+    if (!block.hasChildren()) {
+      Node srcLocation = block;
+      newExpression = NodeUtil.newUndefinedNode(srcLocation);
+    } else {
+      Node returnNode = block.getFirstChild();
+      Preconditions.checkArgument(returnNode.getType() == Token.RETURN);
+
+      // Clone the return node first.
+      Node safeReturnNode = returnNode.cloneTree();
+      Node inlineResult = FunctionArgumentInjector.inject(
+          safeReturnNode, null, argMap);
+      Preconditions.checkArgument(safeReturnNode == inlineResult);
+      newExpression = safeReturnNode.removeFirstChild();
+    }
+
+    callParentNode.replaceChild(callNode, newExpression);
+    return newExpression;
+  }

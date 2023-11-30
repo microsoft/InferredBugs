@@ -1,0 +1,43 @@
+    public void close(IotHubConnectionStatusChangeReason reason, Throwable cause) throws DeviceClientException
+    {
+        if (reason == null)
+        {
+            //Codes_SRS_IOTHUBTRANSPORT_34_026: [If the supplied reason is null, this function shall throw an
+            // IllegalArgumentException.]
+            throw new IllegalArgumentException("reason cannot be null");
+        }
+
+        this.cancelPendingPackets();
+
+        //Codes_SRS_IOTHUBTRANSPORT_34_023: [This function shall invoke all callbacks.]
+        this.invokeCallbacks();
+
+        if (this.taskScheduler != null)
+        {
+            this.taskScheduler.shutdown();
+        }
+
+        //Codes_SRS_IOTHUBTRANSPORT_34_024: [This function shall close the connection.]
+        if (this.iotHubTransportConnection != null)
+        {
+            this.iotHubTransportConnection.close();
+        }
+
+        //Codes_SRS_IOTHUBTRANSPORT_34_025: [This function shall invoke updateStatus with status DISCONNECTED and the
+        // supplied reason and cause.]
+        this.updateStatus(IotHubConnectionStatus.DISCONNECTED, reason, cause);
+
+        // Notify send thread to finish up so it doesn't survive this close
+        synchronized (this.sendThreadLock)
+        {
+            this.sendThreadLock.notifyAll();
+        }
+
+        // Notify receive thread to finish up so it doesn't survive this close
+        synchronized (this.receiveThreadLock)
+        {
+            this.receiveThreadLock.notifyAll();
+        }
+
+        log.info("Client connection closed successfully");
+    }

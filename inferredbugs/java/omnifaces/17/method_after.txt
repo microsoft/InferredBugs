@@ -1,0 +1,20 @@
+ @Override
+	public void apply(FaceletContext context, UIComponent parent) throws IOException {
+		if (!ComponentHandler.isNew(parent)) {
+			return;
+		}
+
+		if (!TRUE.equals(getApplicationAttribute(context.getFacesContext(), Socket.class.getName()))) {
+			throw new IllegalStateException(ERROR_ENDPOINT_NOT_ENABLED);
+		}
+
+		Integer portNumber = getObject(context, port, Integer.class);
+		String channelName = getChannelName(context, channel);
+		String channelId = getChannelId(context, channelName, scope, user);
+		String functions = getString(context, onopen) + "," + onmessage.getValue(context) + "," + getString(context, onclose);
+		ValueExpression connectedExpression = getValueExpression(context, connected, Boolean.class);
+
+		SystemEventListener listener = new SocketFacesListener(portNumber, channelName, channelId, functions, connectedExpression);
+		subscribeToViewEvent(PostAddToViewEvent.class, listener);
+		subscribeToViewEvent(PreRenderViewEvent.class, listener);
+	}

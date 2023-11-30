@@ -1,0 +1,43 @@
+    @Override
+    public void writeRequested(ChannelHandlerContext ctx, MessageEvent me) throws Exception{
+
+        if(!(me.getMessage() instanceof CoapMessage)){
+            ctx.sendDownstream(me);
+            return;
+        }
+
+        CoapMessage coapMessage = (CoapMessage) me.getMessage();
+
+        log.debug("Handle downstream event for message with ID " +
+                coapMessage.getMessageID() + " for " + me.getRemoteAddress() );
+
+        if(coapMessage.getMessageID() == -1){
+
+            coapMessage.setMessageID(messageIDFactory.nextMessageID());
+
+            log.debug("Set message ID " + coapMessage.getMessageID());
+            if(coapMessage.getMessageType() == MsgType.CON){
+                if(!openOutgoingConMsg.contains(me.getRemoteAddress(), coapMessage.getMessageID())){
+
+                    synchronized (getClass()){
+                        openOutgoingConMsg.put((InetSocketAddress) me.getRemoteAddress(),
+                                                           coapMessage.getMessageID(),
+                                                           coapMessage.getToken());
+                        //Schedule first retransmission
+                        MessageRetransmitter messageRetransmitter
+                                = new MessageRetransmitter((InetSocketAddress) me.getRemoteAddress(), coapMessage);
+
+                        int delay = (int) (TIMEOUT_MILLIS * messageRetransmitter.randomFactor);
+                        executorService.schedule(messageRetransmitter, delay, TimeUnit.MILLISECONDS);
+
+                        log.debug("First retransmit for " +
+                                    coapMessage.getMessageType() + " message with ID " + coapMessage.getMessageID() +
+                                    " to be confirmed by " +  me.getRemoteAddress() + " scheduled with a delay of " +
+                                    delay + " millis.");
+                    }
+                }
+            }
+        }
+
+        ctx.sendDownstream(me);
+    }

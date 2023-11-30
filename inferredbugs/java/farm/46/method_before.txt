@@ -1,0 +1,25 @@
+    @Override
+    public Response act(final Request req) throws IOException {
+        final JsonObject json = TkViber.json(
+            new InputStreamReader(req.body(), StandardCharsets.UTF_8)
+        );
+        if (json.isEmpty()) {
+            throw new RsForward(
+                new RsParFlash(
+                    new Par(
+                        "We expect this URL to be called by Viber",
+                        "with JSON as body of the request"
+                    ).say(),
+                    Level.WARNING
+                )
+            );
+        }
+        if (Objects.equals(json.getString("event"), "message")) {
+            this.reaction.react(
+                new VbBot(), this.farm, new VbEvent.Simple(json)
+            );
+        }
+        return new RsWithStatus(
+            HttpURLConnection.HTTP_OK
+        );
+    }

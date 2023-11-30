@@ -1,0 +1,17 @@
+    public void installSnapshot(Peer peer) {
+        Raft.InstallSnapshotRequest.Builder requestBuilder = Raft.InstallSnapshotRequest.newBuilder();
+        requestBuilder.setServerId(localServer.getServerId());
+        requestBuilder.setTerm(currentTerm);
+        // send snapshot
+        try {
+            snapshotLock.readLock().lock();
+            Raft.InstallSnapshotRequest request = this.buildInstallSnapshotRequest(
+                    null, 0, 0);
+            peer.getRpcClient().asyncCall("RaftConsensusService.installSnapshot",
+                    request, new InstallSnapshotResponseCallback(peer, request));
+            isSnapshoting = true;
+        } finally {
+            snapshotLock.readLock().unlock();
+        }
+
+    }

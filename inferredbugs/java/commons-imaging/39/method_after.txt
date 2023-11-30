@@ -1,0 +1,63 @@
+    public void removeExifTag(final File jpegImageFile, final File dst) throws IOException,
+            ImageReadException, ImageWriteException {
+        try (FileOutputStream fos = new FileOutputStream(dst);
+                OutputStream os = new BufferedOutputStream(fos)) {
+            TiffOutputSet outputSet = null;
+
+            // note that metadata might be null if no metadata is found.
+            final ImageMetadata metadata = Imaging.getMetadata(jpegImageFile);
+            final JpegImageMetadata jpegMetadata = (JpegImageMetadata) metadata;
+            if (null != jpegMetadata) {
+                // note that exif might be null if no Exif metadata is found.
+                final TiffImageMetadata exif = jpegMetadata.getExif();
+
+                if (null != exif) {
+                    // TiffImageMetadata class is immutable (read-only).
+                    // TiffOutputSet class represents the Exif data to write.
+                    //
+                    // Usually, we want to update existing Exif metadata by
+                    // changing
+                    // the values of a few fields, or adding a field.
+                    // In these cases, it is easiest to use getOutputSet() to
+                    // start with a "copy" of the fields read from the image.
+                    outputSet = exif.getOutputSet();
+                }
+            }
+
+            if (null == outputSet) {
+                // file does not contain any exif metadata. We don't need to
+                // update the file; just copy it.
+                FileUtils.copyFile(jpegImageFile, dst);
+                return;
+            }
+
+            {
+                // Example of how to remove a single tag/field.
+                // There are two ways to do this.
+
+                // Option 1: brute force
+                // Note that this approach is crude: Exif data is organized in
+                // directories. The same tag/field may appear in more than one
+                // directory, and have different meanings in each.
+                outputSet.removeField(ExifTagConstants.EXIF_TAG_APERTURE_VALUE);
+
+                // Option 2: precision
+                // We know the exact directory the tag should appear in, in this
+                // case the "exif" directory.
+                // One complicating factor is that in some cases, manufacturers
+                // will place the same tag in different directories.
+                // To learn which directory a tag appears in, either refer to
+                // the constants in ExifTagConstants.java or go to Phil Harvey's
+                // EXIF website.
+                final TiffOutputDirectory exifDirectory = outputSet
+                        .getExifDirectory();
+                if (null != exifDirectory) {
+                    exifDirectory
+                            .removeField(ExifTagConstants.EXIF_TAG_APERTURE_VALUE);
+                }
+            }
+
+            new ExifRewriter().updateExifMetadataLossless(jpegImageFile, os,
+                    outputSet);
+        }
+    }

@@ -1,0 +1,38 @@
+    @Override
+    public void nextTuple() {
+        if (!active)
+            return;
+
+        // synchronize access to buffer needed in case of asynchronous
+        // queries to the backend
+        synchronized (buffer) {
+            if (!buffer.isEmpty()) {
+                // track how long the buffer had been empty for
+                if (timestampEmptyBuffer != -1) {
+                    eventCounter.scope("empty.buffer").incrBy(
+                            System.currentTimeMillis() - timestampEmptyBuffer);
+                    timestampEmptyBuffer = -1;
+                }
+                List<Object> fields = buffer.remove();
+                String url = fields.get(0).toString();
+                this._collector.emit(fields, url);
+                beingProcessed.put(url, null);
+                eventCounter.scope("emitted").incrBy(1);
+                return;
+            } else if (timestampEmptyBuffer == -1) {
+                timestampEmptyBuffer = System.currentTimeMillis();
+            }
+        }
+
+        if (isInQuery.get() || throttleQueries() > 0) {
+            // sleep for a bit but not too much in order to give ack/fail a
+            // chance
+            Utils.sleep(10);
+            return;
+        }
+
+        // re-populate the buffer
+        populateBuffer();
+
+        timeLastQuery = System.currentTimeMillis();
+    }

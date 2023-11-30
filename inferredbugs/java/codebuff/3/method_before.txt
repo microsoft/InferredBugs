@@ -1,0 +1,25 @@
+ public static float[] getMedianErrorRates(LangDescriptor language, int maxNumFiles, int trials) throws Exception {
+		SubsetValidator validator = new SubsetValidator(language.corpusDir, language);
+		List<InputDocument> documents = load(validator.allFiles, language);
+		float[] medians = new float[maxNumFiles+1];
+		for (int i = 1; i<=Math.min(validator.allFiles.size(), maxNumFiles); i++) { // i is corpus subset size
+			List<Float> errorRates = new ArrayList<>();
+			for (int trial = 1; trial<=trials; trial++) { // multiple trials per subset size
+				Pair<InputDocument, List<InputDocument>> sample = validator.selectSample(documents, i);
+				Triple<Formatter, Float, Float> results = validate(language, sample.b, sample.a, true, false);
+				System.out.println(sample.a.fileName+" n="+i+": error="+results.c);
+//				System.out.println("\tcorpus =\n\t\t"+Utils.join(sample.b.iterator(), "\n\t\t"));
+				errorRates.add(results.c);
+			}
+			Collections.sort(errorRates);
+			int n = errorRates.size();
+			float min = errorRates.get(0);
+			float quart = errorRates.get((int)(0.27*n));
+			float median = errorRates.get(n/2);
+			float quart3 = errorRates.get((int)(0.75*n));
+			float max = errorRates.get(n-1);
+			System.out.println("median error rate for n="+i+" is "+median);
+			medians[i] = median;
+		}
+		return medians;
+	}

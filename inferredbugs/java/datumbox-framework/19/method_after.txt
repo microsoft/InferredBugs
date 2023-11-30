@@ -1,0 +1,32 @@
+    private void batchGradientDescent(Dataframe trainingData, Map<Object, Double> newThitas, double learningRate) {
+        //NOTE! This is not the stochastic gradient descent. It is the batch gradient descent optimized for speed (despite it looks more than the stochastic). 
+        //Despite the fact that the loops are inverse, the function still changes the values of Thitas at the end of the function. We use the previous thitas 
+        //to estimate the costs and only at the end we update the new thitas.
+        ModelParameters modelParameters = kb().getModelParameters();
+        
+        double multiplier = learningRate/modelParameters.getN();
+        Map<Object, Double> thitas = modelParameters.getThitas();
+        
+        StreamMethods.stream(trainingData.stream(), isParallelized()).forEach(r -> { 
+            //mind the fact that we use the previous thitas to estimate the new ones! this is because the thitas must be updated simultaniously
+            double error = TypeInference.toDouble(r.getY()) - hypothesisFunction(r.getX(), thitas);
+            
+            double errorMultiplier = multiplier*error;
+            
+            synchronized(newThitas) {
+                //update the weight of constant
+                newThitas.put(Dataframe.COLUMN_NAME_CONSTANT, newThitas.get(Dataframe.COLUMN_NAME_CONSTANT)+errorMultiplier);
+
+                //update the rest of the weights
+                for(Map.Entry<Object, Object> entry : r.getX().entrySet()) {
+                    Object feature = entry.getKey();
+
+                    Double thitaWeight = newThitas.get(feature);
+                    if(thitaWeight!=null) {//ensure that the feature is in the supported features
+                        Double value = TypeInference.toDouble(entry.getValue());
+                        newThitas.put(feature, thitaWeight+errorMultiplier*value);
+                    }
+                }
+            }
+        });
+    }

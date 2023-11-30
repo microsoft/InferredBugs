@@ -1,0 +1,47 @@
+ public Object[] evaluateScriptObject(ScriptEngine engine, String expression) {
+		Object[] params = null;
+
+		if (engine == null) {
+			logger.severe("RulePlugin evaluateScritpObject error: no script engine! - call run()");
+			return null;
+		}
+
+		// first test if expression is a basic string var
+		Object objectResult = engine.get(expression);
+		if (objectResult != null && objectResult instanceof String) {
+			// just return a simple array with one value
+			params = new String[1];
+			params[0] = objectResult.toString();
+			return params;
+		}
+
+		// now try to pass the object to engine and convert it into a
+		// ArryList....
+		try {
+			String jsCode = "importPackage(java.util);"
+					+ "var _evaluateScriptParam = Arrays.asList(" + expression
+					+ "); ";
+			// pass a collection from javascript to java;
+			engine.eval(jsCode);
+
+			@SuppressWarnings("unchecked")
+			List<Object> resultList = (List<Object>) engine
+					.get("_evaluateScriptParam");
+			// logging
+			if (logger.isLoggable(Level.FINE)) {
+				logger.fine("evalueateScript object to Java");
+				for (Object val : resultList) {
+					logger.fine(val.toString());
+				}
+			}
+
+			return resultList.toArray();
+		} catch (ScriptException se) {
+			// not convertable!
+			// se.printStackTrace();
+			logger.fine("[RulePlugin] error evaluating " + expression + " - "
+					+ se.getMessage());
+			return null;
+		}
+
+	}

@@ -1,0 +1,71 @@
+  private void validatePieceAsync(final SharedTorrent torrent, final Piece piece, String torrentHash, SharingPeer peer) {
+    try {
+      synchronized (piece) {
+
+        if (piece.isValid()) return;
+
+        piece.validate(torrent, piece);
+        if (piece.isValid()) {
+          piece.finish();
+          // Send a HAVE message to all connected peers, which don't have the piece
+          PeerMessage have = PeerMessage.HaveMessage.craft(piece.getIndex());
+          for (SharingPeer remote : getConnectedPeers()) {
+            if (remote.getTorrent().getHexInfoHash().equals(torrentHash) &&
+                    !remote.getAvailablePieces().get(piece.getIndex()))
+              remote.send(have);
+          }
+
+          final boolean isTorrentComplete;
+          synchronized (torrent) {
+            torrent.removeValidationFuture(piece);
+            torrent.notifyPieceDownloaded(piece, peer);
+
+            boolean isCurrentPeerSeeder = peer.getAvailablePieces().cardinality() == torrent.getPieceCount();
+            //if it's seeder we will send not interested message when we download full file
+            if (!isCurrentPeerSeeder) {
+              if (torrent.isAllPiecesOfPeerCompletedAndValidated(peer)) {
+                peer.notInteresting();
+              }
+            }
+
+            isTorrentComplete = torrent.isComplete();
+
+            if (isTorrentComplete) {
+              logger.debug("Download of {} complete.", torrent.getDirectoryName());
+
+              torrent.finish();
+            }
+          }
+
+          if (isTorrentComplete) {
+
+            LoadedTorrent announceableTorrent = torrentsStorage.getLoadedTorrent(torrentHash);
+
+            if (announceableTorrent == null) return;
+
+            AnnounceableInformation announceableInformation = announceableTorrent.createAnnounceableInformation();
+
+
+            try {
+              announce.getCurrentTrackerClient(announceableInformation)
+                      .announceAllInterfaces(COMPLETED, true, announceableInformation);
+            } catch (AnnounceException e) {
+              logger.debug("unable to announce torrent {} on tracker {}", torrent, torrent.getAnnounce());
+            }
+
+            for (SharingPeer remote : getPeersForTorrent(torrentHash)) {
+              remote.notInteresting();
+            }
+
+          }
+        } else {
+          torrent.markUncompleted(piece);
+          logger.info("Downloaded piece #{} from {} was not valid ;-(. Trying another peer", piece.getIndex(), peer);
+          peer.getPoorlyAvailablePieces().set(piece.getIndex());
+        }
+      }
+    } catch (Throwable e) {
+      torrent.markUncompleted(piece);
+      logger.warn("unhandled exception in piece {} validation task", e);
+    }
+  }

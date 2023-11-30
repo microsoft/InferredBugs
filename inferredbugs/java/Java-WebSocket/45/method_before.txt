@@ -1,0 +1,19 @@
+ @Override
+	public final void onWebsocketClose( WebSocket conn, int code, String reason, boolean remote ) {
+		oqueue.add( (WebSocketImpl) conn );// because the ostream will close the channel
+		selector.wakeup();
+		try {
+			synchronized ( connections ) {
+				if( this.connections.remove( conn ) ) {
+					onClose( conn, code, reason, remote );
+				}
+			}
+		} finally {
+			try {
+				releaseBuffers( conn );
+			} catch ( InterruptedException e ) {
+				Thread.currentThread().interrupt();
+			}
+		}
+
+	}

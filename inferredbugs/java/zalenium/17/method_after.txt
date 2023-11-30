@@ -1,0 +1,40 @@
+    @VisibleForTesting
+    void copyLogs(final String containerId) {
+        if (SwarmUtilities.isSwarmActive()) {
+            // Disabling logs in swarm mode
+            return;
+        }
+
+        if (testInformation == null || StringUtils.isEmpty(containerId)) {
+            // No tests run or container has been removed, nothing to copy and nothing to update.
+            return;
+        }
+        String currentName = configureThreadName();
+        InputStreamGroupIterator tarStream = containerClient.copyFiles(containerId, "/var/log/cont/");
+        try {
+            InputStreamDescriptor entry;
+            while ((entry = tarStream.next()) != null) {
+                if (!Files.exists(Paths.get(testInformation.getLogsFolderPath()))) {
+                    Path directories = Files.createDirectories(Paths.get(testInformation.getLogsFolderPath()));
+                    CommonProxyUtilities.setFilePermissions(directories);
+                    CommonProxyUtilities.setFilePermissions(directories.getParent());
+                }
+                String fileName = entry.name().replace("cont/", "");
+                Path logFile = Paths.get(String.format("%s/%s", testInformation.getLogsFolderPath(), fileName));
+                Files.copy(entry.get(), logFile);
+                CommonProxyUtilities.setFilePermissions(logFile);
+            }
+            LOGGER.debug("Logs copied to: {}", testInformation.getLogsFolderPath());
+        } catch (IOException | NullPointerException e) {
+            // This error happens in k8s, but the file is ok, nevertheless the size is not accurate
+            String exceptionMessage = Optional.ofNullable(e.getMessage()).orElse("");
+            boolean isPipeClosed = exceptionMessage.toLowerCase().contains("pipe closed");
+            if (ContainerFactory.getIsKubernetes().get() && isPipeClosed) {
+                LOGGER.debug("Logs copied to: {}", testInformation.getLogsFolderPath());
+            } else {
+                LOGGER.debug("Error while copying the logs", e);
+            }
+            ga.trackException(e);
+        }
+        setThreadName(currentName);
+    }

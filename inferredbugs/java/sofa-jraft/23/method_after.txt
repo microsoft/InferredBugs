@@ -1,0 +1,36 @@
+    public static ThreadId start(final ReplicatorOptions opts, final RaftOptions raftOptions) {
+        if (opts.getLogManager() == null || opts.getBallotBox() == null || opts.getNode() == null) {
+            throw new IllegalArgumentException("Invalid ReplicatorOptions.");
+        }
+        final Replicator r = new Replicator(opts, raftOptions);
+        if (!r.rpcService.connect(opts.getPeerId().getEndpoint())) {
+            LOG.error("Fail to init sending channel to {}", opts.getPeerId());
+            // Return and it will be retried later.
+            return null;
+        }
+
+        // Register replicator metric set.
+        final MetricRegistry metricRegistry = opts.getNode().getNodeMetrics().getMetricRegistry();
+        if (metricRegistry != null) {
+            try {
+                final String replicatorMetricName = getReplicatorMetricName(opts);
+                if (!metricRegistry.getNames().contains(replicatorMetricName)) {
+                    metricRegistry.register(replicatorMetricName, new ReplicatorMetricSet(opts, r));
+                }
+            } catch (final IllegalArgumentException e) {
+                // ignore
+            }
+        }
+
+        // Start replication
+        r.id = new ThreadId(r, r);
+        r.id.lock();
+        notifyReplicatorStatusListener(r, ReplicatorEvent.CREATED);
+        LOG.info("Replicator={}@{} is started", r.id, r.options.getPeerId());
+        r.catchUpClosure = null;
+        r.lastRpcSendTimestamp = Utils.monotonicMs();
+        r.startHeartbeatTimer(Utils.nowMs());
+        // id.unlock in sendEmptyEntries
+        r.sendEmptyEntries(false);
+        return r.id;
+    }

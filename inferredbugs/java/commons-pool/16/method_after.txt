@@ -1,0 +1,77 @@
+    public void evict() throws Exception {
+        assertOpen();
+
+        if (_pool.size() == 0) {
+            return;
+        }
+        
+        PooledObject<T> underTest = null;
+        
+        for (int i = 0, m = getNumTests(); i < m; i++) {
+            if (_evictionIterator == null || !_evictionIterator.hasNext()) {
+                if (getLifo()) {
+                    _evictionIterator = _pool.descendingIterator();
+                } else {
+                    _evictionIterator = _pool.iterator();
+                }
+            }
+            if (!_evictionIterator.hasNext()) {
+                // Pool exhausted, nothing to do here
+                return;
+            } else {
+                try {
+                    underTest = _evictionIterator.next();
+                } catch (NoSuchElementException nsee) {
+                    // Object was borrowed in another thread
+                    // Don't count this as an eviction test so reduce i;
+                    i--;
+                    _evictionIterator = null;
+                    continue;
+                }
+            }
+
+            if (!underTest.startEvictionTest()) {
+                // Object was borrowed in another thread
+                // Don't count this as an eviction test so reduce i;
+                i--;
+                continue;
+            }
+            
+            if (getMinEvictableIdleTimeMillis() > 0 &&
+                        getMinEvictableIdleTimeMillis() <
+                            underTest.getIdleTimeMillis() ||
+                    (getSoftMinEvictableIdleTimeMillis() > 0 &&
+                            getSoftMinEvictableIdleTimeMillis() <
+                                underTest.getIdleTimeMillis() &&
+                            getMinIdle() < _pool.size())) {
+                destroy(underTest);
+            } else {
+                if (getTestWhileIdle()) {
+                    boolean active = false;
+                    try {
+                        _factory.activateObject(underTest.getObject());
+                        active = true;
+                    } catch(Exception e) {
+                        destroy(underTest);
+                    }
+                    if(active) {
+                        if(!_factory.validateObject(underTest.getObject())) {
+                            destroy(underTest);
+                        } else {
+                            try {
+                                _factory.passivateObject(underTest.getObject());
+                            } catch(Exception e) {
+                                destroy(underTest);
+                            }
+                        }
+                    }
+                }
+                if (!underTest.endEvictionTest()) {
+                    // TODO - May need to add code here once additional states
+                    // are used
+                }
+            }
+        }
+
+        return;
+    }

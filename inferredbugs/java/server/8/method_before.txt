@@ -1,0 +1,34 @@
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object message) {
+        AbstractMessage msg = (AbstractMessage) message;
+        LOG.info("Received a message of type {}", Utils.msgType2String(msg.getMessageType()));
+        try {
+            switch (msg.getMessageType()) {
+                case CONNECT:
+                case SUBSCRIBE:
+                case UNSUBSCRIBE:
+                case PUBLISH:
+                case PUBREC:
+                case PUBCOMP:
+                case PUBREL:
+                case DISCONNECT:
+                case PUBACK:    
+                    NettyChannel channel;
+                    synchronized(m_channelMapper) {
+                        if (!m_channelMapper.containsKey(ctx)) {
+                            m_channelMapper.put(ctx, new NettyChannel(ctx));
+                        }
+                        channel = m_channelMapper.get(ctx);
+                    }
+                    
+                    m_messaging.handleProtocolMessage(channel, msg);
+                    break;
+                case PINGREQ:
+                    PingRespMessage pingResp = new PingRespMessage();
+                    ctx.writeAndFlush(pingResp);
+                    break;
+            }
+        } catch (Exception ex) {
+            LOG.error("Bad error in processing the message", ex);
+        }
+    }

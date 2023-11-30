@@ -1,0 +1,50 @@
+    PeerEventServiceClient(Peer peer, Endpoint endpoint, Properties properties, PeerOptions peerOptions) {
+
+        this.channelBuilder = endpoint.getChannelBuilder();
+        this.filterBlock = peerOptions.isRegisterEventsForFilteredBlocks();
+        this.peer = peer;
+        this.peerOptions = peerOptions;
+        name = peer.getName();
+        url = peer.getUrl();
+
+        if (peer.isShutdown()) {
+            logger.debug("PeerEventServiceClient not starting peer has shutdown.");
+            shutdown = true;
+            toString = "PeerEventServiceClient{" + "id: " + config.getNextID() + ", channel: null" + ", peerName: " + name + ", url: " + url + "}";
+            return;
+        }
+        final Channel channel = peer.getChannel();
+        if (channel == null) {
+            logger.debug("Peer no longer associated with a channel not connecting.");
+            shutdown = true;
+            toString = "PeerEventServiceClient{" + "id: " + config.getNextID() + ", channel: null" + ", peerName: " + name + ", url: " + url + "}";
+            return;
+        }
+
+        channelName = channel.getName();
+        toString = "PeerEventServiceClient{" + "id: " + config.getNextID() + ", channel: " + channelName + ", peerName: " + name + ", url: " + url + "}";
+
+        clientTLSCertificateDigest = endpoint.getClientTLSCertificateDigest();
+
+        this.channelEventQue = channel.getChannelEventQue();
+
+        if (null == properties) {
+
+            peerEventRegistrationWaitTimeMilliSecs = PEER_EVENT_REGISTRATION_WAIT_TIME;
+
+        } else {
+
+            String peerEventRegistrationWaitTime = properties.getProperty("peerEventRegistrationWaitTime", Long.toString(PEER_EVENT_REGISTRATION_WAIT_TIME));
+
+            long tempPeerWaitTimeMilliSecs = PEER_EVENT_REGISTRATION_WAIT_TIME;
+
+            try {
+                tempPeerWaitTimeMilliSecs = Long.parseLong(peerEventRegistrationWaitTime);
+            } catch (NumberFormatException e) {
+                logger.warn(format("Peer event service registration %s wait time %s not parsable.", toString, peerEventRegistrationWaitTime), e);
+            }
+
+            peerEventRegistrationWaitTimeMilliSecs = tempPeerWaitTimeMilliSecs;
+        }
+
+    }

@@ -1,0 +1,44 @@
+    void handleBookieFailure(final InetSocketAddress addr, final int bookieIndex) {
+        InetSocketAddress newBookie;
+
+        LOG.debug("Handling failure of bookie: {} index: {}", addr, bookieIndex);
+        final ArrayList<InetSocketAddress> newEnsemble = new ArrayList<InetSocketAddress>();
+        blockAddCompletions.incrementAndGet();
+        final long newEnsembleStartEntry = lastAddConfirmed + 1;
+
+        // avoid parallel ensemble changes to same ensemble.
+        synchronized (metadata) {
+            if (!metadata.currentEnsemble.get(bookieIndex).equals(addr)) {
+                // ensemble has already changed, failure of this addr is immaterial
+                LOG.warn("Write did not succeed to {}, bookieIndex {}, but we have already fixed it.",
+                         addr, bookieIndex);
+                blockAddCompletions.decrementAndGet();
+                return;
+            }
+
+            try {
+                newBookie = bk.bookieWatcher
+                        .getAdditionalBookie(metadata.currentEnsemble);
+            } catch (BKNotEnoughBookiesException e) {
+                LOG.error("Could not get additional bookie to "
+                        + "remake ensemble, closing ledger: " + ledgerId);
+                handleUnrecoverableErrorDuringAdd(e.getCode());
+                return;
+            }
+
+            newEnsemble.addAll(metadata.currentEnsemble);
+            newEnsemble.set(bookieIndex, newBookie);
+
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Changing ensemble from: " + metadata.currentEnsemble
+                        + " to: " + newEnsemble + " for ledger: " + ledgerId
+                        + " starting at entry: " + (lastAddConfirmed + 1));
+            }
+
+            metadata.addEnsemble(newEnsembleStartEntry, newEnsemble);
+        }
+
+        EnsembleInfo ensembleInfo = new EnsembleInfo(newEnsemble, bookieIndex,
+                addr);
+        writeLedgerConfig(new ChangeEnsembleCb(ensembleInfo));
+    }

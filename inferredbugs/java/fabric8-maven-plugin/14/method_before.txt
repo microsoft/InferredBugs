@@ -1,0 +1,15 @@
+    public static int runCommand(final Logger log, File command, List<String> args, boolean withShutdownHook) throws IOException {
+        String[] commandWithArgs = prepareCommandArray(command.getAbsolutePath(), args);
+        Process process = Runtime.getRuntime().exec(commandWithArgs);
+        if (withShutdownHook) {
+            addShutdownHook(log, process, command);
+        }
+        List<Thread> threads = startLoggingThreads(process, log, command.getName() + " " + Strings.join(args, " "));
+        try {
+            int answer = process.waitFor();
+            joinThreads(threads, log);
+            return answer;
+        } catch (InterruptedException e) {
+            return process.exitValue();
+        }
+    }

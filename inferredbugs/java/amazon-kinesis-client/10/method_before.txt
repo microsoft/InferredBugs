@@ -1,0 +1,11 @@
+    @Test
+    public void testRetryableRetrievalExceptionContinues() {
+
+        GetRecordsResponse response = GetRecordsResponse.builder().millisBehindLatest(100L).records(Collections.emptyList()).build();
+        when(getRecordsRetrievalStrategy.getRecords(anyInt())).thenThrow(new RetryableRetrievalException("Timeout", new TimeoutException("Timeout"))).thenReturn(response);
+
+        getRecordsCache.start(sequenceNumber, initialPosition);
+
+        RecordsRetrieved records = getRecordsCache.getNextResult();
+        assertThat(records.processRecordsInput().millisBehindLatest(), equalTo(response.millisBehindLatest()));
+    }

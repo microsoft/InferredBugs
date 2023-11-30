@@ -1,0 +1,34 @@
+  @Override
+  public Response handle() throws Exception {
+    waitForPageToLoad();
+
+    int implicitWait = (Integer) getConf("implicit_wait", 0);
+    long deadline = System.currentTimeMillis() + implicitWait;
+    RemoteWebElement rwe = null;
+    do {
+      try {
+        rwe = findElement();
+        break;
+      } catch (NoSuchElementException e) {
+        //ignore.
+      } catch (RemoteExceptionException e2) {
+        // ignore.
+        // if the page is reloading, the previous nodeId won't be there anymore, resulting in a
+        // RemoteExceptionException: Could not find node with given id.Keep looking.
+      }
+    } while (System.currentTimeMillis() < deadline);
+
+    if (rwe == null) {
+      throw new NoSuchElementException(
+          "No element found for " + getRequest().getPayload() + " after waiting for " + implicitWait
+          + " ms.");
+    } else {
+      JSONObject res = new JSONObject();
+      res.put("ELEMENT", "" + rwe.getNodeId().getId());
+      Response resp = new Response();
+      resp.setSessionId(getSession().getSessionId());
+      resp.setStatus(0);
+      resp.setValue(res);
+      return resp;
+    }
+  }

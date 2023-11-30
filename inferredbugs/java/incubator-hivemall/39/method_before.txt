@@ -1,0 +1,88 @@
+    @Nonnull
+    public static FinishableOutputStream createOutputStream(@Nonnull final OutputStream out,
+            @Nonnull final CompressionAlgorithm algo) {
+        switch (algo) {
+            case deflate: {
+                final DeflaterOutputStream deflate = new DeflaterOutputStream(out);
+                return new FinishableOutputStreamAdapter(deflate) {
+                    @Override
+                    public void finish() throws IOException {
+                        deflate.finish();
+                        deflate.flush();
+                        IOUtils.finishStream(out);
+                    }
+                };
+            }
+            case deflate_l7: {
+                final Deflater l7 = new Deflater(7);
+                final DeflaterOutputStream deflate = new hivemall.utils.io.DeflaterOutputStream(
+                    out, l7);
+                return new FinishableOutputStreamAdapter(deflate) {
+                    @Override
+                    public void finish() throws IOException {
+                        deflate.finish();
+                        deflate.flush();
+                        IOUtils.finishStream(out);
+                    }
+                };
+            }
+            case xz: {
+                final LZMA2Options options;
+                try {
+                    options = new LZMA2Options(LZMA2Options.PRESET_DEFAULT);
+                } catch (UnsupportedOptionsException e) {
+                    throw new IllegalStateException("LZMA2Option configuration failed", e);
+                }
+                final XZOutputStream xz;
+                try {
+                    xz = new XZOutputStream(out, options);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Failed to encode by XZ", e);
+                }
+                return new FinishableOutputStreamAdapter(xz) {
+                    @Override
+                    public void finish() throws IOException {
+                        xz.finish();
+                        IOUtils.finishStream(out);
+                    }
+                };
+            }
+            case lzma2: { // level 6
+                final LZMA2Options options;
+                try {
+                    options = new LZMA2Options(LZMA2Options.PRESET_DEFAULT);
+                } catch (UnsupportedOptionsException e) {
+                    throw new IllegalStateException("LZMA2Option configuration failed", e);
+                }
+                FinishableWrapperOutputStream wrapped = new FinishableWrapperOutputStream(out);
+                final org.tukaani.xz.FinishableOutputStream lzma2 = options.getOutputStream(wrapped);
+                return new FinishableOutputStreamAdapter(lzma2) {
+                    @Override
+                    public void finish() throws IOException {
+                        lzma2.finish();
+                        IOUtils.finishStream(out);
+                    }
+                };
+            }
+            case lzma2_l5: {
+                final LZMA2Options options;
+                try {
+                    options = new LZMA2Options(5);
+                } catch (UnsupportedOptionsException e) {
+                    throw new IllegalStateException("LZMA2Option configuration failed", e);
+                }
+                FinishableWrapperOutputStream wrapped = new FinishableWrapperOutputStream(out);
+                final org.tukaani.xz.FinishableOutputStream lzma2 = options.getOutputStream(wrapped);
+                return new FinishableOutputStreamAdapter(lzma2) {
+                    @Override
+                    public void finish() throws IOException {
+                        lzma2.finish();
+                        IOUtils.finishStream(out);
+                    }
+                };
+            }
+            default:
+                throw new UnsupportedOperationException("Unsupported compression algorithm: "
+                        + algo);
+        }
+    }

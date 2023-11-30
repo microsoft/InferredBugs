@@ -1,0 +1,49 @@
+    public static void main(String[] args) throws IOException {
+        VerificationTool tool = new VerificationTool();
+        JCommander jc = JCommander.newBuilder()
+                .addObject(tool)
+                .build();
+        
+        jc.parse(args);
+        if (tool.help) {
+          jc.usage();
+          return;
+        }
+        System.out.println(tool.metaQuorum);
+        LogServiceClient client = new LogServiceClient(tool.metaQuorum);
+        ExecutorService executor = Executors.newCachedThreadPool();
+        List<Future<?>> futures = new ArrayList<Future<?>>(tool.numLogs);
+
+        if (tool.write) {
+          LOG.info("Executing parallel writes");
+          // Delete any logs that already exist first
+          final Set<LogName> logsInSystem = new HashSet<>();
+          List<LogInfo> listOfLogs = client.listLogs();
+          for (LogInfo logInfo : listOfLogs) {
+            logsInSystem.add(logInfo.getLogName());
+          }
+
+          LOG.info("Observed logs already in system: {}", logsInSystem);
+          for (int i = 0; i < tool.numLogs; i++) {
+              LogName logName = getLogName(i);
+              if (logsInSystem.contains(logName)) {
+                LOG.info("Deleting {}", logName);
+                client.deleteLog(logName);
+              }
+              BulkWriter writer = new BulkWriter(getLogName(i), client, tool.numRecords, tool.logFrequency);
+              futures.add(executor.submit(writer));
+          }
+          waitForCompletion(futures);
+        }
+
+        if (tool.read) {
+          LOG.info("Executing parallel reads");
+          futures = new ArrayList<Future<?>>(tool.numLogs);
+          for (int i = 0; i < tool.numLogs; i++) {
+              BulkReader reader = new BulkReader(getLogName(i), client, tool.numRecords, tool.logFrequency);
+              futures.add(executor.submit(reader));
+          }
+          waitForCompletion(futures);
+        }
+        executor.shutdownNow();
+    }

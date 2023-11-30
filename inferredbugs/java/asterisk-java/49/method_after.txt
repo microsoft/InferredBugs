@@ -1,0 +1,33 @@
+    @Override
+    public void onManagerEvent(final org.asteriskjava.manager.event.ManagerEvent event)
+    {
+
+        // logger.error(event);
+        boolean wanted = false;
+        /**
+         * Dump any events we arn't interested in ASAP to minimise the
+         * processing overhead of these events.
+         */
+        // Only enqueue the events that are of interest to one of our listeners.
+        synchronized (this.globalEvents)
+        {
+            Class< ? extends ManagerEvent> shadowEvent = CoherentEventFactory.getShadowEvent(event);
+            if (this.globalEvents.contains(shadowEvent))
+            {
+                wanted = true;
+            }
+        }
+
+        if (wanted)
+        {
+            // We don't support all events.
+            this._eventQueue.add(new EventLifeMonitor<>(event));
+            if (_eventQueue.remainingCapacity() < QUEUE_SIZE / 10
+                    && suppressQueueSizeErrorUntil < System.currentTimeMillis())
+            {
+                suppressQueueSizeErrorUntil = System.currentTimeMillis() + 1000;
+                logger.error("EventQueue more than 90% full");
+            }
+
+        }
+    }

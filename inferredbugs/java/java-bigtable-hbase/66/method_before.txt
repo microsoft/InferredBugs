@@ -1,0 +1,16 @@
+  @Test
+  public void testGetCallback() throws Exception {
+    when(mockBulkRead.add(any(Query.class))).thenReturn(mockFuture);
+    byte[] key = randomBytes(8);
+    FlatRow response = FlatRow.newBuilder().withRowKey(ByteString.copyFrom(key)).build();
+    setFuture(ImmutableList.of(response));
+    final Callback<Result> callback = Mockito.mock(Callback.class);
+    List<Get> gets = Arrays.asList(new Get(key));
+    createExecutor(options).batchCallback(gets, new Object[1], callback);
+
+    verify(callback, times(1))
+        .update(
+            same(BatchExecutor.NO_REGION),
+            same(key),
+            argThat(matchesRow(Adapters.FLAT_ROW_ADAPTER.adaptResponse(response))));
+  }

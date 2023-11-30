@@ -1,0 +1,26 @@
+ @Test
+	public void TestIntPoint() throws Exception {
+        ArrayList<Object> stuff = new ArrayList<Object>();
+		Properties proptab = new Properties();
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMNS, "num,shape");
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMN_TYPES, "bigint,binary");
+		SerDe jserde = mkSerDe(proptab);
+        StructObjectInspector rowOI = (StructObjectInspector)jserde.getObjectInspector();
+
+        // value.set("{\"properties\":{\"num\":7},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15.0,5.0]}}");
+        addWritable(stuff, 7L);
+        addWritable(stuff, new Point(15.0, 5.0));
+		Object row = runSerDe(stuff, jserde, rowOI);
+		Object fieldData = getField("num", row, rowOI);
+		Assert.assertEquals(7, ((LongWritable)fieldData).get());
+
+        //value.set("{\"properties\":{\"num\":4},\"geometry\":{\"type\":\"Point\",\"coordinates\":[7.0,2.0]}}");
+		stuff.clear();
+        addWritable(stuff, 4L);
+        addWritable(stuff, new Point(7.0, 2.0));
+		row = runSerDe(stuff, jserde, rowOI);
+		fieldData = getField("num", row, rowOI);
+		Assert.assertEquals(4, ((LongWritable)fieldData).get());
+		fieldData = getField("shape", row, rowOI);
+		ckPoint(new Point(7.0, 2.0), (BytesWritable)fieldData);
+	}

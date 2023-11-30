@@ -1,0 +1,22 @@
+    private void handleMyHandshakeMessage(HandshakeMessage handshakeMessage) throws IOException {
+        ProtocolMessageHandler pmh = null;// TODO//handshakeMessage.getProtocolMessageHandler(tlsContext);
+        handshakeMessage.setMessageSeq(sendHandshakeMessageSeq);
+        byte[] handshakeMessageBytes = pmh.prepareMessage(previousMessage);
+
+        handshakeMessageSendBuffer = ArrayConverter.concatenate(handshakeMessageSendBuffer,
+                handshakeFragmentHandler.fragmentHandshakeMessage(handshakeMessageBytes, maxPacketSize - 25));
+
+        retransmitList.add(handshakeMessageSendBuffer);
+
+        if (handshakeMessageSendRecordList == null) {
+            handshakeMessageSendRecordList = new ArrayList<>();
+            handshakeMessageSendRecordList.add(new DtlsRecord());
+        }
+
+        handshakeMessage.setRecords(handshakeMessageSendRecordList);
+
+        bufferSendData(recordHandler.wrapData(handshakeMessageSendBuffer, ProtocolMessageType.HANDSHAKE,
+                handshakeMessage.getRecords()));
+
+        sendHandshakeMessageSeq++;
+    }

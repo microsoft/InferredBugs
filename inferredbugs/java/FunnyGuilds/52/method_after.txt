@@ -1,0 +1,75 @@
+    public static String parseRank(User source, String var) {
+        if (! var.contains("TOP-")) {
+            return null;
+        }
+
+        int i = getIndex(var);
+
+        if (i <= 0) {
+            FunnyGuilds.getInstance().getPluginLogger().error("Index in TOP- must be greater or equal to 1!");
+            return null;
+        }
+
+        PluginConfiguration config = FunnyGuilds.getInstance().getPluginConfiguration();
+
+        if (var.contains("GTOP")) {
+            Guild guild;
+            int positionIdx = i;
+
+            do {
+                guild = RankManager.getInstance().getGuild(positionIdx++);
+
+                if (guild == null) {
+                    return StringUtils.replace(var, "{GTOP-" + i + '}', FunnyGuilds.getInstance().getMessageConfiguration().gtopNoValue);
+                }
+            }
+            while (guild.getMembers().size() < config.minMembersToInclude);
+
+            int points = guild.getRank().getPoints();
+            String pointsFormat = config.gtopPoints;
+
+            if (!pointsFormat.isEmpty()) {
+                pointsFormat = pointsFormat.replace("{POINTS-FORMAT}", IntegerRange.inRange(points, config.pointsFormat, "POINTS"));
+                pointsFormat = pointsFormat.replace("{POINTS}", String.valueOf(points));
+            }
+
+            String guildTag = guild.getTag();
+
+            if (config.playerListUseRelationshipColors) {
+                guildTag = StringUtils.replace(config.prefixOther, "{TAG}", guild.getTag());
+
+                if (source != null && source.hasGuild()) {
+                    Guild sourceGuild = source.getGuild();
+
+                    if (sourceGuild.getAllies().contains(guild)) {
+                        guildTag = StringUtils.replace(config.prefixAllies, "{TAG}", guild.getTag());
+                    }
+                    else if (sourceGuild.getUUID().equals(guild.getUUID())) {
+                        guildTag = StringUtils.replace(config.prefixOur, "{TAG}", guild.getTag());
+                    }
+                }
+            }
+
+            return StringUtils.replace(var, "{GTOP-" + i + '}', guildTag + pointsFormat);
+
+        }
+        else if (var.contains("PTOP")) {
+            User user = RankManager.getInstance().getUser(i);
+
+            if (user == null) {
+                return StringUtils.replace(var, "{PTOP-" + i + '}', FunnyGuilds.getInstance().getMessageConfiguration().ptopNoValue);
+            }
+
+            int points = user.getRank().getPoints();
+            String pointsFormat = config.ptopPoints;
+
+            if (!pointsFormat.isEmpty()) {
+                pointsFormat = pointsFormat.replace("{POINTS-FORMAT}", IntegerRange.inRange(points, config.pointsFormat, "POINTS"));
+                pointsFormat = pointsFormat.replace("{POINTS}", String.valueOf(points));
+            }
+
+            return StringUtils.replace(var, "{PTOP-" + i + '}', (user.isOnline() ? config.ptopOnline : config.ptopOffline) + user.getName() + pointsFormat);
+        }
+
+        return null;
+    }

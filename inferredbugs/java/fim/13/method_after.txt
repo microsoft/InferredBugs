@@ -1,0 +1,45 @@
+ public State generateState(String comment, Path rootDir, Path dirToScan) throws NoSuchAlgorithmException
+	{
+		this.rootDir = rootDir;
+
+		Logger.info(String.format("Scanning recursively local files, %s, using %d thread", hashModeToString(context.getHashMode()), context.getThreadCount()));
+		if (hashProgress.isProgressDisplayed())
+		{
+			System.out.printf("(Hash progress legend for files grouped %d by %d: %s)%n", PROGRESS_DISPLAY_FILE_COUNT, PROGRESS_DISPLAY_FILE_COUNT, hashProgress.hashProgressLegend());
+		}
+
+		State state = new State();
+		state.setComment(comment);
+		state.setHashMode(context.getHashMode());
+
+		long start = System.currentTimeMillis();
+		hashProgress.progressOutputInit();
+
+		filesToHashQueue = new LinkedBlockingDeque<>(FILES_QUEUE_CAPACITY);
+		initializeFileHashers();
+
+		Path userDir = Paths.get(System.getProperty("user.dir"));
+		List<FileToIgnore> globalIgnore = fimIgnoreManager.loadFimIgnore(userDir);
+		scanFileTree(filesToHashQueue, dirToScan, globalIgnore);
+
+		// In case the FileHashers have not already been started
+		startFileHashers();
+
+		waitAllFilesToBeHashed();
+
+		for (FileHasher hasher : hashers)
+		{
+			state.getFileStates().addAll(hasher.getFileStates());
+			totalFileContentLength += hasher.getTotalFileContentLength();
+			totalBytesHashed += hasher.getTotalBytesHashed();
+		}
+
+		Collections.sort(state.getFileStates(), fileNameComparator);
+
+		state.setIgnoredFiles(fimIgnoreManager.getIgnoredFiles());
+
+		hashProgress.progressOutputStop();
+		displayStatistics(start, state);
+
+		return state;
+	}

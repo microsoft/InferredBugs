@@ -1,0 +1,29 @@
+    public void process(Socket socket) {
+        SocketInputStream input = null;
+        OutputStream output = null;
+        try {
+            input = new SocketInputStream(socket.getInputStream(), 2048); // 1.读取套接字的输入流
+            output = socket.getOutputStream();
+
+            // create HttpRequest object and parse
+            request = new HttpRequest(input);
+            response = new HttpResponse(output);
+            response.setRequest(request);
+            response.setHeader("Server", "Mars Servlet Container");
+            
+            parseRequest(input, output); // 解析请求行，即HTTP请求的第一行内容
+            parseHeaders(input); // 解析请求头
+
+            if (request.getRequestURI().startsWith("/servlet/")) {
+                ServletProcessor processor = new ServletProcessor();
+                //processor.process(request, response);
+            } else {
+                StaticResourceProcessor processor = new StaticResourceProcessor();
+                //processor.process(request, response);
+            }
+
+            socket.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }

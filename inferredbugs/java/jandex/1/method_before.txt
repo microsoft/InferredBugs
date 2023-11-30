@@ -1,0 +1,58 @@
+    public static Result createJarIndex(File jarFile, Indexer indexer, boolean modify, boolean newJar, boolean verbose) throws IOException {
+        File tmpCopy = null;
+        ZipOutputStream zo = null;
+        OutputStream out = null;
+        File outputFile = null;
+
+        JarFile jar = new JarFile(jarFile);
+
+        if (modify) {
+            tmpCopy = File.createTempFile(jarFile.getName().substring(0, jarFile.getName().lastIndexOf('.')), "jmp");
+            out = zo = new ZipOutputStream(new FileOutputStream(tmpCopy));
+        } else if (newJar) {
+            outputFile = new File(jarFile.getAbsolutePath().replace(".jar", "-jandex.jar"));
+            out = zo = new ZipOutputStream(new FileOutputStream(outputFile));
+        } else
+        {
+            outputFile = new File(jarFile.getAbsolutePath().replace(".jar", "-jar") + ".idx");
+            out = new FileOutputStream(  outputFile);
+        }
+
+        try {
+            Enumeration<JarEntry> entries = jar.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                if (modify) {
+                    zo.putNextEntry(entry);
+                    copy(jar.getInputStream(entry), zo);
+                }
+
+                if (entry.getName().endsWith(".class")) {
+                    ClassInfo info = indexer.index(jar.getInputStream(entry));
+                    if (verbose && info != null)
+                        printIndexEntryInfo(info);
+                }
+            }
+
+            if (modify || newJar) {
+                zo.putNextEntry(new ZipEntry("META-INF/jandex.idx"));
+            }
+
+            IndexWriter writer = new IndexWriter(out);
+            Index index = indexer.complete();
+            int bytes = writer.write(index);
+
+
+            if (modify) {
+                jarFile.delete();
+                tmpCopy.renameTo(jarFile);
+                tmpCopy = null;
+            }
+            return new Result(index, modify ? "META-INF/jandex.idx" : outputFile.getPath(),  bytes);
+        } finally {
+            out.flush();
+            out.close();
+            if (tmpCopy != null)
+                tmpCopy.delete();
+        }
+    }

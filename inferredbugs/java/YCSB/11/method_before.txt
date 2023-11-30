@@ -1,0 +1,42 @@
+    public void init() throws DBException
+    {
+        if ( (getProperties().getProperty("debug")!=null) &&
+                (getProperties().getProperty("debug").compareTo("true")==0) )
+        {
+            _debug=true;
+        }
+
+        if (getProperties().containsKey("clientbuffering"))
+        {
+            _clientSideBuffering = Boolean.parseBoolean(getProperties().getProperty("clientbuffering"));
+        }
+        if (getProperties().containsKey("writebuffersize"))
+        {
+            _writeBufferSize = Long.parseLong(getProperties().getProperty("writebuffersize"));
+        }
+        if ("false".equals(getProperties().getProperty("hbase.usepagefilter", "true"))) {
+          _usePageFilter = false;
+        }
+
+        _columnFamily = getProperties().getProperty("columnfamily");
+        if (_columnFamily == null)
+        {
+            System.err.println("Error, must specify a columnfamily for HBase table");
+            throw new DBException("No columnfamily specified");
+        }
+      _columnFamilyBytes = Bytes.toBytes(_columnFamily);
+
+      // Terminate right now if table does not exist, since the client
+      // will not propagate this error upstream once the workload
+      // starts.
+      String table = com.yahoo.ycsb.workloads.CoreWorkload.table;
+      try
+	  {
+	      HTable ht = new HTable(config, table);
+	      ht.getTableDescriptor();
+	  }
+      catch (IOException e)
+	  {
+	      throw new DBException(e);
+	  }
+    }

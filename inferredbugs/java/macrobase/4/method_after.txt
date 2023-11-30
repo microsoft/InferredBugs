@@ -1,0 +1,40 @@
+    @Override
+    public List<AnalysisResult> run() throws Exception {
+        final int batchSize = conf.getInt(MacroBaseConf.TUPLE_BATCH_SIZE,
+                                          MacroBaseDefaults.TUPLE_BATCH_SIZE);
+
+        Stopwatch sw = Stopwatch.createStarted();
+        DataIngester ingester = conf.constructIngester();
+        List<Datum> data = ingester.getStream().drain();
+        System.gc();
+        final long loadMs = sw.elapsed(TimeUnit.MILLISECONDS);
+
+        MBStream<Datum> streamData = new MBStream<>(data);
+
+        Summarizer summarizer = new EWStreamingSummarizer(conf);
+        MBOperator<Datum, Summary> pipeline =
+                new EWFeatureTransform(conf)
+                .then(new EWAppxPercentileOutlierClassifier(conf), batchSize)
+                .then(summarizer, batchSize);
+
+        while(streamData.remaining() > 0) {
+            pipeline.consume(streamData.drain(batchSize));
+        }
+
+        Summary result = summarizer.summarize().getStream().drain().get(0);
+
+        final long totalMs = sw.elapsed(TimeUnit.MILLISECONDS) - loadMs;
+        final long summarizeMs = result.getCreationTimeMs();
+        final long executeMs = totalMs - result.getCreationTimeMs();
+
+        log.info("took {}ms ({} tuples/sec)",
+                 totalMs,
+                 (result.getNumInliers()+result.getNumOutliers())/(double)totalMs*1000);
+
+        return Arrays.asList(new AnalysisResult(result.getNumOutliers(),
+                                  result.getNumInliers(),
+                                  loadMs,
+                                  executeMs,
+                                  summarizeMs,
+                                  result.getItemsets()));
+    }

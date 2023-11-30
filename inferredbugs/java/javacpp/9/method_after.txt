@@ -1,0 +1,85 @@
+    @Override public void execute() throws MojoExecutionException {
+        final Log log = getLog();
+        try {
+            log.info("Executing JavaCPP Builder");
+            if (log.isDebugEnabled()) {
+                log.debug("classPath: " + classPath);
+                log.debug("classPaths: " + Arrays.deepToString(classPaths));
+                log.debug("includePath: " + includePath);
+                log.debug("includePaths: " + Arrays.deepToString(includePaths));
+                log.debug("linkPath: " + linkPath);
+                log.debug("linkPaths: " + Arrays.deepToString(linkPaths));
+                log.debug("preloadPath: " + preloadPath);
+                log.debug("preloadPaths: " + Arrays.deepToString(preloadPaths));
+                log.debug("outputDirectory: " + outputDirectory);
+                log.debug("outputName: " + outputName);
+                log.debug("compile: " + compile);
+                log.debug("header: " + header);
+                log.debug("copyLibs: " + copyLibs);
+                log.debug("jarPrefix: " + jarPrefix);
+                log.debug("properties: " + properties);
+                log.debug("propertyFile: " + propertyFile);
+                log.debug("propertyKeysAndValues: " + propertyKeysAndValues);
+                log.debug("classOrPackageName: " + classOrPackageName);
+                log.debug("classOrPackageNames: " + Arrays.deepToString(classOrPackageNames));
+                log.debug("environmentVariables: " + environmentVariables);
+                log.debug("compilerOptions: " + Arrays.deepToString(compilerOptions));
+                log.debug("skip: " + skip);
+            }
+
+            if (skip) {
+                log.info("Skipped execution of JavaCPP Builder");
+                return;
+            }
+
+            classPaths = merge(classPaths, classPath);
+            classOrPackageNames = merge(classOrPackageNames, classOrPackageName);
+
+            Logger logger = new Logger() {
+                @Override public void debug(CharSequence cs) { log.debug(cs); }
+                @Override public void info (CharSequence cs) { log.info(cs);  }
+                @Override public void warn (CharSequence cs) { log.warn(cs);  }
+                @Override public void error(CharSequence cs) { log.error(cs); }
+            };
+            Builder builder = new Builder(logger)
+                    .classPaths(classPaths)
+                    .outputDirectory(outputDirectory)
+                    .outputName(outputName)
+                    .compile(compile)
+                    .header(header)
+                    .copyLibs(copyLibs)
+                    .jarPrefix(jarPrefix)
+                    .properties(properties)
+                    .propertyFile(propertyFile)
+                    .properties(propertyKeysAndValues)
+                    .classesOrPackages(classOrPackageNames)
+                    .environmentVariables(environmentVariables)
+                    .compilerOptions(compilerOptions);
+            Properties properties = builder.properties;
+            String separator = properties.getProperty("platform.path.separator");
+            for (String s : merge(includePaths, includePath)) {
+                String v = properties.getProperty("platform.includepath", "");
+                properties.setProperty("platform.includepath",
+                        v.length() == 0 || v.endsWith(separator) ? v + s : v + separator + s);
+            }
+            for (String s : merge(linkPaths, linkPath)) {
+                String v = properties.getProperty("platform.linkpath", "");
+                properties.setProperty("platform.linkpath",
+                        v.length() == 0 || v.endsWith(separator) ? v + s : v + separator + s);
+            }
+            for (String s : merge(preloadPaths, preloadPath)) {
+                String v = properties.getProperty("platform.preloadpath", "");
+                properties.setProperty("platform.preloadpath",
+                        v.length() == 0 || v.endsWith(separator) ? v + s : v + separator + s);
+            }
+            project.getProperties().putAll(properties);
+            File[] outputFiles = builder.build();
+            log.info("Successfully executed JavaCPP Builder");
+            if (log.isDebugEnabled()) {
+                log.debug("outputFiles: " + Arrays.deepToString(outputFiles));
+            }
+        } catch (Exception e) {
+            log.error("Failed to execute JavaCPP Builder: " + e.getMessage());
+            throw new MojoExecutionException("Failed to execute JavaCPP Builder", e);
+        }
+    }

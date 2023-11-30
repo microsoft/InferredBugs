@@ -1,0 +1,41 @@
+ private void initMappings() throws Exception {
+		checkClient();
+		// We extract indexes and mappings to manage from mappings definition
+		if (mappings != null && mappings.length > 0) {
+			Map<String, Collection<String>> indexes = new HashMap<>();
+			
+			for (int i = 0; i < mappings.length; i++) {
+				String indexmapping = mappings[i];
+				String[] indexmappingsplitted = indexmapping.split("/");
+				String index = indexmappingsplitted[0];
+
+                if (index == null) throw new Exception("Can not read index in [" + indexmapping +
+                        "]. Check that mappings contains only indexname/mappingname elements.");
+
+                // We add the mapping in the collection of its index
+                if (!indexes.containsKey(index)) {
+                    indexes.put(index, new ArrayList<String>());
+                }
+
+                if (indexmappingsplitted.length > 1) {
+                    String mapping = indexmappingsplitted[1];
+                    indexes.get(index).add(mapping);
+                }
+			}
+			
+			// Let's initialize indexes and mappings if needed
+			for (String index : indexes.keySet()) {
+				createIndex(client, classpathRoot, index, forceMapping);
+				if (mergeSettings) {
+					updateSettings(client, classpathRoot, index);
+				}
+
+				Collection<String> mappings = indexes.get(index);
+				for (Iterator<String> iterator = mappings.iterator(); iterator
+						.hasNext();) {
+					String type = iterator.next();
+					createMapping(client, classpathRoot, index, type, mergeMapping);
+				}
+			}
+		}
+	}

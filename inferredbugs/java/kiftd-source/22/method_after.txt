@@ -1,0 +1,48 @@
+ @Override
+	public String doImportFolder(HttpServletRequest request, MultipartFile file) {
+		final String account = (String) request.getSession().getAttribute("ACCOUNT");
+		String folderId = request.getParameter("folderId");
+		final String originalFileName = new String(file.getOriginalFilename().getBytes(Charset.forName("UTF-8")),
+				Charset.forName("UTF-8"));
+		String folderConstraint = request.getParameter("folderConstraint");
+		// 再次检查上传文件名与目标目录ID
+		if (folderId == null || folderId.length() <= 0 || originalFileName == null || originalFileName.length() <= 0) {
+			return UPLOADERROR;
+		}
+		Folder folder = flm.queryById(folderId);
+		if (folder == null) {
+			return UPLOADERROR;
+		}
+		// 检查上传权限
+		if (!ConfigureReader.instance().authorized(account, AccountAuth.UPLOAD_FILES)
+				|| !ConfigureReader.instance().accessFolder(folder, account)) {
+			return UPLOADERROR;
+		}
+		// 检查上传文件体积是否超限
+		long mufs = ConfigureReader.instance().getUploadFileSize(account);
+		if (mufs >= 0 && file.getSize() > mufs) {
+			return UPLOADERROR;
+		}
+		// 检查是否具备创建文件夹权限，若有则使用请求中提供的文件夹访问级别，否则使用默认访问级别
+		int pc = folder.getFolderConstraint();
+		if (ConfigureReader.instance().authorized(account, AccountAuth.CREATE_NEW_FOLDER)) {
+			try {
+				int ifc = Integer.parseInt(folderConstraint);
+				if (ifc > 0 && account == null) {
+					return UPLOADERROR;
+				}
+				if (ifc < pc) {
+					return UPLOADERROR;
+				}
+			} catch (Exception e) {
+				return UPLOADERROR;
+			}
+		} else {
+			folderConstraint = pc + "";
+		}
+		// 计算相对路径的文件夹ID（即真正要保存的文件夹目标）
+		String[] paths = getParentPath(originalFileName);
+		// 将当前操作的文件夹路径加入到安全锁中，确保同一时间内无法对该文件夹进行重复导入，避免发生文件冲突的问题。
+		String result = protectImportFolder(paths, folderId, account, folderConstraint, originalFileName, file);
+		return result;
+	}

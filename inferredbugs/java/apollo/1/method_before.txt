@@ -1,0 +1,16 @@
+    private boolean isServiceUndeployed(int environmentId, int serviceId){
+        Date latestDeploymentDate = getLatestDeploymentDateByServiceIdInEnvironment(environmentId, serviceId);
+        Date latestUpdatedDate = getLatestDeployableVersionDateByServiceId(serviceId);
+
+        if(latestDeploymentDate != null) {
+            long diffBetweenDatesInDays = TimeUnit.DAYS.convert(Math.abs(latestDeploymentDate.getTime() - latestUpdatedDate.getTime()), TimeUnit.MILLISECONDS);
+            return diffBetweenDatesInDays > MIN_DAYS_OF_UNDEPLOYED_SERVICES ? true : false;
+        }
+        if(latestUpdatedDate != null) {
+            Date durationSinceLatestUpdate = Date.from(LocalDate.now().minusDays((long) MIN_DAYS_OF_UNDEPLOYED_SERVICES).atStartOfDay(ZoneId.systemDefault()).toInstant());
+            if(latestUpdatedDate.compareTo(durationSinceLatestUpdate) < 0) {
+                return true;
+            }
+        }
+        return false;
+    }

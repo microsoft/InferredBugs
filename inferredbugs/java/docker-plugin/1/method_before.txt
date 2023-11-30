@@ -1,0 +1,64 @@
+    @Override
+    public synchronized Collection<NodeProvisioner.PlannedNode> provision(Label label, int excessWorkload) {
+        try {
+
+            LOGGER.log(Level.INFO, "Asked to provision {0} slave(s) for: {1}", new Object[]{excessWorkload,label});
+
+            List<NodeProvisioner.PlannedNode> r = new ArrayList<NodeProvisioner.PlannedNode>();
+
+            final DockerTemplate t = getTemplate(label);
+
+            LOGGER.log(Level.INFO, "Will provision \"{0}\" for: {1}", new Object[]{t.image,label});
+
+            while (excessWorkload>0) {
+
+                if (!addProvisionedSlave(t.image, t.instanceCap)) {
+                    break;
+                }
+
+                r.add(new NodeProvisioner.PlannedNode(t.getDisplayName(),
+                        Computer.threadPoolForRemoting.submit(new Callable<Node>() {
+                            public Node call() throws Exception {
+                                // TODO: record the output somewhere
+                                DockerSlave slave = null;
+                                try {
+                                    slave = t.provision(new StreamTaskListener(System.out));
+                                    final Jenkins jenkins = Jenkins.getInstance();
+                                    // TODO once the baseline is 1.592+ switch to Queue.withLock
+                                    synchronized (jenkins.getQueue()) {
+                                        jenkins.addNode(slave);
+                                    }
+                                    // Docker instances may have a long init script. If we declare
+                                    // the provisioning complete by returning without the connect
+                                    // operation, NodeProvisioner may decide that it still wants
+                                    // one more instance, because it sees that (1) all the slaves
+                                    // are offline (because it's still being launched) and
+                                    // (2) there's no capacity provisioned yet.
+                                    //
+                                    // deferring the completion of provisioning until the launch
+                                    // goes successful prevents this problem.
+                                    slave.toComputer().connect(false).get();
+                                    return slave;
+                                }
+                                catch(Exception ex) {
+                                    LOGGER.log(Level.SEVERE, "Error in provisioning; slave=" + slave + ", template=" + t);
+
+                                    ex.printStackTrace();
+                                    throw Throwables.propagate(ex);
+                                }
+                                finally {
+                                    decrementAmiSlaveProvision(t.image);
+                                }
+                            }
+                        })
+                        ,t.getNumExecutors()));
+
+                excessWorkload -= t.getNumExecutors();
+
+            }
+            return r;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE,"Exception while provisioning for: " + label,e);
+            return Collections.emptyList();
+        }
+    }

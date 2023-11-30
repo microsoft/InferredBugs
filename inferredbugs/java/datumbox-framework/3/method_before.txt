@@ -1,0 +1,85 @@
+    @Test
+    public void testValidate() {
+        TestUtils.log(this.getClass(), "validate");
+        
+        /*
+        Example from http://www.inf.u-szeged.hu/~ormandi/ai2/06-naiveBayes-example.pdf
+        FeatureList: 
+            - 0: red
+            - 1: yellow
+            - 2: sports
+            - 3: suv
+            - 4: domestic
+            - 5: imported
+            - c1: yes
+            - c2: no
+        */
+        /*
+        Dataset trainingData = new Dataset();
+        trainingData.add(Record.newDataVector(new Double[] {1.0, 0.0, 1.0, 0.0, 1.0, 0.0}, 1));
+        trainingData.add(Record.newDataVector(new Double[] {1.0, 0.0, 1.0, 0.0, 1.0, 0.0}, 0));
+        trainingData.add(Record.newDataVector(new Double[] {1.0, 0.0, 1.0, 0.0, 1.0, 0.0}, 1));
+        trainingData.add(Record.newDataVector(new Double[] {0.0, 1.0, 1.0, 0.0, 1.0, 0.0}, 0));
+        trainingData.add(Record.newDataVector(new Double[] {0.0, 1.0, 1.0, 0.0, 0.0, 1.0}, 1));
+        trainingData.add(Record.newDataVector(new Double[] {0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, 0));
+        trainingData.add(Record.newDataVector(new Double[] {0.0, 1.0, 0.0, 1.0, 0.0, 1.0}, 1));
+        trainingData.add(Record.newDataVector(new Double[] {0.0, 1.0, 0.0, 1.0, 1.0, 0.0}, 0));
+        trainingData.add(Record.newDataVector(new Double[] {1.0, 0.0, 0.0, 1.0, 0.0, 1.0}, 0));
+        trainingData.add(Record.newDataVector(new Double[] {1.0, 0.0, 1.0, 0.0, 0.0, 1.0}, 1));
+        
+        Dataset validationData = new Dataset();
+        validationData.add(Record.newDataVector(new Double[] {1.0, 0.0, 0.0, 1.0, 1.0, 0.0}, 0));
+        */
+        
+        Dataset trainingData = new Dataset();
+        trainingData.add(Record.newDataVector(new String[] {"red", "sports", "domestic"}, "yes"));
+        trainingData.add(Record.newDataVector(new String[] {"red", "sports", "domestic"}, "no"));
+        trainingData.add(Record.newDataVector(new String[] {"red", "sports", "domestic"}, "yes"));
+        trainingData.add(Record.newDataVector(new String[] {"yellow", "sports", "domestic"}, "no"));
+        trainingData.add(Record.newDataVector(new String[] {"yellow", "sports", "imported"}, "yes"));
+        trainingData.add(Record.newDataVector(new String[] {"yellow", "suv", "imported"}, "no"));
+        trainingData.add(Record.newDataVector(new String[] {"yellow", "suv", "imported"}, "yes"));
+        trainingData.add(Record.newDataVector(new String[] {"yellow", "suv", "domestic"}, "no"));
+        trainingData.add(Record.newDataVector(new String[] {"red", "suv", "imported"}, "no"));
+        trainingData.add(Record.newDataVector(new String[] {"red", "sports", "imported"}, "yes"));
+        
+        Dataset validationData = new Dataset();
+        validationData.add(Record.newDataVector(new String[] {"red", "suv", "domestic"}, "no"));
+        
+        
+        
+        String dbName = "JUnitClassifier";
+        
+        SimpleDummyVariableExtractor df = new SimpleDummyVariableExtractor(dbName, TestUtils.getDBConfig());
+        df.fit_transform(trainingData, new SimpleDummyVariableExtractor.TrainingParameters());
+        df.transform(validationData);
+        
+        SupportVectorMachine instance = new SupportVectorMachine(dbName, TestUtils.getDBConfig());
+        
+        SupportVectorMachine.TrainingParameters param = new SupportVectorMachine.TrainingParameters();
+        param.getSvmParameter().kernel_type = svm_parameter.RBF;
+        
+        instance.fit(trainingData, param);
+        
+        
+        instance = null;
+        instance = new SupportVectorMachine(dbName, TestUtils.getDBConfig());
+        
+        instance.validate(validationData);
+        
+        
+        df.denormalize(trainingData);
+        df.denormalize(validationData);
+        df.erase();
+
+        
+        Map<Integer, Object> expResult = new HashMap<>();
+        Map<Integer, Object> result = new HashMap<>();
+        for(Record r : validationData) {
+            expResult.put(r.getId(), r.getY());
+            result.put(r.getId(), r.getYPredicted());
+        }
+        assertEquals(expResult, result);
+        
+        instance.erase();
+    }

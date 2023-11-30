@@ -1,0 +1,43 @@
+    @VisibleForTesting
+    void copyVideos(final String containerId) {
+        if (testInformation == null || StringUtils.isEmpty(containerId)) {
+            // No tests run or container has been removed, nothing to copy and nothing to update.
+            return;
+        }
+        String currentName = configureThreadName();
+        boolean videoWasCopied = false;
+        TarArchiveInputStream tarStream = new TarArchiveInputStream(containerClient.copyFiles(containerId, "/videos/"));
+        try {
+            TarArchiveEntry entry;
+            while ((entry = tarStream.getNextTarEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String fileExtension = entry.getName().substring(entry.getName().lastIndexOf('.'));
+                testInformation.setFileExtension(fileExtension);
+                Path videoFile = Paths.get(String.format("%s/%s", testInformation.getVideoFolderPath(),
+                        testInformation.getFileName()));
+                if (!Files.exists(videoFile.getParent())) {
+                    Files.createDirectories(videoFile.getParent());
+                }
+                Files.copy(tarStream, videoFile);
+                CommonProxyUtilities.setFilePermissions(videoFile);
+                videoWasCopied = true;
+                LOGGER.debug("Video file copied to: {}/{}", testInformation.getVideoFolderPath(), testInformation.getFileName());
+            }
+        } catch (IOException e) {
+            // This error happens in k8s, but the file is ok, nevertheless the size is not accurate
+            boolean isPipeClosed = e.getMessage().toLowerCase().contains("pipe closed");
+            if (ContainerFactory.getIsKubernetes().get() && isPipeClosed) {
+                LOGGER.debug("Video file copied to: {}/{}", testInformation.getVideoFolderPath(), testInformation.getFileName());
+            } else {
+                LOGGER.warn("Error while copying the video", e);
+            }
+            ga.trackException(e);
+        } finally {
+            if (!videoWasCopied) {
+                testInformation.setVideoRecorded(false);
+            }
+        }
+        setThreadName(currentName);
+    }

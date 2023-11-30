@@ -1,0 +1,33 @@
+    public void run() {
+        int emptyCount = 0;
+        boolean isShutDown = false;
+        while( ! isShutDown ) {
+
+            if ( pollQs() ) {
+                emptyCount = 0;
+            }
+            else {
+                emptyCount++;
+                scheduler.yield(emptyCount);
+                if (shutDown) // access volatile only when idle
+                    isShutDown = true;
+                if ( scheduler.getBackoffStrategy().isSleeping(emptyCount) && System.currentTimeMillis()-created > 3000 ) {
+                    if ( queueList.size() == 0 ) {
+                        shutDown = true;
+                    } else {
+                        scheduler.tryStopThread(this);
+                    }
+                }
+            }
+        }
+        scheduler.threadStopped(this);
+        for ( int i = 0; i < 100; i++ ) {
+            LockSupport.parkNanos(1000*1000*5);
+            if ( queueList.size() > 0 ) {
+                System.out.println("Severe: zombie dispatcher thread detected");
+                run(); // for now keep things going ..
+                break;
+            }
+        }
+        System.out.println("thread died");
+    }

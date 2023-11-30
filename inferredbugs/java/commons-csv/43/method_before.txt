@@ -1,0 +1,36 @@
+   private static void testCSVLexer(final boolean newToken, String test) throws Exception {
+       Token token = new Token();
+       for (int i = 0; i < max; i++) {
+           final BufferedReader reader = getReader();
+           Lexer lexer = new CSVLexer(format, new ExtendedBufferedReader(reader));
+           int count = 0;
+           int fields = 0;
+           long t0 = System.currentTimeMillis();
+           do {
+               if (newToken) {
+                   token = new Token();
+               } else {
+                   token.reset();
+               }
+               lexer.nextToken(token);
+               switch(token.type) {
+               case EOF:
+                   break;
+               case EORECORD:
+                   fields++;
+                   count++;
+                   break;
+               case INVALID:
+                   throw new IOException("invalid parse sequence");
+               case TOKEN:
+                   fields++;
+                   break;
+              }
+
+           } while (!token.type.equals(Token.Type.EOF));
+           Stats s = new Stats(count, fields);
+           reader.close();
+           show(test, s, t0);
+       }
+       show();
+   }

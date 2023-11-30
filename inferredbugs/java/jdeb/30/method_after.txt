@@ -1,0 +1,36 @@
+    public void testControlFilesVariables() throws Exception {
+        File deb = new File("target/test-classes/test-control.deb");
+        if (deb.exists() && !deb.delete()) {
+            fail("Couldn't delete " + deb);
+        }
+        
+        Map<String, String> variables = new HashMap<String, String>();
+        variables.put("name", "jdeb");
+        variables.put("version", "1.0");
+        
+        Processor processor = new Processor(new NullConsole(), new MapVariableResolver(variables));
+        
+        File controlDir = new File("target/test-classes/org/vafer/jdeb/deb/control");
+        DataProducer[] producers = {new EmptyDataProducer()};
+        
+        processor.createDeb(controlDir.listFiles(), producers, deb, Compression.NONE);
+        
+        // now reopen the package and check the control files
+        assertTrue("package not build", deb.exists());
+                
+        final AtomicBoolean controlFound = new AtomicBoolean(false);
+        
+        ArchiveWalker.walkControlFiles(deb, new ArchiveVisitor<TarArchiveEntry>() {
+            public void visit(TarArchiveEntry entry, byte[] content) throws IOException {
+                controlFound.set(true);
+                
+                if (entry.getName().contains("postinst") || entry.getName().contains("prerm")) {
+                    String body = new String(content, "ISO-8859-1");
+                    assertFalse("Variables not replaced in the control file " + entry.getName(), body.contains("[[name]] [[version]]"));
+                    assertTrue("Expected variables not found in the control file " + entry.getName(), body.contains("jdeb 1.0"));
+                }
+            }
+        });
+        
+        assertTrue("Control files not found in the package", controlFound.get());
+    }

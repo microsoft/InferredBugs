@@ -1,0 +1,39 @@
+    protected List<Parameter> getParameters(Type type, List<Annotation> annotations) {
+        // look for path, query
+        Iterator<SwaggerExtension> chain = SwaggerExtensions.chain();
+        List<Parameter> parameters = null;
+
+        LOG.info("getParameters for " + type.getClass().getName());
+        Set<Type> typesToSkip = new HashSet<Type>();
+        if (chain.hasNext()) {
+            SwaggerExtension extension = chain.next();
+            LOG.info("trying extension " + extension);
+            parameters = extension.extractParameters(annotations, type, typesToSkip, chain);
+        }
+
+        if (parameters.size() > 0) {
+            for (Parameter parameter : parameters) {
+
+                ParameterProcessor.applyAnnotations(swagger, parameter, type, annotations);
+            }
+        } else {
+            LOG.info("no parameter found, looking at body params");
+            if (typesToSkip.contains(type) == false) {
+                Parameter param = null;
+                param = ParameterProcessor.applyAnnotations(swagger, null, type, annotations);
+                if (param != null) {
+                    for (Annotation annotation : annotations) {
+                        if (annotation instanceof ApiParam) {
+                            ApiParam apiParam = (ApiParam) annotation;
+                            param.setRequired(apiParam.required());
+                            break;
+                        }
+                    }
+                    parameters.add(param);
+                }
+
+
+            }
+        }
+        return parameters;
+    }

@@ -1,0 +1,33 @@
+ private void updateMemoryPool() throws IOException {
+		JmxMemoryPoolManager memoryPoolManager = jmxClient.getMemoryPoolManager();
+
+		eden = new Usage(memoryPoolManager.getEdenMemoryPool().getUsage());
+		old = new Usage(memoryPoolManager.getOldMemoryPool().getUsage());
+		warning.updateOld(old.max);
+
+		MemoryPoolMXBean survivorMemoryPool = memoryPoolManager.getSurvivorMemoryPool();
+		if (survivorMemoryPool != null) {
+			sur = new Usage(survivorMemoryPool.getUsage());
+		} else {
+			sur = new Usage();
+		}
+
+		perm = new Usage(memoryPoolManager.getPermMemoryPool().getUsage());
+		warning.updatePerm(perm.max);
+
+		if (jvmMajorVersion >= 8) {
+			MemoryPoolMXBean compressedClassSpaceMemoryPool = memoryPoolManager.getCompressedClassSpaceMemoryPool();
+			if (compressedClassSpaceMemoryPool != null) {
+				ccs = new Usage(compressedClassSpaceMemoryPool.getUsage());
+			}
+		}
+
+		codeCache = new Usage(memoryPoolManager.getCodeCacheMemoryPool().getUsage());
+		direct = new Usage(jmxClient.getBufferPoolManager().getDirectBufferPool().getMemoryUsed(),
+				jmxClient.getBufferPoolManager().getDirectBufferPool().getTotalCapacity(), maxDirectMemorySize);
+
+		// 取巧用法，将count 放入无用的max中。
+		map = new Usage(jmxClient.getBufferPoolManager().getMappedBufferPool().getMemoryUsed(),
+				jmxClient.getBufferPoolManager().getMappedBufferPool().getTotalCapacity(),
+				jmxClient.getBufferPoolManager().getMappedBufferPool().getCount());
+	}

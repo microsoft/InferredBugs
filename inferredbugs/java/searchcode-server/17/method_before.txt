@@ -1,0 +1,51 @@
+    private CodeOwner getInfoExternal(int codeLinesSize, String repoName, String repoLocations, String fileName) {
+        CodeOwner owner = new CodeOwner("Unknown", codeLinesSize, (int)(System.currentTimeMillis() / 1000));
+
+        ProcessBuilder processBuilder = new ProcessBuilder(this.SVNBINARYPATH, "info", "--xml", fileName);
+        processBuilder.directory(new File(repoLocations + repoName));
+
+        Process process = null;
+
+        try {
+            process = processBuilder.start();
+
+            InputStream is = process.getInputStream();
+            InputStreamReader isr = new InputStreamReader(is);
+            BufferedReader br = new BufferedReader(isr);
+            String line;
+            StringBuilder bf = new StringBuilder();
+
+
+            while ((line = br.readLine()) != null) {
+                bf.append(Helpers.removeUTF8BOM(line));
+            }
+
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(new ByteArrayInputStream(bf.toString().getBytes()));
+            doc.getDocumentElement().normalize();
+
+            NodeList nList = doc.getElementsByTagName("entry");
+
+            for (int temp = 0; temp < nList.getLength(); temp++) {
+                Node nNode = nList.item(temp);
+
+                if (nNode.getNodeType() == Node.ELEMENT_NODE) {
+                    Element eElement = (Element) nNode;
+
+                    Node node = eElement.getElementsByTagName("commit").item(0);
+                    Element e = (Element) node;
+
+                    owner.setName(e.getElementsByTagName("author").item(0).getTextContent());
+                }
+            }
+
+        } catch (IOException | ParserConfigurationException | SAXException ex) {
+            Singleton.getLogger().warning("ERROR - caught a " + ex.getClass() + " in " + this.getClass() + " getInfoExternal for " + repoName + " " + fileName + "\n with message: " + ex.getMessage());
+        }
+        finally {
+            Helpers.closeQuietly(process);
+        }
+
+        return owner;
+    }

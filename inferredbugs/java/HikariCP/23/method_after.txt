@@ -1,0 +1,43 @@
+   public Connection getConnection() throws SQLException
+   {
+      final long start = System.currentTimeMillis();
+      final MetricsContext context = (isRecordMetrics ? metricsTracker.recordConnectionRequest(start) : MetricsTracker.NO_CONTEXT);
+      long timeout = connectionTimeout;
+
+      try {
+         do {
+            final PoolBagEntry bagEntry = connectionBag.borrow(timeout, TimeUnit.MILLISECONDS);
+            if (bagEntry == null) {
+               break; // We timed out... break and throw exception
+            }
+
+            final long now = System.currentTimeMillis();
+            if (now > bagEntry.expirationTime || (now - bagEntry.lastAccess > 1000L && !isConnectionAlive(bagEntry.connection, timeout))) {
+               closeConnection(bagEntry); // Throw away the dead connection and try again
+               timeout = connectionTimeout - elapsedTimeMs(start);
+               continue;
+            }
+
+            LeakTask leakTask = (leakDetectionThreshold == 0) ? NO_LEAK : new LeakTask(leakDetectionThreshold, houseKeepingExecutorService);
+            
+            final IHikariConnectionProxy proxyConnection = ProxyFactory.getProxyConnection(this, bagEntry, leakTask);
+
+            if (isRecordMetrics) {
+               bagEntry.lastOpenTime = now;
+            }
+
+            return proxyConnection;
+         }
+         while (timeout > 0L);
+      }
+      catch (InterruptedException e) {
+         throw new SQLException("Interrupted during connection acquisition", e);
+      }
+      finally {
+         context.stop();
+      }
+
+      logPoolState("Timeout failure ");
+      throw new SQLException(String.format("Timeout of %dms encountered waiting for connection.", configuration.getConnectionTimeout()),
+                             lastConnectionFailure.getAndSet(null));
+   }

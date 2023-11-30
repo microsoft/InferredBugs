@@ -1,0 +1,25 @@
+    private void testListBucketsStreaming(Namespace namespace) throws InterruptedException, ExecutionException
+    {
+        ListBuckets listBucketsCommand = new ListBuckets.Builder(namespace.getBucketType()).build();
+
+        final RiakFuture<ListBuckets.StreamingResponse, BinaryValue> streamingFuture =
+                client.executeAsyncStreaming(listBucketsCommand, 500);
+
+        Iterator<Namespace> iterator = streamingFuture.get().iterator();
+        assumeTrue(iterator.hasNext());
+        boolean found = false;
+
+        while (iterator.hasNext())
+        {
+            final Namespace next = iterator.next();
+            found = next.getBucketName().toString().equals(bucketName);
+        }
+
+        streamingFuture.await(); // Wait for command to finish, even if we've found our data
+        assumeTrue(streamingFuture.isDone());
+
+        assertFalse(streamingFuture.get().iterator().hasNext());
+        assertEquals(namespace.getBucketType(), streamingFuture.getQueryInfo());
+
+        assertTrue(found);
+    }

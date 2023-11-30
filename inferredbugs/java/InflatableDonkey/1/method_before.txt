@@ -1,0 +1,14 @@
+    Optional<Chunk> chunk(BoundedInputStream bis, ChunkServer.ChunkInfo chunkInfo, int index) throws IOException {
+        byte[] checksum = chunkInfo.getChunkChecksum().toByteArray();
+        return store.chunk(checksum)
+                .<IOSupplier<Optional<Chunk>>>map(u -> () -> {
+                    logger.debug("-- chunk() - chunk present in store: 0x:{}", Hex.toHexString(checksum));
+                    return Optional.of(u);
+                })
+                .orElseGet(() -> () -> {
+                    logger.debug("-- chunk() - chunk not present in store: 0x:{}", Hex.toHexString(checksum));
+                    byte[] chunkEncryptionKey = chunkInfo.getChunkEncryptionKey().toByteArray();
+                    return decrypt(bis, chunkEncryptionKey, checksum, index);
+                })
+                .get();
+    }

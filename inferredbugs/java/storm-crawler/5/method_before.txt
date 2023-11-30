@@ -1,0 +1,38 @@
+    @Override
+    public void execute(Tuple tuple) {
+        HashMap<String, String[]> metadata = (HashMap<String, String[]>) tuple
+                .getValueByField("metadata");
+
+        // TODO check that we have the right number of fields ?
+        String isBoolean = KeyValues.getValue(isSitemapKey, metadata);
+        if (StringUtils.isBlank(isBoolean)
+                || !isBoolean.equalsIgnoreCase("true")) {
+            // just pass it on
+            this.collector.emit(tuple.getValues());
+            this.collector.ack(tuple);
+            return;
+        }
+
+        // it does have the right key/value
+        byte[] content = tuple.getBinaryByField("content");
+        String url = tuple.getStringByField("url");
+        String ct = KeyValues.getValue(HttpHeaders.CONTENT_TYPE, metadata);
+        List<Values> outlinks = parseSiteMap(url, content, ct);
+        if (outlinks == null) {
+            // likely to happen ad lib - just ack
+            // error has been logged
+            this.collector.ack(tuple);
+            return;
+        }
+
+        // send to status stream
+        for (Values ol : outlinks) {
+            collector.emit(Constants.StatusStreamName, new Values(ol));
+        }
+
+        // marking the main URL as successfully fetched
+        collector.emit(Constants.StatusStreamName, new Values(url, metadata,
+                Status.FETCHED));
+
+        this.collector.ack(tuple);
+    }

@@ -1,0 +1,38 @@
+ @UserEditPermission
+	@Transactional(propagation=Propagation.REQUIRED, readOnly=false)
+	public String changePassword(U user, @Valid ChangePasswordForm changePasswordForm) {
+		
+		log.debug("Changing password for user: " + user);
+		
+		// Get the old password of the logged in user (logged in user may be an ADMIN)
+		SpringUser<ID> springUser = LemonUtils.getSpringUser();
+		U loggedIn = userRepository.findById(springUser.getId()).get();
+		String oldPassword = loggedIn.getPassword();
+
+		// checks
+		LemonUtils.ensureFound(user);
+		LemonUtils.validate("changePasswordForm.oldPassword",
+			passwordEncoder.matches(changePasswordForm.getOldPassword(),
+					oldPassword),
+			"com.naturalprogrammer.spring.wrong.password").go();
+		
+		// sets the password
+		user.setPassword(passwordEncoder.encode(changePasswordForm.getPassword()));
+		user.setCredentialsUpdatedMillis(System.currentTimeMillis());
+		userRepository.save(user);
+		
+//		// after successful commit
+//		LemonUtils.afterCommit(() -> {
+//
+//			SpringUser<ID> currentUser = LemonUtils.getSpringUser();
+//			
+////			if (currentUser.getId().equals(user.getId())) { // if current-user's password changed,
+////				
+////				log.debug("Logging out ...");
+////				LemonUtils.logOut(); // log him out
+////			}
+//		});
+//		
+		log.debug("Changed password for user: " + user);
+		return user.toSpringUser().getUsername();
+	}

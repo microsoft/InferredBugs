@@ -1,0 +1,52 @@
+ @Override
+	public List<Feature> initializeFeatures(SkLearnEncoder encoder){
+		List<? extends String> featureNames = getFeatureNames();
+		String separator = getSeparator();
+		Map<String, Integer> vocabulary = getVocabulary();
+
+		Feature[] featureArray = new Feature[featureNames.size()];
+
+		for(String featureName : featureNames){
+			String key = featureName;
+			String value = null;
+
+			int index = featureName.indexOf(separator);
+			if(index > -1){
+				key = featureName.substring(0, index);
+				value = featureName.substring(index + separator.length());
+			}
+
+			FieldName name = FieldName.create(key);
+
+			DataField dataField = encoder.getDataField(name);
+			if(dataField == null){
+
+				if(value != null){
+					dataField = encoder.createDataField(name, OpType.CATEGORICAL, DataType.STRING);
+				} else
+
+				{
+					dataField = encoder.createDataField(name, OpType.CONTINUOUS, DataType.DOUBLE);
+				}
+			}
+
+			Feature feature;
+
+			if(value != null){
+				PMMLUtil.addValues(dataField, Collections.singletonList(value));
+
+				feature = new BinaryFeature(encoder, dataField, value);
+			} else
+
+			{
+				feature = new ContinuousFeature(encoder, dataField);
+			}
+
+			featureArray[vocabulary.get(featureName)] = feature;
+		}
+
+		List<Feature> result = new ArrayList<>();
+		result.addAll(Arrays.asList(featureArray));
+
+		return result;
+	}

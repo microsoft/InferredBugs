@@ -1,0 +1,75 @@
+    @Override public ArrayList<Constraint> decompose(Store store) {
+
+        if (constraints != null)
+            return constraints;
+
+        IntDomain setComplement = new IntervalDomain();
+        for (IntVar var : list)
+            setComplement.addDom(var.domain);
+        setComplement = setComplement.subtract(set);
+
+        FSM fsm = new FSM();
+
+        fsm.initState = new FSMState();
+        fsm.allStates.add(fsm.initState);
+
+        HashMap<FSMState, Integer> mappingQuantity = new HashMap<FSMState, Integer>();
+        HashMap<String, FSMState> mappingString = new HashMap<String, FSMState>();
+
+        mappingQuantity.put(fsm.initState, 0);
+        mappingString.put("", fsm.initState);
+
+        for (int i = 0; i < q; i++) {
+            HashMap<String, FSMState> mappingStringNext = new HashMap<String, FSMState>();
+
+            for (Map.Entry<String, FSMState> entry : mappingString.entrySet()) {
+                String stateString = entry.getKey();
+                FSMState state = entry.getValue();
+
+                if (mappingQuantity.get(state) < max) {
+                    // transition 1 (within a set) is allowed
+                    FSMState nextState = new FSMState();
+                    state.addTransition(new FSMTransition(set, nextState));
+                    mappingStringNext.put(stateString + "1", nextState);
+                    mappingQuantity.put(nextState, mappingQuantity.get(state) + 1);
+                }
+
+                if (mappingQuantity.get(state) + (q - i) > min) {
+                    // transition 0 (outside set) is allowed
+                    FSMState nextState = new FSMState();
+                    state.addTransition(new FSMTransition(setComplement, nextState));
+                    mappingStringNext.put(stateString + "0", nextState);
+                    mappingQuantity.put(nextState, mappingQuantity.get(state));
+                }
+            }
+
+            fsm.allStates.addAll(mappingString.values());
+            mappingString = mappingStringNext;
+
+        }
+
+        fsm.allStates.addAll(mappingString.values());
+        fsm.finalStates.addAll(mappingString.values());
+
+        for (String description : mappingString.keySet()) {
+
+            String one = description.substring(1) + "1";
+
+            FSMState predecessor = mappingString.get(description);
+            FSMState successor = mappingString.get(one);
+            if (successor != null)
+                predecessor.addTransition(new FSMTransition(set, successor));
+
+            String zero = description.substring(1) + "0";
+            successor = mappingString.get(zero);
+            if (successor != null)
+                predecessor.addTransition(new FSMTransition(setComplement, successor));
+        }
+
+        fsm.resize();
+
+        constraints = new ArrayList<Constraint>();
+        constraints.add(new Regular(fsm, list));
+
+        return constraints;
+    }

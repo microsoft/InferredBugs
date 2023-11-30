@@ -1,0 +1,48 @@
+    public void testAutoFlushOrNot() throws Exception
+    {
+        JsonFactory f = new JsonFactory();
+        assertTrue(f.isEnabled(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM));
+        MyChars sw = new MyChars();
+        JsonGenerator jg = f.createJsonGenerator(sw);
+        jg.writeStartArray();
+        jg.writeEndArray();
+        assertEquals(0, sw.flushed);
+        jg.flush();
+        assertEquals(1, sw.flushed);
+        jg.close();
+        
+        // ditto with stream
+        MyBytes bytes = new MyBytes();
+        jg = f.createJsonGenerator(bytes, JsonEncoding.UTF8);
+        jg.writeStartArray();
+        jg.writeEndArray();
+        assertEquals(0, bytes.flushed);
+        jg.flush();
+        assertEquals(1, bytes.flushed);
+        assertEquals(2, bytes.toByteArray().length);
+        jg.close();
+
+        // then disable and we should not see flushing again...
+        f.disable(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM);
+        // first with a Writer
+        sw = new MyChars();
+        jg = f.createJsonGenerator(sw);
+        jg.writeStartArray();
+        jg.writeEndArray();
+        assertEquals(0, sw.flushed);
+        jg.flush();
+        assertEquals(0, sw.flushed);
+        jg.close();
+        assertEquals("[]", sw.toString());
+
+        // and then with OutputStream
+        bytes = new MyBytes();
+        jg = f.createJsonGenerator(bytes, JsonEncoding.UTF8);
+        jg.writeStartArray();
+        jg.writeEndArray();
+        assertEquals(0, bytes.flushed);
+        jg.flush();
+        assertEquals(0, bytes.flushed);
+        jg.close();
+        assertEquals(2, bytes.toByteArray().length);
+    }

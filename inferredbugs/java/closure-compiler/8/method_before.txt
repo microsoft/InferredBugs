@@ -1,0 +1,21 @@
+  @Override
+  public void process(Node externs, Node root) {
+    Map<String, TweakInfo> tweakInfos = collectTweaks(root);
+    applyCompilerDefaultValueOverrides(tweakInfos);
+
+    boolean changed = false;
+
+    if (stripTweaks) {
+      changed = stripAllCalls(tweakInfos);
+    } else if (!compilerDefaultValueOverrides.isEmpty()) {
+      // Pass the compiler default value overrides to the JS through a specially
+      // named variable.
+      Node varNode = createCompilerDefaultValueOverridesVarNode(
+          root.getFirstChild());
+      root.getFirstChild().addChildToFront(varNode);
+      changed = true;
+    }
+    if (changed) {
+      compiler.reportCodeChange();
+    }
+  }

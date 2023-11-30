@@ -1,0 +1,55 @@
+    public Result saveLocalTx(Transaction tx) {
+        if (tx == null) {
+            return Result.getFailed(KernelErrorCode.NULL_PARAMETER);
+        }
+        byte[] txHashBytes = new byte[0];
+        try {
+            txHashBytes = tx.getHash().serialize();
+        } catch (IOException e) {
+            throw new NulsRuntimeException(e);
+        }
+        CoinData coinData = tx.getCoinData();
+
+        if (coinData != null) {
+            // delete - from
+            List<Coin> froms = coinData.getFrom();
+            Set<byte[]> fromsSet = new HashSet<>();
+            for (Coin from : froms) {
+                byte[] fromSource = from.getOwner();
+                byte[] utxoFromSource = new byte[tx.getHash().size()];
+                byte[] fromIndex = new byte[fromSource.length - utxoFromSource.length];
+                System.arraycopy(fromSource, 0, utxoFromSource, 0, tx.getHash().size());
+                System.arraycopy(fromSource, tx.getHash().size(), fromIndex, 0, fromIndex.length);
+                Transaction sourceTx = null;
+                try {
+                    sourceTx = ledgerService.getTx(NulsDigestData.fromDigestHex(Hex.encode(fromSource)));
+                    if (sourceTx == null) {
+                        sourceTx = getUnconfirmedTransaction(NulsDigestData.fromDigestHex(Hex.encode(fromSource))).getData();
+                    }
+                } catch (Exception e) {
+                    throw new NulsRuntimeException(e);
+                }
+                if(sourceTx == null){
+                    return Result.getFailed();
+                }
+
+                byte[] address = sourceTx.getCoinData().getTo().get((int) new VarInt(fromIndex, 0).value).getOwner();
+                fromsSet.add(org.spongycastle.util.Arrays.concatenate(address, from.getOwner()));
+            }
+            storageService.batchDeleteUTXO(fromsSet);
+            // save utxo - to
+            List<Coin> tos = coinData.getTo();
+            byte[] indexBytes;
+            Map<byte[], byte[]> toMap = new HashMap<>();
+            for (int i = 0, length = tos.size(); i < length; i++) {
+                try {
+                    byte[] outKey = org.spongycastle.util.Arrays.concatenate(tos.get(i).getOwner(), tx.getHash().serialize(), new VarInt(i).encode());
+                    toMap.put(outKey, tos.get(i).serialize());
+                } catch (IOException e) {
+                    throw new NulsRuntimeException(e);
+                }
+            }
+            storageService.batchSaveUTXO(toMap);
+        }
+        return Result.getSuccess();
+    }

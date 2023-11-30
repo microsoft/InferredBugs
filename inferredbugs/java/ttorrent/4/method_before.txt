@@ -1,0 +1,39 @@
+ public boolean connect(SharingPeer peer) {
+		Socket socket = new Socket();
+		InetSocketAddress address = new InetSocketAddress(peer.getIp(),
+				peer.getPort());
+
+		logger.info("Connecting to " + peer + "...");
+		try {
+			socket.connect(address, 3*1000);
+		} catch (IOException ioe) {
+			// Could not connect to peer, abort
+			logger.warn("Could not connect to " + peer + ": " +
+					ioe.getMessage());
+			return false;
+		}
+
+		try {
+			this.sendHandshake(socket);
+			Handshake hs = this.validateHandshake(socket,
+					(peer.hasPeerId() ? peer.getPeerId().array() : null));
+			this.fireNewPeerConnection(socket, hs.getPeerId());
+			return true;
+		} catch (ParseException pe) {
+			logger.info("Invalid handshake from " + this.socketRepr(socket) +
+					": " + pe.getMessage());
+			try { socket.close(); } catch (IOException e) { }
+		} catch (IOException ioe) {
+			logger.info("An error occured while reading an incoming " +
+					"handshake: " + ioe.getMessage());
+			try {
+				if (!socket.isClosed()) {
+					socket.close();
+				}
+			} catch (IOException e) {
+				// Ignore
+			}
+		}
+
+		return false;
+	}

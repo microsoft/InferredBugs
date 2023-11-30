@@ -1,0 +1,58 @@
+  @Override public void process(ClusterEvent event) throws Exception {
+    LOG.info("START PersistAssignmentStage.process()");
+    long startTime = System.currentTimeMillis();
+
+    ClusterDataCache cache = event.getAttribute("ClusterDataCache");
+    ClusterConfig clusterConfig = cache.getClusterConfig();
+
+    if (clusterConfig.isPersistBestPossibleAssignment()) {
+      HelixManager helixManager = event.getAttribute("helixmanager");
+      HelixDataAccessor accessor = helixManager.getHelixDataAccessor();
+      PropertyKey.Builder keyBuilder = accessor.keyBuilder();
+      BestPossibleStateOutput assignments =
+          event.getAttribute(AttributeName.BEST_POSSIBLE_STATE.toString());
+      Map<String, Resource> resourceMap = event.getAttribute(AttributeName.RESOURCES.toString());
+
+      for (String resourceId : assignments.resourceSet()) {
+        Resource resource = resourceMap.get(resourceId);
+        if (resource != null) {
+          boolean changed = false;
+          Map<Partition, Map<String, String>> assignment = assignments.getResourceMap(resourceId);
+          IdealState idealState = cache.getIdealState(resourceId);
+          if (idealState == null) {
+            LOG.warn("IdealState not found for resource " + resourceId);
+            continue;
+          }
+          IdealState.RebalanceMode mode = idealState.getRebalanceMode();
+          if (!mode.equals(IdealState.RebalanceMode.SEMI_AUTO) && !mode
+              .equals(IdealState.RebalanceMode.FULL_AUTO)) {
+            // do not persist assignment for resource in neither semi or full auto.
+            continue;
+          }
+          for (Partition partition : resource.getPartitions()) {
+            Map<String, String> instanceMap = assignment.get(partition);
+            Map<String, String> existInstanceMap =
+                idealState.getInstanceStateMap(partition.getPartitionName());
+            if (instanceMap == null && existInstanceMap == null) {
+              continue;
+            }
+            if (instanceMap == null || existInstanceMap == null || !instanceMap
+                .equals(existInstanceMap)) {
+              changed = true;
+              break;
+            }
+          }
+          if (changed) {
+            for (Partition partition : assignment.keySet()) {
+              Map<String, String> instanceMap = assignment.get(partition);
+              idealState.setInstanceStateMap(partition.getPartitionName(), instanceMap);
+            }
+            accessor.setProperty(keyBuilder.idealStates(resourceId), idealState);
+          }
+        }
+      }
+    }
+
+    long endTime = System.currentTimeMillis();
+    LOG.info("END PersistAssignmentStage.process(), took " + (endTime - startTime) + " ms");
+  }

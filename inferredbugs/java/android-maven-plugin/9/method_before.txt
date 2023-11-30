@@ -1,0 +1,43 @@
+    private void generateBuildConfig() throws MojoExecutionException
+    {
+        getLog().debug( "Generating BuildConfig file" );
+
+        // Create the BuildConfig for our package.
+        String packageName = extractPackageNameFromAndroidManifest( androidManifestFile );
+        if ( StringUtils.isNotBlank( customPackage ) )
+        {
+            packageName = customPackage;
+        }
+        generateBuildConfigForPackage( packageName );
+
+        try
+        {
+            // Generate the BuildConfig for any APKLIB and AAR dependencies.
+            // Need to generate for AAR, because some old AARs like ActionBarSherlock do not have BuildConfig (or R)
+            for ( Artifact artifact : getTransitiveDependencyArtifacts( APKLIB, AAR ) )
+            {
+                final File manifest = new File( getUnpackedLibFolder( artifact ), "AndroidManifest.xml" );
+                final String depPackageName = extractPackageNameFromAndroidManifest( manifest );
+
+                if ( artifact.getType().equals( AAR ) )
+                {
+                    final JarFile jar = new JarFile( getUnpackedAarClassesJar( artifact ) );
+                    final JarEntry entry = jar.getJarEntry( depPackageName.replace( '.', '/' ) + "/BuildConfig.class" );
+
+                    if ( entry != null )
+                    {
+                        getLog().info( "Skip BuildConfig.java generation for "
+                                + artifact.getGroupId() + " " + artifact.getArtifactId() );
+                        continue;
+                    }
+                }
+
+                generateBuildConfigForPackage( depPackageName );
+            }
+        }
+        catch ( IOException e )
+        {
+            getLog().error( "Error generating BuildConfig ", e );
+            throw new MojoExecutionException( "Error generating BuildConfig", e );
+        }
+    }

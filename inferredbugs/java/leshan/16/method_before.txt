@@ -1,0 +1,27 @@
+    @Override
+    public void remove(byte[] token) {
+        try (Jedis j = pool.getResource()) {
+            byte[] tokenKey = toKey(OBS_TKN, token);
+
+            // fetch the observation by token
+            byte[] serializedObs = j.get(tokenKey);
+            if (serializedObs == null)
+                return;
+
+            org.eclipse.californium.core.observe.Observation obs = deserializeObs(serializedObs);
+            String registrationId = obs.getRequest().getUserContext().get(CoapRequestBuilder.CTX_REGID);
+            Registration registration = getRegistration(j, registrationId);
+            String endpoint = registration.getEndpoint();
+
+            byte[] lockValue = null;
+            byte[] lockKey = toKey(LOCK_EP, endpoint);
+            try {
+                lockValue = RedisLock.acquire(j, lockKey);
+
+                unsafeRemoveObservation(j, registrationId, token);
+            } finally {
+                RedisLock.release(j, lockKey, lockValue);
+            }
+        }
+
+    }

@@ -1,0 +1,42 @@
+ public void doWrite(Query query) throws Exception {
+
+		List<String> typeNames = this.getTypeNames();
+
+		DatagramSocket socket = (DatagramSocket) pool.borrowObject(this.address);
+		try {
+			for (Result result : query.getResults()) {
+				if (isDebugEnabled()) {
+					log.debug(result.toString());
+				}
+
+				Map<String, Object> resultValues = result.getValues();
+				if (resultValues != null) {
+					for (Entry<String, Object> values : resultValues.entrySet()) {
+						if (JmxUtils.isNumeric(values.getValue())) {
+							StringBuilder sb = new StringBuilder();
+
+							sb.append(JmxUtils.getKeyString(query, result, values, typeNames, rootPrefix));
+
+							sb.append(":");
+							sb.append(values.getValue().toString());
+							sb.append("|");
+							sb.append(bucketType);
+							sb.append("\n");
+
+							String line = sb.toString();
+							byte[] sendData = line.getBytes();
+
+							if (isDebugEnabled()) {
+								log.debug("StatsD Message: " + line.trim());
+							}
+
+							DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length);
+							socket.send(sendPacket);
+						}
+					}
+				}
+			}
+		} finally {
+			pool.returnObject(address, socket);
+		}
+	}

@@ -1,0 +1,467 @@
+    public final void doHandle(HttpServletRequest baseRequest,
+            HttpServletRequest request, HttpServletResponse response,
+            InputStream is) throws IOException, S3Exception {
+        String method = request.getMethod();
+        String uri = request.getRequestURI();
+
+        if (!this.servicePath.isEmpty()) {
+            if (uri.length() > this.servicePath.length()) {
+                uri = uri.substring(this.servicePath.length());
+            }
+        }
+
+        logger.debug("request: {}", request);
+        String hostHeader = request.getHeader(HttpHeaders.HOST);
+        if (hostHeader != null && virtualHost.isPresent()) {
+            hostHeader = HostAndPort.fromString(hostHeader).getHostText();
+            String virtualHostSuffix = "." + virtualHost.get();
+            if (!hostHeader.equals(virtualHost.get())) {
+                if (hostHeader.endsWith(virtualHostSuffix)) {
+                    String bucket = hostHeader.substring(0,
+                            hostHeader.length() - virtualHostSuffix.length());
+                    uri = "/" + bucket + uri;
+                } else {
+                    String bucket = hostHeader.toLowerCase();
+                    uri = "/" + bucket + uri;
+                }
+            }
+        }
+
+        boolean hasDateHeader = false;
+        boolean hasXAmzDateHeader = false;
+        for (String headerName : Collections.list(request.getHeaderNames())) {
+            for (String headerValue : Collections.list(request.getHeaders(
+                    headerName))) {
+                logger.debug("header: {}: {}", headerName,
+                        Strings.nullToEmpty(headerValue));
+            }
+            if (headerName.equalsIgnoreCase(HttpHeaders.DATE)) {
+                hasDateHeader = true;
+            } else if (headerName.equalsIgnoreCase("x-amz-date")) {
+                logger.debug("have the x-amz-date heaer {}", headerName);
+                // why x-amz-date name exist,but value is null?
+                if ("".equals(request.getHeader("x-amz-date")) ||
+                    request.getHeader("x-amz-date") == null) {
+                    logger.debug("have empty x-amz-date");
+                } else {
+                    hasXAmzDateHeader = true;
+                }
+            }
+        }
+        boolean haveBothDateHeader = false;
+        if (hasDateHeader && hasXAmzDateHeader) {
+            haveBothDateHeader = true;
+        }
+
+        // when access information is not provided in request header,
+        // treat it as anonymous, return all public accessible information
+        if (!anonymousIdentity &&
+                (method.equals("GET") || method.equals("HEAD") ||
+                method.equals("POST")) &&
+                request.getHeader(HttpHeaders.AUTHORIZATION) == null &&
+                // v2 or /v4
+                request.getParameter("X-Amz-Algorithm") == null && // v4 query
+                request.getParameter("AWSAccessKeyId") == null &&  // v2 query
+                defaultBlobStore != null) {
+            doHandleAnonymous(request, response, is, uri, defaultBlobStore);
+            return;
+        }
+
+        // should according the AWSAccessKeyId=  Signature  or auth header nil
+        if (!anonymousIdentity && !hasDateHeader && !hasXAmzDateHeader &&
+                request.getParameter("X-Amz-Date") == null &&
+                request.getParameter("Expires") == null) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "AWS authentication requires a valid Date or" +
+                    " x-amz-date header");
+        }
+
+
+        BlobStore blobStore;
+        String requestIdentity = null;
+        String headerAuthorization = request.getHeader(
+                HttpHeaders.AUTHORIZATION);
+        S3AuthorizationHeader authHeader = null;
+        boolean presignedUrl = false;
+
+        if (!anonymousIdentity) {
+            if (headerAuthorization == null) {
+                String algorithm = request.getParameter("X-Amz-Algorithm");
+                if (algorithm == null) { //v2 query
+                    String identity = request.getParameter("AWSAccessKeyId");
+                    String signature = request.getParameter("Signature");
+                    if (identity == null || signature == null) {
+                        throw new S3Exception(S3ErrorCode.ACCESS_DENIED);
+                    }
+                    headerAuthorization = "AWS " + identity + ":" + signature;
+                    presignedUrl = true;
+                } else if (algorithm.equals("AWS4-HMAC-SHA256")) { //v4 query
+                    String credential = request.getParameter(
+                            "X-Amz-Credential");
+                    String signedHeaders = request.getParameter(
+                            "X-Amz-SignedHeaders");
+                    String signature = request.getParameter(
+                            "X-Amz-Signature");
+                    if (credential == null || signedHeaders == null ||
+                            signature == null) {
+                        throw new S3Exception(S3ErrorCode.ACCESS_DENIED);
+                    }
+                    headerAuthorization = "AWS4-HMAC-SHA256" +
+                            " Credential=" + credential +
+                            ", requestSignedHeaders=" + signedHeaders +
+                            ", Signature=" + signature;
+                    presignedUrl = true;
+                }
+            }
+
+            try {
+                authHeader = new S3AuthorizationHeader(headerAuthorization);
+                //whether v2 or v4 (normal header and query)
+            } catch (IllegalArgumentException iae) {
+                throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT, iae);
+            }
+            requestIdentity = authHeader.identity;
+        }
+
+        long dateSkew = 0; //date for timeskew check
+
+        //v2 GET /s3proxy-1080747708/foo?AWSAccessKeyId=local-identity&Expires=
+        //1510322602&Signature=UTyfHY1b1Wgr5BFEn9dpPlWdtFE%3D)
+        //have no date
+
+        boolean haveDate = true;
+
+        AuthenticationType finalAuthType = null;
+        if (authHeader.authenticationType == AuthenticationType.AWS_V2 &&
+            (authenticationType == AuthenticationType.AWS_V2 ||
+            authenticationType == AuthenticationType.AWS_V2_OR_V4)) {
+            finalAuthType = AuthenticationType.AWS_V2;
+        } else if (authHeader.authenticationType == AuthenticationType.AWS_V4 &&
+            (authenticationType == AuthenticationType.AWS_V4 ||
+            authenticationType == AuthenticationType.AWS_V2_OR_V4)) {
+            finalAuthType = AuthenticationType.AWS_V4;
+        } else if (authenticationType != AuthenticationType.NONE) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED);
+        }
+
+        if (hasXAmzDateHeader) { //format diff between v2 and v4
+            if (finalAuthType == AuthenticationType.AWS_V2) {
+                dateSkew = request.getDateHeader("x-amz-date");
+                dateSkew /= 1000;
+                //case sensetive?
+            } else if (finalAuthType == AuthenticationType.AWS_V4) {
+                logger.debug("into process v4 {}",
+                    request.getHeader("x-amz-date"));
+
+                dateSkew = parseIso8601(request.getHeader("x-amz-date"));
+            }
+        } else if (request.getParameter("X-Amz-Date") != null) { // v4 query
+            String dateString = request.getParameter("X-Amz-Date");
+            dateSkew = parseIso8601(dateString);
+        } else if (hasDateHeader) {
+            try {
+                dateSkew = request.getDateHeader(HttpHeaders.DATE);
+                logger.debug("dateheader {}", dateSkew);
+            } catch (IllegalArgumentException iae) {
+                throw new S3Exception(S3ErrorCode.ACCESS_DENIED, iae);
+            }
+            dateSkew /= 1000;
+            logger.debug("dateheader {}", dateSkew);
+
+        } else {
+            haveDate = false;
+        }
+        logger.debug("dateSkew {}", dateSkew);
+        if (haveDate) {
+            isTimeSkewed(dateSkew);
+        }
+
+
+        String[] path = uri.split("/", 3);
+        for (int i = 0; i < path.length; i++) {
+            path[i] = URLDecoder.decode(path[i], "UTF-8");
+        }
+
+        Map.Entry<String, BlobStore> provider =
+                blobStoreLocator.locateBlobStore(
+                        requestIdentity, path.length > 1 ? path[1] : null,
+                        path.length > 2 ? path[2] : null);
+        if (anonymousIdentity) {
+            blobStore = provider.getValue();
+            String contentSha256 = request.getHeader("x-amz-content-sha256");
+            if ("STREAMING-AWS4-HMAC-SHA256-PAYLOAD".equals(contentSha256)) {
+                is = new ChunkedInputStream(is);
+            }
+        } else if (requestIdentity == null) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED);
+        } else {
+            if (provider == null) {
+                throw new S3Exception(S3ErrorCode.INVALID_ACCESS_KEY_ID);
+            }
+
+            String credential = provider.getKey();
+            blobStore = provider.getValue();
+
+            String expiresString = request.getParameter("Expires");
+            if (expiresString != null) { // v2 query
+                long expires = Long.parseLong(expiresString);
+                long nowSeconds = System.currentTimeMillis() / 1000;
+                if (nowSeconds >= expires) {
+                    throw new S3Exception(S3ErrorCode.ACCESS_DENIED);
+                }
+            }
+
+            String dateString = request.getParameter("X-Amz-Date");
+            //from para v4 query
+            expiresString = request.getParameter("X-Amz-Expires");
+            if (dateString != null && expiresString != null) { //v4 query
+                long date = parseIso8601(dateString);
+                long expires = Long.parseLong(expiresString);
+                long nowSeconds = System.currentTimeMillis() / 1000;
+                if (nowSeconds >= date + expires) {
+                    throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                            "Request has expired");
+                }
+            }
+            // The aim ?
+            switch (authHeader.authenticationType) {
+            case AWS_V2:
+                switch (authenticationType) {
+                case AWS_V2:
+                case AWS_V2_OR_V4:
+                case NONE:
+                    break;
+                default:
+                    throw new S3Exception(S3ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            case AWS_V4:
+                switch (authenticationType) {
+                case AWS_V4:
+                case AWS_V2_OR_V4:
+                case NONE:
+                    break;
+                default:
+                    throw new S3Exception(S3ErrorCode.ACCESS_DENIED);
+                }
+                break;
+            case NONE:
+                break;
+            default:
+                throw new IllegalArgumentException("Unhandled type: " +
+                        authHeader.authenticationType);
+            }
+
+            String expectedSignature = null;
+
+            // When presigned url is generated, it doesn't consider service path
+            String uriForSigning = presignedUrl ? uri : this.servicePath + uri;
+            if (authHeader.hmacAlgorithm == null) { //v2
+                expectedSignature = AwsSignature.createAuthorizationSignature(
+                        request, uriForSigning, credential, presignedUrl,
+                        haveBothDateHeader);
+            } else {
+                String contentSha256 = request.getHeader(
+                        "x-amz-content-sha256");
+                try {
+                    byte[] payload;
+                    if (request.getParameter("X-Amz-Algorithm") != null) {
+                        payload = new byte[0];
+                    } else if ("STREAMING-AWS4-HMAC-SHA256-PAYLOAD".equals(
+                            contentSha256)) {
+                        payload = new byte[0];
+                        is = new ChunkedInputStream(is);
+                    } else if ("UNSIGNED-PAYLOAD".equals(contentSha256)) {
+                        payload = new byte[0];
+                    } else {
+                        // buffer the entire stream to calculate digest
+                        // why input stream read contentlength of header?
+                        payload = ByteStreams.toByteArray(ByteStreams.limit(
+                                is, v4MaxNonChunkedRequestSize + 1));
+                        if (payload.length == v4MaxNonChunkedRequestSize + 1) {
+                            throw new S3Exception(
+                                    S3ErrorCode.MAX_MESSAGE_LENGTH_EXCEEDED);
+                        }
+
+                        // maybe we should check this when signing,
+                        // a lot of dup code with aws sign code.
+                        MessageDigest md = MessageDigest.getInstance(
+                            authHeader.hashAlgorithm);
+                        byte[] hash = md.digest(payload);
+                        if  (!contentSha256.equals(
+                              BaseEncoding.base16().lowerCase()
+                              .encode(hash))) {
+                            throw new S3Exception(
+                                    S3ErrorCode
+                                    .X_AMZ_CONTENT_S_H_A_256_MISMATCH);
+                        }
+                        is = new ByteArrayInputStream(payload);
+                    }
+
+                    expectedSignature = AwsSignature
+                            .createAuthorizationSignatureV4(// v4 sign
+                            baseRequest, authHeader, payload, uriForSigning,
+                            credential);
+                } catch (InvalidKeyException | NoSuchAlgorithmException e) {
+                    throw new S3Exception(S3ErrorCode.INVALID_ARGUMENT, e);
+                }
+            }
+
+            if (!expectedSignature.equals(authHeader.signature)) {
+                logger.debug("fail to validate signature");
+                throw new S3Exception(S3ErrorCode.SIGNATURE_DOES_NOT_MATCH);
+            }
+        }
+
+        for (String parameter : Collections.list(
+                request.getParameterNames())) {
+            if (UNSUPPORTED_PARAMETERS.contains(parameter)) {
+                logger.error("Unknown parameters {} with URI {}",
+                        parameter, request.getRequestURI());
+                throw new S3Exception(S3ErrorCode.NOT_IMPLEMENTED);
+            }
+        }
+
+        // emit NotImplemented for unknown x-amz- headers
+        for (String headerName : Collections.list(request.getHeaderNames())) {
+            if (ignoreUnknownHeaders) {
+                continue;
+            }
+            if (!headerName.startsWith("x-amz-")) {
+                continue;
+            }
+            if (headerName.startsWith("x-amz-meta-")) {
+                continue;
+            }
+            if (headerName.equals("x-amz-storage-class") &&
+                    request.getHeader(headerName).equals("STANDARD")) {
+                continue;
+            }
+            if (!SUPPORTED_X_AMZ_HEADERS.contains(headerName.toLowerCase())) {
+                logger.error("Unknown header {} with URI {}",
+                        headerName, request.getRequestURI());
+                throw new S3Exception(S3ErrorCode.NOT_IMPLEMENTED);
+            }
+        }
+
+        // Validate container name
+        if (!uri.equals("/") && !isValidContainer(path[1])) {
+            if (method.equals("PUT") &&
+                    (path.length <= 2 || path[2].isEmpty()) &&
+                    !("".equals(request.getParameter("acl"))))  {
+                throw new S3Exception(S3ErrorCode.INVALID_BUCKET_NAME);
+            } else {
+                throw new S3Exception(S3ErrorCode.NO_SUCH_BUCKET);
+            }
+        }
+
+        String uploadId = request.getParameter("uploadId");
+        switch (method) {
+        case "DELETE":
+            if (path.length <= 2 || path[2].isEmpty()) {
+                handleContainerDelete(response, blobStore, path[1]);
+                return;
+            } else if (uploadId != null) {
+                handleAbortMultipartUpload(response, blobStore, path[1],
+                        path[2], uploadId);
+                return;
+            } else {
+                handleBlobRemove(response, blobStore, path[1], path[2]);
+                return;
+            }
+        case "GET":
+            if (uri.equals("/")) {
+                handleContainerList(response, blobStore);
+                return;
+            } else if (path.length <= 2 || path[2].isEmpty()) {
+                if ("".equals(request.getParameter("acl"))) {
+                    handleGetContainerAcl(response, blobStore, path[1]);
+                    return;
+                } else if ("".equals(request.getParameter("location"))) {
+                    handleContainerLocation(response, blobStore, path[1]);
+                    return;
+                } else if ("".equals(request.getParameter("uploads"))) {
+                    handleListMultipartUploads(request, response, blobStore,
+                            path[1]);
+                    return;
+                }
+                handleBlobList(request, response, blobStore, path[1]);
+                return;
+            } else {
+                if ("".equals(request.getParameter("acl"))) {
+                    handleGetBlobAcl(response, blobStore, path[1],
+                            path[2]);
+                    return;
+                } else if (uploadId != null) {
+                    handleListParts(request, response, blobStore, path[1],
+                            path[2], uploadId);
+                    return;
+                }
+                handleGetBlob(request, response, blobStore, path[1],
+                        path[2]);
+                return;
+            }
+        case "HEAD":
+            if (path.length <= 2 || path[2].isEmpty()) {
+                handleContainerExists(blobStore, path[1]);
+                return;
+            } else {
+                handleBlobMetadata(request, response, blobStore, path[1],
+                        path[2]);
+                return;
+            }
+        case "POST":
+            if ("".equals(request.getParameter("delete"))) {
+                handleMultiBlobRemove(response, is, blobStore, path[1]);
+                return;
+            } else if ("".equals(request.getParameter("uploads"))) {
+                handleInitiateMultipartUpload(request, response, blobStore,
+                        path[1], path[2]);
+                return;
+            } else if (uploadId != null &&
+                    request.getParameter("partNumber") == null) {
+                handleCompleteMultipartUpload(response, is, blobStore, path[1],
+                        path[2], uploadId);
+                return;
+            }
+            break;
+        case "PUT":
+            if (path.length <= 2 || path[2].isEmpty()) {
+                if ("".equals(request.getParameter("acl"))) {
+                    handleSetContainerAcl(request, response, is, blobStore,
+                            path[1]);
+                    return;
+                }
+                handleContainerCreate(request, response, is, blobStore,
+                        path[1]);
+                return;
+            } else if (uploadId != null) {
+                if (request.getHeader("x-amz-copy-source") != null) {
+                    handleCopyPart(request, response, blobStore, path[1],
+                            path[2], uploadId);
+                } else {
+                    handleUploadPart(request, response, is, blobStore, path[1],
+                            path[2], uploadId);
+                }
+                return;
+            } else if (request.getHeader("x-amz-copy-source") != null) {
+                handleCopyBlob(request, response, is, blobStore, path[1],
+                        path[2]);
+                return;
+            } else {
+                if ("".equals(request.getParameter("acl"))) {
+                    handleSetBlobAcl(request, response, is, blobStore, path[1],
+                            path[2]);
+                    return;
+                }
+                handlePutBlob(request, response, is, blobStore, path[1],
+                        path[2]);
+                return;
+            }
+        default:
+            break;
+        }
+        logger.error("Unknown method {} with URI {}",
+                method, request.getRequestURI());
+        throw new S3Exception(S3ErrorCode.NOT_IMPLEMENTED);
+    }

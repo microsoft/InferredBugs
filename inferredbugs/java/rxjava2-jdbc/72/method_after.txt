@@ -1,0 +1,24 @@
+    @Test
+    public void testTransactedReturnGeneratedKeys2() {
+        try (Database db = db()) {
+            // note is a table with auto increment
+            Flowable<Integer> a = db.update("insert into note(text) values(?)") //
+                    .parameters("HI", "THERE") //
+                    .transacted() //
+                    .returnGeneratedKeys() //
+                    .valuesOnly() //
+                    .getAs(Integer.class);
+
+            db.update("insert into note(text) values(?)") //
+                    .parameters("ME", "TOO") //
+                    .transacted() //
+                    .returnGeneratedKeys() //
+                    .valuesOnly() //
+                    .getAs(Integer.class)//
+                    .startWith(a) //
+                    .test() //
+                    .awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                    .assertValues(1, 2, 3, 4) //
+                    .assertComplete();
+        }
+    }

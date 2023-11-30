@@ -1,0 +1,96 @@
+    public ResponseEvents sendEventGeneratingAction(
+            EventGeneratingAction action, long timeout) throws IOException,
+            EventTimeoutException, IllegalArgumentException,
+            IllegalStateException
+    {
+        final ResponseEventsImpl responseEvents;
+        final ResponseEventHandler responseEventHandler;
+        final String internalActionId;
+
+        if (action == null)
+        {
+            throw new IllegalArgumentException(
+                    "Unable to send action: action is null.");
+        }
+        else if (action.getActionCompleteEventClass() == null)
+        {
+            throw new IllegalArgumentException(
+                    "Unable to send action: actionCompleteEventClass for " + 
+                    action.getClass().getName() + " is null.");
+        }
+        else if (!ResponseEvent.class.isAssignableFrom(action.getActionCompleteEventClass()))
+        {
+            throw new IllegalArgumentException(
+                    "Unable to send action: actionCompleteEventClass (" + 
+                    action.getActionCompleteEventClass().getName() + ") for " +
+                    action.getClass().getName() + " is not a ResponseEvent.");
+        }
+
+        if (state != CONNECTED)
+        {
+            throw new IllegalStateException("Actions may only be sent when in state " +
+                    "CONNECTED, but connection is in state " + state);
+        }
+
+        responseEvents = new ResponseEventsImpl();
+        responseEventHandler = new ResponseEventHandler(
+                responseEvents, 
+                action.getActionCompleteEventClass());
+
+        internalActionId = createInternalActionId();
+
+        // register response handler...
+        synchronized (this.responseListeners)
+        {
+            this.responseListeners.put(internalActionId, responseEventHandler);
+        }
+
+        // ...and event handler.
+        synchronized (this.responseEventListeners)
+        {
+            this.responseEventListeners.put(internalActionId, responseEventHandler);
+        }
+
+        synchronized (responseEvents)
+        {
+            writer.sendAction(action, internalActionId);
+            // only wait if response has not yet arrived.
+            if ((responseEvents.getResponse() == null || !responseEvents.isComplete()))
+            {
+                try
+                {
+                    responseEvents.wait(timeout);
+                }
+                catch (InterruptedException e)
+                {
+                    logger.warn("Interrupted while waiting for response events.");
+                }
+            }
+        }
+
+        // still no response or not all events received and timed out?
+        if ((responseEvents.getResponse() == null || !responseEvents.isComplete()))
+        {
+            // clean up
+            synchronized (this.responseEventListeners)
+            {
+                this.responseEventListeners.remove(internalActionId);
+            }
+
+            throw new EventTimeoutException(
+                    "Timeout waiting for response or response events to "
+                    + action.getAction()
+                    + (action.getActionId() == null ? "" : " (actionId: " + action.getActionId() + ")"),
+                    responseEvents);
+        }
+
+        // remove the event handler
+        // Note: The response handler has already been removed  
+        //       when the response was received
+        synchronized (this.responseEventListeners)
+        {
+            this.responseEventListeners.remove(internalActionId);
+        }
+
+        return responseEvents;
+    }

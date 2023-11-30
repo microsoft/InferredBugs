@@ -1,0 +1,26 @@
+ @Test(timeout = 30000)
+	public void testJDBCPoolC3P0() {
+
+		JDBC.h2("test1");
+
+		C3P0ConnectionPool pool = (C3P0ConnectionPool) JDBC.defaultApi().init().pool();
+		ComboPooledDataSource c3p0 = pool.pool();
+
+		// validate default config
+		eq(c3p0.getMinPoolSize(), 5);
+		eq(c3p0.getInitialPoolSize(), 5);
+		eq(c3p0.getAcquireIncrement(), 5);
+		eq(c3p0.getMaxPoolSize(), 100);
+		eq(c3p0.getMaxStatementsPerConnection(), 10);
+
+		JDBC.execute("create table abc (id int, name varchar)");
+		JDBC.execute("insert into abc values (?, ?)", 123, "xyz");
+
+		final Map<String, ?> expected = U.map("id", 123, "name", "xyz");
+
+		Msc.benchmarkMT(100, "select", 100000, () -> {
+			Map<String, Object> record = U.single(JDBC.query("select id, name from abc"));
+			record = Msc.lowercase(record);
+			eq(record, expected);
+		});
+	}

@@ -1,0 +1,22 @@
+    private void importNodeIndexes(File file, String indexName, String indexType) throws IOException {
+    	BatchInserterIndex index;
+    	if (indexType.equals("fulltext")) {
+    		index = lucene.nodeIndex( indexName, FULLTEXT_CONFIG );
+    	} else {
+    		index = lucene.nodeIndex( indexName, EXACT_CONFIG );
+    	}
+        
+        BufferedReader bf = new BufferedReader(new FileReader(file));
+        
+        final Data data = new Data(bf.readLine(), "\t", 1);
+        Object[] node = new Object[1];
+        String line;
+        report.reset();
+        while ((line = bf.readLine()) != null) {        
+            final Map<String, Object> properties = data.update(line, node);
+            index.add(id(node[0]), properties);
+            report.dots();
+        }
+                
+        report.finishImport("Nodes into " + indexName + " Index");
+    }

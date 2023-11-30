@@ -1,0 +1,25 @@
+  @Test
+  public void testSave() {
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    final String testSqllinePropertiesFile = "test.sqlline.properties";
+    try {
+      SqlLine.Status status = begin(sqlLine, os, false,
+          "--propertiesFile=" + testSqllinePropertiesFile, "-e", "!save");
+      assertThat(status, equalTo(SqlLine.Status.OK));
+      final DispatchCallback dc = new DispatchCallback();
+
+      assertThat(os.toString("UTF8"),
+          allOf(containsString("Saving preferences to"),
+              not(containsString("Saving to /dev/null not supported"))));
+      os.reset();
+      sqlLine.runCommands(dc, "!set");
+      assertThat(os.toString("UTF8"),
+          allOf(containsString("autoCommit"),
+              not(containsString("Unknown property:"))));
+      os.reset();
+      Files.delete(Paths.get(testSqllinePropertiesFile));
+    } catch (Exception e) {
+      // fail
+      throw new RuntimeException(e);
+    }
+  }

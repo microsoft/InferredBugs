@@ -1,0 +1,20 @@
+    @Test
+    public void test() throws IOException {
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        Flowable.just("hi there".getBytes())
+                .compose(Transformers.outputStream(new Function<OutputStream, OutputStream>() {
+                    @Override
+                    public OutputStream apply(OutputStream os) throws Exception {
+                        return new GZIPOutputStream(os);
+                    }
+                }, 8192, 16)).doOnNext(new Consumer<byte[]>() {
+                    @Override
+                    public void accept(byte[] b) throws Exception {
+                        bytes.write(b);
+                    }
+                }).test()
+                .assertComplete();
+        InputStream is = new GZIPInputStream(new ByteArrayInputStream(bytes.toByteArray()));
+        
+        assertEquals("hi there",read(is));
+    }

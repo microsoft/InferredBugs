@@ -1,0 +1,39 @@
+    private static void load(EscapeMode e, String file, int size) {
+        e.nameKeys = new String[size];
+        e.codeVals = new int[size];
+        e.codeKeys = new int[size];
+        e.nameVals = new String[size];
+
+        InputStream stream = Entities.class.getResourceAsStream(file);
+        if (stream == null)
+            throw new IllegalStateException("Could not read resource " + file + ". Make sure you copy resources for " + Entities.class.getCanonicalName());
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+        String entry;
+        int i = 0;
+        try {
+            while ((entry = reader.readLine()) != null) {
+                // NotNestedLessLess=10913,824;1887
+                final Matcher match = entityPattern.matcher(entry);
+                if (match.find()) {
+                    final String name = match.group(1);
+                    final int cp1 = Integer.parseInt(match.group(2), codepointRadix);
+                    final int cp2 = match.group(3) != null ? Integer.parseInt(match.group(3), codepointRadix) : empty;
+                    final int index = Integer.parseInt(match.group(4), codepointRadix);
+
+                    e.nameKeys[i] = name;
+                    e.codeVals[i] = cp1;
+                    e.codeKeys[index] = cp1;
+                    e.nameVals[index] = name;
+
+                    if (cp2 != empty) {
+                        multipoints.put(name, new String(new int[]{cp1, cp2}, 0, 2));
+                    }
+                    i++;
+                }
+
+            }
+            reader.close();
+        } catch (IOException err) {
+            throw new IllegalStateException("Error reading resource " + file);
+        }
+    }

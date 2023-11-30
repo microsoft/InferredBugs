@@ -1,0 +1,29 @@
+ @Test
+	public void propertySourcesFound() throws Exception {
+		String foo = this.environment.getProperty("foo");
+		assertThat(foo).as("foo was wrong").isEqualTo("bar-app-dev");
+
+		String myBaz = this.environment.getProperty("my.baz");
+		assertThat(myBaz).as("my.baz was wrong").isEqualTo("bar-app-dev");
+
+		MutablePropertySources propertySources = this.environment.getPropertySources();
+		PropertySource<?> bootstrapProperties = propertySources
+				.get("bootstrapProperties");
+		assertThat(bootstrapProperties).as("bootstrapProperties was null").isNotNull();
+		assertThat(bootstrapProperties).as("bootstrapProperties was wrong type")
+				.isInstanceOf(CompositePropertySource.class);
+
+		Collection<PropertySource<?>> consulSources = ((CompositePropertySource) bootstrapProperties)
+				.getPropertySources();
+		assertThat(consulSources).as("consulSources was wrong size").hasSize(1);
+
+		PropertySource<?> consulSource = consulSources.iterator().next();
+		assertThat(consulSource).as("consulSource was wrong type")
+				.isInstanceOf(CompositePropertySource.class);
+		Collection<PropertySource<?>> fileSources = ((CompositePropertySource) consulSource)
+				.getPropertySources();
+		assertThat(fileSources).as("fileSources was wrong size").hasSize(4);
+
+		assertFileSourceNames(fileSources, APP_NAME_DEV_PROPS, APP_NAME_PROPS,
+				APPLICATION_DEV_YML, APPLICATION_YML);
+	}

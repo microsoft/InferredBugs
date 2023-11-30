@@ -1,0 +1,31 @@
+    public VanillaMappedBytes put(T key, File path, long size, long index) {
+        DataHolder data = this.cache.get(key);
+        if(data != null) {
+            data.close();
+        } else {
+            data = new DataHolder();
+        }
+
+        try {
+            final Iterator<Map.Entry<T,DataHolder>> it = this.cache.entrySet().iterator();
+            while(it.hasNext()) {
+                Map.Entry<T,DataHolder> entry = it.next();
+                if(entry.getValue().bytes().unmapped()) {
+                    entry.getValue().close();
+                    it.remove();
+                }
+            }
+
+            data.recycle(
+                VanillaMappedFile.readWrite(path, size),
+                0,
+                size,
+                index);
+
+            this.cache.put(key,data);
+        } catch(IOException e) {
+            LOGGER.warn("",e);
+        }
+
+        return data.bytes();
+    }

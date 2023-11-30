@@ -1,0 +1,29 @@
+    public void init() {
+        if (dataset.getId() != null) { // view mode for a dataset           
+            dataset = datasetService.find(dataset.getId());
+            editVersion = dataset.getLatestVersion();
+            editVersion.setDatasetFieldValues(editVersion.initDatasetFieldValues()); 
+            editValues = editVersion.getDatasetFieldValues();
+            citationValues = extractValues(editValues, true);
+            otherMetadataValues = extractValues(editValues, false);
+            ownerId = dataset.getOwner().getId();
+        } else if (ownerId != null) { // create mode for a new child dataset
+            editMode = EditMode.CREATE;
+            dataset.setOwner(dataverseService.find(ownerId));
+            dataset.setVersions(new ArrayList());
+            editVersion.setDataset(dataset);           
+            editVersion.setFileMetadatas(new ArrayList());
+            editVersion.setDatasetFieldValues(null);            
+            editVersion.setVersionState(VersionState.DRAFT);
+            editVersion.setDatasetFieldValues(editVersion.initDatasetFieldValues()); 
+            editVersion.setVersionNumber(new Long(1));  
+            editValues = editVersion.getDatasetFieldValues();
+            citationValues = extractValues(editValues, true);
+            otherMetadataValues = extractValues(editValues, false);
+            dataset.getVersions().add(editVersion);
+        } else {
+            throw new RuntimeException("On Dataset page without id or ownerid."); // improve error handling
+        }        
+        setCitationFields(dataverseService.findCitationDatasetFieldsByDataverseId(ownerId));
+        setOtherMetadataFields(dataverseService.findOtherMetadataDatasetFieldsByDataverseId(ownerId));       
+    }

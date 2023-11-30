@@ -1,0 +1,46 @@
+ @Test
+	public void testComplexPluginException() throws ScriptException {
+ 
+		ItemCollection adocumentContext = new ItemCollection();
+		ItemCollection adocumentActivity = new ItemCollection();
+
+		// 1) invalid returning one messsage
+		String script = "var a=1;var b=2;var isValid = (a>b);"
+				+ " var errorCode='MY_ERROR';"
+				+ " var errorMessage='Somehing go wrong!';";
+
+		System.out.println("Script=" + script);
+		adocumentActivity.replaceItemValue("txtBusinessRUle", script);
+		try {
+			rulePlugin.run(adocumentContext, adocumentActivity);
+			Assert.fail();
+		} catch (PluginException e) {
+			// test excption
+			Assert.assertEquals("MY_ERROR", e.getErrorCode());
+			Object[] params = e.getErrorParameters();
+			Assert.assertEquals(1, params.length);
+			Assert.assertEquals("Somehing go wrong!", params[0].toString());
+		}
+
+		// 2) invalid returning 2 messages in an array
+		script = "var a=1;var b=2;var isValid = (a>b);"
+				+ " var errorMessage = new Array();"
+				+ " errorMessage[0]='Somehing go wrong!';"
+				+ " errorMessage[1]='Somehingelse go wrong!';";
+
+		System.out.println("Script=" + script);
+		adocumentActivity.replaceItemValue("txtBusinessRUle", script);
+		try {
+			rulePlugin.run(adocumentContext, adocumentActivity);
+			Assert.fail();
+		} catch (PluginException e) {
+			//e.printStackTrace();
+			// test exception
+			Assert.assertEquals(RulePlugin.VALIDATION_ERROR, e.getErrorCode());
+			Object[] params = e.getErrorParameters();
+			Assert.assertEquals(2, params.length);
+			Assert.assertEquals("Somehing go wrong!", params[0].toString());
+			Assert.assertEquals("Somehingelse go wrong!", params[1].toString());
+		}
+
+	}

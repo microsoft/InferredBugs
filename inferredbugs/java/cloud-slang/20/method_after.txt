@@ -1,0 +1,25 @@
+    @Test
+    public void testValues() throws Exception {
+        // compile
+        URI resource = getClass().getResource("/yaml/formats/values_flow.sl").toURI();
+        URI operation1 = getClass().getResource("/yaml/formats/values_op.sl").toURI();
+        URI operation2 = getClass().getResource("/yaml/noop.sl").toURI();
+
+        SlangSource dep1 = SlangSource.fromFile(operation1);
+        SlangSource dep2 = SlangSource.fromFile(operation2);
+        Set<SlangSource> path = Sets.newHashSet(dep1, dep2);
+        CompilationArtifact compilationArtifact = slang.compile(SlangSource.fromFile(resource), path);
+
+        // trigger
+        Map<String, StepData> steps = prepareAndRun(compilationArtifact);
+
+        // verify
+        StepData flowData = steps.get(EXEC_START_PATH);
+        StepData taskData = steps.get(FIRST_STEP_PATH);
+
+        verifyExecutableInputs(flowData);
+        verifyExecutableOutputs(flowData);
+        verifyTaskInputs(taskData);
+        verifyTaskPublishValues(taskData);
+        verifySuccessResult(flowData);
+    }

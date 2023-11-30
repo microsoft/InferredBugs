@@ -1,0 +1,43 @@
+ @Test
+	public void testBasicPreemptiveAuth() throws Exception
+	{
+		final HttpClientBuilder client = HttpClientBuilder.create();
+		final CountDownLatch count = new CountDownLatch(1);
+		client.setDefaultCredentialsProvider(new BasicCredentialsProvider()
+		{
+			@Override
+			public Credentials getCredentials(AuthScope authscope)
+			{
+				// Set flag that credentials have been used indicating preemptive authentication
+				count.countDown();
+				return new Credentials()
+				{
+					public Principal getUserPrincipal()
+					{
+						return new BasicUserPrincipal("anonymous");
+					}
+
+					public String getPassword()
+					{
+						return "invalid";
+					}
+				};
+			}
+		});
+		SardineImpl sardine = new SardineImpl(client);
+		URI url = URI.create("http://sudo.ch/dav/basic/");
+		//Send basic authentication header in initial request
+		sardine.enablePreemptiveAuthentication(url.getHost());
+		try
+		{
+			sardine.list(url.toString());
+			fail("Expected authorization failure");
+		}
+		catch (SardineException e)
+		{
+			// Expect Authorization Failed
+			assertEquals(401, e.getStatusCode());
+			// Make sure credentials have been queried
+			assertEquals("No preemptive authentication attempt", 0, count.getCount());
+		}
+	}

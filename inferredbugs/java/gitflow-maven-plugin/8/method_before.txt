@@ -1,0 +1,51 @@
+    @Override
+    public void execute() throws MojoExecutionException, MojoFailureException {
+        validateConfiguration();
+
+        try {
+            // set git flow configuration
+            initGitFlowConfig();
+
+            // check uncommitted changes
+            checkUncommittedChanges();
+
+            // get tags
+            String tagsStr = gitFindTags();
+
+            if (StringUtils.isBlank(tagsStr)) {
+                throw new MojoFailureException("There are no tags.");
+            }
+
+            String tagName = null;
+            try {
+                tagName = prompter.prompt("Choose tag to start support branch",
+                        Arrays.asList(tagsStr.split("\\r?\\n")));
+            } catch (PrompterException e) {
+                throw new MojoFailureException("support-start", e);
+            }
+
+            // git for-each-ref refs/heads/support/...
+            final boolean supportBranchExists = gitCheckBranchExists(gitFlowConfig
+                    .getSupportBranchPrefix() + tagName);
+
+            if (supportBranchExists) {
+                throw new MojoFailureException(
+                        "Support branch with that name already exists.");
+            }
+
+            // git checkout -b ... tag
+            gitCreateAndCheckout(gitFlowConfig.getSupportBranchPrefix()
+                    + tagName, tagName);
+
+            if (installProject) {
+                // mvn clean install
+                mvnCleanInstall();
+            }
+
+            if (pushRemote) {
+                gitPush(gitFlowConfig.getSupportBranchPrefix() + tagName, false);
+            }
+        } catch (CommandLineException e) {
+            throw new MojoFailureException("support-start", e);
+        }
+    }

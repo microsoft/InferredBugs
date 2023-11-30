@@ -1,0 +1,25 @@
+    @Test
+    public void testConnectionPoolRecylesAlternating() {
+        TestScheduler s = new TestScheduler();
+        AtomicInteger count = new AtomicInteger();
+        Pool<Integer> pool = NonBlockingPool //
+                .factory(() -> count.incrementAndGet()) //
+                .healthCheck(n -> true) //
+                .maxSize(2) //
+                .maxIdleTime(1, TimeUnit.MINUTES) //
+                .scheduler(s) //
+                .build();
+        TestSubscriber<Integer> ts = new FlowableSingleDeferUntilRequest<>(pool.member()) //
+                .repeat() //
+                .doOnNext(m -> m.checkin()) //
+                .map(m -> m.value()) //
+                .test(4); //
+        s.triggerActions();
+        ts.assertValueCount(4) //
+                .assertNotTerminated();
+        List<Object> list = ts.getEvents().get(0);
+        // all 4 connections released were the same
+        assertTrue(list.get(0) == list.get(1));
+        assertTrue(list.get(1) == list.get(2));
+        assertTrue(list.get(2) == list.get(3));
+    }

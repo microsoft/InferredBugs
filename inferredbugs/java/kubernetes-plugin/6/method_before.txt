@@ -1,0 +1,20 @@
+    @Test
+    public void runWithDeadlineSeconds() throws Exception {
+        WorkflowJob p = r.jenkins.createProject(WorkflowJob.class, "Deadline");
+        p.setDefinition(new CpsFlowDefinition(loadPipelineScript("runWithDeadlineSeconds.groovy")
+                , true));
+        WorkflowRun b = p.scheduleBuild2(0).waitForStart();
+        assertNotNull(b);
+
+        r.waitForMessage("podTemplate", b);
+
+        PodTemplate deadlineTemplate = null;
+        for (Iterator<PodTemplate> iterator = cloud.getTemplates().iterator(); iterator.hasNext(); ) {
+            PodTemplate template = iterator.next();
+            if (template.getLabel() == "deadline") {
+                deadlineTemplate = template;
+            }
+        }
+        assertNotNull(deadlineTemplate);
+        assertEquals(3600, deadlineTemplate.getDeadlineSeconds());
+    }

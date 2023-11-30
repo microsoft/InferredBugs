@@ -1,0 +1,29 @@
+    void genCode() throws IOException {
+        outputDirectory.mkdirs();
+        FileWriter c = new FileWriter(new File(outputDirectory, mName+".c"));
+        FileWriter h = new FileWriter(new File(outputDirectory, mName+".h"));
+        h.write("#ifndef __"+mName.toUpperCase().replace('.','_')+"__\n");
+        h.write("#define __"+mName.toUpperCase().replace('.','_')+"__\n");
+        
+        h.write("#include \"recordio.h\"\n");
+        for (Iterator i = mInclFiles.iterator(); i.hasNext();) {
+            JFile f = (JFile) i.next();
+            h.write("#include \""+f.getName()+".h\"\n");
+        }
+        // required for compilation from C++
+        h.write("\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n");
+
+        c.write("#include <stdlib.h>\n"); // need it for calloc() & free()
+        c.write("#include \""+mName+".h\"\n\n");
+        
+        for (Iterator i = mRecList.iterator(); i.hasNext();) {
+            JRecord jr = (JRecord) i.next();
+            jr.genCCode(h, c);
+        }
+        
+        h.write("\n#ifdef __cplusplus\n}\n#endif\n\n");
+        h.write("#endif //"+mName.toUpperCase().replace('.','_')+"__\n");
+        
+        h.close();
+        c.close();
+    }

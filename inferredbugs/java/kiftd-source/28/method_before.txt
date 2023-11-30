@@ -1,0 +1,22 @@
+ public File getFileFromBlocks(Node f) {
+		// 检查该节点对应的文件块存放于哪个位置（主文件系统/扩展存储区）
+		try {
+			File file = null;
+			if (f.getFilePath().startsWith("file_")) {// 存放于主文件系统中
+				// 直接从主文件系统的文件块存放区获得对应的文件块
+				file = getBlockFromExtendPath(new File(ConfigureReader.instance().getFileBlockPath()), f.getFilePath());
+			} else {// 存放于扩展存储区
+				short index = Short.parseShort(f.getFilePath().substring(0, f.getFilePath().indexOf('_')));
+				// 根据编号查到对应的扩展存储区路径，进而获取对应的文件块
+				file = getBlockFromExtendPath(ConfigureReader.instance().getExtendStores().parallelStream()
+						.filter((e) -> e.getIndex() == index).findAny().get().getPath(), f.getFilePath());
+			}
+			if (file.isFile()) {
+				return file;
+			}
+		} catch (Exception e) {
+			lu.writeException(e);
+			Printer.instance.print("错误：文件数据读取失败。详细信息：" + e.getMessage());
+		}
+		return null;
+	}

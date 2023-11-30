@@ -1,0 +1,34 @@
+  public static <T> T querySingleObjectSQL(String poolName, String sql, Class<T> type, Object[] params) {
+
+    T returnObject = null;
+
+    Connection con = null;
+
+    try {
+      con = DB_CONNECTION_MANAGER.getConnection(poolName);
+
+      if (con == null) {
+        throw new ConnectionException(poolName);
+      }
+
+      con.setAutoCommit(false);
+
+      BeanHandler<T> resultSetHandler = new BeanHandler<T>(type);
+
+      returnObject = new QueryRunner().query(con, sql, resultSetHandler, params);
+
+      con.commit();
+
+    } catch (Exception e) {
+      logger.error(QUERY_EXCEPTION_MESSAGE, e);
+      try {
+        con.rollback();
+      } catch (SQLException e2) {
+        logger.error(ROLLBACK_EXCEPTION_MESSAGE, e2);
+      }
+    } finally {
+      DB_CONNECTION_MANAGER.freeConnection(con);
+    }
+
+    return returnObject;
+  }

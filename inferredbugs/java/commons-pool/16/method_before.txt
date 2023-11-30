@@ -1,0 +1,79 @@
+    public void evict() throws Exception {
+        assertOpen();
+        synchronized (this) {
+            if(_pool.isEmpty()) {
+                return;
+            }
+            if (null == _evictionCursor) {
+                _evictionCursor = (_pool.cursor(_lifo ? _pool.size() : 0));
+            }
+        }
+
+        for (int i=0,m=getNumTests();i<m;i++) {
+            final ObjectTimestampPair<T> pair;
+            synchronized (this) {
+                if ((_lifo && !_evictionCursor.hasPrevious()) ||
+                        !_lifo && !_evictionCursor.hasNext()) {
+                    _evictionCursor.close();
+                    _evictionCursor = _pool.cursor(_lifo ? _pool.size() : 0);
+                }
+
+                pair = _lifo ?
+                        _evictionCursor.previous() :
+                        _evictionCursor.next();
+
+                _evictionCursor.remove();
+                _numInternalProcessing++;
+            }
+
+            boolean removeObject = false;
+            final long idleTimeMilis = System.currentTimeMillis() - pair.getTstamp();
+            if ((getMinEvictableIdleTimeMillis() > 0) &&
+                    (idleTimeMilis > getMinEvictableIdleTimeMillis())) {
+                removeObject = true;
+            } else if ((getSoftMinEvictableIdleTimeMillis() > 0) &&
+                    (idleTimeMilis > getSoftMinEvictableIdleTimeMillis()) &&
+                    ((getNumIdle() + 1)> getMinIdle())) { // +1 accounts for object we are processing
+                removeObject = true;
+            }
+            if(getTestWhileIdle() && !removeObject) {
+                boolean active = false;
+                try {
+                    _factory.activateObject(pair.getValue());
+                    active = true;
+                } catch(Exception e) {
+                    removeObject=true;
+                }
+                if(active) {
+                    if(!_factory.validateObject(pair.getValue())) {
+                        removeObject=true;
+                    } else {
+                        try {
+                            _factory.passivateObject(pair.getValue());
+                        } catch(Exception e) {
+                            removeObject=true;
+                        }
+                    }
+                }
+            }
+
+            if (removeObject) {
+                try {
+                    _factory.destroyObject(pair.getValue());
+                } catch(Exception e) {
+                    // ignored
+                }
+            }
+            synchronized (this) {
+                if(!removeObject) {
+                    _evictionCursor.add(pair);
+                    if (_lifo) {
+                        // Skip over the element we just added back
+                        _evictionCursor.previous();
+                    }
+                }
+                _numInternalProcessing--;
+            }
+        }
+        allocate();
+    }

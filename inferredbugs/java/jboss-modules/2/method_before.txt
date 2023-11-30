@@ -1,0 +1,28 @@
+    Class<?> loadModuleClass(final String className, final boolean exportsOnly, final boolean resolve) {
+        for (String s : systemPackages) {
+            if (className.startsWith(s)) {
+                try {
+                    return moduleClassLoader.loadClass(className, resolve);
+                } catch (ClassNotFoundException e) {
+                    return null;
+                }
+            }
+        }
+        final String path = pathOfClass(className);
+        final Map<String, List<LocalLoader>> paths = getPathsUnchecked(exportsOnly);
+        final List<LocalLoader> loaders = paths.get(path);
+        if (loaders != null) {
+            Class<?> clazz;
+            for (LocalLoader loader : loaders) {
+                clazz = loader.loadClassLocal(className, resolve);
+                if (clazz != null) {
+                    return clazz;
+                }
+            }
+        }
+        final LocalLoader fallbackLoader = this.fallbackLoader;
+        if (fallbackLoader != null) {
+            return fallbackLoader.loadClassLocal(className, resolve);
+        }
+        return null;
+    }

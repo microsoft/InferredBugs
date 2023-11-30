@@ -1,0 +1,46 @@
+    public void run() {
+        LWC lwc = LWC.getInstance();
+        PhysDB physicalDatabase = lwc.getPhysicalDatabase();
+
+        // this patcher only does something exciting if you have mysql enabled
+        // :-)
+        if (physicalDatabase.getType() != Type.MySQL) {
+            return;
+        }
+
+        // this patcher only does something exciting if the old SQLite database
+        // still exists :-)
+        String database = lwc.getConfiguration().getString("database.path");
+
+        if (database == null || database.trim().equals("")) {
+            database = "plugins/LWC/lwc.db";
+        }
+
+        File file = new File(database);
+        if (!file.exists()) {
+            return;
+        }
+
+        logger.info("######################################################");
+        logger.info("######################################################");
+        logger.info("SQLite to MySQL conversion required");
+
+        // rev up those sqlite databases because I sure am hungry for some data...
+        DatabaseMigrator migrator = new DatabaseMigrator();
+
+        if (migrator.convertFrom(Type.SQLite)) {
+            logger.info("Successfully converted.");
+            logger.info("Renaming \"" + database + "\" to \"" + database + ".old\"");
+            if (!file.renameTo(new File(database + ".old"))) {
+                logger.info("NOTICE: FAILED TO RENAME lwc.db!! Please rename this manually!");
+            }
+
+            logger.info("SQLite to MySQL conversion is now complete!\n");
+            logger.info("Thank you!");
+        } else {
+            logger.info("#### SEVERE ERROR: Something bad happened when converting the database (Oops!)");
+        }
+
+        logger.info("######################################################");
+        logger.info("######################################################");
+    }

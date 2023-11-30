@@ -1,0 +1,16 @@
+    @Test
+    public void testInsertClobAndReadClobUsingReader() {
+        try (Database db = db()) {
+            db.update("insert into person_clob(name,document) values(?,?)") //
+                    .parameters("FRED", "some text here") //
+                    .counts() //
+                    .test().awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                    .assertValue(1) //
+                    .assertComplete();
+            db.select("select document from person_clob where name='FRED'") //
+                    .getAs(Reader.class) //
+                    .map(r -> read(r)).test().awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                    .assertValue("some text here") //
+                    .assertComplete();
+        }
+    }

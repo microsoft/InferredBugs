@@ -1,0 +1,31 @@
+ public Reader getConfigContent(File file) throws IOException {
+
+		if (!file.exists())
+			return null;
+		int commentNum = 0;
+
+		String addLine;
+		String currentLine;
+
+		StringBuilder whole = new StringBuilder("");
+		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+
+		while ((currentLine = reader.readLine()) != null) {
+			// Rework comment line so it becomes a normal value in the config file.
+			// This workaround allows the comment to be saved in the Yaml file.
+			if (currentLine.startsWith("#")) {
+				addLine = currentLine.replace(":", "_COLON_").replace("|", "_VERT_").replace("-", "_HYPHEN_")
+						.replaceFirst("#", plugin.getDescription().getName() + "_COMMENT_" + commentNum + ": ");
+				whole.append(addLine + "\n");
+				commentNum++;
+			} else {
+				whole.append(currentLine + "\n");
+			}
+		}
+
+		String config = whole.toString();
+		StringReader configStream = new StringReader(config);
+
+		reader.close();
+		return configStream;
+	}

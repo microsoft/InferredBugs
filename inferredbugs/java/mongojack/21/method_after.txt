@@ -1,0 +1,25 @@
+    public UpdateResult save(T object, WriteConcern concern) throws MongoWriteException, MongoWriteConcernException, MongoException {
+        Object _id;
+        @SuppressWarnings("unchecked")
+        final Codec<T> codec = getMongoCollection().getCodecRegistry().get((Class<T>) object.getClass());
+        if (codec instanceof CollectibleCodec) {
+            _id = JacksonCodec.extractValueEx(((CollectibleCodec<T>) codec).getDocumentId(object));
+        } else {
+            Document dbObject = convertToDocument(object);
+            _id = dbObject.get("_id");
+        }
+        if(_id == null) {
+            if (concern == null) {
+                this.insert(object);
+            } else {
+                this.insert(object, concern);
+            }
+            if (codec instanceof CollectibleCodec) {
+                return UpdateResult.acknowledged(0, 1L, ((CollectibleCodec<T>)codec).getDocumentId(object));
+            } else {
+                return UpdateResult.acknowledged(0, 1L, null);
+            }
+        } else {
+            return this.replaceOne(new Document("_id", _id), object, true, concern);
+        }
+    }

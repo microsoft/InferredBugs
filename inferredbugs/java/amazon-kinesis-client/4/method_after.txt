@@ -1,0 +1,44 @@
+    @Override
+    public DescribeStreamResult getStreamInfo(String startShardId)
+            throws ResourceNotFoundException, LimitExceededException {
+        final DescribeStreamRequest describeStreamRequest = new DescribeStreamRequest();
+        describeStreamRequest.setRequestCredentials(credentialsProvider.getCredentials());
+        describeStreamRequest.setStreamName(streamName);
+        describeStreamRequest.setExclusiveStartShardId(startShardId);
+        DescribeStreamResult response = null;
+
+        LimitExceededException lastException = null;
+
+        int remainingRetryTimes = this.maxDescribeStreamRetryAttempts;
+        // Call DescribeStream, with backoff and retries (if we get LimitExceededException).
+        while (response == null) {
+            try {
+                response = client.describeStream(describeStreamRequest);
+            } catch (LimitExceededException le) {
+                LOG.info("Got LimitExceededException when describing stream " + streamName + ". Backing off for "
+                        + this.describeStreamBackoffTimeInMillis + " millis.");
+                try {
+                    Thread.sleep(this.describeStreamBackoffTimeInMillis);
+                } catch (InterruptedException ie) {
+                    LOG.debug("Stream " + streamName + " : Sleep  was interrupted ", ie);
+                }
+                lastException = le;
+            }
+            remainingRetryTimes--;
+            if (remainingRetryTimes <= 0 && response == null) {
+                if (lastException != null) {
+                    throw lastException;
+                }
+                throw new IllegalStateException("Received null from DescribeStream call.");
+            }
+        }
+
+        if (StreamStatus.ACTIVE.toString().equals(response.getStreamDescription().getStreamStatus())
+                || StreamStatus.UPDATING.toString().equals(response.getStreamDescription().getStreamStatus())) {
+            return response;
+        } else {
+            LOG.info("Stream is in status " + response.getStreamDescription().getStreamStatus()
+                    + ", KinesisProxy.DescribeStream returning null (wait until stream is Active or Updating");
+            return null;
+        }
+    }

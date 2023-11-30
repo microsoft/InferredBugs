@@ -1,0 +1,95 @@
+    @Test(timeout=300000)
+    public void testWriteFailureDisablesIndex() throws Exception {
+        String query;
+        ResultSet rs;
+
+        Properties props = PropertiesUtil.deepCopy(TEST_PROPERTIES);
+        Connection conn = driver.connect(url, props);
+        conn.setAutoCommit(false);
+        conn.createStatement().execute(
+                "CREATE TABLE " + DATA_TABLE_FULL_NAME + " (k VARCHAR NOT NULL PRIMARY KEY, v1 VARCHAR, v2 VARCHAR)");
+        query = "SELECT * FROM " + DATA_TABLE_FULL_NAME;
+        rs = conn.createStatement().executeQuery(query);
+        assertFalse(rs.next());
+
+        conn.createStatement().execute(
+                "CREATE INDEX " + INDEX_TABLE_NAME + " ON " + DATA_TABLE_FULL_NAME + " (v1) INCLUDE (v2)");
+        query = "SELECT * FROM " + INDEX_TABLE_FULL_NAME;
+        rs = conn.createStatement().executeQuery(query);
+        assertFalse(rs.next());
+
+        // Verify the metadata for index is correct.
+        rs = conn.getMetaData().getTables(null, StringUtil.escapeLike(SCHEMA_NAME), INDEX_TABLE_NAME,
+                new String[] { PTableType.INDEX.toString() });
+        assertTrue(rs.next());
+        assertEquals(INDEX_TABLE_NAME, rs.getString(3));
+        assertEquals(PIndexState.ACTIVE.toString(), rs.getString("INDEX_STATE"));
+        assertFalse(rs.next());
+        
+        PreparedStatement stmt = conn.prepareStatement("UPSERT INTO " + DATA_TABLE_FULL_NAME + " VALUES(?,?,?)");
+        stmt.setString(1, "a");
+        stmt.setString(2, "x");
+        stmt.setString(3, "1");
+        stmt.execute();
+        conn.commit();
+
+        TableName indexTable = TableName.valueOf(INDEX_TABLE_FULL_NAME);
+        HBaseAdmin admin = this.util.getHBaseAdmin();
+        HTableDescriptor indexTableDesc = admin.getTableDescriptor(indexTable);
+        try{
+          admin.disableTable(indexTable);
+          admin.deleteTable(indexTable);
+        } catch (TableNotFoundException ignore) {}
+
+        stmt = conn.prepareStatement("UPSERT INTO " + DATA_TABLE_FULL_NAME + " VALUES(?,?,?)");
+        stmt.setString(1, "a2");
+        stmt.setString(2, "x2");
+        stmt.setString(3, "2");
+        stmt.execute();
+        try {
+            conn.commit();
+        } catch (SQLException e) {}
+
+        // Verify the metadata for index is correct.
+        rs = conn.getMetaData().getTables(null, StringUtil.escapeLike(SCHEMA_NAME), INDEX_TABLE_NAME,
+                new String[] { PTableType.INDEX.toString() });
+        assertTrue(rs.next());
+        assertEquals(INDEX_TABLE_NAME, rs.getString(3));
+        assertEquals(PIndexState.DISABLE.toString(), rs.getString("INDEX_STATE"));
+        assertFalse(rs.next());
+        
+        // Verify UPSERT on data table still work after index is disabled       
+        stmt = conn.prepareStatement("UPSERT INTO " + DATA_TABLE_FULL_NAME + " VALUES(?,?,?)");
+        stmt.setString(1, "a3");
+        stmt.setString(2, "x3");
+        stmt.setString(3, "3");
+        stmt.execute();
+        conn.commit();
+        
+        query = "SELECT v2 FROM " + DATA_TABLE_FULL_NAME + " where v1='x3'";
+        rs = conn.createStatement().executeQuery("EXPLAIN " + query);
+        assertTrue(QueryUtil.getExplainPlan(rs).contains("CLIENT PARALLEL 1-WAY FULL SCAN OVER " + DATA_TABLE_FULL_NAME));
+        rs = conn.createStatement().executeQuery(query);
+        assertTrue(rs.next());
+        
+        // recreate index table
+        admin.createTable(indexTableDesc);
+        do {
+          Thread.sleep(15 * 1000); // sleep 15 secs
+          rs = conn.getMetaData().getTables(null, StringUtil.escapeLike(SCHEMA_NAME), INDEX_TABLE_NAME,
+              new String[] { PTableType.INDEX.toString() });
+          assertTrue(rs.next());
+          if(PIndexState.ACTIVE.toString().equals(rs.getString("INDEX_STATE"))){
+              break;
+          }
+        } while(true);
+        
+        // verify index table has data
+        query = "SELECT count(1) FROM " + INDEX_TABLE_FULL_NAME;
+        rs = conn.createStatement().executeQuery(query);
+        assertTrue(rs.next());
+        
+        // using 2 here because we only partially build index from where we failed and the oldest 
+        // index row has been deleted when we dropped the index table during test.
+        assertEquals(2, rs.getInt(1));
+    }

@@ -1,0 +1,34 @@
+    public final Cache buildCache(String name) throws CacheException {
+
+        if (log.isDebugEnabled()) {
+            log.debug("Loading a new EhCache cache named [" + name + "]");
+        }
+
+        try {
+            net.sf.ehcache.Cache cache = getCacheManager().getCache(name);
+            if (cache == null) {
+                if (log.isWarnEnabled()) {
+                    log.warn("Could not find a specific ehcache configuration for cache named [" + name + "]; using defaults.");
+                }
+                if ( name.equals(DEFAULT_ACTIVE_SESSIONS_CACHE_NAME) ) {
+                    if ( log.isInfoEnabled() ) {
+                        log.info("Creating " + DEFAULT_ACTIVE_SESSIONS_CACHE_NAME + " cache with default JSecurity " +
+                            "session cache settings." );
+                    }
+                    cache = buildDefaultActiveSessionsCache();
+                    manager.addCache( cache );
+                } else {
+                    manager.addCache( name );
+                    cache = manager.getCache( name );
+                }
+                cache.initialise();
+
+                if (log.isDebugEnabled()) {
+                    log.debug("Started EHCache named [" + name + "]");
+                }
+            }
+            return new EhCache(cache);
+        } catch (net.sf.ehcache.CacheException e) {
+            throw new CacheException(e);
+        }
+    }

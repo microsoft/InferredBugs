@@ -1,0 +1,37 @@
+  public byte[] readBitsArray(final int items, final JBBPBitNumber bitNumber) throws IOException {
+    int pos = 0;
+    if (items < 0) {
+      byte[] buffer = new byte[INITIAL_ARRAY_BUFFER_SIZE];
+      // till end
+      while (true) {
+        final int next = readBits(bitNumber);
+        if (next < 0) {
+          break;
+        }
+        if (buffer.length == pos) {
+          final byte[] newbuffer = new byte[buffer.length << 1];
+          System.arraycopy(buffer, 0, newbuffer, 0, buffer.length);
+          buffer = newbuffer;
+        }
+        buffer[pos++] = (byte) next;
+      }
+      if (buffer.length == pos) {
+        return buffer;
+      }
+      final byte[] result = new byte[pos];
+      System.arraycopy(buffer, 0, result, 0, pos);
+      return result;
+    }
+    else {
+      // number
+      final byte[] buffer = new byte[items];
+      for (int i = 0; i < items; i++) {
+        final int next = readBits(bitNumber);
+        if (next < 0) {
+          throw new EOFException("Have read only " + i + " bit portions instead of " + items);
+        }
+        buffer[i] = (byte) next;
+      }
+      return buffer;
+    }
+  }

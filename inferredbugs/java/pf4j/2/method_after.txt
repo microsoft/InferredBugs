@@ -1,0 +1,29 @@
+ @Override
+	public String loadPlugin(File pluginArchiveFile) {
+		if (pluginArchiveFile == null || !pluginArchiveFile.exists()) {
+			throw new IllegalArgumentException(String.format("Specified plugin %s does not exist!", pluginArchiveFile));
+		}
+
+		File pluginDirectory = null;
+		try {
+			pluginDirectory = expandPluginArchive(pluginArchiveFile);
+		} catch (IOException e) {
+			log.error(e.getMessage(), e);
+		}
+		if (pluginDirectory == null || !pluginDirectory.exists()) {
+			throw new IllegalArgumentException(String.format("Failed to expand %s", pluginArchiveFile));
+		}
+
+		try {
+			PluginWrapper pluginWrapper = loadPluginDirectory(pluginDirectory);
+			// TODO uninstalled plugin dependencies?
+        	unresolvedPlugins.remove(pluginWrapper);
+        	resolvedPlugins.add(pluginWrapper);
+        	extensionFinder.reset();
+			return pluginWrapper.getDescriptor().getPluginId();
+		} catch (PluginException e) {
+			log.error(e.getMessage(), e);
+		}
+
+		return null;
+	}

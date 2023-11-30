@@ -1,0 +1,44 @@
+    private void prepareOutputDirectory() throws IOException {
+
+        // Create the output directory if it does not exist
+        if (!outputDirectory.exists()) {
+            if (!outputDirectory.mkdirs()) {
+                throw new IOException("Could not create output directory" +
+                        outputDirectory.getAbsolutePath());
+            }
+        }
+
+        // Make sure we can write to output directory
+        if (!outputDirectory.isDirectory() || !outputDirectory.canWrite()) {
+            throw new IOException("Output directory is not a writable directory: " +
+                    outputDirectory.getAbsolutePath());
+        }
+
+        // Name files and directories after AFL
+        this.savedCorpusDirectory = new File(outputDirectory, "corpus");
+        this.savedCorpusDirectory.mkdirs();
+        this.savedFailuresDirectory = new File(outputDirectory, "failures");
+        this.savedFailuresDirectory.mkdirs();
+        this.statsFile = new File(outputDirectory, "plot_data");
+        this.logFile = new File(outputDirectory, "fuzz.log");
+        this.currentInputFile = new File(outputDirectory, ".cur_input");
+
+
+        // Delete everything that we may have created in a previous run.
+        // Trying to stay away from recursive delete of parent output directory in case there was a
+        // typo and that was not a directory we wanted to nuke.
+        // We also do not check if the deletes are actually successful.
+        statsFile.delete();
+        logFile.delete();
+        for (File file : savedCorpusDirectory.listFiles()) {
+            file.delete();
+        }
+        for (File file : savedFailuresDirectory.listFiles()) {
+            file.delete();
+        }
+
+        appendLineToFile(statsFile,"# unix_time, cycles_done, cur_path, paths_total, pending_total, " +
+                "pending_favs, map_size, unique_crashes, unique_hangs, max_depth, execs_per_sec, valid_inputs, invalid_inputs, valid_cov");
+
+
+    }

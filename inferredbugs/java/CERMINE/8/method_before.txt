@@ -1,0 +1,38 @@
+    public static void main(String[] args) {
+        if (args.length != 1) {
+            System.err.println("Usage: <pubmed directory>");
+            System.exit(1);
+        }
+	
+        File dir = new File(args[0]);
+        for (File pdfFile : FileUtils.listFiles(dir, new String[]{"pdf"}, true)) {
+            try { 
+                String pdfPath = pdfFile.getPath();
+                String nxmlPath = StringTools.getNLMPath(pdfPath);
+                
+                File xmlFile = new File(StringTools.getTrueVizPath(nxmlPath));
+                if (xmlFile.exists()) {
+                    continue;
+                }
+
+                System.out.print(pdfPath+" ");
+
+                InputStream pdfStream = new FileInputStream(pdfPath);
+                InputStream nxmlStream = new FileInputStream(nxmlPath);
+
+                PubmedXMLGenerator datasetGenerator = new PubmedXMLGenerator();
+                datasetGenerator.setVerbose(false);
+                BxDocument bxDoc = datasetGenerator.generateTrueViz(pdfStream, nxmlStream);
+
+                FileWriter fstream = new FileWriter(StringTools.getTrueVizPath(nxmlPath));
+                BufferedWriter out = new BufferedWriter(fstream);
+                BxDocumentToTrueVizWriter writer = new BxDocumentToTrueVizWriter();
+                out.write(writer.write(bxDoc.getPages()));
+                out.close();
+                
+                System.out.println("done");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }

@@ -1,0 +1,22 @@
+    @Override
+    public void updateProviders(ProviderGroup providerGroup) {
+        checkProviderInfo(providerGroup);
+        ProviderGroup oldProviderGroup = addressHolder.getProviderGroup(providerGroup.getName());
+        if (ProviderHelper.isEmpty(providerGroup)) {
+            addressHolder.updateProviders(providerGroup);
+            if (!ProviderHelper.isEmpty(oldProviderGroup)) {
+                if (LOGGER.isWarnEnabled(consumerConfig.getAppName())) {
+                    LOGGER.warnWithApp(consumerConfig.getAppName(), "Provider list is emptied, may be all " +
+                        "providers has been closed, or this consumer has been add to blacklist");
+                    closeTransports();
+                }
+            }
+        } else {
+            addressHolder.updateProviders(providerGroup);
+            connectionHolder.updateProviders(providerGroup);
+        }
+        if (EventBus.isEnable(ProviderInfoUpdateEvent.class)) {
+            ProviderInfoUpdateEvent event = new ProviderInfoUpdateEvent(consumerConfig, oldProviderGroup, providerGroup);
+            EventBus.post(event);
+        }
+    }

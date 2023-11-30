@@ -1,0 +1,25 @@
+    @Override
+    public Health health() {
+        boolean allPassed = true;
+        Health.Builder builder = new Health.Builder();
+        for (SofaRuntimeManager sofaRuntimeManager : SofaFramework.getRuntimeSet()) {
+            Biz biz = DynamicJvmServiceProxyFinder.getBiz(sofaRuntimeManager);
+            if (biz == null) {
+                continue;
+            }
+
+            if (!sofaRuntimeManager.isLivenessHealth()) {
+                allPassed = false;
+                builder.withDetail(String.format("Biz: %s health check", biz.getIdentity()),
+                    "failed");
+            } else {
+                builder.withDetail(String.format("Biz: %s health check", biz.getIdentity()),
+                    "passed");
+            }
+        }
+        if (allPassed) {
+            return builder.up().build();
+        } else {
+            return builder.down().build();
+        }
+    }

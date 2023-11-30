@@ -1,0 +1,23 @@
+    LedgerHandle(BookKeeper bk, long ledgerId, LedgerMetadata metadata,
+                 DigestType digestType, byte[] password)
+            throws GeneralSecurityException, NumberFormatException {
+        this.bk = bk;
+        this.metadata = metadata;
+
+        if (metadata.isClosed()) {
+            lastAddConfirmed = lastAddPushed = metadata.getLastEntryId();
+            length = metadata.getLength();
+        } else {
+            lastAddConfirmed = lastAddPushed = INVALID_ENTRY_ID;
+            length = 0;
+        }
+
+        this.ledgerId = ledgerId;
+
+        this.throttler = RateLimiter.create(bk.getConf().getThrottleValue());
+
+        macManager = DigestManager.instantiate(ledgerId, password, digestType);
+        this.ledgerKey = MacDigestManager.genDigest("ledger", password);
+        distributionSchedule = new RoundRobinDistributionSchedule(
+                metadata.getWriteQuorumSize(), metadata.getAckQuorumSize(), metadata.getEnsembleSize());
+    }

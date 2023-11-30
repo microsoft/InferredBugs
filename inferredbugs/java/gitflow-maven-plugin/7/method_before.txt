@@ -1,0 +1,151 @@
+    @Override
+    public void execute() throws MojoExecutionException, MojoFailureException {
+        try {
+            // set git flow configuration
+            initGitFlowConfig();
+
+            // check uncommitted changes
+            checkUncommittedChanges();
+
+            // check snapshots dependencies
+            if (!allowSnapshots) {
+                checkSnapshotDependencies();
+            }
+
+            // fetch and check remote
+            if (fetchRemote) {
+                if (notSameProdDevName()) {
+                    gitFetchRemoteAndCompare(gitFlowConfig
+                            .getDevelopmentBranch());
+                }
+                gitFetchRemoteAndCompare(gitFlowConfig.getProductionBranch());
+            }
+
+            // git for-each-ref --count=1 refs/heads/release/*
+            final String releaseBranch = gitFindBranches(
+                    gitFlowConfig.getReleaseBranchPrefix(), true);
+
+            if (StringUtils.isNotBlank(releaseBranch)) {
+                throw new MojoFailureException(
+                        "Release branch already exists. Cannot start release.");
+            }
+
+            // need to be in develop to get correct project version
+            // git checkout develop
+            gitCheckout(gitFlowConfig.getDevelopmentBranch());
+
+            if (!skipTestProject) {
+                // mvn clean test
+                mvnCleanTest();
+            }
+
+            // get current project version from pom
+            final String currentVersion = getCurrentProjectVersion();
+
+            String defaultVersion = null;
+            if (tychoBuild) {
+                defaultVersion = currentVersion;
+            } else {
+                // get default release version
+                try {
+                    final DefaultVersionInfo versionInfo = new DefaultVersionInfo(
+                            currentVersion);
+                    defaultVersion = versionInfo.getReleaseVersionString();
+                } catch (VersionParseException e) {
+                    if (getLog().isDebugEnabled()) {
+                        getLog().debug(e);
+                    }
+                }
+            }
+
+            if (defaultVersion == null) {
+                throw new MojoFailureException(
+                        "Cannot get default project version.");
+            }
+
+            String version = null;
+            if (settings.isInteractiveMode()) {
+                try {
+                    version = prompter.prompt("What is release version? ["
+                            + defaultVersion + "]");
+                } catch (PrompterException e) {
+                    getLog().error(e);
+                }
+            }
+
+            if (StringUtils.isBlank(version)) {
+                version = defaultVersion;
+            }
+
+            // execute if version changed
+            if (!version.equals(currentVersion)) {
+                // mvn set version
+                mvnSetVersions(version);
+
+                // git commit -a -m updating versions for release
+                gitCommit(commitMessages.getReleaseStartMessage());
+            }
+
+            if (notSameProdDevName()) {
+                // git checkout master
+                gitCheckout(gitFlowConfig.getProductionBranch());
+
+                gitMerge(gitFlowConfig.getDevelopmentBranch(), releaseRebase,
+                        releaseMergeNoFF);
+            }
+
+            if (!skipTag) {
+                if (tychoBuild && ArtifactUtils.isSnapshot(version)) {
+                    version = version.replace("-" + Artifact.SNAPSHOT_VERSION,
+                            "");
+                }
+
+                // git tag -a ...
+                gitTag(gitFlowConfig.getVersionTagPrefix() + version,
+                        commitMessages.getTagReleaseMessage());
+            }
+
+            if (notSameProdDevName()) {
+                // git checkout develop
+                gitCheckout(gitFlowConfig.getDevelopmentBranch());
+            }
+
+            String nextSnapshotVersion = null;
+            // get next snapshot version
+            try {
+                final DefaultVersionInfo versionInfo = new DefaultVersionInfo(
+                        version);
+                nextSnapshotVersion = versionInfo.getNextVersion()
+                        .getSnapshotVersionString();
+            } catch (VersionParseException e) {
+                if (getLog().isDebugEnabled()) {
+                    getLog().debug(e);
+                }
+            }
+
+            if (StringUtils.isBlank(nextSnapshotVersion)) {
+                throw new MojoFailureException(
+                        "Next snapshot version is blank.");
+            }
+
+            // mvn set version
+            mvnSetVersions(nextSnapshotVersion);
+
+            // git commit -a -m updating for next development version
+            gitCommit(commitMessages.getReleaseFinishMessage());
+
+            if (installProject) {
+                // mvn clean install
+                mvnCleanInstall();
+            }
+
+            if (pushRemote) {
+                gitPush(gitFlowConfig.getProductionBranch(), !skipTag);
+                if (notSameProdDevName()) {
+                    gitPush(gitFlowConfig.getDevelopmentBranch(), !skipTag);
+                }
+            }
+        } catch (CommandLineException e) {
+            getLog().error(e);
+        }
+    }

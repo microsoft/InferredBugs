@@ -1,0 +1,37 @@
+    @Override
+    protected void doSoService(ServiceDataFlowEvent event, DataFlowContext context, JSONObject reqJson) {
+
+        JSONObject outParam = null;
+        ResponseEntity<String> responseEntity = null;
+        Map<String, String> reqHeader = context.getRequestHeaders();
+        String communityId = reqHeader.get("communityId");
+        String machineCode = reqHeader.get("machinecode");
+        HttpHeaders headers = new HttpHeaders();
+        for (String key : reqHeader.keySet()) {
+            if (key.toLowerCase().equals("content-length")) {
+                continue;
+            }
+            headers.add(key, reqHeader.get(key));
+        }
+        //根据设备编码查询 设备信息
+        MachineDto machineDto = new MachineDto();
+        machineDto.setMachineCode(machineCode);
+        machineDto.setCommunityId(communityId);
+        List<MachineDto> machineDtos = machineInnerServiceSMOImpl.queryMachines(machineDto);
+        if (machineDtos == null || machineDtos.size() < 1) {
+            outParam.put("code", -1);
+            outParam.put("message", "该设备【" + machineCode + "】未在该小区【" + communityId + "】注册");
+            responseEntity = new ResponseEntity<>(outParam.toJSONString(), headers, HttpStatus.OK);
+            context.setResponseEntity(responseEntity);
+            return;
+        }
+        //设备方向
+        String direction = machineDtos.get(0).getDirection();
+
+        //进入
+        if (MACHINE_DIRECTION_IN.equals(direction)) {
+            dealCarIn(event, context, reqJson, machineDtos.get(0), communityId);
+        } else {
+            dealCarOut(event, context, reqJson, machineDtos.get(0), communityId);
+        }
+    }

@@ -1,0 +1,69 @@
+    private static boolean extractAndLoadLibraryFile(String libFolderForCurrentOS, String libraryFileName,
+                                                     String targetFolder) {
+        String nativeLibraryFilePath = libFolderForCurrentOS + "/" + libraryFileName;
+        // Include architecture name in temporary filename in order to avoid conflicts
+        // when multiple JVMs with different architectures running at the same time
+        String uuid = UUID.randomUUID().toString();
+        String extractedLibFileName = String.format("sqlite-%s-%s-%s", getVersion(), uuid, libraryFileName);
+		String extractedLckFileName = extractedLibFileName + ".lck";
+		
+        File extractedLibFile = new File(targetFolder, extractedLibFileName);
+		File extractedLckFile = new File(targetFolder, extractedLckFileName);
+		
+
+        try {
+            // Extract a native library file into the target directory
+            InputStream reader = SQLiteJDBCLoader.class.getResourceAsStream(nativeLibraryFilePath);
+            FileOutputStream writer = new FileOutputStream(extractedLibFile);
+            try {
+                byte[] buffer = new byte[8192];
+                int bytesRead = 0;
+                while((bytesRead = reader.read(buffer)) != -1) {
+                    writer.write(buffer, 0, bytesRead);
+                }
+            } finally {
+				if (!extractedLckFile.exists()) {
+					new FileOutputStream(extractedLckFile).close();
+				}
+                // Delete the extracted lib file on JVM exit.
+                extractedLibFile.deleteOnExit();
+				extractedLckFile.deleteOnExit();
+
+                if(writer != null) {
+                    writer.close();
+                }
+                if(reader != null) {
+                    reader.close();
+                }
+            }
+
+            // Set executable (x) flag to enable Java to load the native library
+            extractedLibFile.setReadable(true);
+            extractedLibFile.setWritable(true, true);
+            extractedLibFile.setExecutable(true);
+
+
+            // Check whether the contents are properly copied from the resource folder
+            {
+                InputStream nativeIn = SQLiteJDBCLoader.class.getResourceAsStream(nativeLibraryFilePath);
+                InputStream extractedLibIn = new FileInputStream(extractedLibFile);
+                try {
+                    if(!contentsEquals(nativeIn, extractedLibIn)) {
+                        throw new RuntimeException(String.format("Failed to write a native library file at %s", extractedLibFile));
+                    }
+                } finally {
+                    if(nativeIn != null) {
+                        nativeIn.close();
+                    }
+                    if(extractedLibIn != null) {
+                        extractedLibIn.close();
+                    }
+                }
+            }
+            return loadNativeLibrary(targetFolder, extractedLibFileName);
+        } catch(IOException e) {
+            System.err.println(e.getMessage());
+            return false;
+        }
+
+    }

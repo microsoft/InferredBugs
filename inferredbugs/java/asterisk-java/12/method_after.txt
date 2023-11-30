@@ -1,0 +1,92 @@
+    public int[] getVersion(String file) throws ManagerCommunicationException
+    {
+        String fileVersion = null;
+        String[] parts;
+        int[] intParts;
+
+        initializeIfNeeded();
+        if (versions == null)
+        {
+            Map<String, String> map;
+            ManagerResponse response;
+
+            map = new HashMap<String, String>();
+            try
+            {
+                final String command;
+
+                if (eventConnection.getVersion().isAtLeast(AsteriskVersion.ASTERISK_1_6))
+                {
+                    command = SHOW_VERSION_FILES_1_6_COMMAND;
+                }
+                else
+                {
+                    command = SHOW_VERSION_FILES_COMMAND;
+                }
+                response = sendAction(new CommandAction(command));
+                if (response instanceof CommandResponse)
+                {
+                    List<String> result;
+
+                    result = ((CommandResponse) response).getResult();
+                    for (int i = 2; i < result.size(); i++)
+                    {
+                        String line;
+                        Matcher matcher;
+
+                        line = result.get(i);
+                        matcher = SHOW_VERSION_FILES_PATTERN.matcher(line);
+                        if (matcher.find())
+                        {
+                            String key = matcher.group(1);
+                            String value = matcher.group(2);
+
+                            map.put(key, value);
+                        }
+                    }
+
+                    fileVersion = map.get(file);
+                    versions = map;
+                }
+                else
+                {
+                    logger.error("Response to CommandAction(\""
+                            + SHOW_VERSION_FILES_COMMAND
+                            + "\") was not a CommandResponse but " + response);
+                }
+            }
+            catch (Exception e)
+            {
+                logger.warn("Unable to send '" + SHOW_VERSION_FILES_COMMAND + "' command.", e);
+            }
+        }
+        else
+        {
+            synchronized (versions)
+            {
+                fileVersion = versions.get(file);
+            }
+        }
+
+        if (fileVersion == null)
+        {
+            return null;
+        }
+
+        parts = fileVersion.split("\\.");
+        intParts = new int[parts.length];
+
+        for (int i = 0; i < parts.length; i++)
+        {
+            try
+            {
+                intParts[i] = Integer.parseInt(parts[i]);
+            }
+            catch (NumberFormatException e)
+            {
+                intParts[i] = 0;
+            }
+        }
+
+        return intParts;
+    }

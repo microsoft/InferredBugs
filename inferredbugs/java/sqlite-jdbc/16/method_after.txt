@@ -1,0 +1,34 @@
+    @Test
+    public void basicBusyHandler() throws Exception {
+        final int[] calls = {0};
+        BusyHandler.setHandler(conn, new BusyHandler() {
+            @Override
+            protected int callback(int nbPrevInvok) throws SQLException {
+                assertEquals(nbPrevInvok, calls[0]);
+                calls[0]++;
+
+                if (nbPrevInvok <= 1) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
+        });
+
+        BusyWork busyWork = new BusyWork();
+        busyWork.start();
+
+        // let busyWork block inside insert
+        busyWork.lockedLatch.await();
+
+        try{
+            workWork();
+            fail("Should throw SQLITE_BUSY exception");
+        } catch(SQLException ex) {
+            assertEquals(SQLiteErrorCode.SQLITE_BUSY.code, ex.getErrorCode());
+        }
+
+        busyWork.completeLatch.countDown();
+        busyWork.join();
+        assertEquals(3, calls[0]);
+    }

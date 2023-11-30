@@ -1,0 +1,25 @@
+    @Test
+    public void reactsToMessage() throws Exception {
+        final Reaction reaction = Mockito.mock(Reaction.class);
+        final FkFarm farm = new FkFarm();
+        final VbBot bot = new VbBot();
+        final String callback = new TextOf(
+            TkViberTest.class.getResourceAsStream("message.json")
+        ).asString();
+        new TkViber(farm, bot, reaction).act(
+            new RqWithBody(
+                new RqFake("POST", "/"),
+                callback
+            )
+        );
+        Mockito.verify(reaction)
+            .react(
+                Mockito.eq(bot), Mockito.eq(farm), Mockito.argThat(
+                    event -> event.json()
+                        .equals(
+                            Json.createReader(new StringReader(callback))
+                                .readObject()
+                        )
+                )
+            );
+    }

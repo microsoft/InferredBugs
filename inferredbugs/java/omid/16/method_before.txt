@@ -1,0 +1,39 @@
+    @Test
+    public void testShadowCellsBasics() throws Exception {
+
+        TransactionManager tm = newTransactionManager();
+
+        TTable table = new TTable(hbaseConf, TEST_TABLE);
+
+        Transaction t1 = tm.begin();
+
+        // Test shadow cell are created properly
+        Put put = new Put(row);
+        put.add(family, qualifier, data1);
+        table.put(t1, put);
+        assertTrue("Cell should be there",
+                hasCell(table, row, family, qualifier, t1.getStartTimestamp()));
+        assertFalse("Shadow cell shouldn't be there",
+                hasShadowCell(table, row, family, qualifier, t1.getStartTimestamp()));
+        tm.commit(t1);
+        assertTrue("Cell should be there",
+                hasCell(table, row, family, qualifier, t1.getStartTimestamp()));
+        assertTrue("Shadow cell should be there",
+                hasShadowCell(table, row, family, qualifier, t1.getStartTimestamp()));
+
+        // Test that we can make a valid read after adding a shadow cell without hitting the commit table
+        CommitTable.Client commitTableClient = spy(getTSO().getCommitTable().getClient().get());
+
+        TSOClient client = TSOClient.newBuilder().withConfiguration(getTSO().getClientConfiguration())
+                .withCommitTableClient(commitTableClient).build();
+        TransactionManager tm2 = TransactionManager.newBuilder()
+                .withConfiguration(hbaseConf).withTSOClient(client).build();
+
+        Transaction t2 = tm2.begin();
+        Get get = new Get(row);
+        get.addColumn(family, qualifier);
+
+        Result getResult = table.get(t2, get);
+        assertTrue("Values should be the same", Arrays.equals(data1, getResult.getValue(family, qualifier)));
+        verify(commitTableClient, never()).getCommitTimestamp(anyLong());
+    }

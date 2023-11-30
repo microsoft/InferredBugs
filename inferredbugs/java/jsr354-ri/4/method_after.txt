@@ -1,0 +1,47 @@
+    protected boolean load(URI itemToLoad, boolean fallbackLoad) {
+        InputStream is = null;
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        try{
+            URLConnection conn;
+            String proxyPort = this.properties.get("proxy.port");
+            String proxyHost = this.properties.get("proxy.host");
+            String proxyType = this.properties.get("procy.type");
+            if(proxyType!=null){
+                Proxy proxy = new Proxy(Proxy.Type.valueOf(proxyType.toUpperCase()),
+                        InetSocketAddress.createUnresolved(proxyHost, Integer.parseInt(proxyPort)));
+                conn = itemToLoad.toURL().openConnection(proxy);
+            }else{
+                conn = itemToLoad.toURL().openConnection();
+            }
+            byte[] data = new byte[4096];
+            is = conn.getInputStream();
+            int read = is.read(data);
+            while (read > 0) {
+                stream.write(data, 0, read);
+                read = is.read(data);
+            }
+            setData(stream.toByteArray());
+            if (!fallbackLoad) {
+                writeCache();
+                lastLoaded = System.currentTimeMillis();
+                loadCount.incrementAndGet();
+            }
+            return true;
+        } catch (Exception e) {
+            LOG.log(Level.INFO, "Failed to load resource input for " + resourceId + " from " + itemToLoad, e);
+        } finally {
+            if (Objects.nonNull(is)) {
+                try {
+                    is.close();
+                } catch (Exception e) {
+                    LOG.log(Level.INFO, "Error closing resource input for " + resourceId, e);
+                }
+            }
+            try {
+                stream.close();
+            } catch (IOException e) {
+                LOG.log(Level.INFO, "Error closing resource input for " + resourceId, e);
+            }
+        }
+        return false;
+    }

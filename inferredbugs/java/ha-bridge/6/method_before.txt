@@ -1,0 +1,25 @@
+ @Override
+	public String deviceHandler(CallItem anItem, MultiCommandUtil aMultiUtil, String lightId, int itensity, Integer targetBri, Integer targetBriInc, DeviceDescriptor device, String body) {
+		log.debug("Exec Request called with url: " +  anItem.getItem().getAsString());
+		String responseString = null;
+		String intermediate;
+		if (anItem.getItem().getAsString().contains("exec://"))
+			intermediate = anItem.getItem().getAsString().substring(anItem.getItem().getAsString().indexOf("://") + 3);
+		else
+			intermediate = anItem.getItem().getAsString();
+		intermediate = BrightnessDecode.calculateReplaceIntensityValue(intermediate, itensity, targetBri, targetBriInc, false);
+		intermediate = DeviceDataDecode.replaceDeviceData(intermediate, device);
+		intermediate = TimeDecode.replaceTimeValue(intermediate);
+		if(execGarden != null) {
+			if(System.getProperty("os.name").toLowerCase().indexOf("win") > 0)
+				intermediate = execGarden + "\\" + intermediate;
+			else
+				intermediate = execGarden + "/" + intermediate;
+		}
+
+		String anError = doExecRequest(intermediate, lightId);
+		if (anError != null) {
+			responseString = anError;
+		}
+		return responseString;
+	}

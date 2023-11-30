@@ -1,0 +1,32 @@
+    public <T> T to(URL url, Class<T> type) throws IOException {
+        HttpURLConnection uc = (HttpURLConnection) url.openConnection();
+
+        uc.setDoOutput(true);
+        uc.setRequestProperty("Content-type","application/x-www-form-urlencoded");
+        uc.setRequestMethod("POST");
+
+
+        StringBuilder body = new StringBuilder();
+        for (Entry<String, String> e : args.entrySet()) {
+            if (body.length()>0)    body.append('&');
+            body.append(URLEncoder.encode(e.getKey(),"UTF-8"));
+            body.append('=');
+            body.append(URLEncoder.encode(e.getValue(),"UTF-8"));
+        }
+
+        OutputStreamWriter o = new OutputStreamWriter(uc.getOutputStream(), "UTF-8");
+        o.write(body.toString());
+        o.close();
+
+
+        try {
+            InputStreamReader r = new InputStreamReader(uc.getInputStream(), "UTF-8");
+            if (type==null) {
+                String data = IOUtils.toString(r);
+                return null;
+            }
+            return MAPPER.readValue(r,type);
+        } catch (IOException e) {
+            throw (IOException)new IOException(IOUtils.toString(uc.getErrorStream(),"UTF-8")).initCause(e);
+        }
+    }

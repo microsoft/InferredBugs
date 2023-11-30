@@ -1,0 +1,41 @@
+  public static boolean unpackJar(String jarName, String folderName, boolean del) {
+    ZipInputStream in = null;
+    BufferedOutputStream out = null;
+    try {
+      if (del) {
+        FileManager.deleteFileOrFolder(folderName);
+      }
+      in = new ZipInputStream(new BufferedInputStream(new FileInputStream(jarName)));
+      log0(lvl, "unpackJar: %s to %s", jarName, folderName);
+      boolean isExecutable;
+      int n;
+      File f;
+      for (ZipEntry z = in.getNextEntry(); z != null; z = in.getNextEntry()) {
+        if (z.isDirectory()) {
+          (new File(folderName, z.getName())).mkdirs();
+        } else {
+          n = z.getName().lastIndexOf(EXECUTABLE);
+          if (n >= 0) {
+            f = new File(folderName, z.getName().substring(0, n));
+            isExecutable = true;
+          } else {
+            f = new File(folderName, z.getName());
+            isExecutable = false;
+          }
+          f.getParentFile().mkdirs();
+          out = new BufferedOutputStream(new FileOutputStream(f));
+          bufferedWrite(in, out);
+          out.close();
+          if (isExecutable) {
+            f.setExecutable(true, false);
+          }
+        }
+      }
+      in.close();
+    } catch (Exception ex) {
+      log0(-1, "unpackJar: " + ex.getMessage());
+      return false;
+    }
+    log0(lvl, "unpackJar: completed");
+    return true;
+  }

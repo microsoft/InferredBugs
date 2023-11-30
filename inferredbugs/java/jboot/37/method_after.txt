@@ -1,0 +1,23 @@
+    @Override
+    public void intercept(FixedInvocation inv) {
+        if (!config.isConfigOK()) {
+            inv.invoke();
+            return;
+        }
+
+        SsoShiroBridge ssoShiroBridge = JbootShiroManager.me().getSsoShiroBridge();
+        if (ssoShiroBridge != null && ssoShiroBridge.isSsoCallBackRequest(inv.getController())) {
+            ssoShiroBridge.subjectLogin(inv.getController());
+        }
+
+        AuthorizeResult result = JbootShiroManager.me().invoke(inv.getActionKey());
+
+        if (result == null || result.isOk()) {
+            inv.invoke();
+            return;
+        }
+
+        ShiroErrorProcess shiroErrorProcess = JbootShiroManager.me().getShiroErrorProcess();
+        shiroErrorProcess.doProcessError(inv, result.getErrorCode());
+
+    }

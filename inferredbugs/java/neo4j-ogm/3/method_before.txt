@@ -1,0 +1,13 @@
+    @Override
+    public <T> void deleteAll(Class<T> type) {
+        ClassInfo classInfo = session.metaData().classInfo(type.getName());
+        if (classInfo != null) {
+            String url = session.ensureTransaction().url();
+            ParameterisedStatement request = getDeleteStatementsBasedOnType(type).deleteByType(session.entityType(classInfo.name()));
+            try (Neo4jResponse<String> response = session.requestHandler().execute(request, url)) {
+                session.context().clear(type);
+            }
+        } else {
+            session.info(type.getName() + " is not a persistable class");
+        }
+    }

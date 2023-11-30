@@ -1,0 +1,56 @@
+    @BeforeClass
+    public static void startElasticsearchRestClient() throws IOException {
+        testClusterPort = Integer.parseInt(System.getProperty("tests.cluster.port", DEFAULT_TEST_CLUSTER_PORT.toString()));
+        testClusterHost = System.getProperty("tests.cluster.host");
+
+        if (testClusterHost == null) {
+            ElasticsearchClient elasticsearchClientTemporary = null;
+            try {
+                testClusterHost = "localhost";
+                // We test if we have already something running at the testClusterHost address
+                elasticsearchClientTemporary = new ElasticsearchClient(getClientBuilder(
+                        new HttpHost(testClusterHost, testClusterPort), testClusterUser, testClusterPass));
+                elasticsearchClientTemporary.info();
+                staticLogger.debug("A node is already running locally. No need to start a Docker instance.");
+            } catch (ConnectException e) {
+                staticLogger.debug("No local node running. We need to start a Docker instance.");
+                // We start an elasticsearch Docker instance
+                Properties props = new Properties();
+                props.load(AbstractITCase.class.getResourceAsStream("/elasticsearch.version.properties"));
+                container = new ElasticsearchContainer().withVersion(props.getProperty("version"));
+                container.withEnv("ELASTIC_PASSWORD", testClusterPass);
+                container.setWaitStrategy(
+                        new HttpWaitStrategy()
+                                .forStatusCode(200)
+                                .withBasicCredentials(testClusterUser, testClusterPass)
+                                .withStartupTimeout(Duration.ofSeconds(90)));
+                container.start();
+
+                testClusterHost = container.getHost().getHostName();
+                testClusterPort = container.getFirstMappedPort();
+            } finally {
+                // We need to close the temporary client
+                if (elasticsearchClientTemporary != null) {
+                    elasticsearchClientTemporary.shutdown();
+                }
+            }
+        } else {
+            testClusterPort = Integer.parseInt(System.getProperty("tests.cluster.port", DEFAULT_TEST_CLUSTER_PORT.toString()));
+        }
+
+        // We build the elasticsearch High Level Client based on the parameters
+        elasticsearchClient = new ElasticsearchClient(getClientBuilder(
+                new HttpHost(testClusterHost, testClusterPort), testClusterUser, testClusterPass));
+        elasticsearchWithSecurity = Elasticsearch.builder()
+                .addNode(Elasticsearch.Node.builder()
+                        .setHost(testClusterHost).setPort(testClusterPort).setScheme(testClusterScheme).build())
+                .setUsername(testClusterUser)
+                .setPassword(testClusterPass)
+                .build();
+
+        // We make sure the cluster is running
+        testClusterRunning();
+
+        // We set what will be elasticsearch behavior as it depends on the cluster version
+        elasticsearchClient.setElasticsearchBehavior();
+    }

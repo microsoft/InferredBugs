@@ -1,0 +1,20 @@
+    static void copyToStreamZipped(Map<String, File> files, OutputStream out) throws IOException {
+        ZipOutputStream zipOut = new ZipOutputStream(out);
+        for (Entry<String, File> entry : files.entrySet()) {
+            FileInputStream input = null;
+            if (isBlank(entry.getKey())) {
+                throw new IOException(String.format("Unable to copy %s to the output stream, no output name specified.",
+                        entry.getValue()));
+            }
+            try {
+                input = new FileInputStream(entry.getValue());
+                zipOut.putNextEntry(new ZipEntry(entry.getKey()));
+                LOG.debug("Copying {} to zip stream {}.", entry.getValue(), entry.getKey());
+                IOUtils.copy(input, zipOut);
+            } finally {
+                IOUtils.closeQuietly(input);
+                delete(entry.getValue());
+            }
+        }
+        IOUtils.closeQuietly(zipOut);
+    }

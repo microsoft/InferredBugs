@@ -1,0 +1,49 @@
+    protected void free()
+    {
+        synchronized (localCandidates)
+        {
+            /*
+             * Since the sockets of the non-HostCandidate LocalCandidates may
+             * depend on the socket of the HostCandidate for which they have
+             * been harvested, order the freeing.
+             */
+            CandidateType[] candidateTypes
+                = new CandidateType[]
+                        {
+                            CandidateType.RELAYED_CANDIDATE,
+                            CandidateType.PEER_REFLEXIVE_CANDIDATE,
+                            CandidateType.SERVER_REFLEXIVE_CANDIDATE
+                        };
+
+            for (CandidateType candidateType : candidateTypes)
+            {
+                Iterator<LocalCandidate> localCandidateIter
+                    = localCandidates.iterator();
+
+                while (localCandidateIter.hasNext())
+                {
+                    LocalCandidate localCandidate = localCandidateIter.next();
+
+                    if (candidateType.equals(localCandidate.getType()))
+                    {
+                        free(localCandidate);
+                        localCandidateIter.remove();
+                    }
+                }
+            }
+
+            // Free whatever's left.
+            Iterator<LocalCandidate> localCandidateIter
+                = localCandidates.iterator();
+
+            while (localCandidateIter.hasNext())
+            {
+                LocalCandidate localCandidate = localCandidateIter.next();
+
+                free(localCandidate);
+                localCandidateIter.remove();
+            }
+        }
+
+        getComponentSocket().close();
+    }

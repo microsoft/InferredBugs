@@ -1,0 +1,126 @@
+    private DataOutput createCompressorStream(final RenderedImage image, final ImageWriteParam param, final Map<Integer, Entry> entries) {
+        /*
+        36 MB test data:
+
+        No compression:
+        Write time: 450 ms
+        output.length: 36000226
+
+        PackBits:
+        Write time: 688 ms
+        output.length: 30322187
+
+        Deflate, BEST_SPEED (1):
+        Write time: 1276 ms
+        output.length: 14128866
+
+        Deflate, 2:
+        Write time: 1297 ms
+        output.length: 13848735
+
+        Deflate, 3:
+        Write time: 1594 ms
+        output.length: 13103224
+
+        Deflate, 4:
+        Write time: 1663 ms
+        output.length: 13380899 (!!)
+
+        5
+        Write time: 1941 ms
+        output.length: 13171244
+
+        6
+        Write time: 2311 ms
+        output.length: 12845101
+
+        7: Write time: 2853 ms
+        output.length: 12759426
+
+        8:
+        Write time: 4429 ms
+        output.length: 12624517
+
+        Deflate: DEFAULT_COMPRESSION (6?):
+        Write time: 2357 ms
+        output.length: 12845101
+
+        Deflate, BEST_COMPRESSION (9):
+        Write time: 4998 ms
+        output.length: 12600399
+         */
+
+        int samplesPerPixel = (Integer) entries.get(TIFF.TAG_SAMPLES_PER_PIXEL).getValue();
+        int bitPerSample = ((short[]) entries.get(TIFF.TAG_BITS_PER_SAMPLE).getValue())[0];
+
+        // Use predictor by default for LZW and ZLib/Deflate
+        // TODO: Unless explicitly disabled in TIFFImageWriteParam
+        int compression = (int) entries.get(TIFF.TAG_COMPRESSION).getValue();
+        OutputStream stream;
+
+        switch (compression) {
+            case TIFFBaseline.COMPRESSION_NONE:
+                return imageOutput;
+            case TIFFBaseline.COMPRESSION_PACKBITS:
+                stream = IIOUtil.createStreamAdapter(imageOutput);
+                stream = new EncoderStream(stream, new PackBitsEncoder(), true);
+                // NOTE: PackBits + Predictor is possible, but not generally supported, disable it by default
+                // (and probably not even allow it, see http://stackoverflow.com/questions/20337400/tiff-packbits-compression-with-predictor-step)
+                return new DataOutputStream(stream);
+
+            case TIFFExtension.COMPRESSION_ZLIB:
+            case TIFFExtension.COMPRESSION_DEFLATE:
+                // NOTE: This interpretation does the opposite of the JAI TIFFImageWriter, but seems more correct.
+                // API Docs says:
+                // A compression quality setting of 0.0 is most generically interpreted as "high compression is important,"
+                // while a setting of 1.0 is most generically interpreted as "high image quality is important."
+                // However, the JAI TIFFImageWriter uses:
+                //    if (param & compression etc...) {
+                //        float quality = param.getCompressionQuality();
+                //        deflateLevel = (int)(1 + 8*quality);
+                //    } else {
+                //        deflateLevel = Deflater.DEFAULT_COMPRESSION;
+                //    }
+                // (in other words, 0.0 means 1 == BEST_SPEED, 1.0 means 9 == BEST_COMPRESSION)
+                // PS: PNGImageWriter just uses hardcoded BEST_COMPRESSION... :-P
+                int deflateSetting = Deflater.BEST_SPEED; // This is consistent with default compression quality being 1.0 and 0 meaning max compression...
+                if (param.getCompressionMode() == ImageWriteParam.MODE_EXPLICIT) {
+                    deflateSetting = Deflater.BEST_COMPRESSION - Math.round((Deflater.BEST_COMPRESSION - 1) * param.getCompressionQuality());
+                }
+
+                stream = IIOUtil.createStreamAdapter(imageOutput);
+                stream = new DeflaterOutputStream(stream, new Deflater(deflateSetting), 1024);
+                if (entries.containsKey(TIFF.TAG_PREDICTOR) && entries.get(TIFF.TAG_PREDICTOR).getValue().equals(TIFFExtension.PREDICTOR_HORIZONTAL_DIFFERENCING)) {
+                    stream = new HorizontalDifferencingStream(stream, image.getTileWidth(), samplesPerPixel, bitPerSample, imageOutput.getByteOrder());
+                }
+
+                return new DataOutputStream(stream);
+
+            case TIFFExtension.COMPRESSION_LZW:
+                stream = IIOUtil.createStreamAdapter(imageOutput);
+                stream = new EncoderStream(stream, new LZWEncoder((image.getTileWidth() * image.getTileHeight() * samplesPerPixel * bitPerSample + 7) / 8));
+                if (entries.containsKey(TIFF.TAG_PREDICTOR) && entries.get(TIFF.TAG_PREDICTOR).getValue().equals(TIFFExtension.PREDICTOR_HORIZONTAL_DIFFERENCING)) {
+                    stream = new HorizontalDifferencingStream(stream, image.getTileWidth(), samplesPerPixel, bitPerSample, imageOutput.getByteOrder());
+                }
+
+                return new DataOutputStream(stream);
+
+            case TIFFBaseline.COMPRESSION_CCITT_MODIFIED_HUFFMAN_RLE:
+            case TIFFExtension.COMPRESSION_CCITT_T4:
+            case TIFFExtension.COMPRESSION_CCITT_T6:
+                long option = 0L;
+
+                if (compression != TIFFBaseline.COMPRESSION_CCITT_MODIFIED_HUFFMAN_RLE) {
+                    option = (long) entries.get(compression == TIFFExtension.COMPRESSION_CCITT_T4 ? TIFF.TAG_GROUP3OPTIONS : TIFF.TAG_GROUP4OPTIONS).getValue();
+                }
+
+                Entry fillOrderEntry = entries.get(TIFF.TAG_FILL_ORDER);
+                int fillOrder = (int) (fillOrderEntry != null ? fillOrderEntry.getValue() : TIFFBaseline.FILL_LEFT_TO_RIGHT);
+                stream = IIOUtil.createStreamAdapter(imageOutput);
+                stream = new CCITTFaxEncoderStream(stream, image.getTileWidth(), image.getTileHeight(), compression, fillOrder, option);
+
+                return new DataOutputStream(stream);
+        }
+
+        throw new IllegalArgumentException(String.format("Unsupported TIFF compression: %d", compression));
+    }

@@ -1,0 +1,47 @@
+    protected void addTx(Block block) {
+
+        BlockHeader blockHeader = block.getHeader();
+        List<Transaction> txs = block.getTxs();
+                
+        Transaction<Agent> agentTx = new CreateAgentTransaction();
+        Agent agent = new Agent();
+        agent.setPackingAddress(AddressTool.getAddress(ecKey.getPubKey()));
+        agent.setAgentAddress(AddressTool.getAddress(ecKey.getPubKey()));
+        agent.setTime(System.currentTimeMillis());
+        agent.setDeposit(Na.NA.multiply(20000));
+        agent.setAgentName("test".getBytes());
+        agent.setIntroduction("test agent".getBytes());
+        agent.setCommissionRate(0.3d);
+        agent.setBlockHeight(blockHeader.getHeight());
+
+        agentTx.setTxData(agent);
+        agentTx.setTime(agent.getTime());
+        agentTx.setBlockHeight(blockHeader.getHeight());
+
+        NulsSignData signData = null;
+        try {
+            signData = accountService.signData(agentTx.getHash().getDigestBytes(), ecKey);
+        } catch (NulsException e) {
+            e.printStackTrace();
+        }
+
+        agentTx.setScriptSig(signData.getSignBytes());
+
+        // add the agent tx into agent list
+        txs.add(agentTx);
+
+        // new a deposit
+        Deposit deposit = new Deposit();
+        deposit.setAddress(AddressTool.getAddress(ecKey.getPubKey()));
+        deposit.setAgentHash(agentTx.getHash());
+        deposit.setTime(System.currentTimeMillis());
+        deposit.setDeposit(Na.NA.multiply(200000));
+        deposit.setBlockHeight(blockHeader.getHeight());
+
+        DepositTransaction depositTx = new DepositTransaction();
+        depositTx.setTime(deposit.getTime());
+        depositTx.setTxData(deposit);
+        depositTx.setBlockHeight(blockHeader.getHeight());
+
+        txs.add(depositTx);
+    }

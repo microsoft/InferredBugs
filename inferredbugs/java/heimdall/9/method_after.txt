@@ -1,0 +1,23 @@
+    public void execute(Integer status, String body) {
+
+        RequestContext ctx = RequestContext.getCurrentContext();
+
+        String response;
+        if (helper.json().isJson(body)) {
+            response = helper.json().parse(body);
+
+            helper.call().response().header().add("Content-Type", "application/json");
+        } else {
+
+            response = body;
+
+            helper.call().response().header().add("Content-Type", "text/plain");
+        }
+
+        helper.call().response().setBody(response);
+
+        ctx.setSendZuulResponse(false);
+        ctx.setResponseStatusCode(status);
+
+        TraceContextHolder.getInstance().getActualTrace().trace(ConstantsInterceptors.GLOBAL_MOCK_INTERCEPTOR_LOCALIZED, response);
+    }

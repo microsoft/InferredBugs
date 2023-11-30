@@ -1,0 +1,16 @@
+ RecordMetaDataForCache writeRecord(Record record) throws IOException {
+
+		long start = System.nanoTime();
+		writeToChannel(record.serialize(), writeChannel);
+
+		int recordSize = record.getRecordSize();
+		long recordOffset = writeOffset;
+		writeOffset += recordSize;
+
+		IndexFileEntry indexFileEntry = new IndexFileEntry(record.getKey(), recordSize, recordOffset, record.getSequenceNumber(), record.getFlags());
+		indexFile.write(indexFileEntry);
+
+		HaloDB.recordWriteLatency(System.nanoTime() - start);
+
+		return new RecordMetaDataForCache(fileId, recordOffset, recordSize, record.getSequenceNumber());
+	}

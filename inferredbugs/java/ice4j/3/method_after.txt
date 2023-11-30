@@ -1,0 +1,107 @@
+    private void validateRequestAttributes(StunMessageEvent evt)
+        throws IllegalArgumentException, StunException, IOException
+    {
+        Message request = evt.getMessage();
+
+        //assert valid username
+        UsernameAttribute unameAttr = (UsernameAttribute)request
+            .getAttribute(Attribute.USERNAME);
+        String username = null;
+
+        if (unameAttr != null)
+        {
+            username = LongTermCredential.toString(unameAttr.getUsername());
+            if (!validateUsername(username))
+            {
+                Response error = MessageFactory.createBindingErrorResponse(
+                                ErrorCodeAttribute.UNAUTHORIZED,
+                                "unknown user " + username);
+
+                sendResponse(request.getTransactionID(), error,
+                                evt.getLocalAddress(),
+                                evt.getRemoteAddress());
+
+                throw new IllegalArgumentException(
+                    "Non-recognized username: " + username);
+            }
+        }
+
+        //assert Message Integrity
+        MessageIntegrityAttribute msgIntAttr
+            = (MessageIntegrityAttribute)
+                request.getAttribute(Attribute.MESSAGE_INTEGRITY);
+
+        if (msgIntAttr != null)
+        {
+            //we should complain if we have msg integrity and no username.
+            if (unameAttr == null)
+            {
+                Response error = MessageFactory.createBindingErrorResponse(
+                                ErrorCodeAttribute.BAD_REQUEST,
+                                "missing username");
+
+                sendResponse(request.getTransactionID(), error,
+                                evt.getLocalAddress(),
+                                evt.getRemoteAddress());
+
+                throw new IllegalArgumentException(
+                    "Missing USERNAME in the presence of MESSAGE-INTEGRITY: ");
+            }
+
+            if (!validateMessageIntegrity(
+                    msgIntAttr,
+                    username,
+                    true,
+                    evt.getRawMessage()))
+            {
+                Response error = MessageFactory.createBindingErrorResponse(
+                                ErrorCodeAttribute.UNAUTHORIZED,
+                                "Wrong MESSAGE-INTEGRITY value");
+
+                sendResponse(request.getTransactionID(), error,
+                                evt.getLocalAddress(),
+                                evt.getRemoteAddress());
+
+                throw new IllegalArgumentException(
+                    "Wrong MESSAGE-INTEGRITY value.");
+            }
+        }
+        else if(Boolean.getBoolean(StackProperties.REQUIRE_MESSAGE_INTEGRITY))
+        {
+            // no message integrity
+            Response error = MessageFactory.createBindingErrorResponse(
+                            ErrorCodeAttribute.UNAUTHORIZED,
+                            "Missing MESSAGE-INTEGRITY.");
+
+            sendResponse(request.getTransactionID(), error,
+                            evt.getLocalAddress(),
+                            evt.getRemoteAddress());
+            throw new IllegalArgumentException(
+                "Missing MESSAGE-INTEGRITY.");
+        }
+
+        //look for unknown attributes.
+        List<Attribute> allAttributes = request.getAttributes();
+        StringBuffer sBuff = new StringBuffer();
+        for(Attribute attr : allAttributes)
+        {
+            if(attr instanceof OptionalAttribute
+                && attr.getAttributeType()
+                    < Attribute.UNKNOWN_OPTIONAL_ATTRIBUTE)
+                sBuff.append(attr.getAttributeType());
+        }
+
+        if (sBuff.length() > 0)
+        {
+            Response error = MessageFactory.createBindingErrorResponse(
+                    ErrorCodeAttribute.UNKNOWN_ATTRIBUTE,
+                    "unknown attribute ", sBuff.toString().toCharArray());
+
+            sendResponse(request.getTransactionID(), error,
+                            evt.getLocalAddress(),
+                            evt.getRemoteAddress());
+
+            throw new IllegalArgumentException(
+                "Missing MESSAGE-INTEGRITY.");
+        }
+    }

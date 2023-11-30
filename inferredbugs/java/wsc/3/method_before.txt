@@ -1,0 +1,33 @@
+    private String doHttpGet(URL url) throws IOException, RestApiException {
+        System.out.println("GET " + url.toString());
+        HttpURLConnection connection = JdkHttpTransport.createConnection(config, url, headers, false);
+    	connection.setInstanceFollowRedirects(true);
+
+    	InputStream in;
+    	System.out.println("HTTP " + connection.getResponseCode());
+    	if(connection.getResponseCode() >= 400) {
+    	    in = connection.getErrorStream();
+    	} else {
+    	    in = connection.getInputStream();
+    	}
+
+        String encoding = connection.getHeaderField(CONTENT_HEADER);
+        StringBuilder responseBuilder = new StringBuilder();
+        if (encoding.startsWith(ContentType.JSON.toString())) {
+            BufferedInputStream bin = new BufferedInputStream(in);
+
+            //read the server response body
+            byte[] buffer = new byte[1024];
+            int bytesRead = 0;
+            while ((bytesRead = bin.read(buffer)) != -1) {
+            	responseBuilder.append(new String(buffer, 0, bytesRead));
+            }
+            
+        } else {
+        	throw new IllegalStateException("Unknown content type on HTTP GET.");
+        }
+        in.close();
+        
+        //send back the server response
+        return responseBuilder.toString();
+    }

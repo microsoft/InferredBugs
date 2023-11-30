@@ -1,0 +1,28 @@
+  public static void main(final String[] args) {
+
+    enablePowerMockSupport();
+
+    final int port = Integer.valueOf(args[0]);
+
+    Socket s = null;
+    try {
+      s = new Socket("localhost", port);
+      final SafeDataInputStream dis = new SafeDataInputStream(
+          s.getInputStream());
+      
+      Reporter reporter = new DefaultReporter(s.getOutputStream());
+      addMemoryWatchDog(reporter);
+      
+      final MutationTestSlave instance = new MutationTestSlave(dis, reporter);
+      instance.run();
+    } catch (final UnknownHostException ex) {
+      LOG.log(Level.WARNING, "Error during mutation test", ex);
+    } catch (final IOException ex) {
+      LOG.log(Level.WARNING, "Error during mutation test", ex);
+    } finally {
+      if ( s != null ) {
+        safelyCloseSocket(s);
+      }
+    }
+
+  }

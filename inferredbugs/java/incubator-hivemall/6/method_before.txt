@@ -1,0 +1,37 @@
+    private static void loadValues(OpenHashMap<Object, Object> map, File file, PrimitiveObjectInspector keyOI, PrimitiveObjectInspector valueOI)
+            throws IOException, SerDeException {
+        if(!file.exists()) {
+            return;
+        }
+        if(!file.getName().endsWith(".crc")) {
+            if(file.isDirectory()) {
+                for(File f : file.listFiles()) {
+                    loadValues(map, f, keyOI, valueOI);
+                }
+            } else {
+                LazySimpleSerDe serde = HiveUtils.getKeyValueLineSerde(keyOI, valueOI);
+                StructObjectInspector lineOI = (StructObjectInspector) serde.getObjectInspector();
+                StructField keyRef = lineOI.getStructFieldRef("key");
+                StructField valueRef = lineOI.getStructFieldRef("value");
+                PrimitiveObjectInspector keyRefOI = (PrimitiveObjectInspector) keyRef.getFieldObjectInspector();
+                PrimitiveObjectInspector valueRefOI = (PrimitiveObjectInspector) valueRef.getFieldObjectInspector();
+
+                final BufferedReader reader = HadoopUtils.getBufferedReader(file);
+                try {
+                    String line;
+                    while((line = reader.readLine()) != null) {
+                        Text lineText = new Text(line);
+                        Object lineObj = serde.deserialize(lineText);
+                        List<Object> fields = lineOI.getStructFieldsDataAsList(lineObj);
+                        Object f0 = fields.get(0);
+                        Object f1 = fields.get(1);
+                        Object k = keyRefOI.getPrimitiveJavaObject(f0);
+                        Object v = valueRefOI.getPrimitiveWritableObject(valueRefOI.copyObject(f1));
+                        map.put(k, v);
+                    }
+                } finally {
+                    reader.close();
+                }
+            }
+        }
+    }

@@ -1,0 +1,49 @@
+    @Test
+    public void testDeleteInsertCloseAndOpen() throws IOException {
+        String directory = "/tmp/HaloDBTest/testDeleteInsertCloseAndOpen";
+
+        HaloDBOptions options = new HaloDBOptions();
+        options.isMergeDisabled = true;
+        options.maxFileSize = 10*1024;
+
+        HaloDB db = getTestDB(directory, options);
+
+        int noOfRecords = 10_000;
+        List<Record> records = TestUtils.insertRandomRecords(db, noOfRecords);
+
+        List<Record> deleted = new ArrayList<>();
+        for (int i = 0; i < noOfRecords; i++) {
+            if (i % 10 == 0) deleted.add(records.get(i));
+        }
+
+        TestUtils.deleteRecords(db, deleted);
+
+        // inserting deleted records again. 
+        List<Record> deleteAndInsert = new ArrayList<>();
+        deleted.forEach(r -> {
+            try {
+                byte[] value = TestUtils.generateRandomByteArray();
+                db.put(r.getKey(), value);
+                deleteAndInsert.add(new Record(r.getKey(), value));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        db.close();
+        HaloDB openAgainDB = getTestDBWithoutDeletingFiles(directory, options);
+
+        List<Record> remaining = new ArrayList<>();
+        openAgainDB.newIterator().forEachRemaining(remaining::add);
+
+        Assert.assertTrue(remaining.size() == noOfRecords);
+
+        // make sure that records that were earlier deleted shows up now, since they were put back later.
+        deleteAndInsert.forEach(r -> {
+            try {
+                Assert.assertEquals(r.getValue(), openAgainDB.get(r.getKey()));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }

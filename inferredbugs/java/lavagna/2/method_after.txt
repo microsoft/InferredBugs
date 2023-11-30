@@ -1,0 +1,32 @@
+    public void checkNew() {
+        List<ProjectMailTicketConfig> entries = mailTicketRepository.findAll();
+
+        for(ProjectMailTicketConfig entry: entries) {
+            MailReceiver receiver = entry.getConfig().getInboundProtocol().startsWith("pop3") ?
+                getPop3MailReceiver(entry.getConfig(), entry.getProperties()) :
+                getImapMailReceiver(entry.getConfig(), entry.getProperties());
+
+            try {
+                Object[] messages = receiver.receive();
+                LOG.info("found {} messages", messages.length);
+                for(int i = 0; i < messages.length; i++) {
+                    MimeMessage message = (MimeMessage) messages[i];
+
+                    String deliveredTo = getDeliveredTo(message);
+
+                    for(ProjectMailTicket ticketConfig: entry.getEntries()) {
+                        if(entry.getConfig().getFrom().equals(deliveredTo)) {
+                            String from = getFrom(message);
+                            try {
+                                createCard(message.getSubject(), getTextFromMessage(message), ticketConfig.getColumnId(), from);
+                            } catch (IOException|MessagingException e) {
+                                LOG.error("failed to parse message content", e);
+                            }
+                        }
+                    }
+                }
+            } catch (MessagingException e) {
+                LOG.error("could not retrieve messages for ticket mail config id: {}", entry.getId());
+            }
+        }
+    }

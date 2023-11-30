@@ -1,0 +1,23 @@
+    protected void calculate(ValuesProvider valuesProvider, List<ConnectionCandidate> connections, NeuralNetwork nn) {
+	if (connections.size() > 0) {
+	    List<Connections> chunk = new ArrayList<>();
+
+	    for (int i = 0; i < connections.size(); i++) {
+		ConnectionCandidate c = connections.get(i);
+		chunk.add(c.connection);
+
+		if (i == connections.size() - 1 || connections.get(i + 1).target != c.target) {
+		    ConnectionCalculator cc = getConnectionCalculator(c.target);
+		    if (cc != null) {
+			Tensor t = TensorFactory.tensor(c.target, chunk, valuesProvider);
+			t.forEach(j -> t.getElements()[j] = 0);
+			cc.calculate(chunk, valuesProvider, c.target);
+		    }
+
+		    chunk.clear();
+
+		    triggerEvent(new PropagationEvent(c.target, chunk, nn, valuesProvider));
+		}
+	    }
+	}
+    }

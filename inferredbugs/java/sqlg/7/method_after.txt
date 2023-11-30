@@ -1,0 +1,41 @@
+    @Test
+    public void testBatchUpdateDifferentPropertiesDifferentRows() {
+
+        Vertex sqlgVertex1 = this.sqlgGraph.addVertex(T.label, "Person", "property1", "a1", "property2", "b1", "property3", "c1");
+        Vertex sqlgVertex2 = this.sqlgGraph.addVertex(T.label, "Person", "property1", "a2", "property2", "b2", "property3", "c2");
+        Vertex sqlgVertex3 = this.sqlgGraph.addVertex(T.label, "Person", "property1", "a3", "property2", "b3", "property3", "c3");
+        this.sqlgGraph.tx().commit();
+
+        sqlgVertex1 = this.sqlgGraph.traversal().V(sqlgVertex1.id()).next();
+        assertEquals("a1", sqlgVertex1.value("property1"));
+        assertEquals("b1", sqlgVertex1.value("property2"));
+        assertEquals("c1", sqlgVertex1.value("property3"));
+
+        this.sqlgGraph.tx().rollback();
+        this.sqlgGraph.tx().normalBatchModeOn();
+        sqlgVertex1 = this.sqlgGraph.traversal().V(sqlgVertex1.id()).next();
+        sqlgVertex1.property("property1", "a11");
+        sqlgVertex2.property("property2", "b22");
+        sqlgVertex3.property("property3", "c33");
+        this.sqlgGraph.tx().commit();
+
+        assertEquals("a11", sqlgVertex1.value("property1"));
+        assertEquals("b1", sqlgVertex1.value("property2"));
+        assertEquals("c1", sqlgVertex1.value("property3"));
+
+        sqlgVertex1 = this.sqlgGraph.traversal().V(sqlgVertex1.id()).next();
+        assertEquals("a11", sqlgVertex1.value("property1"));
+        assertEquals("b1", sqlgVertex1.value("property2"));
+        assertEquals("c1", sqlgVertex1.value("property3"));
+
+        sqlgVertex2 = this.sqlgGraph.traversal().V(sqlgVertex2.id()).next();
+        assertEquals("a2", sqlgVertex2.value("property1"));
+        assertEquals("b22", sqlgVertex2.value("property2"));
+        assertEquals("c2", sqlgVertex2.value("property3"));
+
+        sqlgVertex3 = this.sqlgGraph.traversal().V(sqlgVertex3.id()).next();
+        assertEquals("a3", sqlgVertex3.value("property1"));
+        assertEquals("b3", sqlgVertex3.value("property2"));
+        assertEquals("c33", sqlgVertex3.value("property3"));
+
+    }

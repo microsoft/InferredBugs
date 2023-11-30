@@ -1,0 +1,46 @@
+    @Override
+    public void parsePage(WebPage webPage) throws Exception {
+        if (null == webPage) {
+            return;
+        }
+        if (webPage.getHttpCode() == 400) {
+            log.error("雪球token失效!");
+            if (error.addAndGet(1) > 10) {
+                log.error("错误超过10次，即将关闭FUND_HOLDERS任务");
+                ITimeJobFactory.getJob(ITimeJobFactory.TIMEJOB.FUND_HOLDERS).execute(ITimerJob.COMMAND.STOP);
+                //发邮件通知
+                SpringMailSender mailSender = SpringContextUtil.getBean(SpringMailSender.class);
+                String adminMail = SpringContextUtil.getProperties("app.admin.email");
+                mailSender.sendSimpleTextMail(adminMail, "istock爬虫通知", "雪球token失效,错误已超10次，线程已关闭，请更新token再重新启动程序！");
+            }
+            return;
+        }
+        Document doc = webPage.getDocument();
+        JSONObject json = JSON.parseObject(doc.text());
+        if(json.getJSONObject("data").containsKey("chg_date")) {
+            String report = json.getJSONObject("data").getString("chg_date");
+            JSONArray founds = json.getJSONObject("data").getJSONArray("fund_items");
+            List<StockFundHolder> rows = new ArrayList<>();
+            for (int i = 1; i < founds.size(); i++) {
+                rows.add(new StockFundHolder(
+                        currentCodeInfo.getCode(), report,
+                        founds.getJSONObject(i).getString("org_name_or_fund_name"),
+                        founds.getJSONObject(i).getDouble("to_float_shares_ratio"),
+                        founds.getJSONObject(i).getDouble("held_num")
+                ));
+            }
+            MyMongoTemplate myMongoTemplate = SpringContextUtil.getBean(MyMongoTemplate.class);
+            long dels = myMongoTemplate.remove(StockFundHolder.class, Criteria.where("code").is(currentCodeInfo.getCode()));
+            log.info("delete StockFundHolder {}", dels);
+            int addnum = myMongoTemplate.save(rows, StockFundHolder.class).getInsertedCount();
+            log.info("add StockFundHolder {}", addnum);
+        }else{
+            log.error("{}无基金持股数据!",currentCodeInfo.getCode());
+        }
+        UpdateResult updateResult= getMongoTemp().upsert(
+                new Query(Criteria.where("_id").is(currentCodeInfo.getCode())),
+                new Update().set("fundHolderDate",Integer.valueOf(TradingDateUtil.getDateYYYYMMdd())),"stock_code_info");
+        log.info(JSON.toJSONString(updateResult));
+
+
+    }

@@ -1,0 +1,56 @@
+    public serverObjects searchFromRemote(Set hashes, int count, boolean global, long duetime) {
+        if (hashes == null) hashes = new HashSet();
+        
+        serverObjects prop = new serverObjects();
+        try {
+            log.logInfo("INIT HASH SEARCH: " + hashes + " - " + count + " links");
+            long timestamp = System.currentTimeMillis();
+            plasmaWordIndexEntity idx = searchManager.searchHashes(hashes, duetime * 8 / 10); // a nameless temporary index, not sorted by special order but by hash
+            long remainingTime = duetime - (System.currentTimeMillis() - timestamp);
+            plasmaSearch.result acc = searchManager.order(idx, hashes, stopwords, new char[]{plasmaSearch.O_QUALITY, plasmaSearch.O_AGE}, remainingTime, 10);
+            
+            // result is a List of urlEntry elements
+            if (acc == null) {
+                prop.put("totalcount", "0");
+                prop.put("linkcount", "0");
+                prop.put("references", "");
+            } else {
+                prop.put("totalcount", "" + acc.sizeOrdered());
+                int i = 0;
+                StringBuffer links = new StringBuffer();
+                String resource = "";
+                //plasmaIndexEntry pie;
+                plasmaCrawlLURL.entry urlentry;
+                while ((acc.hasMoreElements()) && (i < count)) {
+                    urlentry = acc.nextElement();
+                    resource = urlentry.toString();
+                    if (resource != null) {
+                        links.append(resource).append(i).append("=").append(resource).append(serverCore.crlfString);
+                        i++;
+                    }
+                }
+                prop.put("links", links.toString());
+                prop.put("linkcount", "" + i);
+                
+                // prepare reference hints
+                Object[] ws = acc.getReferences(16);
+                StringBuffer refstr = new StringBuffer();
+                for (int j = 0; j < ws.length; j++) refstr.append(",").append((String) ws[j]);
+                prop.put("references", (refstr.length() > 0)?refstr.substring(1):refstr.toString());
+            }
+            
+            // add information about forward peers
+            prop.put("fwhop", ""); // hops (depth) of forwards that had been performed to construct this result
+            prop.put("fwsrc", ""); // peers that helped to construct this result
+            prop.put("fwrec", ""); // peers that would have helped to construct this result (recommendations)
+            
+            // log
+            log.logInfo("EXIT HASH SEARCH: " + hashes + " - " +
+            ((idx == null) ? "0" : (""+idx.size())) + " links, " +
+            ((System.currentTimeMillis() - timestamp) / 1000) + " seconds");
+            if (idx != null) idx.close();
+            return prop;
+        } catch (IOException e) {
+            return null;
+        }
+    }

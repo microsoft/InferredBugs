@@ -1,0 +1,38 @@
+  public <PSI> Match wait(PSI target, double timeout) throws FindFailed {
+    RepeatableFind rf;
+    lastMatch = null;
+    //Image img = null;
+    String targetStr = target.toString();
+    if (target instanceof String) {
+      targetStr = targetStr.trim();
+    }
+    while (true) {
+      try {
+        log(lvl, "find: waiting %.1f secs for %s to appear in %s", timeout, targetStr, this.toStringShort());
+        rf = new RepeatableFind(target, null);
+        rf.repeat(timeout);
+        lastMatch = rf.getMatch();
+      } catch (Exception ex) {
+        if (ex instanceof IOException) {
+        }
+        throw new FindFailed(ex.getMessage());
+      }
+      if (lastMatch != null) {
+        lastMatch.setImage(rf._image);
+        if (rf._image != null) {
+          rf._image.setLastSeen(lastMatch.getRect(), lastMatch.getScore());
+        }
+        log(lvl, "find: %s has appeared \nat %s", targetStr, lastMatch);
+        break;
+      }
+      Image img = rf._image;
+      if (handleImageMissing(img, false)) {
+        continue;
+      }
+      log(lvl, "find: %s has not appeared [%d msec]", targetStr, lastFindTime);
+      if (!handleFindFailed(target, img)) {
+        return null;
+      }
+    }
+    return lastMatch;
+  }

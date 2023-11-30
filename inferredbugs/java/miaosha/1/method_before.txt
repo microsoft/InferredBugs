@@ -1,0 +1,23 @@
+    public boolean register(HttpServletResponse response , String userName , String passWord , String salt) {
+        MiaoshaUser miaoShaUser =  new MiaoshaUser();
+        miaoShaUser.setNickname(userName);
+        String DBPassWord =  MD5Utils.formPassToDBPass(passWord , salt);
+        miaoShaUser.setPassword(DBPassWord);
+        miaoShaUser.setRegisterDate(new Date());
+        miaoShaUser.setSalt(salt);
+        miaoShaUser.setNickname(userName);
+        try {
+            miaoShaUserDao.insertMiaoShaUser(miaoShaUser);
+            MiaoshaUser user = miaoShaUserDao.getById(miaoShaUser.getId());
+            if(user == null){
+                return false;
+            }
+            //生成cookie 将session返回游览器 分布式session
+            String token= UUIDUtil.uuid();
+            addCookie(response, token, user);
+        } catch (Exception e) {
+            logger.error("注册失败",e);
+            return false;
+        }
+        return true;
+    }

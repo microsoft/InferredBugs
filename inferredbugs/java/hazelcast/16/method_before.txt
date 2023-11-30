@@ -1,0 +1,88 @@
+    void migrateBlock(final Block blockInfo) {
+        if (!concurrentMapManager.isBlockInfoValid(blockInfo)) {
+            return;
+        }
+        if (!thisAddress.equals(blockInfo.getOwner())) {
+            throw new RuntimeException();
+        }
+        if (!blockInfo.isMigrating()) {
+            throw new RuntimeException();
+        }
+        if (blockInfo.getOwner().equals(blockInfo.getMigrationAddress())) {
+            throw new RuntimeException();
+        }
+        Block blockReal = blocks[blockInfo.getBlockId()];
+        if (blockReal.isMigrating()) {
+            if (!blockInfo.getMigrationAddress().equals(blockReal.getMigrationAddress())) {
+                logger.log(Level.WARNING, blockReal + ". Already migrating blockInfo is migrating again to " + blockInfo);
+            } else {
+                logger.log(Level.WARNING, blockInfo + " migration unknown " + blockReal);
+            }
+            return;
+        }
+        blockReal.setOwner(blockInfo.getOwner());
+        blockReal.setMigrationAddress(blockInfo.getMigrationAddress());
+        logger.log(Level.FINEST, "migrate blockInfo " + blockInfo);
+        if (!node.isActive() || node.factory.restarted) {
+            return;
+        }
+        if (concurrentMapManager.isSuperClient()) {
+            return;
+        }
+        List<Record> lsRecordsToMigrate = new ArrayList<Record>(1000);
+        Collection<CMap> cmaps = concurrentMapManager.maps.values();
+        for (final CMap cmap : cmaps) {
+            if (cmap.locallyOwnedMap != null) {
+                cmap.locallyOwnedMap.reset();
+            }
+            final Object[] records = cmap.ownedRecords.toArray();
+            for (Object recObj : records) {
+                final Record rec = (Record) recObj;
+                if (rec.isActive()) {
+                    if (rec.getKey() == null || rec.getKey().size() == 0) {
+                        throw new RuntimeException("Record.key is null or empty " + rec.getKey());
+                    }
+                    if (rec.getBlockId() == blockInfo.getBlockId()) {
+                        lsRecordsToMigrate.add(rec);
+                        cmap.markAsRemoved(rec);
+                    }
+                }
+            }
+        }
+        final CountDownLatch latch = new CountDownLatch(lsRecordsToMigrate.size());
+        for (final Record rec : lsRecordsToMigrate) {
+            final CMap cmap = concurrentMapManager.getMap(rec.getName());
+            node.executorManager.executeMigrationTask(new FallThroughRunnable() {
+                public void doRun() {
+                    try {
+                        concurrentMapManager.migrateRecord(cmap, rec);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+        }
+        node.executorManager.executeMigrationTask(new FallThroughRunnable() {
+            public void doRun() {
+                try {
+                    logger.log(Level.FINEST, "migrate blockInfo " + blockInfo + " await ");
+                    latch.await(10, TimeUnit.SECONDS);
+                    concurrentMapManager.enqueueAndReturn(new Processable() {
+                        public void process() {
+                            Block blockReal = blocks[blockInfo.getBlockId()];
+                            logger.log(Level.FINEST, "migrate completing [" + blockInfo + "] realBlock " + blockReal);
+                            blockReal.setOwner(blockReal.getMigrationAddress());
+                            blockReal.setMigrationAddress(null);
+                            logger.log(Level.FINEST, "migrate complete [" + blockInfo.getMigrationAddress() + "] now realBlock " + blockReal);
+                            for (MemberImpl member : concurrentMapManager.lsMembers) {
+                                if (!member.localMember()) {
+                                    concurrentMapManager.sendBlockInfo(new Block(blockReal), member.getAddress());
+                                }
+                            }
+                        }
+                    });
+                } catch (InterruptedException ignored) {
+                }
+            }
+        });
+    }

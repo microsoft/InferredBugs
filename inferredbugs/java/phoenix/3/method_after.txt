@@ -1,0 +1,56 @@
+    @Override
+    public void close() throws SQLException {
+        if (closed) {
+            return;
+        }
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            SQLException sqlE = null;
+            try {
+                // Attempt to return any unused sequences.
+                if (connection != null) returnAllSequences(this.sequenceMap);
+            } catch (SQLException e) {
+                sqlE = e;
+            } finally {
+                try {
+                    // Clear any client-side caches.  
+                    statsManager.clearStats();
+                } catch (SQLException e) {
+                    if (sqlE == null) {
+                        sqlE = e;
+                    } else {
+                        sqlE.setNextException(e);
+                    }
+                } finally {
+                    try {
+                        childServices.clear();
+                        latestMetaData = null;
+                        if (connection != null) connection.close();
+                    } catch (IOException e) {
+                        if (sqlE == null) {
+                            sqlE = ServerUtil.parseServerException(e);
+                        } else {
+                            sqlE.setNextException(ServerUtil.parseServerException(e));
+                        }
+                    } finally {
+                        try {
+                            super.close();
+                        } catch (SQLException e) {
+                            if (sqlE == null) {
+                                sqlE = e;
+                            } else {
+                                sqlE.setNextException(e);
+                            }
+                        } finally {
+                            if (sqlE != null) {
+                                throw sqlE;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }

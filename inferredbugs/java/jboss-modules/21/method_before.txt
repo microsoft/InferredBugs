@@ -1,0 +1,49 @@
+    Map<String, List<LocalLoader>> getPaths(final boolean exports) throws ModuleLoadException {
+        Linkage oldLinkage = this.linkage;
+        Linkage linkage;
+        Linkage.State state = oldLinkage.getState();
+        if (state == Linkage.State.LINKED) {
+            return oldLinkage.getPaths(exports);
+        }
+        // slow path loop
+        boolean intr = false;
+        try {
+            for (;;) {
+                synchronized (this) {
+                    oldLinkage = this.linkage;
+                    state = oldLinkage.getState();
+                    while (state == Linkage.State.LINKING || state == Linkage.State.NEW) try {
+                        wait();
+                        oldLinkage = this.linkage;
+                        state = oldLinkage.getState();
+                    } catch (InterruptedException e) {
+                        intr = true;
+                    }
+                    if (state == Linkage.State.LINKED) {
+                        return oldLinkage.getPaths(exports);
+                    }
+                    this.linkage = linkage = new Linkage(oldLinkage.getSourceList(), Linkage.State.LINKING);
+                    // fall out and link
+                }
+                boolean ok = false;
+                try {
+                    link(linkage);
+                    ok = true;
+                } finally {
+                    if (! ok) {
+                        // restore original (lack of) linkage
+                        synchronized (this) {
+                            if (this.linkage == linkage) {
+                                this.linkage = oldLinkage;
+                                notifyAll();
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (intr) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }

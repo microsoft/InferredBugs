@@ -1,0 +1,28 @@
+    public void log(final LogEvent event) {
+
+        counter.incrementAndGet();
+        try {
+            if (isFiltered(event)) {
+                return;
+            }
+
+            event.setIncludeLocation(isIncludeLocation());
+
+            callAppenders(event);
+
+            if (additive && parent != null) {
+                parent.log(event);
+            }
+        } finally {
+            if (counter.decrementAndGet() == 0) {
+                shutdownLock.lock();
+                try {
+                    if (shutdown.get()) {
+                        noLogEvents.signalAll();
+                    }
+                } finally {
+                    shutdownLock.unlock();
+                }
+            }
+        }
+    }

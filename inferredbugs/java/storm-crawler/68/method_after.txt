@@ -1,0 +1,26 @@
+    @Override
+    public void onResponse(SearchResponse response) {
+        SearchHits hits = response.getHits();
+        LOG.info("{} ES query returned {} hits in {} msec", logIdprefix,
+                hits.getHits().length, response.getTook().getMillis());
+        hasFinished = hits.getHits().length == 0;
+        synchronized (buffer) {
+            // Unlike standard spouts, the scroll queries should never return
+            // the same
+            // document twice -> no need to look in the buffer or cache
+            for (SearchHit hit : hits) {
+                Map<String, Object> keyValues = hit.getSourceAsMap();
+                String url = (String) keyValues.get("url");
+                String status = (String) keyValues.get("status");
+                String nextFetchDate = (String) keyValues.get("nextFetchDate");
+                Metadata metadata = fromKeyValues(keyValues);
+                metadata.setValue(
+                        AbstractStatusUpdaterBolt.AS_IS_NEXTFETCHDATE_METADATA,
+                        nextFetchDate);
+                buffer.add(new Values(url, metadata, Status.valueOf(status)));
+            }
+        }
+        scrollId = response.getScrollId();
+        // remove lock
+        markQueryReceivedNow();
+    }

@@ -1,0 +1,45 @@
+    public boolean generate(String sourceFilename, String headerFilename,
+            String classPath, Class<?> ... classes) throws IOException {
+        // first pass using a null writer to fill up the IndexedSet objects
+        out = new PrintWriter(new Writer() {
+            @Override public void write(char[] cbuf, int off, int len) { }
+            @Override public void flush() { }
+            @Override public void close() { }
+        });
+        out2 = null;
+        callbacks           = new IndexedSet<String>();
+        functions           = new IndexedSet<Class>();
+        deallocators        = new IndexedSet<Class>();
+        arrayDeallocators   = new IndexedSet<Class>();
+        jclasses            = new IndexedSet<Class>();
+        members             = new HashMap<Class,Set<String>>();
+        virtualFunctions    = new HashMap<Class,Set<String>>();
+        virtualMembers      = new HashMap<Class,Set<String>>();
+        annotationCache     = new HashMap<Method,MethodInformation>();
+        mayThrowExceptions  = false;
+        usesAdapters        = false;
+        passesStrings       = false;
+        for (Class<?> cls : baseClasses) {
+            jclasses.index(cls);
+        }
+        if (classes(true, true, true, classPath, classes)) {
+            // second pass with a real writer
+            File sourceFile = new File(sourceFilename);
+            File sourceDir = sourceFile.getParentFile();
+            if (sourceDir != null) {
+                sourceDir.mkdirs();
+            }
+            out = encoding != null ? new PrintWriter(sourceFile, encoding) : new PrintWriter(sourceFile);
+            if (headerFilename != null) {
+                File headerFile = new File(headerFilename);
+                File headerDir = headerFile.getParentFile();
+                if (headerDir != null) {
+                    headerDir.mkdirs();
+                }
+                out2 = encoding != null ? new PrintWriter(headerFile, encoding) : new PrintWriter(headerFile);
+            }
+            return classes(mayThrowExceptions, usesAdapters, passesStrings, classPath, classes);
+        } else {
+            return false;
+        }
+    }

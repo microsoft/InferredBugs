@@ -1,0 +1,75 @@
+    @Override
+    public void execute(JpegToPdfParameters parameters) throws TaskException {
+        int currentStep = 0;
+
+        documentHandler = new PDDocumentHandler();
+        documentHandler.setCreatorOnPDDocument();
+
+        PageImageWriter imageWriter = new PageImageWriter(documentHandler.getUnderlyingPDDocument());
+
+        for (Source<?> source : parameters.getSourceList()) {
+            executionContext().assertTaskNotCancelled();
+
+            currentStep++;
+
+            try {
+                PDImageXObject image = PageImageWriter.toPDXImageObject(source);
+                PDRectangle mediaBox = PDRectangle.A4;
+
+                if (image.getWidth() > image.getHeight() && image.getWidth() > mediaBox.getWidth()) {
+                    mediaBox = new PDRectangle(mediaBox.getHeight(), mediaBox.getWidth());
+                }
+
+                PDPage page = documentHandler.addBlankPage(mediaBox);
+
+                // full page (scaled down only)
+                int width = image.getWidth();
+                int height = image.getHeight();
+
+                if (width > mediaBox.getWidth()) {
+                    int targetWidth = (int) mediaBox.getWidth();
+                    LOG.debug("Scaling image down to fit by width {} vs {}", width, targetWidth);
+
+                    float ratio = (float) width / targetWidth;
+                    width = targetWidth;
+                    height = Math.round(height / ratio);
+                }
+
+                if (height > mediaBox.getHeight()) {
+                    int targetHeight = (int) mediaBox.getHeight();
+                    LOG.debug("Scaling image down to fit by height {} vs {}", height, targetHeight);
+
+                    float ratio = (float) height / targetHeight;
+                    height = targetHeight;
+                    width = Math.round(width / ratio);
+                }
+
+                // centered on page
+                int x = ((int) mediaBox.getWidth() - width) / 2;
+                int y = ((int) mediaBox.getHeight() - height) / 2;
+
+                imageWriter.append(page, image, new Point(x, y), width, height, null, 0);
+
+                notifyEvent(executionContext().notifiableTaskMetadata()).stepsCompleted(currentStep).outOf(totalSteps);
+            } catch (TaskIOException e) {
+                executionContext().assertTaskIsLenient(e);
+                notifyEvent(executionContext().notifiableTaskMetadata()).taskWarning(
+                        String.format("Image %s was skipped, could not be processed", source.getName()), e);
+            }
+        }
+
+        File tmpFile = createTemporaryBuffer(parameters.getOutput());
+        LOG.debug("Created output on temporary buffer {}", tmpFile);
+
+        documentHandler.setVersionOnPDDocument(parameters.getVersion());
+        documentHandler.setCompress(parameters.isCompress());
+        documentHandler.savePDDocument(tmpFile);
+
+        String outName = nameGenerator(parameters.getOutputPrefix()).generate(nameRequest());
+        outputWriter.addOutput(file(tmpFile).name(outName));
+
+        nullSafeCloseQuietly(documentHandler);
+
+        parameters.getOutput().accept(outputWriter);
+        LOG.debug("Input images written to {}", parameters.getOutput());
+    }

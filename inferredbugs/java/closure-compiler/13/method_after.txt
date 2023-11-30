@@ -1,0 +1,23 @@
+  private void escapeParameters(MustDef output) {
+    for (Iterator<Var> i = jsScope.getVars(); i.hasNext();) {
+      Var v = i.next();
+      if (isParameter(v)) {
+        // Assume we no longer know where the parameter comes from
+        // anymore.
+        output.reachingDef.put(v, null);
+      }
+    }
+
+    // Also, assume we no longer know anything that depends on a parameter.
+    for (Entry<Var, Definition> pair: output.reachingDef.entrySet()) {
+      Definition value = pair.getValue();
+      if (value == null) {
+        continue;
+      }
+      for (Var dep : value.depends) {
+        if (isParameter(dep)) {
+          output.reachingDef.put(pair.getKey(), null);
+        }
+      }
+    }
+  }

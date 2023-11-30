@@ -1,0 +1,128 @@
+    public String save() {
+        dataset.setOwner(dataverseService.find(ownerId));
+        //TODO get real application-wide protocol/authority
+        dataset.setProtocol("doi");
+        dataset.setAuthority("10.5072/FK2");
+        dataset.setIdentifier("5555");
+        //TODO add replication for logic if necessary
+        if (replicationFor){
+            //dataset.getVersions().get(0).getDatasetFields().
+        }
+        //Todo pre populate deposit date
+        
+        //If new ds get create date user
+        if (dataset.getId() == null){
+            dataset.setCreator(session.getUser());
+            dataset.setCreateDate(new Timestamp(new Date().getTime()));
+        }
+        if (!(dataset.getVersions().get(0).getFileMetadatas() == null) && !dataset.getVersions().get(0).getFileMetadatas().isEmpty()) {
+            int fmdIndex = 0;
+            for (FileMetadata fmd : dataset.getVersions().get(0).getFileMetadatas()) {
+                for (FileMetadata fmdTest : editVersion.getFileMetadatas()) {
+                    if (fmd.equals(fmdTest)) {
+                        dataset.getVersions().get(0).getFileMetadatas().get(fmdIndex).setDataFile(fmdTest.getDataFile());
+                    }
+                }
+                fmdIndex++;
+            }
+        }
+
+        /*
+         * Save and/or ingest files, if there are any:
+         */
+        if (newFiles != null && newFiles.size() > 0) {
+            try {
+                if (dataset.getFileSystemDirectory() != null && !Files.exists(dataset.getFileSystemDirectory())) {
+                    /* Note that "createDirectories()" must be used - not 
+                     * "createDirectory()", to make sure all the parent 
+                     * directories that may not yet exist are created as well. 
+                     */
+
+                    Files.createDirectories(dataset.getFileSystemDirectory());
+                }
+            } catch (IOException dirEx) {
+                Logger.getLogger(DatasetPage.class.getName()).log(Level.SEVERE, "Failed to create study directory " + dataset.getFileSystemDirectory().toString());
+            }
+
+            if (dataset.getFileSystemDirectory() != null && Files.exists(dataset.getFileSystemDirectory())) {
+                for (UploadedFile uFile : newFiles.keySet()) {
+                    DataFile dFile = newFiles.get(uFile);
+                    String tempFileLocation = getFilesTempDirectory() + "/" + dFile.getFileSystemName();
+
+                    boolean ingestedAsTabular = false;
+                    boolean metadataExtracted = false;
+
+                    datasetService.generateFileSystemName(dFile);
+
+                    if (ingestService.ingestableAsTabular(dFile)) {
+
+                        try {
+                            ingestedAsTabular = ingestService.ingestAsTabular(tempFileLocation, dFile);
+                            dFile.setContentType("text/tab-separated-values");
+                        } catch (IOException iex) {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.SEVERE, null, iex);
+                            ingestedAsTabular = false;
+                        }
+                    } else if (ingestService.fileMetadataExtractable(dFile)) {
+
+                        try {
+                            dFile.setContentType("application/fits");
+                            metadataExtracted = ingestService.extractIndexableMetadata(tempFileLocation, dFile, editVersion);
+                        } catch (IOException mex) {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.SEVERE, "Caught exception trying to extract indexable metadata from file " + dFile.getName(), mex);
+                        }
+                        if (metadataExtracted) {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.INFO, "Successfully extracted indexable metadata from file " + dFile.getName());
+                        } else {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.INFO, "Failed to extract indexable metadata from file " + dFile.getName());
+                        }
+                    }
+
+                    /* Try to save the file in its permanent location: 
+                     * (unless it was already ingested and saved as tabular data) 
+                     */
+                    if (!ingestedAsTabular) {
+                        try {
+
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.INFO, "Will attempt to save the file as: " + dFile.getFileSystemLocation().toString());
+                            Files.copy(uFile.getInputstream(), dFile.getFileSystemLocation(), StandardCopyOption.REPLACE_EXISTING);
+
+                            MD5Checksum md5Checksum = new MD5Checksum();
+                            try {
+                                dFile.setmd5(md5Checksum.CalculateMD5(dFile.getFileSystemLocation().toString()));
+                            } catch (Exception md5ex) {
+                                Logger.getLogger(DatasetPage.class.getName()).log(Level.WARNING, "Could not calculate MD5 signature for the new file " + dFile.getName());
+                            }
+
+                        } catch (IOException ioex) {
+                            Logger.getLogger(DatasetPage.class.getName()).log(Level.WARNING, "Failed to save the file  " + dFile.getFileSystemLocation());
+                        }
+                    }
+
+                    // Any necessary post-processing: 
+                    ingestService.performPostProcessingTasks(dFile);
+                }
+            }
+        }
+
+        try {
+            dataset = datasetService.save(dataset);
+        } catch (EJBException ex) {
+            StringBuilder error = new StringBuilder();
+            error.append(ex + " ");
+            error.append(ex.getMessage() + " ");
+            Throwable cause = ex;
+            while (cause.getCause() != null) {
+                cause = cause.getCause();
+                error.append(cause + " ");
+                error.append(cause.getMessage() + " ");
+            }
+            logger.info("Couldn't save dataset: " + error.toString());
+            FacesContext.getCurrentInstance().addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR, "Dataset Save Failed", " - " + error.toString()));
+            return null;
+        }
+        newFiles.clear();
+        editMode = null;
+
+        return "/dataset.xhtml?id=" + dataset.getId() + "&faces-redirect=true";
+    }

@@ -1,0 +1,31 @@
+    @Override
+    public void writeRequested(ChannelHandlerContext ctx, MessageEvent me) throws Exception{
+
+        if(!(me.getMessage() instanceof CoapMessage)){
+            ctx.sendDownstream(me);
+            return;
+        }
+
+        CoapMessage coapMessage = (CoapMessage) me.getMessage();
+
+        log.debug("Outgoing " + coapMessage.getMessageType() + " (MsgID " + coapMessage.getMessageID() +
+                ", MsgHash " + Integer.toHexString(coapMessage.hashCode()) + ", Rcpt " + me.getRemoteAddress() +
+                ", Block " + coapMessage.getBlockNumber(OptionRegistry.OptionName.BLOCK_2) + ").");
+
+        if(coapMessage.getMessageID() == -1){
+
+            coapMessage.setMessageID(messageIDFactory.nextMessageID());
+
+            log.debug("Set message ID " + coapMessage.getMessageID());
+            if(coapMessage.getMessageType() == MsgType.CON){
+                if(!waitingForACK.contains(me.getRemoteAddress(), coapMessage.getMessageID())){
+                    MessageRetransmissionScheduler scheduler =
+                            new MessageRetransmissionScheduler((InetSocketAddress) me.getRemoteAddress(), coapMessage);
+
+                    executorService.schedule(scheduler, 0, TimeUnit.MILLISECONDS);
+                }
+            }
+        }
+
+        ctx.sendDownstream(me);
+    }

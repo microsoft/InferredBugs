@@ -1,0 +1,47 @@
+ public ItemCollection load(String id) {
+		long lLoadTime = System.currentTimeMillis();
+		Document persistedDocument = null;
+		
+		if (id==null || id.isEmpty()) {
+			return null;
+		}
+		persistedDocument = manager.find(Document.class, id);
+
+		// create instance of ItemCollection
+		if (persistedDocument != null && isCallerReader(persistedDocument)) {
+
+			ItemCollection result = null;// new ItemCollection();
+			if (persistedDocument.isPending()) {
+				// we clone but do not detach
+				logger.finest("......clone manged entity '" + id + "' pending status=" + persistedDocument.isPending());
+				result = new ItemCollection(persistedDocument.getData());
+			} else {
+				// the document is not managed, so we detach it
+				result = new ItemCollection();
+				result.setAllItems(persistedDocument.getData());
+				manager.detach(persistedDocument);
+			}
+
+			// if disable Optimistic Locking is TRUE we do not add the version
+			// number
+			if (disableOptimisticLocking) {
+				result.removeItem("$Version");
+			} else {
+				result.replaceItemValue("$Version", persistedDocument.getVersion());
+			}
+
+			// update the $isauthor flag
+			result.replaceItemValue("$isauthor", isCallerAuthor(persistedDocument));
+
+			// fire event
+			if (events != null) {
+				events.fire(new DocumentEvent(result, DocumentEvent.ON_DOCUMENT_LOAD));
+			} else {
+				logger.warning("Missing CDI support for Event<DocumentEvent> !");
+			}
+			logger.fine(
+					"...'" + result.getUniqueID() + "' loaded in " + (System.currentTimeMillis() - lLoadTime) + "ms");
+			return result;
+		} else
+			return null;
+	}

@@ -1,0 +1,60 @@
+ @RequestMapping(value = "/topic/meta/{tname}/ajax", method = RequestMethod.GET)
+	public void topicMetaAjax(@PathVariable("tname") String tname, HttpServletResponse response, HttpServletRequest request) {
+		response.setContentType("text/html;charset=utf-8");
+		response.setCharacterEncoding("utf-8");
+		response.setHeader("Charset", "utf-8");
+		response.setHeader("Cache-Control", "no-cache");
+		response.setHeader("Content-Encoding", "gzip");
+
+		String ip = request.getHeader("x-forwarded-for");
+		LOG.info("IP:" + (ip == null ? request.getRemoteAddr() : ip));
+
+		String aoData = request.getParameter("aoData");
+		JSONArray jsonArray = JSON.parseArray(aoData);
+		int sEcho = 0, iDisplayStart = 0, iDisplayLength = 0;
+		for (Object obj : jsonArray) {
+			JSONObject jsonObj = (JSONObject) obj;
+			if ("sEcho".equals(jsonObj.getString("name"))) {
+				sEcho = jsonObj.getIntValue("value");
+			} else if ("iDisplayStart".equals(jsonObj.getString("name"))) {
+				iDisplayStart = jsonObj.getIntValue("value");
+			} else if ("iDisplayLength".equals(jsonObj.getString("name"))) {
+				iDisplayLength = jsonObj.getIntValue("value");
+			}
+		}
+
+		String str = TopicService.topicMeta(tname, ip);
+		JSONArray ret = JSON.parseArray(str);
+		int offset = 0;
+		JSONArray retArr = new JSONArray();
+		for (Object tmp : ret) {
+			JSONObject tmp2 = (JSONObject) tmp;
+			if (offset < (iDisplayLength + iDisplayStart) && offset >= iDisplayStart) {
+				JSONObject obj = new JSONObject();
+				obj.put("topic", tname);
+				obj.put("partition", tmp2.getInteger("partitionId"));
+				obj.put("leader", tmp2.getInteger("leader"));
+				obj.put("replicas", tmp2.getString("replicas"));
+				obj.put("isr", tmp2.getString("isr"));
+				retArr.add(obj);
+			}
+			offset++;
+		}
+
+		JSONObject obj = new JSONObject();
+		obj.put("sEcho", sEcho);
+		obj.put("iTotalRecords", ret.size());
+		obj.put("iTotalDisplayRecords", ret.size());
+		obj.put("aaData", retArr);
+		try {
+			byte[] output = GzipUtils.compressToByte(obj.toJSONString());
+			response.setContentLength(output.length);
+			OutputStream out = response.getOutputStream();
+			out.write(output);
+
+			out.flush();
+			out.close();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}

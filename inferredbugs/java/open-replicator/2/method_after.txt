@@ -1,0 +1,20 @@
+ protected XInputStream open(String path) throws Exception {
+		//
+		final XInputStream is = new XInputStreamImpl(new RamdomAccessFileInputStream(new File(path)));
+		try {
+			// Check binlog magic
+			final byte[] magic = is.readBytes(MySQLConstants.BINLOG_MAGIC.length);
+			if(!CodecUtils.equals(magic, MySQLConstants.BINLOG_MAGIC)) {
+				throw new NestableRuntimeException("invalid binlog magic, file: " + path);
+			}
+			
+			//
+			if(this.startPosition > MySQLConstants.BINLOG_MAGIC.length) {
+				is.skip(this.startPosition - MySQLConstants.BINLOG_MAGIC.length);
+			}
+			return is;
+		} catch(Exception e) {
+			IOUtils.closeQuietly(is);
+			throw e;
+		}
+	}

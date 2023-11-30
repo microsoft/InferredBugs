@@ -1,0 +1,13 @@
+    @Test
+    public void testCountAllWithComparison()
+    {
+        List<Tuple> expected = computeExpected("SELECT COUNT(*) FROM lineitem WHERE tax < discount", FIXED_INT_64);
+
+        TupleStream discount = createBlockStream(lineitemData, Column.LINEITEM_DISCOUNT, DOUBLE);
+        TupleStream tax = createBlockStream(lineitemData, Column.LINEITEM_TAX, DOUBLE);
+
+        ComparisonOperator comparison = new ComparisonOperator(tax, discount, new DoubleLessThanComparison());
+        AggregationOperator aggregation = new AggregationOperator(comparison, CountAggregation.PROVIDER);
+
+        assertEqualsIgnoreOrder(tuples(aggregation), expected);
+    }

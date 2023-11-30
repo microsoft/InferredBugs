@@ -1,0 +1,36 @@
+    @Test
+    public void testRemove() throws Exception {
+        final ByteSource byteSource = new ByteSourceFile(imageFile);
+
+        final Map<String, Object> params = new HashMap<String, Object>();
+        final boolean ignoreImageData = isPhilHarveyTestImage(imageFile);
+        params.put(PARAM_KEY_READ_THUMBNAILS, new Boolean(!ignoreImageData));
+
+        final JpegPhotoshopMetadata metadata = new JpegImageParser()
+                .getPhotoshopMetadata(byteSource, params);
+        assertNotNull(metadata);
+        // metadata.dump();
+
+        final File noIptcFile = createTempFile(imageFile.getName()
+                + ".iptc.remove.", ".jpg");
+        {
+            // test remove
+
+            OutputStream os = null;
+            boolean canThrow = false;
+            try {
+                os = new FileOutputStream(noIptcFile);
+                os = new BufferedOutputStream(os);
+                new JpegIptcRewriter().removeIPTC(byteSource, os);
+                canThrow = true;
+            } finally {
+                IoUtils.closeQuietly(canThrow, os);
+            }
+
+            final JpegPhotoshopMetadata outMetadata = new JpegImageParser()
+                    .getPhotoshopMetadata(new ByteSourceFile(noIptcFile),
+                            params);
+            assertTrue(outMetadata == null
+                    || outMetadata.getItems().size() == 0);
+        }
+    }

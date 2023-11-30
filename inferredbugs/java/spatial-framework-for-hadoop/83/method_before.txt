@@ -1,0 +1,24 @@
+ @Test
+	public void TestPointOnly() throws Exception {
+		Configuration config = new Configuration();
+		Text value = new Text();
+
+		SerDe jserde = new GeoJsonSerDe();
+		Properties proptab = new Properties();
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMNS, "shape");
+		proptab.setProperty(HiveShims.serdeConstants.LIST_COLUMN_TYPES, "binary");
+		jserde.initialize(config, proptab);
+        StructObjectInspector rowOI = (StructObjectInspector)jserde.getObjectInspector();
+
+        value.set("{\"properties\":{},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15.0,5.0]}}");
+		Object row = jserde.deserialize(value);
+		StructField f0 = rowOI.getStructFieldRef("shape");
+		Object fieldData = rowOI.getStructFieldData(row, f0);
+		ckPoint(new Point(15.0, 5.0), (BytesWritable)fieldData);
+
+        value.set("{\"properties\":{},\"geometry\":{\"type\":\"Point\",\"type\":\"Point\",\"coordinates\":[7.0,4.0]}}");
+        row = jserde.deserialize(value);
+		f0 = rowOI.getStructFieldRef("shape");
+		fieldData = rowOI.getStructFieldData(row, f0);
+		ckPoint(new Point(7.0, 4.0), (BytesWritable)fieldData);
+	}

@@ -1,0 +1,33 @@
+    public void leaveRtpSession() {
+        if (this.joined.get()) {
+            this.joined.set(false);
+
+            /*
+             * When the participant decides to leave the system, tp is reset to tc, the current time, members and pmembers are
+             * initialized to 1, initial is set to 1, we_sent is set to false, senders is set to 0, and avg_rtcp_size is set to
+             * the size of the compound BYE packet.
+             * 
+             * The calculated interval T is computed. The BYE packet is then scheduled for time tn = tc + T.
+             */
+            this.tp = this.statistics.getCurrentTime();
+            this.statistics.resetMembers();
+            this.initial.set(true);
+            this.statistics.clearSenders();
+
+            // XXX Sending the BYE packet NOW, since channel will be closed - hrosa
+            // long t = this.statistics.rtcpInterval(initial);
+            // this.tn = resolveDelay(t);
+            // this.scheduleRtcp(this.tn, RtcpPacketType.RTCP_BYE);
+
+            // cancel scheduled task and schedule BYE now
+            if(this.reportTaskFuture != null) {
+                this.reportTaskFuture.cancel(true);
+            }
+            
+            // Send BYE
+            // Do not run in separate thread so channel can be properly closed by the owner of this handler
+            this.statistics.setRtcpPacketType(RtcpPacketType.RTCP_BYE);
+            this.scheduledTask = new TxTask(RtcpPacketType.RTCP_BYE);
+            this.scheduledTask.run();
+        }
+    }

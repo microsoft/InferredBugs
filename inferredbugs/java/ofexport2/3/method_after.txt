@@ -1,0 +1,91 @@
+    public final void build() {
+        LOGGER.info("Starting tree reconstruction");
+
+        Project inbox = beanFactory.getBean("project", Project.class);
+        inbox.setName("Inbox");
+        inbox.setId("__%%Inbox"); // to give deterministic JSON/XML output
+
+        Context noContext = beanFactory.getBean("context", Context.class);
+        noContext.setName("No Context");
+        noContext.setId("__%%NoContext"); // to give deterministic JSON/XML output
+
+        ConfigParams configParams = beanFactory.getBean("configparams", ConfigParams.class);
+
+        // Build Folder Hierarchy
+        for (Folder folder : folders.values()) {
+            String parentId = folder.getParentFolderId();
+            if (parentId != null) {
+                Folder parent = folders.get(parentId);
+                parent.add(folder);
+            }
+        }
+
+        // Build Task Hierarchy
+        for (Task task : tasks.values()) {
+            String parentId = task.getParentTaskId();
+            if (parentId != null) {
+                Task parent = tasks.get(parentId);
+                parent.add(task);
+            }
+
+            if (task.isInInbox() && task.getParentTaskId() == null) {
+                inbox.add(task);
+            }
+
+            if (task.getContextId() == null) {
+                noContext.add(task);
+            }
+        }
+
+        // Build Context Hierarchy
+        for (Context context : contexts.values()) {
+            String parentId = context.getParentContextId();
+            if (parentId != null) {
+                Context parent = contexts.get(parentId);
+                parent.add(context);
+            }
+        }
+
+        // Add tasks to contexts
+        for (Task task : tasks.values()) {
+            String contextId = task.getContextId();
+            if (contextId != null) {
+                Context context = contexts.get(contextId);
+                context.getTasks().add(task);
+                task.setContext(context);
+            }
+        }
+
+        // Create Projects from their root tasks
+        // Must do this after task hierarchy is woven
+        // since a copy of the root tasks subtasks is taken
+        for (ProjectInfo projInfo : projInfos.values()) {
+            Task rootTask = tasks.get(projInfo.getRootTaskId());
+            Project project = new Project(projInfo, rootTask);
+            project.setConfigParams(configParams);
+
+            // Set containing Folder for project
+            String folderId = projInfo.getFolderId();
+            if (folderId != null) {
+                Folder folder = folders.get(folderId);
+                folder.add(project);
+            }
+
+            projects.put(project.getId(), project);
+
+            // Discard the root task. But note that it'll still be
+            // a child in any contexts
+            tasks.remove(rootTask.getId());
+        }
+
+        if (!inbox.getTasks().isEmpty()) {
+            projects.put(inbox.getId(), inbox);
+        }
+
+        if (!noContext.getTasks().isEmpty()) {
+            contexts.put(noContext.getId(), noContext);
+        }
+
+        LOGGER.info("Finished tree reconstruction");
+
+    }

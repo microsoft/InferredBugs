@@ -1,0 +1,21 @@
+ @Override
+	@SuppressWarnings("unchecked")
+	public boolean isInitialized() {
+
+		return requireResponse(vaultOperations.doWithSession(restOperations -> {
+
+			try {
+				ResponseEntity<Map<String, Boolean>> body = (ResponseEntity) restOperations
+						.exchange("sys/init", HttpMethod.GET, emptyNamespace(null),
+								Map.class);
+
+				Assert.state(body.getBody() != null,
+						"Initialization response must not be null");
+
+				return body.getBody().get("initialized");
+			}
+			catch (HttpStatusCodeException e) {
+				throw VaultResponses.buildException(e);
+			}
+		}));
+	}

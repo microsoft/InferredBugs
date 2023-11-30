@@ -1,0 +1,48 @@
+    boolean initiateConnection(SocketChannel s, Long sid) {
+         try {
+            // Sending id and challenge
+            byte[] msgBytes = new byte[8];
+            ByteBuffer msgBuffer = ByteBuffer.wrap(msgBytes);
+            msgBuffer.putLong(self.getId());
+            msgBuffer.position(0);
+            s.write(msgBuffer);
+        } catch (IOException e) {
+            LOG.warn("Exception reading or writing challenge: ", e);
+            return false;
+        }
+        
+        // If lost the challenge, then drop the new connection
+        if (sid > self.getId()) {
+            try {
+                LOG.info("Have smaller server identifier, so dropping the connection: (" + 
+                        sid + ", " + self.getId() + ")");
+                s.socket().close();
+            } catch (IOException e) {
+                LOG.warn("Ignoring exception when closing socket or trying to "
+                        + "reopen connection: ", e);
+            }
+        // Otherwise proceed with the connection
+        } else {
+        	SendWorker sw = new SendWorker(s, sid);
+        	RecvWorker rw = new RecvWorker(s, sid);
+        	sw.setRecv(rw);
+        	
+        	if (senderWorkerMap
+        			.containsKey(sid)) {
+        		senderWorkerMap.get(sid).finish();
+        	}
+
+        	if (!queueSendMap.containsKey(sid)) {
+        		queueSendMap.put(sid, new ArrayBlockingQueue<ByteBuffer>(
+        				CAPACITY));
+        	}
+                    
+        	senderWorkerMap.put(sid, sw);
+        	sw.start();
+        	rw.start();
+
+        	return true;
+            
+        }
+        return false;
+    }

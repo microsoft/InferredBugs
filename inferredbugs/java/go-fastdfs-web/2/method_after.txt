@@ -1,0 +1,36 @@
+    @RequestMapping("/file/downloadFile")
+    @ResponseBody
+    public void downloadFile(String path, String name, HttpServletRequest request, HttpServletResponse response) {
+        response.setHeader("Content-Disposition", "attachment;filename=" + name);
+        response.setContentType("application/octet-stream");
+        String peersUrl = getPeers().getServerAddress();
+        if(StrUtil.isNotBlank(getPeersGroupName())){
+            peersUrl += "/"+getPeersGroupName();
+        }else {
+            peersUrl += "/group1";
+        }
+        BufferedInputStream in = null;
+        try {
+            URL url = new URL(peersUrl+path+"/"+name);
+            in = new BufferedInputStream(url.openStream());
+            response.reset();
+            response.setContentType("application/octet-stream");
+            response.setHeader("Content-Disposition","attachment;filename=" + URLEncoder.encode(name, "UTF-8"));
+            // 将网络输入流转换为输出流
+            int i;
+            while ((i = in.read()) != -1) {
+                response.getOutputStream().write(i);
+            }
+            response.getOutputStream().close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }finally {
+            try {
+               if (in != null){
+                   in.close();
+               }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }

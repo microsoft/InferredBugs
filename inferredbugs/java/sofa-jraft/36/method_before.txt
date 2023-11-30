@@ -1,0 +1,79 @@
+    void installSnapshot() {
+        if (this.state == State.Snapshot) {
+            LOG.warn("Replicator {} is installing snapshot, ignore the new request.", this.options.getPeerId());
+            this.id.unlock();
+            return;
+        }
+        boolean doUnlock = true;
+        try {
+            Requires.requireTrue(this.reader == null,
+                "Replicator %s already has a snapshot reader, current state is %s", this.options.getPeerId(),
+                this.state);
+            this.reader = this.options.getSnapshotStorage().open();
+            if (this.reader == null) {
+                final NodeImpl node = this.options.getNode();
+                final RaftException error = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_SNAPSHOT);
+                error.setStatus(new Status(RaftError.EIO, "Fail to open snapshot"));
+                this.id.unlock();
+                doUnlock = false;
+                node.onError(error);
+                return;
+            }
+            final String uri = this.reader.generateURIForCopy();
+            if (uri == null) {
+                final NodeImpl node = this.options.getNode();
+                final RaftException error = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_SNAPSHOT);
+                error.setStatus(new Status(RaftError.EIO, "Fail to generate uri for snapshot reader"));
+                releaseReader();
+                this.id.unlock();
+                doUnlock = false;
+                node.onError(error);
+                return;
+            }
+            final RaftOutter.SnapshotMeta meta = this.reader.load();
+            if (meta == null) {
+                final String snapshotPath = this.reader.getPath();
+                final NodeImpl node = this.options.getNode();
+                final RaftException error = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_SNAPSHOT);
+                error.setStatus(new Status(RaftError.EIO, "Fail to load meta from %s", snapshotPath));
+                releaseReader();
+                this.id.unlock();
+                doUnlock = false;
+                node.onError(error);
+                return;
+            }
+            final InstallSnapshotRequest.Builder rb = InstallSnapshotRequest.newBuilder();
+            rb.setTerm(this.options.getTerm());
+            rb.setGroupId(this.options.getGroupId());
+            rb.setServerId(this.options.getServerId().toString());
+            rb.setPeerId(this.options.getPeerId().toString());
+            rb.setMeta(meta);
+            rb.setUri(uri);
+
+            this.statInfo.runningState = RunningState.INSTALLING_SNAPSHOT;
+            this.statInfo.lastLogIncluded = meta.getLastIncludedIndex();
+            this.statInfo.lastTermIncluded = meta.getLastIncludedTerm();
+
+            final InstallSnapshotRequest request = rb.build();
+            this.state = State.Snapshot;
+            // noinspection NonAtomicOperationOnVolatileField
+            this.installSnapshotCounter++;
+            final long monotonicSendTimeMs = Utils.monotonicMs();
+            final int stateVersion = this.version;
+            final int seq = getAndIncrementReqSeq();
+            final Future<Message> rpcFuture = this.rpcService.installSnapshot(this.options.getPeerId().getEndpoint(),
+                request, new RpcResponseClosureAdapter<InstallSnapshotResponse>() {
+
+                    @Override
+                    public void run(final Status status) {
+                        onRpcReturned(Replicator.this.id, RequestType.Snapshot, status, request, getResponse(), seq,
+                            stateVersion, monotonicSendTimeMs);
+                    }
+                });
+            addInflight(RequestType.Snapshot, this.nextIndex, 0, 0, seq, rpcFuture);
+        } finally {
+            if (doUnlock) {
+                this.id.unlock();
+            }
+        }
+    }

@@ -1,0 +1,62 @@
+    @Override
+    protected void populateBuffer() {
+        // not used yet or returned empty results
+        if (lastDate == null) {
+            lastDate = new Date();
+            lastStartOffset = 0;
+        }
+        // been running same query for too long and paging deep?
+        else if (maxStartOffset != -1 && lastStartOffset > maxStartOffset) {
+            LOG.info("Reached max start offset {}", lastStartOffset);
+            lastStartOffset = 0;
+        }
+
+        LOG.info("{} Populating buffer with nextFetchDate <= {}", logIdprefix,
+                lastDate);
+
+        QueryBuilder queryBuilder = QueryBuilders.rangeQuery("nextFetchDate")
+                .lte(String.format(DATEFORMAT, lastDate));
+
+        SearchRequestBuilder srb = client.prepareSearch(indexName)
+                .setTypes(docType).setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(queryBuilder).setFrom(lastStartOffset)
+                .setSize(maxBucketNum).setExplain(false);
+
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-preference.html
+        // _shards:2,3
+        if (shardID != -1) {
+            srb.setPreference("_shards:" + shardID);
+        }
+
+        if (StringUtils.isNotBlank(totalSortField)) {
+            FieldSortBuilder sorter = SortBuilders.fieldSort(totalSortField)
+                    .order(SortOrder.ASC);
+            srb.addSort(sorter);
+        }
+
+        CollapseBuilder collapse = new CollapseBuilder(partitionField);
+        srb.setCollapse(collapse);
+
+        // group expansion -> sends sub queries for each bucket
+        if (maxURLsPerBucket > 1) {
+            InnerHitBuilder ihb = new InnerHitBuilder();
+            ihb.setSize(maxURLsPerBucket);
+            ihb.setName("urls_per_bucket");
+            // sort within a bucket
+            if (StringUtils.isNotBlank(bucketSortField)) {
+                List<SortBuilder<?>> sorts = new LinkedList<>();
+                FieldSortBuilder bucketsorter = SortBuilders.fieldSort(
+                        bucketSortField).order(SortOrder.ASC);
+                sorts.add(bucketsorter);
+                ihb.setSorts(sorts);
+            }
+            collapse.setInnerHits(ihb);
+        }
+
+        // dump query to log
+        LOG.debug("{} ES query {}", logIdprefix, srb.toString());
+
+        timeStartESQuery = System.currentTimeMillis();
+        isInESQuery.set(true);
+        srb.execute(this);
+    }

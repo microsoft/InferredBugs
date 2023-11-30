@@ -1,0 +1,23 @@
+ public void handle(Invocation inv) {
+		try {
+			if (inv.operation == OP_RESPONSE) {
+				handleResponse(inv);
+			} else if (inv.operation == OP_REMOTELY_PROCESS_AND_RESPONSE) {
+				Data data = inv.doTake(inv.data);
+				RemotelyProcessable rp = (RemotelyProcessable) ThreadContext.get().toObject(data);
+				rp.setConnection(inv.conn);
+				rp.process();
+				sendResponse(inv);
+			} else if (inv.operation == OP_REMOTELY_PROCESS) {
+				Data data = inv.doTake(inv.data);
+				RemotelyProcessable rp = (RemotelyProcessable) ThreadContext.get().toObject(data);
+				rp.setConnection(inv.conn);
+				rp.process();
+				inv.returnToContainer();
+			} else
+				throw new RuntimeException("Unhandled message " + inv.name);
+		} catch (Exception e) {
+			log(e);
+			e.printStackTrace();
+		}
+	}

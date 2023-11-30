@@ -1,0 +1,77 @@
+    private synchronized Map<String, String[]> parseParameters(String s)
+    {
+        Map<String, List<String>> parameterMap;
+        Map<String, String[]> result;
+        StringTokenizer st;
+
+        parameterMap = new HashMap<String, List<String>>();
+        result = new HashMap<String, String[]>();
+
+        if (s == null)
+        {
+            return result;
+        }
+
+        st = new StringTokenizer(s, "&");
+        while (st.hasMoreTokens())
+        {
+            String parameter;
+            Matcher parameterMatcher;
+            String name;
+            String value;
+            List<String> values;
+
+            parameter = st.nextToken();
+            parameterMatcher = PARAMETER_PATTERN.matcher(parameter);
+            if (parameterMatcher.matches())
+            {
+                try
+                {
+                    name = URLDecoder.decode(parameterMatcher.group(1), "UTF-8");
+                    value = URLDecoder.decode(parameterMatcher.group(2), "UTF-8");
+                }
+                catch (UnsupportedEncodingException e)
+                {
+                    logger.error("Unable to decode parameter '" + parameter + "'", e);
+                    continue;
+                }
+            }
+            else
+            {
+                try
+                {
+                    name = URLDecoder.decode(parameter, "UTF-8");
+                    value = "";
+                }
+                catch (UnsupportedEncodingException e)
+                {
+                    logger.error("Unable to decode parameter '" + parameter + "'", e);
+                    continue;
+                }
+            }
+
+            if (parameterMap.get(name) == null)
+            {
+                values = new ArrayList<String>();
+                values.add(value);
+                parameterMap.put(name, values);
+            }
+            else
+            {
+                values = parameterMap.get(name);
+                values.add(value);
+            }
+        }
+
+        for (String name : parameterMap.keySet())
+        {
+            List<String> values;
+            String[] valueArray;
+
+            values = parameterMap.get(name);
+            valueArray = new String[values.size()];
+            result.put(name, values.toArray(valueArray));
+        }
+
+        return result;
+    }

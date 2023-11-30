@@ -1,0 +1,75 @@
+ @Override
+	public String visitQuery_specification(VerdictSQLParser.Query_specificationContext ctx) {
+		StringBuilder sql = new StringBuilder(2000);
+		
+		// this statement computes the mean value
+		AnalyticSelectStatementRewriter meanRewriter = new AnalyticSelectStatementRewriter(vc, queryString);
+		meanRewriter.setDepth(depth+1);
+		meanRewriter.setIndentLevel(defaultIndent + 6);
+		String mainSql = meanRewriter.visit(ctx);
+		cumulativeReplacedTableSources.putAll(meanRewriter.getCumulativeSampleTables());
+		
+		// this statement computes the standard deviation
+		BootstrapSelectStatementRewriter varianceRewriter = new BootstrapSelectStatementRewriter(vc, queryString);
+		varianceRewriter.setDepth(depth+1);
+		varianceRewriter.setIndentLevel(defaultIndent + 6);
+		String subSql = varianceRewriter.varianceComputationStatement(ctx);
+		
+		String leftAlias = genAlias();
+		String rightAlias = genAlias();
+		
+		// we combine those two statements using join.
+		List<Pair<String, String>> thisColumnName2Aliases = new ArrayList<Pair<String, String>>();
+		
+		List<Pair<String, String>> leftColName2Aliases = meanRewriter.getColName2Aliases();
+//		List<Boolean> leftAggColIndicator = meanRewriter.getAggregateColumnIndicator();
+		
+		List<Pair<String, String>> rightColName2Aliases = varianceRewriter.getColName2Aliases();
+//		List<Boolean> rightAggColIndicator = varianceRewriter.getAggregateColumnIndicator();
+		
+		sql.append(String.format("%sSELECT", indentString));
+		int leftSelectElemIndex = 0;
+		int totalSelectElemIndex = 0;
+		for (Pair<String, String> colName2Alias : leftColName2Aliases) {
+			leftSelectElemIndex++;
+			if (leftSelectElemIndex == 1) sql.append(" ");
+			else sql.append(", ");
+			
+			if (meanRewriter.isAggregateColumn(leftSelectElemIndex)) {
+				// mean
+				totalSelectElemIndex++;
+				String alias = genAlias();
+				sql.append(String.format("%s.%s AS %s", leftAlias, colName2Alias.getRight(), alias));
+				thisColumnName2Aliases.add(Pair.of(colName2Alias.getLeft(), alias));
+				
+				// error (standard deviation * 1.96 (for 95% confidence interval))
+				totalSelectElemIndex++;
+				alias = genAlias();
+				String matchingAliasName = null;
+				for (Pair<String, String> r : rightColName2Aliases) {
+					if (colName2Alias.getLeft().equals(r.getLeft())) {
+						matchingAliasName = r.getRight();
+					}
+				}
+				sql.append(String.format(", %s.%s AS %s", rightAlias, matchingAliasName, alias));
+				thisColumnName2Aliases.add(Pair.of(colName2Alias.getLeft(), alias));
+				
+				meanColIndex2ErrColIndex.put(totalSelectElemIndex-1, totalSelectElemIndex);
+			} else {
+				totalSelectElemIndex++;
+				sql.append(String.format("%s.%s AS %s", leftAlias, colName2Alias.getRight(), colName2Alias.getRight()));
+				thisColumnName2Aliases.add(Pair.of(colName2Alias.getLeft(), colName2Alias.getRight()));
+			}
+		}
+		colName2Aliases = thisColumnName2Aliases;
+		
+		sql.append(String.format("\n%sFROM (\n", indentString));
+		sql.append(mainSql);
+		sql.append(String.format("\n%s     ) AS %s", indentString, leftAlias));
+		sql.append(" LEFT JOIN (\n");
+		sql.append(subSql);
+		sql.append(String.format("%s) AS %s", indentString, rightAlias));
+		sql.append(String.format(" ON %s.l_shipmode = %s.l_shipmode", leftAlias, rightAlias));
+		
+		return sql.toString();
+	}

@@ -1,0 +1,19 @@
+    public void sendMessage(AbstractNetworkMessage networkMessage) throws IOException {
+        if (this.getStatus() == Peer.CLOSE) {
+            return;
+        }
+        if (writeTarget == null) {
+            throw new NotYetConnectedException();
+        }
+        if (this.status != Peer.HANDSHAKE && !isHandShakeMessage(networkMessage)) {
+            throw new NotYetConnectedException();
+        }
+        lock.lock();
+        try {
+            byte[] data = networkMessage.serialize();
+            NulsMessage message = new NulsMessage(network.packetMagic(), NulsMessageHeader.NETWORK_MESSAGE, data);
+            this.writeTarget.write(message.serialize());
+        } finally {
+            lock.unlock();
+        }
+    }

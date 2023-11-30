@@ -1,0 +1,59 @@
+    @Override
+    public double getCpuTemperature() {
+        ArrayList<String> hwInfo = ExecutingCommand.runNative("wmic Temperature get CurrentReading");
+        for (String checkLine : hwInfo) {
+            if (checkLine.length() == 0 || checkLine.toLowerCase().contains("currentreading")) {
+                continue;
+            } else {
+                // If successful this line is in tenths of degrees Kelvin
+                try {
+                    int tempK = Integer.parseInt(checkLine.trim());
+                    if (tempK > 0) {
+                        return (tempK - 2715) / 10d;
+                    }
+                } catch (NumberFormatException e) {
+                    // If we failed to parse, give up
+                }
+                break;
+            }
+        }
+        // Above query failed, try something else
+        hwInfo = ExecutingCommand
+                .runNative("wmic /namespace:\\\\root\\wmi PATH MSAcpi_ThermalZoneTemperature get CurrentTemperature");
+        for (String checkLine : hwInfo) {
+            if (checkLine.length() == 0 || checkLine.toLowerCase().contains("currenttemperature")) {
+                continue;
+            } else {
+                // If successful this line is in tenths of degrees Kelvin
+                try {
+                    int tempK = Integer.parseInt(checkLine.trim());
+                    if (tempK > 0) {
+                        return (tempK - 2715) / 10d;
+                    }
+                } catch (NumberFormatException e) {
+                    // If we failed to parse, give up
+                }
+                break;
+            }
+        }
+        // Above query failed, try something else
+        hwInfo = ExecutingCommand
+                .runNative("wmic /namespace:\\\\root\\cimv2 PATH Win32_TemperatureProbe get CurrentReading");
+        for (String checkLine : hwInfo) {
+            if (checkLine.length() == 0 || checkLine.toLowerCase().contains("currentreading")) {
+                continue;
+            } else {
+                // If successful this line is in tenths of degrees Kelvin
+                try {
+                    int tempK = Integer.parseInt(checkLine.trim());
+                    if (tempK > 0) {
+                        return (tempK - 2715) / 10d;
+                    }
+                } catch (NumberFormatException e) {
+                    // If we failed to parse, give up
+                }
+                break;
+            }
+        }
+        return 0d;
+    }

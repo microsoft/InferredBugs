@@ -1,0 +1,16 @@
+    public ParseResult<CompilationUnit> tryToParse(String startPackage, String filename, ParserConfiguration configuration) throws IOException {
+        assertNotNull(startPackage);
+        assertNotNull(filename);
+        final Path relativePath = fileInPackageRelativePath(startPackage, filename);
+        if (cache.containsKey(relativePath)) {
+            Log.trace("Retrieving cached %s", () -> relativePath);
+            return cache.get(relativePath);
+        }
+        final Path path = root.resolve(relativePath);
+        Log.trace("Parsing %s", () -> path);
+        final ParseResult<CompilationUnit> result = new JavaParser(configuration)
+                .parse(COMPILATION_UNIT, provider(path, configuration.getCharacterEncoding()));
+        result.getResult().ifPresent(cu -> cu.setStorage(path, configuration.getCharacterEncoding()));
+        cache.put(relativePath, result);
+        return result;
+    }

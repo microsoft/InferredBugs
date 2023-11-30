@@ -1,0 +1,25 @@
+    void initiateMigration() {
+        for (int i = 0; i < BLOCK_COUNT; i++) {
+            Block block = blocks[i];
+            if (block == null) {
+                block = concurrentMapManager.getOrCreateBlock(i);
+                block.setOwner(thisAddress);
+            }
+        }
+        if (concurrentMapManager.getMembers().size() < 2) {
+            return;
+        }
+        if (lsBlocksToMigrate.size() == 0) {
+            reArrangeBlocks();
+        }
+        if (lsBlocksToMigrate.size() > 0) {
+            Block block = lsBlocksToMigrate.remove(0);
+            if (concurrentMapManager.isBlockInfoValid(block)) {
+                if (thisAddress.equals(block.getOwner())) {
+                    concurrentMapManager.doBlockInfo(block);
+                } else {
+                    concurrentMapManager.sendBlockInfo(block, block.getOwner());
+                }
+            }
+        }
+    }

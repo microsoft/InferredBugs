@@ -1,0 +1,72 @@
+    @Test
+    public void testSyncReadAsyncWriteStringsSingleClient() throws IOException {
+        LOG.info("TEST READ WRITE STRINGS MIXED SINGLE CLIENT");
+        String charset = "utf-8";
+        LOG.debug("Default charset: " + Charset.defaultCharset());
+        try {
+            // Create a ledger
+            lh = bkc.createLedger(digestType, ledgerPassword);
+            // bkc.initMessageDigest("SHA1");
+            ledgerId = lh.getId();
+            LOG.info("Ledger ID: " + lh.getId());
+            for (int i = 0; i < numEntriesToWrite; i++) {
+                int randomInt = rng.nextInt(maxInt);
+                byte[] entry = new String(Integer.toString(randomInt)).getBytes(charset);
+                entries.add(entry);
+                lh.asyncAddEntry(entry, this, sync);
+            }
+
+            // wait for all entries to be acknowledged
+            synchronized (sync) {
+                while (sync.counter < numEntriesToWrite) {
+                    LOG.debug("Entries counter = " + sync.counter);
+                    sync.wait();
+                }
+            }
+
+            LOG.debug("*** ASYNC WRITE COMPLETE ***");
+            // close ledger
+            lh.close();
+
+            // *** WRITING PART COMPLETED // READ PART BEGINS ***
+
+            // open ledger
+            lh = bkc.openLedger(ledgerId, digestType, ledgerPassword);
+            LOG.debug("Number of entries written: " + (lh.getLastAddConfirmed() + 1));
+            assertTrue("Verifying number of entries written", lh.getLastAddConfirmed() == (numEntriesToWrite - 1));
+
+            // read entries
+            ls = lh.readEntries(0, numEntriesToWrite - 1);
+
+            LOG.debug("*** SYNC READ COMPLETE ***");
+
+            // at this point, Enumeration<LedgerEntry> ls is filled with the returned
+            // values
+            int i = 0;
+            while (ls.hasMoreElements()) {
+                byte[] origEntryBytes = entries.get(i++);
+                byte[] retrEntryBytes = ls.nextElement().getEntry();
+
+                LOG.debug("Original byte entry size: " + origEntryBytes.length);
+                LOG.debug("Saved byte entry size: " + retrEntryBytes.length);
+
+                String origEntry = new String(origEntryBytes, charset);
+                String retrEntry = new String(retrEntryBytes, charset);
+
+                LOG.debug("Original entry: " + origEntry);
+                LOG.debug("Retrieved entry: " + retrEntry);
+
+                assertTrue("Checking entry " + i + " for equality", origEntry.equals(retrEntry));
+            }
+            assertTrue("Checking number of read entries", i == numEntriesToWrite);
+
+            lh.close();
+        } catch (BKException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to BookKeeper exception");
+        } catch (InterruptedException e) {
+            LOG.error("Test failed", e);
+            fail("Test failed due to interruption");
+        }
+
+    }

@@ -1,0 +1,33 @@
+    @Test
+    public void testAuthorizeBadDomain() throws Exception {
+        TestableConnectionProvider provider = new TestableConnectionProvider();
+        // just provide a resource record so the provider returns a directory
+        provider.putTestResource(Resource.NEW_NONCE, resourceUrl);
+
+        Session session = provider.createSession();
+        Registration registration = Registration.bind(session, locationUrl);
+
+        try {
+            registration.preAuthorizeDomain(null);
+            fail("null domain was accepted");
+        } catch (NullPointerException ex) {
+            // expected
+        }
+
+        try {
+            registration.preAuthorizeDomain("");
+            fail("empty domain string was accepted");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
+
+        try {
+            registration.preAuthorizeDomain("example.com");
+            fail("preauthorization was accepted");
+        } catch (AcmeException ex) {
+            // expected
+            assertThat(ex.getMessage(), is("Server does not allow pre-authorization"));
+        }
+
+        provider.close();
+    }

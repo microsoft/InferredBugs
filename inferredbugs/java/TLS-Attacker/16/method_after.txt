@@ -1,0 +1,53 @@
+    private void executeAttackRound(ConfigHandler configHandler) {
+        TlsConfig tlsConfig = configHandler.initialize(config);
+        LOGGER.info("Testing {}, {}", tlsConfig.getHighestProtocolVersion(), tlsConfig.getSupportedCiphersuites()
+                .get(0));
+
+        TransportHandler transportHandler = configHandler.initializeTransportHandler(tlsConfig);
+        TlsContext tlsContext = configHandler.initializeTlsContext(tlsConfig);
+        WorkflowExecutor workflowExecutor = configHandler.initializeWorkflowExecutor(transportHandler, tlsContext);
+
+        WorkflowTrace trace = tlsContext.getWorkflowTrace();
+
+        FinishedMessage finishedMessage = (FinishedMessage) trace
+                .getFirstConfiguredSendMessageOfType(HandshakeMessageType.FINISHED);
+        Record record = createRecordWithBadPadding();
+        finishedMessage.addRecord(record);
+
+        // Remove last two server messages (CCS and Finished). Instead of them,
+        // an alert will be sent.
+        AlertMessage alertMessage = new AlertMessage(tlsConfig);
+
+        ReceiveAction action = (ReceiveAction) (trace.getLastMessageAction());
+        List<ProtocolMessage> messages = new LinkedList<>();
+        messages.add(alertMessage);
+        action.setConfiguredMessages(lastMessages);
+        try {
+            workflowExecutor.executeWorkflow();
+        } catch (WorkflowExecutionException ex) {
+            LOGGER.info("Not possible to finalize the defined workflow: {}", ex.getLocalizedMessage());
+        }
+
+        ProtocolMessage lm = trace.getLastConfiguredReceiveMesssage();
+        lastMessages.add(lm);
+        tlsContexts.add(tlsContext);
+
+        if (lm.getProtocolMessageType() == ProtocolMessageType.ALERT) {
+            AlertMessage am = ((AlertMessage) lm);
+            LOGGER.info("  Last protocol message: Alert ({},{}) [{},{}]", AlertLevel.getAlertLevel(am.getLevel()
+                    .getValue()), AlertDescription.getAlertDescription(am.getDescription().getValue()), am.getLevel()
+                    .getValue(), am.getDescription().getValue());
+        } else {
+            LOGGER.info("  Last protocol message: {}", lm.getProtocolMessageType());
+        }
+
+        if (lm.getProtocolMessageType() == ProtocolMessageType.ALERT
+                && ((AlertMessage) lm).getDescription().getValue() == 22) {
+            LOGGER.info("  Vulnerable");
+            vulnerable = true;
+        } else {
+            LOGGER.info("  Not Vulnerable / Not supported");
+        }
+
+        transportHandler.closeConnection();
+    }

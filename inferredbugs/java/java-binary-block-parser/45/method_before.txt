@@ -1,0 +1,52 @@
+  public int readBits(final JBBPBitNumber numOfBitsToRead) throws IOException {
+    int result;
+
+    final int numOfBitsAsNumber = numOfBitsToRead.getBitNumber();
+
+    if (this.bitsInBuffer == 0 && numOfBitsAsNumber == 8) {
+      result = this.readByteFromStream();
+      return result;
+    }
+    else {
+      result = 0;
+      
+      if (numOfBitsAsNumber == this.bitsInBuffer){
+        result = this.bitBuffer;
+        this.bitBuffer = 0;
+        this.bitsInBuffer = 0;
+        return result;
+      }
+      
+      int i = numOfBitsAsNumber;
+      int theBitBuffer = this.bitBuffer;
+      int theBitBufferCounter = this.bitsInBuffer;
+
+      while (i > 0) {
+        if (theBitBufferCounter == 0) {
+          final int nextByte = this.readByteFromStream();
+          if (nextByte < 0) {
+            if (i == numOfBitsAsNumber) {
+              return nextByte;
+            }
+            else {
+              break;
+            }
+          }
+          else {
+            theBitBuffer = nextByte;
+            theBitBufferCounter = 8;
+          }
+        }
+
+        result = (result << 1) | (theBitBuffer & 1);
+        theBitBuffer >>= 1;
+        theBitBufferCounter--;
+        i--;
+      }
+
+      this.bitBuffer = theBitBuffer;
+      this.bitsInBuffer = theBitBufferCounter;
+
+      return (JBBPUtils.reverseByte((byte) result) & 0xFF) >> (8 - (numOfBitsAsNumber - i));
+    }
+  }

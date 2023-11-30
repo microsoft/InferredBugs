@@ -1,0 +1,49 @@
+    @Override
+    public void run(Bootstrap bootstrap, Namespace args) {
+        // read and initialize arguments:
+        GraphHopperConfig graphHopperConfiguration = new GraphHopperConfig();
+        graphHopperConfiguration.putObject("graph.location", "graph-cache");
+        seed = args.getLong("seed");
+        count = args.getInt("count");
+
+        GraphHopper graphHopper = new GraphHopperOSM();
+        graphHopper.init(graphHopperConfiguration).forDesktop();
+        graphHopper.importOrLoad();
+        
+        // and map-matching stuff
+        GraphHopperStorage graph = graphHopper.getGraphHopperStorage();
+        bbox = graph.getBounds();
+        LocationIndexTree locationIndex = (LocationIndexTree) graphHopper.getLocationIndex();
+        MapMatching mapMatching = new MapMatching(graphHopper, new HintsMap());
+        
+        // start tests:
+        StopWatch sw = new StopWatch().start();
+        try {
+            printLocationIndexMatchQuery(locationIndex);
+            printTimeOfMapMatchQuery(graphHopper, mapMatching);
+            System.gc();
+        } catch (Exception ex) {
+            logger.error("Problem while measuring", ex);
+            properties.put("error", "" + ex.toString());
+        } finally {
+            properties.put("measurement.count", "" + count);
+            properties.put("measurement.seed", "" + seed);
+            properties.put("measurement.time", "" + sw.stop().getMillis());
+            System.gc();
+            properties.put("measurement.totalMB", "" + Helper.getTotalMB());
+            properties.put("measurement.usedMB", "" + Helper.getUsedMB());
+            try {
+                FileWriter fileWriter = new FileWriter(args.<File>get("outfile"));
+                for (Entry<String, String> e : properties.entrySet()) {
+                    fileWriter.append(e.getKey());
+                    fileWriter.append("=");
+                    fileWriter.append(e.getValue());
+                    fileWriter.append("\n");
+                }
+                fileWriter.flush();
+            } catch (IOException ex) {
+                logger.error(
+                        "Problem while writing measurements", ex);
+            }
+        }
+    }

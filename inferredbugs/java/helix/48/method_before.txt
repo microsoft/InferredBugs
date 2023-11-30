@@ -1,0 +1,55 @@
+  @Override
+  public void onControllerChange(NotificationContext changeContext) {
+    logger.info("START: GenericClusterController.onControllerChange() for cluster " + _clusterName);
+    _cache.requireFullRefresh();
+    if (changeContext != null && changeContext.getType() == Type.FINALIZE) {
+      logger.info("GenericClusterController.onControllerChange() FINALIZE for cluster " + _clusterName);
+      return;
+    }
+    HelixDataAccessor accessor = changeContext.getManager().getHelixDataAccessor();
+
+    // double check if this controller is the leader
+    Builder keyBuilder = accessor.keyBuilder();
+    LiveInstance leader = accessor.getProperty(keyBuilder.controllerLeader());
+    if (leader == null) {
+      logger
+          .warn("No controller exists for cluster:" + changeContext.getManager().getClusterName());
+      return;
+    } else {
+      String leaderName = leader.getInstanceName();
+
+      String instanceName = changeContext.getManager().getInstanceName();
+      if (leaderName == null || !leaderName.equals(instanceName)) {
+        logger.warn("leader name does NOT match, my name: " + instanceName + ", leader: " + leader);
+        return;
+      }
+    }
+
+    PauseSignal pauseSignal = accessor.getProperty(keyBuilder.pause());
+    if (pauseSignal != null) {
+      if (!_paused) {
+        _paused = true;
+        logger.info("controller is now paused");
+      }
+    } else {
+      if (_paused) {
+        _paused = false;
+        logger.info("controller is now resumed");
+        ClusterEvent event = new ClusterEvent("resume");
+        event.addAttribute("changeContext", changeContext);
+        event.addAttribute("helixmanager", changeContext.getManager());
+        event.addAttribute("eventData", pauseSignal);
+        _eventQueue.put(event);
+      }
+    }
+    if (_clusterStatusMonitor == null) {
+      _clusterStatusMonitor = new ClusterStatusMonitor(changeContext.getManager().getClusterName());
+    }
+    List<IdealState> idealStates = Collections.emptyList();
+    if (_cache.getIdealStates() != null) {
+      idealStates = new ArrayList<>(_cache.getIdealStates().values());
+    }
+    checkRebalancingTimer(changeContext.getManager(), idealStates, _cache.getClusterConfig());
+    _clusterStatusMonitor.setEnabled(!_paused);
+    logger.info("END: GenericClusterController.onControllerChange() for cluster " + _clusterName);
+  }

@@ -1,0 +1,17 @@
+ @OnClassLoadEvent(classNameRegexp = ".*", events = LoadEvent.REDEFINE, skipSynthetic = false)
+	public static byte[] transformRedefinitions(final Class<?> classBeingRedefined, final byte[] classfileBuffer,
+			final ClassLoader loader) throws IllegalClassFormatException, IOException, RuntimeException {
+		// load the class in the pool for ClassfileSignatureComparer and JavassistProxyTransformer
+		ClassPool cp = ProxyTransformationUtils.getClassPool(loader);
+		CtClass cc = cp.makeClass(new ByteArrayInputStream(classfileBuffer), false);
+		
+		byte[] result = classfileBuffer;
+		
+		boolean useJavassistProxyTransformer = true;
+		if (useJavassistProxyTransformer) {
+			result = JavassistProxyTransformer.transform(classBeingRedefined, cc, cp, result);
+		} else {
+			result = JavaProxyTransformer.transform(classBeingRedefined, cc, cp, result);
+		}
+		return CglibProxyTransformer.transform(classBeingRedefined, cc, cp, result, loader);
+	}

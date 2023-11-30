@@ -1,0 +1,69 @@
+    protected void manage(Architecture arch, String version) {
+        httpClient = new HttpClient(config().getTimeout());
+        try (HttpClient wdmHttpClient = httpClient) {
+            downloader = new Downloader(driverManagerType);
+            urlFilter = new UrlFilter();
+
+            boolean getLatest = isVersionLatest(version);
+            boolean cache = config().isForceCache();
+            if (getLatest && !config().isAvoidAutoVersion()) {
+                version = getVersionForInstalledBrowser(driverManagerType);
+                getLatest = version.isEmpty();
+            }
+
+            if (version.equals("insiders")) {
+                String systemRoot = System.getenv("SystemRoot");
+                File microsoftWebDriverFile = new File(
+                        systemRoot + File.separator + "System32"
+                                + File.separator + "MicrosoftWebDriver.exe");
+                if (microsoftWebDriverFile.exists()) {
+                    exportDriver(microsoftWebDriverFile.toString());
+                    return;
+                } else {
+                    retry = false;
+                    throw new WebDriverManagerException(
+                            "MicrosoftWebDriver.exe should be installed in an elevated command prompt executing: "
+                                    + "dism /Online /Add-Capability /CapabilityName:Microsoft.WebDriver~~~~0.0.1.0");
+                }
+            }
+
+            String os = config().getOs();
+            log.trace("Managing {} arch={} version={} getLatest={} cache={}",
+                    driverName, arch, version, getLatest, cache);
+
+            if (getLatest && latestVersion != null) {
+                log.debug("Latest version of {} is {} (recently resolved)",
+                        driverName, latestVersion);
+                version = latestVersion;
+                cache = true;
+            }
+
+            Optional<String> driverInCache = handleCache(arch, version, os,
+                    getLatest, cache);
+
+            String versionStr = getLatest ? "(latest version)" : version;
+            if (driverInCache.isPresent() && !config().isOverride()) {
+                versionToDownload = version;
+                downloadedVersion = version;
+                log.debug("Driver {} {} found in cache", driverName,
+                        versionStr);
+                exportDriver(driverInCache.get());
+            } else {
+                List<URL> candidateUrls = filterCandidateUrls(arch, version,
+                        getLatest);
+
+                if (candidateUrls.isEmpty()) {
+                    String errorMessage = driverName + " " + versionStr
+                            + " for " + os + arch.toString() + " not found in "
+                            + config().getDriverUrl(driverUrlKey);
+                    log.error(errorMessage);
+                    throw new WebDriverManagerException(errorMessage);
+                }
+
+                downloadCandidateUrls(candidateUrls);
+            }
+
+        } catch (Exception e) {
+            handleException(e, arch, version);
+        }
+    }

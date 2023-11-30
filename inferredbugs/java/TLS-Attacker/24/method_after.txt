@@ -1,0 +1,32 @@
+    private boolean testCustomWorkflow(int port) {
+        ClientCommandConfig clientCommandConfig = new ClientCommandConfig(new GeneralDelegate());
+        TlsConfig config = clientCommandConfig.createConfig();
+        config.setHost("localhost:" + port);
+        config.setTlsTimeout(TIMEOUT);
+        config.setWorkflowTraceType(WorkflowTraceType.CLIENT_HELLO);
+
+        TlsContext tlsContext = new TlsContext(config);
+        config.setWorkflowTrace(new WorkflowTrace());
+
+        WorkflowTrace trace = config.getWorkflowTrace();
+        trace.add(MessageActionFactory.createAction(ConnectionEnd.CLIENT, ConnectionEnd.CLIENT, new ClientHelloMessage(
+                config)));
+        trace.add(MessageActionFactory.createAction(ConnectionEnd.CLIENT, ConnectionEnd.SERVER, new ServerHelloMessage(
+                config), new CertificateMessage(config), new ServerHelloDoneMessage(config)));
+
+        trace.add(MessageActionFactory.createAction(ConnectionEnd.CLIENT, ConnectionEnd.CLIENT,
+                new RSAClientKeyExchangeMessage(config), new ChangeCipherSpecMessage(config), new FinishedMessage(
+                        config)));
+        trace.add(MessageActionFactory.createAction(ConnectionEnd.CLIENT, ConnectionEnd.SERVER,
+                new ChangeCipherSpecMessage(config), new FinishedMessage(config)));
+        WorkflowExecutor workflowExecutor = WorkflowExecutorFactory.createWorkflowExecutor(config.getExecutorType(),
+                tlsContext);
+        try {
+            workflowExecutor.executeWorkflow();
+        } catch (WorkflowExecutionException E) {
+            return false;
+        }
+
+        return !(tlsContext.getWorkflowTrace()
+                .getActuallyRecievedHandshakeMessagesOfType(HandshakeMessageType.FINISHED).isEmpty());
+    }

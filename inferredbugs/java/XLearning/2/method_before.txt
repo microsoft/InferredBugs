@@ -1,0 +1,454 @@
+  private Boolean run() throws IOException {
+    try {
+      if (this.role.equals(XLearningConstants.WORKER)) {
+        prepareInputFiles();
+      }
+      if (this.conf.getBoolean(XLearningConfiguration.XLEARNING_CONTAINER_AUTO_CREATE_OUTPUT_DIR, XLearningConfiguration.DEFAULT_XLEARNING_CONTAINER_AUTO_CREATE_OUTPUT_DIR)) {
+        createLocalOutputDir();
+      }
+    } catch (InterruptedException e) {
+      LOG.error("Container prepare inputs failed!", e);
+      this.reportFailedAndExit();
+    } catch (ExecutionException e) {
+      LOG.error("Container prepare inputs failed!", e);
+      this.reportFailedAndExit();
+    }
+
+    if ("TENSORFLOW".equals(xlearningAppType) && !single) {
+      LOG.info("Reserved available port: " + reservedSocket.getLocalPort());
+      amClient.reportReservedPort(envs.get(ApplicationConstants.Environment.NM_HOST.toString()),
+          reservedSocket.getLocalPort(), this.role, this.index);
+
+      while (true) {
+        //TODO may be need encode use Base64 while used in Env
+        this.clusterDef = amClient.getClusterDef();
+        if (this.clusterDef != null) {
+          LOG.info("Cluster def is: " + this.clusterDef);
+          break;
+        }
+        Utilities.sleep(this.conf.getInt(XLearningConfiguration.XLEARNING_CONTAINER_UPDATE_APP_STATUS_INTERVAL, XLearningConfiguration.DEFAULT_XLEARNING_CONTAINER_UPDATE_APP_STATUS_INTERVAL));
+      }
+    }
+
+    if (xlearningAppType.equals("DISTLIGHTGBM")) {
+      LOG.info("Reserved available port: " + reservedSocket.getLocalPort());
+      this.lightGBMLocalPort = reservedSocket.getLocalPort();
+      InetAddress address = null;
+      try {
+        address = InetAddress.getByName(envs.get(ApplicationConstants.Environment.NM_HOST.toString()));
+      } catch (UnknownHostException e) {
+        LOG.info("acquire host ip failed " + e);
+        reportFailedAndExit();
+      }
+      String ipPortStr = address.getHostAddress() + " " + reservedSocket.getLocalPort();
+      LOG.info("lightGBM ip port string is: " + ipPortStr);
+      amClient.reportLightGbmIpPort(containerId, ipPortStr);
+      String lightGBMIpPortStr;
+      while (true) {
+        //TODO may be need encode use Base64 while used in Env
+        lightGBMIpPortStr = amClient.getLightGbmIpPortStr();
+        if (lightGBMIpPortStr != null) {
+          LOG.info("lightGBM IP PORT list is: " + lightGBMIpPortStr);
+          break;
+        }
+        Utilities.sleep(this.conf.getInt(XLearningConfiguration.XLEARNING_CONTAINER_UPDATE_APP_STATUS_INTERVAL, XLearningConfiguration.DEFAULT_XLEARNING_CONTAINER_UPDATE_APP_STATUS_INTERVAL));
+      }
+      Type type = new TypeToken<ConcurrentHashMap<String, String>>() {
+      }.getType();
+      ConcurrentHashMap<String, String> map = new Gson().fromJson(lightGBMIpPortStr, type);
+      PrintWriter writer = new PrintWriter("lightGBMlist.txt", "UTF-8");
+      for (String str : map.keySet()) {
+        writer.println(map.get(str));
+      }
+      writer.close();
+    }
+
+    String[] env = null;
+    if ("TENSORFLOW".equals(xlearningAppType)) {
+      if (single) {
+        env = new String[]{
+            "PATH=" + System.getenv("PATH"),
+            "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+            "HADOOP_HOME=" + System.getenv("HADOOP_HOME"),
+            "HADOOP_HDFS_HOME=" + System.getenv("HADOOP_HDFS_HOME"),
+            "LD_LIBRARY_PATH=" + "./:" + System.getenv("LD_LIBRARY_PATH") + ":" + System.getenv("JAVA_HOME") +
+                "/jre/lib/amd64/server:" + System.getenv("HADOOP_HOME") + "/lib/native",
+            "CLASSPATH=" + "./:" + System.getenv("CLASSPATH") + ":" + System.getProperty("java.class.path"),
+            "PYTHONUNBUFFERED=1",
+            XLearningConstants.Environment.XLEARNING_TF_INDEX.toString() + "=" + this.index,
+            XLearningConstants.Environment.XLEARNING_TF_ROLE.toString() + "=" + this.role,
+            XLearningConstants.Environment.XLEARNING_INPUT_FILE_LIST.toString() + "=" + this.inputFileList
+        };
+      } else {
+        /**
+         * set TF_CLUSTER_DEF in env
+         * python script can load cluster def use "json.loads(os.environ["CLUSTER_DEF"])"
+         */
+        env = new String[]{
+            "PATH=" + System.getenv("PATH"),
+            "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+            "HADOOP_HOME=" + System.getenv("HADOOP_HOME"),
+            "HADOOP_HDFS_HOME=" + System.getenv("HADOOP_HDFS_HOME"),
+            "LD_LIBRARY_PATH=" + "./:" + System.getenv("LD_LIBRARY_PATH") + ":" + System.getenv("JAVA_HOME") +
+                "/jre/lib/amd64/server:" + System.getenv("HADOOP_HOME") + "/lib/native",
+            "CLASSPATH=" + "./:" + System.getenv("CLASSPATH") + ":" + System.getProperty("java.class.path"),
+            "PYTHONUNBUFFERED=1",
+            XLearningConstants.Environment.XLEARNING_TF_CLUSTER_DEF.toString() + "=" + this.clusterDef,
+            XLearningConstants.Environment.XLEARNING_TF_INDEX.toString() + "=" + this.index,
+            XLearningConstants.Environment.XLEARNING_TF_ROLE.toString() + "=" + this.role,
+            XLearningConstants.Environment.XLEARNING_INPUT_FILE_LIST.toString() + "=" + this.inputFileList
+        };
+      }
+    } else if (xlearningAppType.equals("MXNET")) {
+      if (singleMx) {
+        env = new String[]{
+            "PATH=" + System.getenv("PATH"),
+            "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+            "HADOOP_HOME=" + System.getenv("HADOOP_HOME"),
+            "HADOOP_HDFS_HOME=" + System.getenv("HADOOP_HDFS_HOME"),
+            "LD_LIBRARY_PATH=" + "./:" + System.getenv("LD_LIBRARY_PATH") + ":" + System.getenv("JAVA_HOME") +
+                "/jre/lib/amd64/server:" + System.getenv("HADOOP_HOME") + "/lib/native",
+            "CLASSPATH=" + "./:" + System.getenv("CLASSPATH") + ":" + System.getProperty("java.class.path"),
+            "PYTHONUNBUFFERED=1",
+            XLearningConstants.Environment.XLEARNING_INPUT_FILE_LIST.toString() + "=" + this.inputFileList
+        };
+      } else if (xlearningAppType.equals("DISTXGBOOST")) {
+        env = new String[]{
+            "PATH=" + System.getenv("PATH"),
+            "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+            "HADOOP_HOME=" + System.getenv("HADOOP_HOME"),
+            "HADOOP_HDFS_HOME=" + System.getenv("HADOOP_HDFS_HOME"),
+            "LD_LIBRARY_PATH=" + "./:" + System.getenv("LD_LIBRARY_PATH") + ":" + System.getenv("JAVA_HOME") +
+                "/jre/lib/amd64/server:" + System.getenv("HADOOP_HOME") + "/lib/native",
+            "CLASSPATH=" + "./:" + System.getenv("CLASSPATH") + ":" + System.getProperty("java.class.path"),
+            "DMLC_TRACKER_URI=" + System.getenv("DMLC_TRACKER_URI"),
+            "DMLC_TRACKER_PORT=" + System.getenv("DMLC_TRACKER_PORT"),
+            "DMLC_NUM_WORKER=" + System.getenv("DMLC_NUM_WORKER"),
+            "PYTHONUNBUFFERED=1",
+            "DMLC_TASK_ID=" + this.index,
+            "DMLC_ROLE=" + this.role,
+            XLearningConstants.Environment.XLEARNING_INPUT_FILE_LIST.toString() + "=" + this.inputFileList
+        };
+      } else if (xlearningAppType.equals("DISTLIGHTGBM")) {
+        env = new String[]{
+            "PATH=" + System.getenv("PATH"),
+            "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+
+            "HADOOP_HOME=" + System.getenv("HADOOP_HOME"),
+            "HADOOP_HDFS_HOME=" + System.getenv("HADOOP_HDFS_HOME"),
+            "LD_LIBRARY_PATH=" + "./:" + System.getenv("LD_LIBRARY_PATH") + ":" + System.getenv("JAVA_HOME") +
+                "/jre/lib/amd64/server:" + System.getenv("HADOOP_HOME") + "/lib/native",
+            "CLASSPATH=" + "./:" + System.getenv("CLASSPATH") + ":" + System.getProperty("java.class.path"),
+            "LIGHTGBM_NUM_MACHINE=" + System.getenv(XLearningConstants.Environment.XLEARNING_LIGHTGBM_WORKER_NUM.toString()),
+            "LIGHTGBM_LOCAL_LISTEN_PORT=" + this.lightGBMLocalPort,
+            "PYTHONUNBUFFERED=1",
+            XLearningConstants.Environment.XLEARNING_INPUT_FILE_LIST.toString() + "=" + this.inputFileList
+        };
+      } else {
+        String dmlcID;
+        if (this.role.equals("worker")) {
+          dmlcID = "DMLC_WORKER_ID";
+        } else {
+          dmlcID = "DMLC_SERVER_ID";
+        }
+        env = new String[]{
+            "PATH=" + System.getenv("PATH"),
+            "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+            "HADOOP_HOME=" + System.getenv("HADOOP_HOME"),
+            "HADOOP_HDFS_HOME=" + System.getenv("HADOOP_HDFS_HOME"),
+            "LD_LIBRARY_PATH=" + "./:" + System.getenv("LD_LIBRARY_PATH") + ":" + System.getenv("JAVA_HOME") +
+                "/jre/lib/amd64/server:" + System.getenv("HADOOP_HOME") + "/lib/native",
+            "CLASSPATH=" + "./:" + System.getenv("CLASSPATH") + ":" + System.getProperty("java.class.path"),
+            "DMLC_PS_ROOT_URI=" + System.getenv("DMLC_PS_ROOT_URI"),
+            "DMLC_PS_ROOT_PORT=" + System.getenv("DMLC_PS_ROOT_PORT"),
+            "DMLC_NUM_WORKER=" + System.getenv("DMLC_NUM_WORKER"),
+            "DMLC_NUM_SERVER=" + System.getenv("DMLC_NUM_SERVER"),
+            "PYTHONUNBUFFERED=1",
+            dmlcID + "=" + this.index,
+            "DMLC_ROLE=" + this.role,
+            XLearningConstants.Environment.XLEARNING_INPUT_FILE_LIST.toString() + "=" + this.inputFileList
+        };
+      }
+    } else {
+      env = new String[]{
+          "PATH=" + System.getenv("PATH"),
+          "JAVA_HOME=" + System.getenv("JAVA_HOME"),
+          "HADOOP_HOME=" + System.getenv("HADOOP_HOME"),
+          "HADOOP_HDFS_HOME=" + System.getenv("HADOOP_HDFS_HOME"),
+          "LD_LIBRARY_PATH=" + "./:" + System.getenv("LD_LIBRARY_PATH") + ":" + System.getenv("JAVA_HOME") +
+              "/jre/lib/amd64/server:" + System.getenv("HADOOP_HOME") + "/lib/native",
+          "CLASSPATH=" + "./:" + System.getenv("CLASSPATH") + ":" + System.getProperty("java.class.path"),
+          "PYTHONUNBUFFERED=1",
+          XLearningConstants.Environment.XLEARNING_INPUT_FILE_LIST.toString() + "=" + this.inputFileList
+      };
+    }
+
+    String command = envs.get(XLearningConstants.Environment.XLEARNING_EXEC_CMD.toString());
+    LOG.info("Executing command:" + command);
+    Runtime rt = Runtime.getRuntime();
+
+    //close reserved socket as tf will bind this port later
+    this.reservedSocket.close();
+    final Process xlearningProcess = rt.exec(command, env);
+    Date now = new Date();
+    heartbeatThread.setContainersStartTime(now.toString());
+
+    if (conf.get(XLearningConfiguration.XLEARNING_INPUT_STRATEGY, XLearningConfiguration.DEFAULT_XLEARNING_INPUT_STRATEGY).equals("STREAM")) {
+      LOG.info("Starting thread to redirect stdin of xlearning process");
+      Thread stdinRedirectThread = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            OutputStreamWriter osw = new OutputStreamWriter(xlearningProcess.getOutputStream());
+            List<InputSplit> inputs = Arrays.asList(amClient.getStreamInputSplit(containerId));
+            JobConf jobConf = new JobConf(conf);
+            RecordReader reader;
+            InputFormat inputFormat = ReflectionUtils.newInstance(conf.getClass(XLearningConfiguration.XLEARNING_INPUTF0RMAT_CLASS, XLearningConfiguration.DEFAULT_XLEARNING_INPUTF0RMAT_CLASS, InputFormat.class),
+                jobConf);
+            for (int j = 0; j < conf.getInt(XLearningConfiguration.XLEARNING_STREAM_EPOCH, XLearningConfiguration.DEFAULT_XLEARNING_STREAM_EPOCH); j++) {
+              LOG.info("Epoch " + (j + 1) + " starting...");
+              for (int i = 0, len = inputs.size(); i < len; i++) {
+                LOG.info("split " + (i + 1) + " is handling...");
+                reader = inputFormat.getRecordReader(inputs.get(i), jobConf, Reporter.NULL);
+                Object key = reader.createKey();
+                Object value = reader.createValue();
+                Boolean finished = false;
+                while (!finished) {
+                  try {
+                    finished = !reader.next(key, value);
+                    if (finished) {
+                      break;
+                    }
+                    osw.write(value.toString());
+                    osw.write("\n");
+                  } catch (EOFException e) {
+                    finished = true;
+                  }
+                }
+                reader.close();
+                LOG.info("split " + (i + 1) + " is finished.");
+              }
+              LOG.info("Epoch " + (j + 1) + " finished.");
+            }
+            osw.close();
+          } catch (Exception e) {
+            LOG.warn("Exception in thread stdinRedirectThread");
+            e.printStackTrace();
+          }
+        }
+      });
+      stdinRedirectThread.start();
+    }
+
+    List<OutputInfo> outputs = Arrays.asList(amClient.getOutputLocation());
+    if ((this.conf.get(XLearningConfiguration.XLEARNING_OUTPUT_STRATEGY, XLearningConfiguration.DEFAULT_XLEARNING_OUTPUT_STRATEGY).equals("STREAM")) && outputs.size() > 0) {
+      LOG.info("Starting thread to redirect stream stdout of xlearning process");
+      final Thread stdoutRedirectThread = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            BufferedReader reader;
+            reader = new BufferedReader(new InputStreamReader(xlearningProcess.getInputStream()));
+            List<OutputInfo> outputs = Arrays.asList(amClient.getOutputLocation());
+            JobConf jobConf = new JobConf(conf);
+            jobConf.setOutputKeyClass(Text.class);
+            jobConf.setOutputValueClass(Text.class);
+            jobConf.setBoolean("mapred.output.compress", true);
+            jobConf.set("mapred.output.compression.codec", "org.apache.hadoop.io.compress.GzipCodec");
+            jobConf.setOutputFormat(TextMultiOutputFormat.class);
+
+            Path remotePath = new Path(outputs.get(0).getDfsLocation() + "/_temporary/" + containerId.toString());
+            FileSystem dfs = remotePath.getFileSystem(jobConf);
+            jobConf.set(XLearningConstants.STREAM_OUTPUT_DIR, remotePath.makeQualified(dfs).toString());
+            OutputFormat outputFormat = ReflectionUtils.newInstance(conf.getClass(XLearningConfiguration.XLEARNING_OUTPUTFORMAT_CLASS, XLearningConfiguration.DEFAULT_XLEARNING_OUTPUTF0RMAT_CLASS, OutputFormat.class),
+                jobConf);
+            outputFormat.checkOutputSpecs(dfs, jobConf);
+            JobID jobID = new JobID(new SimpleDateFormat("yyyyMMddHHmm").format(new Date()), 0);
+            TaskAttemptID taId = new TaskAttemptID(new TaskID(jobID, true, 0), 0);
+            jobConf.set("mapred.tip.id", taId.getTaskID().toString());
+            jobConf.set("mapred.task.id", taId.toString());
+            jobConf.set("mapred.job.id", jobID.toString());
+            amClient.reportMapedTaskID(containerId, taId.toString());
+            RecordWriter writer = outputFormat.getRecordWriter(dfs, jobConf, "part-r", Reporter.NULL);
+            String xlearningStreamResultLine;
+            while ((xlearningStreamResultLine = reader.readLine()) != null) {
+              writer.write(null, xlearningStreamResultLine);
+            }
+            writer.close(Reporter.NULL);
+            reader.close();
+            dfs.close();
+          } catch (Exception e) {
+            LOG.warn("Exception in thread stdoutRedirectThread");
+            e.printStackTrace();
+          }
+        }
+      });
+      stdoutRedirectThread.start();
+    } else {
+      LOG.info("Starting thread to redirect stdout of xlearning process");
+      Thread stdoutRedirectThread = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            BufferedReader reader;
+            reader = new BufferedReader(new InputStreamReader(xlearningProcess.getInputStream()));
+            String xlearningStdoutLog;
+            while ((xlearningStdoutLog = reader.readLine()) != null) {
+              LOG.info(xlearningStdoutLog);
+            }
+          } catch (Exception e) {
+            LOG.warn("Exception in thread stdoutRedirectThread");
+            e.printStackTrace();
+          }
+        }
+      });
+      stdoutRedirectThread.start();
+    }
+
+    LOG.info("Starting thread to redirect stderr of xlearning process");
+    Thread stderrRedirectThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          BufferedReader reader;
+          reader = new BufferedReader(new InputStreamReader(xlearningProcess.getErrorStream()));
+          String xlearningStderrLog;
+          while ((xlearningStderrLog = reader.readLine()) != null) {
+            if (xlearningStderrLog.contains("reporter progress")) {
+              heartbeatThread.setProgressLog(xlearningStderrLog);
+            } else {
+              LOG.info(xlearningStderrLog);
+            }
+          }
+        } catch (Exception e) {
+          LOG.warn("Error in thread stderrRedirectThread");
+          e.printStackTrace();
+        }
+      }
+    });
+    stderrRedirectThread.start();
+
+    heartbeatThread.setContainerStatus(XLearningContainerStatus.RUNNING);
+
+    //Start board process
+    int boardIndex = this.conf.getInt(XLearningConfiguration.XLEARNING_TF_BOARD_WORKER_INDEX, XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_WORKER_INDEX);
+    Boolean boardEnable = this.conf.getBoolean(XLearningConfiguration.XLEARNING_TF_BOARD_ENABLE, XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_ENABLE);
+    if (boardEnable && this.role.equals(XLearningConstants.WORKER) && boardIndex == this.index) {
+      Socket boardReservedSocket = new Socket();
+      try {
+        boardReservedSocket.bind(new InetSocketAddress("127.0.0.1", 0));
+      } catch (IOException e) {
+        LOG.error("Can not get available port");
+        reportFailedAndExit();
+      }
+      String boardHost = envs.get(ApplicationConstants.Environment.NM_HOST.toString());
+      String boardLogDir = this.conf.get(XLearningConfiguration.XLEARNING_TF_BOARD_LOG_DIR, XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_LOG_DIR);
+      int boardPort = boardReservedSocket.getLocalPort();
+      String boardCommand;
+      if ("TENSORFLOW".equals(xlearningAppType)) {
+        int boardReloadInterval = this.conf.getInt(XLearningConfiguration.XLEARNING_TF_BOARD_RELOAD_INTERVAL, XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_RELOAD_INTERVAL);
+        boardCommand = this.conf.get(XLearningConfiguration.XLEARNING_TF_BOARD_PATH, XLearningConfiguration.DEFAULT_XLEARNING_TF_BOARD_PATH) + " --host=" + boardHost + " --port=" + boardPort + " --reload_interval=" + boardReloadInterval + " --logdir=" + boardLogDir;
+      } else {
+        int boardCacheTimeout = this.conf.getInt(XLearningConfiguration.XLEARNING_BOARD_CACHE_TIMEOUT, XLearningConfiguration.DEFAULT_XLEARNING_BOARD_CACHE_TIMEOUT);
+        boardCommand = this.conf.get(XLearningConfiguration.XLEARNING_BOARD_PATH, XLearningConfiguration.DEFAULT_XLEARNING_BOARD_PATH) + " --host=" + boardHost + " --port=" + boardPort + " --logdir=" + boardLogDir + " --cache_timeout=" + boardCacheTimeout;
+        String modelpb = this.conf.get(XLearningConfiguration.XLEARNING_BOARD_MODELPB, XLearningConfiguration.DEFAULT_XLEARNING_BOARD_MODELPB);
+        if (!(modelpb.equals("") || modelpb == null)) {
+          boardCommand = boardCommand + " --model_pb=" + modelpb;
+        }
+      }
+      String boardUrl = "http://" + boardHost + ":" + boardPort;
+      LOG.info("Executing borad command:" + boardCommand);
+      boardReservedSocket.close();
+      try {
+        final Process boardProcess = rt.exec(boardCommand, env);
+        LOG.info("Starting thread to redirect stdout of board process");
+        Thread boardStdoutRedirectThread = new Thread(new Runnable() {
+          @Override
+          public void run() {
+            try {
+              BufferedReader reader;
+              reader = new BufferedReader(new InputStreamReader(boardProcess.getInputStream()));
+              String boardStdoutLog;
+              while ((boardStdoutLog = reader.readLine()) != null) {
+                LOG.debug(boardStdoutLog);
+              }
+            } catch (Exception e) {
+              LOG.warn("Exception in thread boardStdoutRedirectThread");
+              e.printStackTrace();
+            }
+          }
+        });
+        boardStdoutRedirectThread.start();
+
+        LOG.info("Starting thread to redirect stderr of board process");
+        Thread boardStderrRedirectThread = new Thread(new Runnable() {
+          @Override
+          public void run() {
+            try {
+              BufferedReader reader;
+              reader = new BufferedReader(new InputStreamReader(boardProcess.getErrorStream()));
+              String boardStderrLog;
+              while ((boardStderrLog = reader.readLine()) != null) {
+                LOG.debug(boardStderrLog);
+              }
+            } catch (Exception e) {
+              LOG.warn("Error in thread boardStderrRedirectThread");
+              e.printStackTrace();
+            }
+          }
+        });
+        boardStderrRedirectThread.start();
+        amClient.reportTensorBoardURL(boardUrl);
+        LOG.info("Container index is " + index + ", report board url:" + boardUrl);
+      } catch (Exception e) {
+        LOG.error("Board Process failed. For more detail: " + e);
+      }
+    }
+
+    int updateAppStatusInterval = this.conf.getInt(XLearningConfiguration.XLEARNING_CONTAINER_UPDATE_APP_STATUS_INTERVAL, XLearningConfiguration.DEFAULT_XLEARNING_CONTAINER_UPDATE_APP_STATUS_INTERVAL);
+
+    if (this.role.equals(XLearningConstants.WORKER)) {
+      this.xlearningCmdProcessId = getPidOfProcess(xlearningProcess);
+      LOG.info("xlearningCmdProcessId is:" + this.xlearningCmdProcessId);
+      containerReporter = new ContainerReporter(amClient, conf, containerId, this.xlearningCmdProcessId);
+      containerReporter.setDaemon(true);
+      containerReporter.start();
+    }
+
+    int code = -1;
+    while (code == -1 && !heartbeatThread.isXLearningTrainCompleted()) {
+      Utilities.sleep(updateAppStatusInterval);
+      try {
+        code = xlearningProcess.exitValue();
+      } catch (IllegalThreadStateException e) {
+        LOG.debug("XLearning Process is running");
+      }
+    }
+
+    if (this.role.equals(XLearningConstants.PS)) {
+      if (code == -1) {
+        xlearningProcess.destroy();
+        return true;
+      } else if (code == 0) {
+        return true;
+      }
+      return false;
+    }
+
+    if (this.role.equals("server")) {
+      if (code == -1) {
+        xlearningProcess.destroy();
+        return true;
+      } else if (code == 0) {
+        return true;
+      }
+      return false;
+    }
+    //As role is worker
+    if (code == 0) {
+      this.uploadOutputFiles();
+    } else {
+      return false;
+    }
+    return true;
+  }

@@ -1,0 +1,37 @@
+    private long runAndMeasure(Measurable[] runners, CountDownLatch latch, String timeUnit)
+    {
+        for (int i = 0; i < runners.length; i++)
+        {
+            Thread t = new Thread(runners[i]);
+            t.start();
+        }
+
+        try
+        {
+            latch.await();
+        }
+        catch (InterruptedException e)
+        {
+            e.printStackTrace();
+        }
+
+        int i = 0;
+        long[] track = new long[runners.length];
+        long max = 0, avg = 0, med = 0;
+        long absoluteStart = Long.MAX_VALUE, absoluteFinish = Long.MIN_VALUE;
+        for (Measurable runner : runners)
+        {
+            long elapsed = runner.getElapsed();
+            absoluteStart = Math.min(absoluteStart, runner.getStart());
+            absoluteFinish = Math.max(absoluteFinish, runner.getFinish());
+            track[i++] = elapsed;
+            max = Math.max(max, elapsed);
+            avg = (avg + elapsed) / 2;
+        }
+
+        Arrays.sort(track);
+        med = track[runners.length / 2];
+        System.out.printf("  max=%d%4$s, avg=%d%4$s, med=%d%4$s\n", max, avg, med, timeUnit);
+
+        return absoluteFinish - absoluteStart;
+    }

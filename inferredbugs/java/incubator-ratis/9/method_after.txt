@@ -1,0 +1,32 @@
+  @Test(timeout = 1000)
+  public void testRestartingScheduler() throws Exception {
+    final TimeoutScheduler scheduler = TimeoutScheduler.newInstance();
+    final TimeDuration grace = TimeDuration.valueOf(100, TimeUnit.MILLISECONDS);
+    scheduler.setGracePeriod(grace);
+    Assert.assertFalse(scheduler.hasScheduler());
+
+    final ErrorHandler errorHandler = new ErrorHandler();
+
+    for(int i = 0; i < 2; i++) {
+      final AtomicBoolean fired = new AtomicBoolean(false);
+      scheduler.onTimeout(TimeDuration.valueOf(150, TimeUnit.MILLISECONDS), () -> {
+        Assert.assertFalse(fired.get());
+        fired.set(true);
+      }, errorHandler);
+      Assert.assertTrue(scheduler.hasScheduler());
+
+      Thread.sleep(100);
+      Assert.assertFalse(fired.get());
+      Assert.assertTrue(scheduler.hasScheduler());
+
+      Thread.sleep(100);
+      Assert.assertTrue(fired.get());
+      Assert.assertTrue(scheduler.hasScheduler());
+
+      Thread.sleep(100);
+      Assert.assertTrue(fired.get());
+      Assert.assertFalse(scheduler.hasScheduler());
+    }
+
+    errorHandler.assertNoError();
+  }

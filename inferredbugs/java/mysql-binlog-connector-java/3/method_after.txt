@@ -1,0 +1,43 @@
+    private void listenForEventPackets() throws IOException {
+        ByteArrayInputStream inputStream = channel.getInputStream();
+        try {
+            while (inputStream.peek() != -1) {
+                int packetLength = inputStream.readInteger(3);
+                inputStream.skip(1); // 1 byte for sequence
+                int marker = inputStream.read();
+                if (marker == 0xFF) {
+                    ErrorPacket errorPacket = new ErrorPacket(inputStream.read(packetLength - 1));
+                    throw new IOException(errorPacket.getErrorCode() + " - " + errorPacket.getErrorMessage());
+                }
+                Event event;
+                try {
+                    event = eventDeserializer.nextEvent(inputStream);
+                } catch (Exception e) {
+                    if (isConnected()) {
+                        synchronized (lifecycleListeners) {
+                            for (LifecycleListener lifecycleListener : lifecycleListeners) {
+                                lifecycleListener.onEventDeserializationFailure(this, e);
+                            }
+                        }
+                    }
+                    continue;
+                }
+                if (isConnected()) {
+                    notifyEventListeners(event);
+                    updateClientBinlogFilenameAndPosition(event);
+                }
+            }
+        } catch (Exception e) {
+            if (isConnected()) {
+                synchronized (lifecycleListeners) {
+                    for (LifecycleListener lifecycleListener : lifecycleListeners) {
+                        lifecycleListener.onCommunicationFailure(this, e);
+                    }
+                }
+            }
+        } finally {
+            if (isConnected()) {
+                disconnectChannel();
+            }
+        }
+    }

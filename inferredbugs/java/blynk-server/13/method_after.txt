@@ -1,0 +1,41 @@
+    @POST
+    @Path("{token}/email")
+    @Consumes(value = MediaType.APPLICATION_JSON)
+    public Response email(@PathParam("token") String token,
+                                        EmailPojo message) {
+
+        globalStats.mark(HTTP_EMAIL);
+
+        TokenValue tokenValue = tokenManager.getUserByToken(token);
+
+        if (tokenValue == null) {
+            log.debug("Requested token {} not found.", token);
+            return Response.badRequest("Invalid token.");
+        }
+
+        DashBoard dash = tokenValue.user.profile.getDashById(tokenValue.dashId);
+
+        if (dash == null || !dash.isActive) {
+            log.debug("Project is not active.");
+            return Response.badRequest("Project is not active.");
+        }
+
+        Mail mail = dash.getWidgetByType(Mail.class);
+
+        if (mail == null) {
+            log.debug("No email widget.");
+            return Response.badRequest("No email widget.");
+        }
+
+        if (message == null ||
+                message.subj == null || message.subj.equals("") ||
+                message.to == null || message.to.equals("")) {
+            log.debug("Email body empty. '{}'", message);
+            return Response.badRequest("Email body is wrong. Missing or empty fields 'to', 'subj'.");
+        }
+
+        log.trace("Sending Mail for user {}, with message : '{}'.", tokenValue.user.name, message.subj);
+        mail(tokenValue.user.name, message.to, message.subj, message.title);
+
+        return Response.ok();
+    }

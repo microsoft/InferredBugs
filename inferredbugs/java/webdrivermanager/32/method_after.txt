@@ -1,0 +1,46 @@
+    protected List<URL> filterCandidateUrls(Architecture arch, String version,
+            boolean getLatest) throws IOException {
+        List<URL> urls = getDrivers();
+        List<URL> candidateUrls;
+        log.trace("All URLs: {}", urls);
+
+        boolean continueSearchingVersion;
+        do {
+            // Get the latest or concrete version
+            candidateUrls = getLatest ? getLatest(urls, getDriverName())
+                    : getVersion(urls, getDriverName(), version);
+            log.trace("Candidate URLs: {}", candidateUrls);
+            if (versionToDownload == null
+                    || this.getClass().equals(EdgeDriverManager.class)) {
+                break;
+            }
+
+            // Filter by OS
+            if (!getDriverName().contains("IEDriverServer")) {
+                candidateUrls = urlFilter.filterByOs(candidateUrls,
+                        config().getOs());
+            }
+
+            // Filter by architecture
+            candidateUrls = urlFilter.filterByArch(candidateUrls, arch,
+                    forcedArch);
+
+            // Filter by distro
+            candidateUrls = filterByDistro(candidateUrls);
+
+            // Filter by ignored versions
+            candidateUrls = filterByIgnoredVersions(candidateUrls);
+
+            // Find out if driver version has been found or not
+            continueSearchingVersion = candidateUrls.isEmpty() && getLatest;
+            if (continueSearchingVersion) {
+                String driverNameString = listToString(getDriverName());
+                log.info(
+                        "No binary found for {} {} ... seeking another version",
+                        driverNameString, versionToDownload);
+                urls = removeFromList(urls, versionToDownload);
+                versionToDownload = null;
+            }
+        } while (continueSearchingVersion);
+        return candidateUrls;
+    }

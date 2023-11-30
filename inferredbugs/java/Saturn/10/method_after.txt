@@ -1,0 +1,22 @@
+ private void handleResponse(CloseableHttpResponse httpResponse) throws IOException, SaturnJobException {
+		int status = httpResponse.getStatusLine().getStatusCode();
+
+		if (status == 201) {
+			logger.info("raise alarm successfully.");
+			return;
+		}
+
+		if (status >= 400 && status <= 500) {
+			String responseBody = EntityUtils.toString(httpResponse.getEntity());
+			if (StringUtils.isNotBlank(responseBody)) {
+				String errMsg = JSONObject.parseObject(responseBody).getString("message");
+				throw constructSaturnJobException(status, errMsg);
+			} else {
+				throw new SaturnJobException(SaturnJobException.SYSTEM_ERROR, "internal server error");
+			}
+		} else {
+			// if have unexpected status, then throw RuntimeException directly.
+			String errMsg = "unexpected status returned from Saturn Server.";
+			throw new SaturnJobException(SaturnJobException.SYSTEM_ERROR, errMsg);
+		}
+	}

@@ -1,0 +1,22 @@
+    @Test
+    public void dontRepostNotifyFailures() throws Exception {
+        final Stakeholder stk = Mockito.mock(Stakeholder.class);
+        final Project project = new FkProject();
+        new ClaimOut()
+            .type("Notify GitHub")
+            .token("github;test/test#1")
+            .postTo(project);
+        final XML claim = new Claims(project).iterate().iterator().next();
+        Mockito.doThrow(new IllegalStateException("")).when(stk).process(
+            project, claim
+        );
+        new StkSafe(
+            "hello1",
+            new PropsFarm(new Directives().xpath("/props/testing").remove()),
+            stk
+        ).process(project, claim);
+        MatcherAssert.assertThat(
+            new Claims(project).iterate(),
+            Matchers.iterableWithSize(2)
+        );
+    }

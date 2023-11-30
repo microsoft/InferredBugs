@@ -1,0 +1,45 @@
+    public void registerInstance(String namespaceId, String serviceName, String clusterName, Instance instance) throws Exception {
+
+        Service service = getService(namespaceId, serviceName);
+        boolean serviceUpdated = false;
+        if (service == null) {
+            service = new Service();
+            service.setName(serviceName);
+            service.setNamespaceId(namespaceId);
+            // now validate the service. if failed, exception will be thrown
+            service.setLastModifiedMillis(System.currentTimeMillis());
+            service.recalculateChecksum();
+            service.valid();
+            serviceUpdated = true;
+        }
+
+        if (!service.getClusterMap().containsKey(instance.getClusterName())) {
+
+            Cluster cluster = new Cluster();
+            cluster.setName(instance.getClusterName());
+            cluster.setDom(service);
+            cluster.init();
+
+            if (service.getClusterMap().containsKey(cluster.getName())) {
+                service.getClusterMap().get(cluster.getName()).update(cluster);
+            } else {
+                service.getClusterMap().put(cluster.getName(), cluster);
+            }
+
+            service.setLastModifiedMillis(System.currentTimeMillis());
+            service.recalculateChecksum();
+            service.valid();
+            serviceUpdated = true;
+        }
+
+        // only local memory is updated:
+        if (serviceUpdated) {
+            putService(service);
+        }
+
+        if (service.allIPs().contains(instance)) {
+            throw new NacosException(NacosException.INVALID_PARAM, "instance already exist: " + instance);
+        }
+
+        addInstance(namespaceId, serviceName, clusterName, instance.isEphemeral(), instance);
+    }

@@ -1,0 +1,20 @@
+    @Test
+    public void testUpdateWithinTransaction() {
+        try (Database db = db()) {
+            db //
+                    .select("select name from person") //
+                    .transactedValuesOnly() //
+                    .getAs(String.class) //
+                    .doOnNext(System.out::println) //
+                    .flatMap(tx -> tx//
+                            .update("update person set score=-1 where name=:name") //
+                            .batchSize(1) //
+                            .parameter("name", tx.value()) //
+                            .valuesOnly() //
+                            .counts()) //
+                    .test() //
+                    .awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
+                    .assertValues(1, 1, 1) //
+                    .assertComplete();
+        }
+    }

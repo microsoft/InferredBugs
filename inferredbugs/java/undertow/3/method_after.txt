@@ -1,0 +1,25 @@
+    @Override
+    public void sendError(final int sc, final String msg) throws IOException {
+        if (exchange.getExchange().isResponseStarted()) {
+            throw UndertowServletMessages.MESSAGES.responseAlreadyCommited();
+        }
+        resetBuffer();
+        writer = null;
+        responseState = ResponseState.NONE;
+        exchange.getExchange().setResponseCode(sc);
+        //todo: is this the best way to handle errors?
+        final String location = servletContext.getDeployment().getErrorPages().getErrorLocation(sc);
+        if (location != null) {
+            RequestDispatcherImpl requestDispatcher = new RequestDispatcherImpl(location, servletContext);
+            try {
+                requestDispatcher.error(exchange.getExchange().getAttachment(HttpServletRequestImpl.ATTACHMENT_KEY), exchange.getExchange().getAttachment(HttpServletResponseImpl.ATTACHMENT_KEY), exchange.getExchange().getAttachment(ServletInitialHandler.CURRENT_SERVLET).getName(), msg);
+            } catch (ServletException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (msg != null) {
+            setContentType("text/html");
+            getWriter().write(msg);
+            getWriter().close();
+        }
+        responseDone(exchange.getCompletionHandler());
+    }

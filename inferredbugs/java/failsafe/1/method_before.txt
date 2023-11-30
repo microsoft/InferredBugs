@@ -1,0 +1,19 @@
+  @SuppressWarnings({ "rawtypes", "unchecked" })
+  private void assertGetFuture(Object callable) throws Throwable {
+    // Fail twice then succeed
+    when(service.connect()).thenThrow(failures(2, SocketException.class)).thenReturn(true);
+    boolean result = (boolean) (callable instanceof Callable
+        ? Recurrent.future((Callable) callable, new RetryPolicy(), executor).get()
+        : Recurrent.future((ContextualCallable) callable, new RetryPolicy(), executor).get());
+    assertEquals(result, true);
+    verify(service, times(3)).connect();
+
+    // Fail three times
+    reset(service);
+    when(service.connect()).thenThrow(failures(10, SocketException.class)).thenReturn(true);
+    Throwable failure = callable instanceof Callable
+        ? getThrowable(() -> Recurrent.future((Callable) callable, retryTwice, executor).get())
+        : getThrowable(() -> Recurrent.future((ContextualCallable) callable, retryTwice, executor).get());
+    assertTrue(SocketException.class.isAssignableFrom(failure.getClass()));
+    verify(service, times(3)).connect();
+  }

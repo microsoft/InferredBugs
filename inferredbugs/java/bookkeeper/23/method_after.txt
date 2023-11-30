@@ -1,0 +1,88 @@
+    @Test
+    public void testGarbageCollectLedgers() throws Exception {
+        int numLedgers = 100;
+        int numRemovedLedgers = 10;
+
+        final Set<Long> createdLedgers = new HashSet<Long>();
+        final Set<Long> removedLedgers = new HashSet<Long>();
+
+        // create 100 ledgers
+        createLedgers(numLedgers, createdLedgers);
+
+        Random r = new Random(System.currentTimeMillis());
+        final List<Long> tmpList = new ArrayList<Long>();
+        tmpList.addAll(createdLedgers);
+        Collections.shuffle(tmpList, r);
+        // random remove several ledgers
+        for (int i=0; i<numRemovedLedgers; i++) {
+            long ledgerId = tmpList.get(i);
+            synchronized (removedLedgers) {
+                getLedgerManager().deleteLedger(ledgerId, new GenericCallback<Void>() {
+                        @Override
+                        public void operationComplete(int rc, Void result) {
+                            synchronized (removedLedgers) {
+                                removedLedgers.notify();
+                            }
+                        }
+                    });
+                removedLedgers.wait();
+            }
+            removedLedgers.add(ledgerId);
+            createdLedgers.remove(ledgerId);
+        }
+        final CountDownLatch inGcProgress = new CountDownLatch(1);
+        final CountDownLatch createLatch = new CountDownLatch(1);
+        final CountDownLatch endLatch = new CountDownLatch(2);
+
+        Thread gcThread = new Thread() {
+            @Override
+            public void run() {
+                getActiveLedgerManager().garbageCollectLedgers(new GarbageCollector() {
+                    boolean paused = false;
+                    @Override
+                    public void gc(long ledgerId) {
+                        if (!paused) {
+                            inGcProgress.countDown();
+                            try {
+                                createLatch.await();
+                            } catch (InterruptedException ie) {
+                            }
+                            paused = true;
+                        }
+                        LOG.info("Garbage Collected ledger {}", ledgerId);
+                    }
+                });
+                LOG.info("Gc Thread quits.");
+                endLatch.countDown();
+            }
+        };
+
+        Thread createThread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    inGcProgress.await();
+                    // create 10 more ledgers
+                    createLedgers(10, createdLedgers);
+                    LOG.info("Finished creating 10 more ledgers.");
+                    createLatch.countDown();
+                } catch (Exception e) {
+                }
+                LOG.info("Create Thread quits.");
+                endLatch.countDown();
+            }
+        };
+
+        createThread.start();
+        gcThread.start();
+
+        endLatch.await();
+
+        // test ledgers
+        for (Long ledger : removedLedgers) {
+            assertFalse(getActiveLedgerManager().containsActiveLedger(ledger));
+        }
+        for (Long ledger : createdLedgers) {
+            assertTrue(getActiveLedgerManager().containsActiveLedger(ledger));
+        }
+    }

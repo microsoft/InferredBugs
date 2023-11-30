@@ -1,0 +1,36 @@
+ public void read(String fileName){
+		vrpBuilder.setFleetSize(FleetSize.INFINITE);
+		BufferedReader reader = getReader(fileName);
+		int vehicleCapacity = 0;
+		double serviceTime = 0.0;
+		double endTime = Double.MAX_VALUE;
+		int counter = 0;
+		String line = null;
+		while((line = readLine(reader)) != null){
+			line = line.replace("\r", "");
+			line = line.trim();
+			String[] tokens = line.split(" ");
+			if(counter == 0){
+				vehicleCapacity = Integer.parseInt(tokens[1].trim());
+				endTime = Double.parseDouble(tokens[2].trim());
+				serviceTime = Double.parseDouble(tokens[3].trim());
+			}
+			else if(counter == 1){
+				Coordinate depotCoord = makeCoord(tokens[0].trim(),tokens[1].trim());
+				VehicleTypeImpl vehicleType = VehicleTypeImpl.Builder.newInstance("christophidesType").addCapacityDimension(0, vehicleCapacity).
+						setCostPerDistance(1.0).build();
+				Vehicle vehicle = VehicleImpl.Builder.newInstance("christophidesVehicle").setLatestArrival(endTime).setStartLocationCoordinate(depotCoord).
+						setType(vehicleType).build();
+				vrpBuilder.addVehicle(vehicle);
+			}
+			else{
+				Coordinate customerCoord = makeCoord(tokens[0].trim(),tokens[1].trim());
+				int demand = Integer.parseInt(tokens[2].trim());
+				String customer = Integer.valueOf(counter-1).toString();
+				Service service = Service.Builder.newInstance(customer).addSizeDimension(0, demand).setServiceTime(serviceTime).setCoord(customerCoord).build();
+				vrpBuilder.addJob(service);
+			}
+			counter++;
+		}
+		close(reader);
+	}

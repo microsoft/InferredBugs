@@ -1,0 +1,39 @@
+    @Override
+    public AsyncIOWriter write(AtmosphereResponse r, byte[] data, int offset, int length) throws IOException {
+
+        boolean transform = filters.size() > 0 && r.getStatus() < 400;
+        if (transform) {
+            data = transform(r, data, offset, length);
+            offset = 0;
+            length = data.length;
+        }
+
+        logger.trace("About to write to {}", r.resource() != null ? r.resource().uuid() : "null");
+        if (channel.isOpen()) {
+            final ChannelBuffer buffer = ChannelBuffers.dynamicBuffer();
+            pendingWrite.incrementAndGet();
+            if (writeHeader && !headerWritten) {
+                buffer.writeBytes(constructStatusAndHeaders(r).getBytes("UTF-8"));
+                headerWritten = true;
+            }
+
+            if (headerWritten) {
+                buffer.writeBytes(Integer.toHexString(length - offset).getBytes("UTF-8"));
+                buffer.writeBytes(CHUNK_DELIMITER);
+            }
+
+            buffer.writeBytes(data, offset, length);
+            if (headerWritten) {
+                buffer.writeBytes(CHUNK_DELIMITER);
+            }
+
+            channel.write(buffer).addListener(listener);
+            byteWritten = true;
+            lastWrite = System.currentTimeMillis();
+        } else {
+            logger.debug("Trying to write on a closed channel {}", channel);
+            throw new IOException("Channel closed");
+        }
+        headerWritten = true;
+        return this;
+    }

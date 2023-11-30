@@ -1,0 +1,32 @@
+  public void testBasicWrite() throws IOException, ParserConfigurationException, SAXException {
+    Network<String, Number> g = TestGraphs.createTestGraph(true);
+    GraphMLWriter<String, Number> gmlw = new GraphMLWriter<String, Number>();
+    Function<Number, String> edge_weight =
+        new Function<Number, String>() {
+          public String apply(Number n) {
+            return String.valueOf(n.intValue());
+          }
+        };
+
+    Function<String, String> vertex_name = Functions.identity();
+    //TransformerUtils.nopTransformer();
+
+    gmlw.addEdgeData("weight", "integer value for the edge", Integer.toString(-1), edge_weight);
+    gmlw.addVertexData("name", "identifier for the vertex", null, vertex_name);
+    gmlw.setEdgeIDs(edge_weight);
+    gmlw.setVertexIDs(vertex_name);
+    gmlw.save(g, new FileWriter("src/test/resources/testbasicwrite.graphml"));
+
+    // TODO: now read it back in and compare the graph connectivity
+    // and other metadata with what's in TestGraphs.pairs[], etc.
+    GraphMLReader<MutableNetwork<String, Object>, String, Object> gmlr =
+        new GraphMLReader<MutableNetwork<String, Object>, String, Object>();
+    MutableNetwork<String, Object> g2 = NetworkBuilder.directed().allowsSelfLoops(true).build();
+    gmlr.load("src/test/resources/testbasicwrite.graphml", g2);
+    Map<String, GraphMLMetadata<Object>> edge_metadata = gmlr.getEdgeMetadata();
+    Function<Object, String> edge_weight2 = edge_metadata.get("weight").transformer;
+    validateTopology(g, g2, edge_weight, edge_weight2);
+
+    File f = new File("src/test/resources/testbasicwrite.graphml");
+    f.delete();
+  }

@@ -1,0 +1,68 @@
+    public void beginTask(@Param(ScoreLangConstants.TASK_INPUTS_KEY) List<Input> taskInputs,
+                          @Param(ScoreLangConstants.LOOP_KEY) LoopStatement loop,
+                          @Param(ScoreLangConstants.RUN_ENV) RunEnvironment runEnv,
+                          @Param(EXECUTION_RUNTIME_SERVICES) ExecutionRuntimeServices executionRuntimeServices,
+                          @Param(ScoreLangConstants.NODE_NAME_KEY) String nodeName,
+                          @Param(ExecutionParametersConsts.RUNNING_EXECUTION_PLAN_ID) Long RUNNING_EXECUTION_PLAN_ID,
+                          @Param(ScoreLangConstants.NEXT_STEP_ID_KEY) Long nextStepId,
+                          @Param(ScoreLangConstants.REF_ID) String refId) {
+        try {
+            startStepExecutionPathCalc(runEnv);
+            runEnv.removeCallArguments();
+            runEnv.removeReturnValues();
+
+            Context flowContext = runEnv.getStack().popContext();
+
+            Map<String, Serializable> flowVariables = flowContext.getImmutableViewOfVariables();
+
+            fireEvent(executionRuntimeServices, runEnv, ScoreLangConstants.EVENT_INPUT_START, "Task inputs start Binding",
+                    Pair.of(LanguageEventData.BOUND_INPUTS,(Serializable)retrieveInputs(taskInputs)),
+                    Pair.of( LanguageEventData.levelName.TASK_NAME.name(), nodeName));
+
+            //loops
+            if (loopStatementExist(loop)) {
+                LoopCondition loopCondition = loopsBinding.getOrCreateLoopCondition(loop, flowContext, nodeName);
+                if (!loopCondition.hasMore()) {
+                    runEnv.putNextStepPosition(nextStepId);
+                    runEnv.getStack().pushContext(flowContext);
+                    return;
+                }
+
+                if (loopCondition instanceof ForLoopCondition) {
+                    ForLoopCondition forLoopCondition = (ForLoopCondition) loopCondition;
+
+                    if (loop instanceof ListForLoopStatement) {
+                        // normal iteration
+                        String varName = ((ListForLoopStatement) loop).getVarName();
+                        loopsBinding.incrementListForLoop(varName, flowContext, forLoopCondition);
+                    } else {
+                        // map iteration
+                        MapForLoopStatement mapForLoopStatement = (MapForLoopStatement) loop;
+                        String keyName = mapForLoopStatement.getKeyName();
+                        String valueName = mapForLoopStatement.getValueName();
+                        loopsBinding.incrementMapForLoop(keyName, valueName, flowContext, forLoopCondition);
+                    }
+                }
+            }
+
+//            Map<String, Serializable> flowVariables = flowContext.getImmutableViewOfVariables();
+            Map<String, Serializable> operationArguments = inputsBinding.bindInputs(taskInputs, flowVariables, runEnv.getSystemProperties());
+
+            //todo: hook
+
+            sendBindingInputsEvent(taskInputs, operationArguments, runEnv, executionRuntimeServices, "Task inputs resolved",
+                    nodeName, LanguageEventData.levelName.TASK_NAME);
+
+            updateCallArgumentsAndPushContextToStack(runEnv, flowContext, operationArguments);
+
+            // request the score engine to switch to the execution plan of the given ref
+            requestSwitchToRefExecutableExecutionPlan(runEnv, executionRuntimeServices, RUNNING_EXECUTION_PLAN_ID, refId, nextStepId);
+
+            // set the start step of the given ref as the next step to execute (in the new running execution plan that will be set)
+            runEnv.putNextStepPosition(executionRuntimeServices.getSubFlowBeginStep(refId));
+//            runEnv.getExecutionPath().down();
+        } catch (RuntimeException e) {
+            logger.error("There was an error running the begin task execution step of: \'" + nodeName + "\'. Error is: " + e.getMessage());
+            throw new RuntimeException("Error running: " + nodeName + ": " + e.getMessage(), e);
+        }
+    }

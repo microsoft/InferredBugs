@@ -1,0 +1,40 @@
+    public static File extractResource(URL resourceURL, File directory,
+            String prefix, String suffix) throws IOException {
+        InputStream is = resourceURL != null ? resourceURL.openStream() : null;
+        OutputStream os = null;
+        if (is == null) {
+            return null;
+        }
+        File file = null;
+        boolean fileExisted = false;
+        try {
+            if (prefix == null && suffix == null) {
+                if (directory == null) {
+                    directory = new File(System.getProperty("java.io.tmpdir"));
+                }
+                file = new File(directory, new File(resourceURL.getPath()).getName());
+                fileExisted = file.exists();
+            } else {
+                file = File.createTempFile(prefix, suffix, directory);
+            }
+            os = new FileOutputStream(file);
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = is.read(buffer)) != -1) {
+                os.write(buffer, 0, length);
+            }
+            is.close();
+            os.close();
+        } catch (IOException e) {
+            if (file != null && !fileExisted) {
+                file.delete();
+            }
+            throw e;
+        } finally {
+            is.close();
+            if (os != null) {
+                os.close();
+            }
+        }
+        return file;
+    }

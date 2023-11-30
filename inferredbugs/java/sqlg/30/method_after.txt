@@ -1,0 +1,24 @@
+    @BeforeClass
+    public static void beforeClass() throws Exception {
+        URL sqlProperties = Thread.currentThread().getContextClassLoader().getResource("sqlg.properties");
+        configuration = new PropertiesConfiguration(sqlProperties);
+        if (!configuration.containsKey("jdbc.url")) {
+            throw new IllegalArgumentException(String.format("SqlGraph configuration requires that the %s be set", "jdbc.url"));
+        }
+
+        ds = C3P0DataSource.create(configuration).getDatasource();
+
+        //change the connection url to be a JNDI one
+        configuration.setProperty("jdbc.url", "jndi:testConnection");
+
+        //set up the initial context
+        NamingManager.setInitialContextFactoryBuilder(environment -> {
+            InitialContextFactory mockFactory = mock(InitialContextFactory.class);
+            Context mockContext = mock(Context.class);
+            when(mockFactory.getInitialContext(any())).thenReturn(mockContext);
+
+            when(mockContext.lookup("testConnection")).thenReturn(ds);
+
+            return mockFactory;
+        });
+    }

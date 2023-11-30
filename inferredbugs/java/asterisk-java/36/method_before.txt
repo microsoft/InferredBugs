@@ -1,0 +1,128 @@
+    protected AsteriskVersion determineVersion() throws IOException, TimeoutException
+    {
+        int attempts = 0;
+
+        // if ("Asterisk Call Manager/1.1".equals(protocolIdentifier.value))
+        // {
+        // return AsteriskVersion.ASTERISK_1_6;
+        // }
+
+        while (attempts++ < MAX_VERSION_ATTEMPTS)
+        {
+            final ManagerResponse showVersionFilesResponse;
+            final List<String> showVersionFilesResult;
+            boolean Asterisk14outputPresent = false;
+            // increase timeout as output is quite large
+            showVersionFilesResponse = sendAction(new CommandAction("show version files pbx.c"), defaultResponseTimeout * 2);
+            if (!(showVersionFilesResponse instanceof CommandResponse))
+            {
+                // return early in case of permission problems
+                // org.asteriskjava.manager.response.ManagerError:
+                // actionId='null'; message='Permission denied';
+                // response='Error';
+                // uniqueId='null'; systemHashcode=15231583
+            	if(showVersionFilesResponse.getOutput() != null){
+            		Asterisk14outputPresent = true;
+            	}else{
+            		break;
+            	}
+            }
+            if(Asterisk14outputPresent){
+            	List<String> outputList = Arrays.asList(showVersionFilesResponse.getOutput().split(SocketConnectionFacadeImpl.NL_PATTERN.pattern()));
+            	showVersionFilesResult = outputList;
+            }else{
+            	showVersionFilesResult = ((CommandResponse) showVersionFilesResponse).getResult();
+            }
+            if (showVersionFilesResult != null && !showVersionFilesResult.isEmpty())
+            {
+                final String line1 = showVersionFilesResult.get(0);
+
+                if (line1 != null && line1.startsWith("File"))
+                {
+                    final String rawVersion;
+
+                    rawVersion = getRawVersion();
+                    if (rawVersion != null && rawVersion.startsWith("Asterisk 1.4"))
+                    {
+                        return AsteriskVersion.ASTERISK_1_4;
+                    }
+                    return AsteriskVersion.ASTERISK_1_2;
+                }
+                else if (line1 != null && line1.contains("No such command"))
+                {
+
+                    final ManagerResponse coreShowVersionResponse = sendAction(new CommandAction("core show version"),
+                            defaultResponseTimeout * 2);
+
+                    if (coreShowVersionResponse != null && coreShowVersionResponse instanceof CommandResponse)
+                    {
+                        final List<String> coreShowVersionResult = ((CommandResponse) coreShowVersionResponse).getResult();
+
+                        if (coreShowVersionResult != null && !coreShowVersionResult.isEmpty())
+                        {
+                            final String coreLine = coreShowVersionResult.get(0);
+
+                            if (VERSION_PATTERN_1_6.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_1_6;
+                            }
+                            else if (VERSION_PATTERN_1_8.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_1_8;
+                            }
+                            else if (VERSION_PATTERN_10.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_10;
+                            }
+                            else if (VERSION_PATTERN_11.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_11;
+                            }
+			    else if (VERSION_PATTERN_CERTIFIED_11.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_11;
+                            }
+                            else if (VERSION_PATTERN_12.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_12;
+                            }
+                            else if (VERSION_PATTERN_13.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_13;
+                            }
+			    else if (VERSION_PATTERN_CERTIFIED_13.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_13;
+                            }
+                            else if (VERSION_PATTERN_14.matcher(coreLine).matches())
+                            {
+                                return AsteriskVersion.ASTERISK_14;
+                            }
+                        }
+                    }
+
+                    try
+                    {
+                        Thread.sleep(RECONNECTION_VERSION_INTERVAL);
+                    }
+                    catch (Exception ex)
+                    {
+                        // ingnore
+                    } // NOPMD
+                }
+                else
+                {
+                    // if it isn't the "no such command", break and return the
+                    // lowest version immediately
+                    break;
+                }
+            }
+        }
+
+        // TODO: add retry logic; in a reconnect scenario the version fails to
+        // be identified leading to errors
+
+        // as a fallback assume 1.6
+        logger.error("Unable to determine asterisk version, assuming 1.6... you should expect problems to follow.");
+        return AsteriskVersion.ASTERISK_1_6;
+    }

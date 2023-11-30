@@ -1,0 +1,16 @@
+    private void assertApplicationEndpoint(String key, String value) throws Exception {
+        int nTries = 0;
+        Response readResponse = null;
+        String responseContent = null;
+        Route applicationRoute = getApplicationRouteWithName(testsuiteRepositoryArtifactId);
+        String hostUrl = applicationRoute.getSpec().getHost() + TEST_ENDPOINT;
+        do {
+            readResponse = makeHttpRequest(HttpRequestType.GET, "http://" + hostUrl, null);
+            responseContent = new JSONObject(readResponse.body().string()).getString(key);
+            nTries++;
+            TimeUnit.SECONDS.sleep(10);
+        } while(nTries < 3 && readResponse.code() != HttpStatus.SC_OK);
+
+        if (!responseContent.equals(value))
+            throw new AssertionError(String.format("Actual : %s, Expected : %s", responseContent, value));
+    }

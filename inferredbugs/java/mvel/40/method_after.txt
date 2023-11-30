@@ -1,0 +1,236 @@
+    public void runTest(PerfTest test, int count) throws Exception {
+        int exFlags = test.getRunFlags();
+        String expression = test.getExpression();
+        String name = test.getName();
+
+        if (!silent) {
+            System.out.println("Test Name            : " + test.getName());
+            System.out.println("Expression           : " + test.getExpression());
+            System.out.println("Iterations           : " + count);
+        }
+
+        long time;
+        long mem;
+        long total = 0;
+        long[] res = new long[TESTITER];
+
+        if ((testFlags & INTERPRETED) != 0) {
+
+            if (!silent) System.out.println("Interpreted Results  :");
+
+
+            if ((testFlags & RUN_OGNL) != 0 && ((exFlags & RUN_OGNL)) != 0) {
+                try {
+                    // unbenched warm-up
+                    for (int i = 0; i < count; i++) {
+                        // Ognl.getValue(expression, baseClass);
+                    }
+
+                    //           System.gc();
+
+                    time = currentTimeMillis();
+                    mem = Runtime.getRuntime().freeMemory();
+
+                    for (int reps = 0; reps < TESTITER; reps++) {
+                        for (int i = 0; i < count; i++) {
+                            //             Ognl.getValue(expression, baseClass);
+                        }
+
+                        if (reps == 0) res[0] = total += currentTimeMillis() - time;
+                        else res[reps] = (total * -1) + (total += currentTimeMillis() - time - total);
+
+
+                    }
+
+                    if (!silent)
+                        System.out.println("(OGNL)               : " + new BigDecimal(((currentTimeMillis() - time))).divide(new BigDecimal(TESTITER), 2, RoundingMode.HALF_UP)
+                                + "ms avg.  (mem delta: " + ((Runtime.getRuntime().freeMemory() - mem) / 1024) + "kb) " + resultsToString(res));
+                }
+                catch (Exception e) {
+                    if (!silent)
+                        System.out.println("(OGNL)               : <<COULD NOT EXECUTE>>");
+                }
+
+            }
+
+            synchronized (this) {
+                ognlTotal += total;
+            }
+
+            total = 0;
+
+            if ((testFlags & RUN_MVEL) != 0 && ((exFlags & RUN_MVEL) != 0)) {
+                try {
+                    for (int i = 0; i < count; i++) {
+                        MVEL.eval(expression, baseClass);
+                    }
+
+                    //       System.gc();
+
+                    time = currentTimeMillis();
+                    mem = Runtime.getRuntime().freeMemory();
+                    for (int reps = 0; reps < TESTITER; reps++) {
+                        for (int i = 0; i < count; i++) {
+                            MVEL.eval(expression, baseClass);
+                        }
+
+                        if (reps == 0) res[0] = total += currentTimeMillis() - time;
+                        else res[reps] = (total * -1) + (total += currentTimeMillis() - time - total);
+                    }
+
+                    if (!silent)
+                        System.out.println("(MVEL)               : " + new BigDecimal(((currentTimeMillis() - time))).divide(new BigDecimal(TESTITER), 2, RoundingMode.HALF_UP)
+                                + "ms avg.  (mem delta: " + ((Runtime.getRuntime().freeMemory() - mem) / 1024) + "kb) " + resultsToString(res));
+
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+
+                    if (!silent)
+                        System.out.println("(MVEL)               : <<COULD NOT EXECUTE>>");
+                }
+            }
+
+            synchronized (this) {
+                mvelTotal += total;
+            }
+
+//
+//            total = 0;
+//
+//            if ((testFlags & RUN_GROOVY) != 0 && ((exFlags & RUN_GROOVY) != 0)) {
+//                try {
+//                    for (int i = 0; i < count; i++) {
+//                        Binding binding = new Binding();
+//                        for (String var : variables.keySet()) {
+//                            binding.setProperty(var, variables.get(var));
+//                        }
+//
+//                        GroovyShell groovyShell = new GroovyShell(binding);
+//                        groovyShell.evaluate(expression);
+//                    }
+//
+//
+//                    time = currentTimeMillis();
+//                    mem = Runtime.getRuntime().freeMemory();
+//                    for (int reps = 0; reps < TESTITER; reps++) {
+//                        for (int i = 0; i < count; i++) {
+//                            Binding binding = new Binding();
+//                            for (String var : variables.keySet()) {
+//                                binding.setProperty(var, variables.get(var));
+//                            }
+//
+//                            GroovyShell groovyShell = new GroovyShell(binding);
+//                            groovyShell.evaluate(expression);
+//                        }
+//
+//                        if (reps == 0) res[0] = total += currentTimeMillis() - time;
+//                        else res[reps] = (total * -1) + (total += currentTimeMillis() - time - total);
+//                    }
+//
+//                    if (!silent)
+//                        System.out.println("(Groovy)               : " + new BigDecimal(((currentTimeMillis() - time))).divide(new BigDecimal(TESTITER), 2, RoundingMode.HALF_UP)
+//                                + "ms avg.  (mem delta: " + ((Runtime.getRuntime().freeMemory() - mem) / 1024) + "kb) " + resultsToString(res));
+//
+//                }
+//                catch (Exception e) {
+//                    e.printStackTrace();
+//
+//                    if (!silent)
+//                        System.out.println("(Groovy)               : <<COULD NOT EXECUTE>>");
+//                }
+//            }
+//
+//            synchronized (this) {
+//                groovyTotal += total;
+//            }
+//
+            total = 0;
+
+
+            if ((testFlags & RUN_COMMONS_EL) != 0 && ((exFlags & RUN_COMMONS_EL) != 0)) {
+                VariableResolver vars = new JSPMapVariableResolver(variables);
+
+                String commonsEx = "${" + expression + "}";
+
+                try {
+                    for (int i = 0; i < count; i++) {
+                        new ExpressionEvaluatorImpl(true).parseExpression(commonsEx, Object.class, null).evaluate(vars);
+                    }
+
+                    //            System.gc();
+
+                    time = currentTimeMillis();
+                    mem = Runtime.getRuntime().freeMemory();
+                    for (int reps = 0; reps < TESTITER; reps++) {
+                        for (int i = 0; i < count; i++) {
+                            new ExpressionEvaluatorImpl(true).parseExpression(commonsEx, Object.class, null).evaluate(vars);
+                        }
+
+                        if (reps == 0) res[0] = total += currentTimeMillis() - time;
+                        else res[reps] = (total * -1) + (total += currentTimeMillis() - time - total);
+                    }
+
+                    if (!silent)
+                        System.out.println("(CommonsEL)          : " + new BigDecimal(((currentTimeMillis() - time))).divide(new BigDecimal(TESTITER), 2, RoundingMode.HALF_UP)
+                                + "ms avg.  (mem delta: " + ((Runtime.getRuntime().freeMemory() - mem) / 1024) + "kb) " + resultsToString(res));
+
+                }
+                catch (Exception e) {
+                    if (!silent)
+                        System.out.println("(CommonsEL)          : <<COULD NOT EXECUTE>>");
+                }
+            }
+
+            synchronized (this) {
+                commonElTotal += total;
+            }
+
+        }
+
+        if ((testFlags & COMPILED) != 0) {
+            runTestCompiled(name, test.getOgnlCompiled(), test.getMvelCompiled(), test.getGroovyCompiled(), test.getElCompiled(), count, exFlags);
+        }
+
+        total = 0;
+
+        if ((testFlags & RUN_JAVA_NATIVE) != 0 && ((exFlags & RUN_JAVA_NATIVE) != 0)) {
+            NativeTest nt = test.getJavaNative();
+
+            try {
+                for (int i = 0; i < count; i++) {
+                    nt.run(baseClass, variables);
+                }
+
+                //        System.gc();
+
+                time = currentTimeMillis();
+                mem = Runtime.getRuntime().freeMemory();
+                for (int reps = 0; reps < TESTITER; reps++) {
+                    for (int i = 0; i < count; i++) {
+                        nt.run(baseClass, variables);
+                    }
+
+                    if (reps == 0) res[0] = total += currentTimeMillis() - time;
+                    else res[reps] = (total * -1) + (total += currentTimeMillis() - time - total);
+                }
+
+                if (!silent)
+                    System.out.println("(JavaNative)         : " + new BigDecimal(((currentTimeMillis() - time))).divide(new BigDecimal(TESTITER), 2, RoundingMode.HALF_UP)
+                            + "ms avg.  (mem delta: " + ((Runtime.getRuntime().freeMemory() - mem) / 1024) + "kb) " + resultsToString(res));
+
+            }
+            catch (Exception e) {
+                if (!silent)
+                    System.out.println("(JavaNative)         : <<COULD NOT EXECUTE>>");
+            }
+        }
+
+        synchronized (this) {
+            javaNativeTotal += total;
+        }
+
+
+        if (!silent)
+            System.out.println("------------------------------------------------");
+    }

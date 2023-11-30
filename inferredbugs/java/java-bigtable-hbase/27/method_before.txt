@@ -1,0 +1,25 @@
+  @Test
+  public void testRefreshAfterFailure() throws Exception {
+    underTest = new RefreshingOAuth2CredentialsInterceptor(executorService, credentials);
+    underTest.rateLimiter.setRate(100000);
+
+    final AccessToken accessToken = new AccessToken("hi", new Date(HeaderCacheElement.TOKEN_STALENESS_MS + 1));
+
+    //noinspection unchecked
+    Mockito.when(credentials.refreshAccessToken())
+        // First call will throw Exception & bypass retries
+        .thenThrow(new IOException())
+        // Second call will succeed
+        .thenReturn(accessToken);
+
+    // First call
+    HeaderCacheElement firstResult = underTest.getHeaderSafe();
+    Assert.assertEquals(CacheState.Exception, firstResult.getCacheState());
+
+    // Now the second token should be available
+    HeaderCacheElement secondResult = underTest.getHeaderSafe();
+    Assert.assertEquals(CacheState.Good, secondResult.getCacheState());
+    Assert.assertThat(secondResult.header, containsString("hi"));
+    // Make sure that the token was only requested twice: once for the first failure & second time for background recovery
+    Mockito.verify(credentials, times(2)).refreshAccessToken();
+  }

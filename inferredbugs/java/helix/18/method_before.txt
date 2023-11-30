@@ -1,0 +1,59 @@
+  @Override
+  public void process(ClusterEvent event) throws Exception
+  {
+    ClusterDataCache cache = event.getAttribute("ClusterDataCache");
+    Map<String, IdealState> idealStates = cache.getIdealStates();
+
+    Map<String, ResourceGroup> resourceGroupMap = new LinkedHashMap<String, ResourceGroup>();
+
+    if (idealStates != null && idealStates.size() > 0)
+    {
+      for (IdealState idealState : idealStates.values())
+      {
+      	Set<String> resourceSet = idealState.getResourceKeySet();
+      	String resourceGroupName = idealState.getResourceGroup();
+
+          for (String resourceKey : resourceSet)
+          {
+            addResource(resourceKey, resourceGroupName, resourceGroupMap);
+            ResourceGroup resourceGroup = resourceGroupMap
+                .get(resourceGroupName);
+            resourceGroup.setStateModelDefRef(idealState.getStateModelDefRef());
+          }
+
+      }
+    }
+    // It's important to get resourceKeys from CurrentState as well since the
+    // idealState might be removed.
+    Map<String, LiveInstance> availableInstances = cache.getLiveInstances();
+
+    if (availableInstances != null && availableInstances.size() > 0)
+    {
+      for (LiveInstance instance : availableInstances.values())
+      {
+        String instanceName = instance.getInstanceName();
+        String clientSessionId = instance.getSessionId();
+
+        Map<String, CurrentState> currentStateMap = cache.getCurrentState(instanceName, clientSessionId);
+        if (currentStateMap == null || currentStateMap.size() == 0)
+        {
+          continue;
+        }
+        for (CurrentState currentState : currentStateMap.values())
+        {
+          String resourceGroupName = currentState.getResourceGroupName();
+          Map<String, String> resourceStateMap = currentState.getResourceKeyStateMap();
+
+          for (String resourceKey : resourceStateMap.keySet())
+          {
+            addResource(resourceKey, resourceGroupName, resourceGroupMap);
+            ResourceGroup resourceGroup = resourceGroupMap
+                .get(resourceGroupName);
+            resourceGroup.setStateModelDefRef(currentState.getStateModelDefRef());
+          }
+        }
+      }
+    }
+    event.addAttribute(AttributeName.RESOURCE_GROUPS.toString(),
+        resourceGroupMap);
+  }

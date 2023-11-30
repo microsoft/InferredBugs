@@ -1,0 +1,20 @@
+    public void release(final boolean reportMemoryLeaks) {
+        if (isReleased()) {
+            return;
+        }
+        checkThread();
+        releaseResources();
+        shutdownExecutors(forceTerminateExecutors);
+        if (executors != null) {
+            executors.clear();
+        }
+        synchronized (lock) {
+            runtimeCounter--;
+        }
+        _releaseRuntime(v8RuntimePtr);
+        v8RuntimePtr = 0L;
+        released = true;
+        if (reportMemoryLeaks && (objectReferences > 0)) {
+            throw new IllegalStateException(objectReferences + " Object(s) still exist in runtime");
+        }
+    }

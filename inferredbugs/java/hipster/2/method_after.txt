@@ -1,0 +1,48 @@
+    @Test
+    public void benchmark() throws InterruptedException {
+        Benchmark bench = new Benchmark();
+        
+        // Hipster-Dijkstra
+        bench.add("Hipster-Dijkstra", new Algorithm() {	
+			AStar<Point> it; Maze2D maze;
+        	public void initialize(Maze2D maze) {
+				it= AlgorithmIteratorFromMazeCreator.astar(maze, false);
+				this.maze = maze;
+			}
+			public Result evaluate() {
+				return MazeSearch.executeIteratorSearch(it, maze);
+			}
+		});
+        
+        // JUNG-Dijkstra
+        bench.add("JUNG-Dijkstra", new Algorithm() {
+			Maze2D maze;DirectedGraph<Point, JungEdge<Point>> graph;
+			public void initialize(Maze2D maze) {
+				this.maze = maze;
+				this.graph = JungDirectedGraphFromMazeCreator.create(maze);
+			}
+			public Result evaluate() {
+				return MazeSearch.executeJungSearch(graph, maze);
+			}
+		});
+
+        int index = 0;
+        for(String algName : bench.algorithms.keySet()){
+        	System.out.println((++index) + " = " + algName);
+        }
+        
+        for (int i = 10; i < 300; i += 10) {
+        	Maze2D maze = Maze2D.empty(i);
+            // Test over an empty maze
+            Map<String, Benchmark.Score> results = bench.run(maze);
+            // Check results and print scores. We take JUNG as baseline
+            Benchmark.Score jungScore = results.get("JUNG-Dijkstra");
+            String scores = "";
+            for(String algName : bench.algorithms.keySet()){
+            	Benchmark.Score score = results.get(algName);
+            	assertEquals(jungScore.result.getCost(),score.result.getCost(), 0.0001);
+            	scores += score.time + " ms\t";
+            }
+            System.out.println(scores);
+        }
+    }

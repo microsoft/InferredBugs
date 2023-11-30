@@ -1,0 +1,176 @@
+ protected void handleLine(String line) throws Throwable {
+		try {
+			log(line);
+
+			// Check for server pings.
+			if (line.startsWith("PING ")) {
+				// Respond to the ping and return immediately.
+				onServerPing(line.substring(5));
+				return;
+			}
+
+			String sourceNick = "";
+			String sourceLogin = "";
+			String sourceHostname = "";
+
+			StringTokenizer tokenizer = new StringTokenizer(line);
+			String senderInfo = tokenizer.nextToken();
+			String command = tokenizer.nextToken();
+			String target = null;
+
+			int exclamation = senderInfo.indexOf("!");
+			int at = senderInfo.indexOf("@");
+			if (senderInfo.startsWith(":"))
+				if (exclamation > 0 && at > 0 && exclamation < at) {
+					sourceNick = senderInfo.substring(1, exclamation);
+					sourceLogin = senderInfo.substring(exclamation + 1, at);
+					sourceHostname = senderInfo.substring(at + 1);
+				} else if (tokenizer.hasMoreTokens()) {
+					String token = command;
+
+					int code = -1;
+					try {
+						code = Integer.parseInt(token);
+					} catch (NumberFormatException e) {
+						// Keep the existing value.
+					}
+
+					if (code != -1) {
+						String errorStr = token;
+						String response = line.substring(line.indexOf(errorStr, senderInfo.length()) + 4, line.length());
+						processServerResponse(code, response);
+						// Return from the method.
+						return;
+					} else {
+						// This is not a server response.
+						// It must be a nick without login and hostname.
+						// (or maybe a NOTICE or suchlike from the server)
+						sourceNick = senderInfo;
+						target = token;
+					}
+				} else {
+					// We don't know what this line means.
+					onUnknown(line);
+					// Return from the method;
+					return;
+				}
+
+			command = command.toUpperCase();
+			if (sourceNick.startsWith(":"))
+				sourceNick = sourceNick.substring(1);
+			if (target == null)
+				target = tokenizer.nextToken();
+			if (target.startsWith(":"))
+				target = target.substring(1);
+
+			// Check for CTCP requests.
+			if (command.equals("PRIVMSG") && line.indexOf(":\u0001") > 0 && line.endsWith("\u0001")) {
+				String request = line.substring(line.indexOf(":\u0001") + 2, line.length() - 1);
+				if (request.equals("VERSION"))
+					// VERSION request
+					onVersion(sourceNick, sourceLogin, sourceHostname, target);
+				else if (request.startsWith("ACTION "))
+					// ACTION request
+					onAction(sourceNick, sourceLogin, sourceHostname, target, request.substring(7));
+				else if (request.startsWith("PING "))
+					// PING request
+					onPing(sourceNick, sourceLogin, sourceHostname, target, request.substring(5));
+				else if (request.equals("TIME"))
+					// TIME request
+					onTime(sourceNick, sourceLogin, sourceHostname, target);
+				else if (request.equals("FINGER"))
+					// FINGER request
+					onFinger(sourceNick, sourceLogin, sourceHostname, target);
+				else if ((tokenizer = new StringTokenizer(request)).countTokens() >= 5 && tokenizer.nextToken().equals("DCC")) {
+					// This is a DCC request.
+					boolean success = _dccManager.processRequest(sourceNick, sourceLogin, sourceHostname, request);
+					if (!success)
+						// The DccManager didn't know what to do with the line.
+						onUnknown(line);
+				} else
+					// An unknown CTCP message - ignore it.
+					onUnknown(line);
+			} else if (command.equals("PRIVMSG") && _channelPrefixes.indexOf(target.charAt(0)) >= 0)
+				// This is a normal message to a channel.
+				onMessage(target, sourceNick, sourceLogin, sourceHostname, line.substring(line.indexOf(" :") + 2));
+			else if (command.equals("PRIVMSG"))
+				// This is a private message to us.
+				onPrivateMessage(sourceNick, sourceLogin, sourceHostname, line.substring(line.indexOf(" :") + 2));
+			else if (command.equals("JOIN")) {
+				// Someone is joining a channel.
+				String channel = target;
+				if (sourceNick.equalsIgnoreCase(_nick)) {
+					//Its us, do some setup
+					_channels.put(channel, new Channel(channel));
+					sendRawLine("WHO " + channel);
+					sendRawLine("MODE " + channel);
+				}
+
+				User usr = _channels.get(channel).getUser(sourceNick);
+				usr.setLogin(sourceLogin);
+				usr.setHostmask(sourceHostname);
+				onJoin(channel, sourceNick, sourceLogin, sourceHostname);
+			} else if (command.equals("PART")) {
+				// Someone is parting from a channel.
+				removeUser(target, sourceNick);
+				if (sourceNick.equals(getNick()))
+					removeChannel(target);
+				onPart(target, sourceNick, sourceLogin, sourceHostname);
+			} else if (command.equals("NICK")) {
+				// Somebody is changing their nick.
+				String newNick = target;
+				renameUser(sourceNick, newNick);
+				if (sourceNick.equals(getNick()))
+					// Update our nick if it was us that changed nick.
+					setNick(newNick);
+				onNickChange(sourceNick, sourceLogin, sourceHostname, newNick);
+			} else if (command.equals("NOTICE"))
+				// Someone is sending a notice.
+				onNotice(sourceNick, sourceLogin, sourceHostname, target, line.substring(line.indexOf(" :") + 2));
+			else if (command.equals("QUIT")) {
+				// Someone has quit from the IRC server.
+				if (sourceNick.equals(getNick()))
+					removeAllChannels();
+				else
+					removeUser(sourceNick);
+				onQuit(sourceNick, sourceLogin, sourceHostname, line.substring(line.indexOf(" :") + 2));
+			} else if (command.equals("KICK")) {
+				// Somebody has been kicked from a channel.
+				String recipient = tokenizer.nextToken();
+				if (recipient.equals(getNick()))
+					removeChannel(target);
+				removeUser(target, recipient);
+				onKick(target, sourceNick, sourceLogin, sourceHostname, recipient, line.substring(line.indexOf(" :") + 2));
+			} else if (command.equals("MODE")) {
+				// Somebody is changing the mode on a channel or user.
+				String mode = line.substring(line.indexOf(target, 2) + target.length() + 1);
+				if (mode.startsWith(":"))
+					mode = mode.substring(1);
+				processMode(target, sourceNick, sourceLogin, sourceHostname, mode);
+			} else if (command.equals("TOPIC"))
+				// Someone is changing the topic.
+				onTopic(target, line.substring(line.indexOf(" :") + 2), sourceNick, System.currentTimeMillis(), true);
+			else if (command.equals("INVITE"))
+				// Somebody is inviting somebody else into a channel.
+				onInvite(target, sourceNick, sourceLogin, sourceHostname, line.substring(line.indexOf(" :") + 2));
+			else
+				// If we reach this point, then we've found something that the PircBotX
+				// Doesn't currently deal with.
+				onUnknown(line);
+		} catch (Throwable t) {
+			// Stick the whole stack trace into a String so we can output it nicely.
+			StringWriter sw = new StringWriter();
+			PrintWriter pw = new PrintWriter(sw);
+			t.printStackTrace(pw);
+			pw.flush();
+			synchronized (this) {
+				log("### Your implementation of PircBotXis faulty and you have");
+				log("### allowed an uncaught Exception or Error to propagate in your");
+				log("### code. It may be possible for PircBotXto continue operating");
+				log("### normally. Here is the stack trace that was produced: -");
+				log("### ");
+				for (String curLine : sw.toString().split("\r\n"))
+					log("### " + curLine);
+			}
+		}
+	}

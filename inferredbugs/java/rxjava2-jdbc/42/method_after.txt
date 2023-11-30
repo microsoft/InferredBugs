@@ -1,0 +1,24 @@
+    @Test
+    public void testDelayedCallsAreNonBlocking() throws InterruptedException {
+        List<String> list = new CopyOnWriteArrayList<String>();
+        try (Database db = db(1)) { //
+            db.select("select score from person where name=?") //
+                    .parameter("FRED") //
+                    .getAs(Integer.class) //
+                    .doOnNext(x -> Thread.sleep(1000)) //
+                    .subscribeOn(Schedulers.io()) //
+                    .subscribe();
+            Thread.sleep(100);
+            CountDownLatch latch = new CountDownLatch(1);
+            db.select("select score from person where name=?") //
+                    .parameter("FRED") //
+                    .getAs(Integer.class) //
+                    .doOnNext(x -> list.add("emitted")) //
+                    .doOnNext(x -> log.debug("emitted on " + Thread.currentThread().getName())) //
+                    .doOnNext(x -> latch.countDown()) //
+                    .subscribe();
+            list.add("subscribed");
+            assertTrue(latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertEquals(Arrays.asList("subscribed", "emitted"), list);
+        }
+    }

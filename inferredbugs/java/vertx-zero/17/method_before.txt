@@ -1,0 +1,41 @@
+    @Override
+    public Future<JsonArray> syncPerm(final JsonArray permissions, final String group, final String sigma) {
+        /*
+         * Fetch all permissions from database and calculated removed list
+         */
+        final JsonObject condition = new JsonObject();
+        condition.put(KeField.GROUP, group);
+        condition.put(KeField.SIGMA, sigma);
+        final UxJooq permDao = Ux.Jooq.on(SPermissionDao.class);
+        return permDao.<SPermission>fetchAndAsync(condition).compose(existing -> {
+            /*
+             * Process filter to get removed
+             */
+            final List<SPermission> saved = Ux.fromJson(permissions, SPermission.class);
+            final Set<String> keeped = saved.stream().map(SPermission::getKey).collect(Collectors.toSet());
+            final List<String> removedKeys = existing.stream()
+                    .filter(item -> !keeped.contains(item.getKey()))
+                    .map(SPermission::getKey).collect(Collectors.toList());
+            return this.removeAsync(removedKeys, sigma).compose(nil -> {
+                /*
+                 * Save Action for SPermission by `key` only
+                 */
+                final List<Future<SPermission>> futures = new ArrayList<>();
+                Ut.itList(saved).map(permission -> permDao.<SPermission>fetchByIdAsync(permission.getKey())
+                        .compose(queired -> {
+                            if (Objects.isNull(queired)) {
+                                /*
+                                 * Insert entity object into database
+                                 */
+                                return permDao.insertAsync(permission);
+                            } else {
+                                /*
+                                 * Update the `key` hitted object into database
+                                 */
+                                return permDao.updateAsync(permission.getKey(), permission);
+                            }
+                        })).forEach(futures::add);
+                return Ux.thenCombineT(futures).compose(Ux::futureA);
+            });
+        });
+    }

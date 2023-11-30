@@ -1,0 +1,20 @@
+    public static TSOState getState(TSOServerConfig config){
+        TSOState returnValue;
+        if(!config.isRecoveryEnabled()){
+            LOG.warn("Logger is disabled");
+            returnValue = new TSOState(new TimestampOracle());
+        } else {
+            BookKeeperStateBuilder builder = new BookKeeperStateBuilder(config);
+            
+            try{
+                returnValue = builder.buildState();
+                LOG.info("State built");
+            } catch (Throwable e) {
+                LOG.error("Error while building the state.", e);
+                returnValue = null;
+            } finally {
+                builder.shutdown();
+            }
+        }
+        return returnValue;        
+    }

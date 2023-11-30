@@ -1,0 +1,23 @@
+ @Test
+	public void testGetRange() throws Exception
+	{
+		final DefaultHttpClient client = new DefaultHttpClient();
+		client.addResponseInterceptor(new HttpResponseInterceptor()
+		{
+			public void process(final HttpResponse r, final HttpContext context) throws HttpException, IOException
+			{
+				// Verify partial content response
+				assertEquals(206, r.getStatusLine().getStatusCode());
+				assertNotNull(r.getHeaders(HttpHeaders.CONTENT_RANGE));
+				assertEquals(1, r.getHeaders(HttpHeaders.CONTENT_RANGE).length);
+				client.removeResponseInterceptorByClass(this.getClass());
+			}
+		});
+		Sardine sardine = new SardineImpl(client);
+		// mod_dav supports Range headers for GET
+		final String url = "http://sudo.ch/dav/anon/sardine/single/file";
+		// Resume
+		final Map<String, String> header = Collections.singletonMap(HttpHeaders.RANGE, "bytes=" + 1 + "-");
+		final InputStream in = sardine.get(url, header);
+		assertNotNull(in);
+	}

@@ -1,0 +1,97 @@
+  public void run() {
+    neighborhood_ = parentThread_.neighborhood_;
+    problem_ = parentThread_.problem_;
+    lambda_ = parentThread_.lambda_;
+    population_ = parentThread_.population_;
+    z_ = parentThread_.z_;
+    indArray_ = parentThread_.indArray_;
+    barrier_ = parentThread_.barrier_;
+
+    int partitions = parentThread_.populationSize_ / parentThread_.numberOfThreads_;
+
+    evaluations_ = 0;
+    maxEvaluations_ = parentThread_.maxEvaluations_ / parentThread_.numberOfThreads_;
+
+    try {
+      //Configuration.logger_.info("en espera: " + barrier_.getNumberWaiting()) ;
+      barrier_.await();
+      //Configuration.logger_.info("Running: " + id_ ) ;
+    } catch (InterruptedException e) {
+      Configuration.logger_.log(Level.SEVERE, "Error", e);
+    } catch (BrokenBarrierException e) {
+      Configuration.logger_.log(Level.SEVERE, "Error", e);
+    }
+
+    int first;
+    int last;
+
+    first = partitions * id_;
+    if (id_ == (parentThread_.numberOfThreads_ - 1)) {
+      last = parentThread_.populationSize_ - 1;
+    } else {
+      last = first + partitions - 1;
+    }
+
+    Configuration.logger_.info("Id: " + id_ + "  Partitions: " + partitions +
+      " First: " + first + " Last: " + last);
+
+    do {
+      for (int i = first; i <= last; i++) {
+        int n = i;
+        int type;
+        double rnd = PseudoRandom.randDouble();
+
+        // STEP 2.1. Mating selection based on probability
+        if (rnd < parentThread_.delta_) {
+          // neighborhood
+          type = 1;
+        } else {
+          // whole population
+          type = 2;
+        }
+
+        Vector<Integer> p = new Vector<Integer>();
+        this.matingSelection(p, n, 2, type);
+
+        // STEP 2.2. Reproduction
+        Solution child = null;
+        Solution[] parents = new Solution[3];
+
+        try {
+          synchronized (parentThread_) {
+            parents[0] = parentThread_.population_.get(p.get(0));
+            parents[1] = parentThread_.population_.get(p.get(1));
+            parents[2] = parentThread_.population_.get(n);
+            // Apply DE crossover
+            child = (Solution) parentThread_.crossover_
+              .execute(new Object[] {parentThread_.population_.get(n), parents});
+          }
+          // Apply mutation
+          parentThread_.mutation_.execute(child);
+
+          // Evaluation
+          parentThread_.problem_.evaluate(child);
+
+        } catch (JMetalException ex) {
+          Logger.getLogger(pMOEAD.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        evaluations_++;
+
+        // STEP 2.3. Repair. Not necessary
+
+        // STEP 2.4. Update idealPoint
+        updateReference(child);
+
+        // STEP 2.5. Update of solutions
+        try {
+          updateOfSolutions(child, n, type);
+        } catch (JMetalException e) {
+          Configuration.logger_.log(Level.SEVERE, "Error", e);
+        }
+      }
+    } while (evaluations_ < maxEvaluations_);
+
+    long estimatedTime = System.currentTimeMillis() - parentThread_.initTime_;
+    Configuration.logger_.info("Time thread " + id_ + ": " + estimatedTime);
+  }

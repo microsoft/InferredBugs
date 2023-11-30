@@ -1,0 +1,31 @@
+    private void readMessage(Player player, LoginActionMessage message) {
+        String playerName = message.getPlayerName();
+        Type type = message.getType();
+
+        InetSocketAddress address = player.getAddress();
+        if (type == Type.LOGIN) {
+            BukkitLoginSession playerSession = new BukkitLoginSession(playerName, true);
+            playerSession.setVerified(true);
+            plugin.putSession(address, playerSession);
+
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, new ForceLoginTask(plugin.getCore(), player), 10L);
+        } else if (type == Type.REGISTER) {
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+                AuthPlugin<Player> authPlugin = plugin.getCore().getAuthPluginHook();
+                try {
+                    //we need to check if the player is registered on Bukkit too
+                    if (authPlugin == null || !authPlugin.isRegistered(playerName)) {
+                        BukkitLoginSession playerSession = new BukkitLoginSession(playerName, false);
+                        playerSession.setVerified(true);
+                        plugin.putSession(address, playerSession);
+                        new ForceLoginTask(plugin.getCore(), player).run();
+                    }
+                } catch (Exception ex) {
+                    plugin.getLog().error("Failed to query isRegistered for player: {}", player, ex);
+                }
+            }, 10L);
+        } else if (type == Type.CRACKED) {
+            //we don't start a force login task here so update it manually
+            plugin.getPremiumPlayers().put(player.getUniqueId(), PremiumStatus.CRACKED);
+        }
+    }

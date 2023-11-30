@@ -1,0 +1,37 @@
+    protected <P extends Pointer> P deallocator(Deallocator deallocator) {
+        if (this.deallocator != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Predeallocating " + this);
+            }
+            this.deallocator.deallocate();
+            this.deallocator = null;
+        }
+        if (deallocator != null && !deallocator.equals(null)) {
+            this.deallocator = deallocator;
+            DeallocatorReference r = deallocator instanceof DeallocatorReference ?
+                    (DeallocatorReference)deallocator :
+                    new DeallocatorReference(this, deallocator);
+            int count = 0;
+            while (count++ < maxRetries && maxBytes > 0 && DeallocatorReference.totalBytes + r.bytes > maxBytes) {
+                try {
+                    // try to get some more memory back
+                    System.gc();
+                    Thread.sleep(100);
+                } catch (InterruptedException ex) {
+                    // reset interrupt to be nice
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            if (maxBytes > 0 && DeallocatorReference.totalBytes + r.bytes > maxBytes) {
+                deallocate();
+                throw new OutOfMemoryError("Cannot allocate " + DeallocatorReference.totalBytes
+                                                              + " + " + r.bytes + " bytes (> Pointer.maxBytes)");
+            }
+            if (logger.isDebugEnabled()) {
+                logger.debug("Registering " + this);
+            }
+            r.add();
+        }
+        return (P)this;
+    }

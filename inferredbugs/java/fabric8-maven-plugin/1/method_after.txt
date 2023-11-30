@@ -1,0 +1,99 @@
+    @Override
+    public void execute() throws MojoExecutionException, MojoFailureException {
+        KubernetesClient kubernetes = createKubernetesClient();
+        File manifest;
+        String clusterKind = "Kubernetes";
+        if (KubernetesHelper.isOpenShift(kubernetes)) {
+            manifest = openshiftManifest;
+            clusterKind = "OpenShift";
+
+        } else {
+            manifest = kubernetesManifest;
+        }
+        if (!Files.isFile(manifest)) {
+            if (failOnNoKubernetesJson) {
+                throw new MojoFailureException("No such generated manifest file: " + manifest);
+            } else {
+                getLog().warn("No such generated manifest file: " + manifest + " for this project so ignoring");
+                return;
+            }
+        }
+
+        if (kubernetes.getMasterUrl() == null || Strings.isNullOrBlank(kubernetes.getMasterUrl().toString())) {
+            throw new MojoFailureException("Cannot find Kubernetes master URL");
+        }
+        log.info("Using " + clusterKind +" at: " + kubernetes.getMasterUrl() + " in namespace " + getNamespace() + " with manifest: " + manifest);
+
+        try {
+            Controller controller = createController();
+            controller.setAllowCreate(createNewResources);
+            controller.setServicesOnlyMode(servicesOnly);
+            controller.setIgnoreServiceMode(ignoreServices);
+            controller.setLogJsonDir(jsonLogDir);
+            controller.setBasedir(getRootProjectFolder());
+            controller.setIgnoreRunningOAuthClients(ignoreRunningOAuthClients);
+            controller.setProcessTemplatesLocally(processTemplatesLocally);
+            controller.setDeletePodsOnReplicationControllerUpdate(deletePodsOnReplicationControllerUpdate);
+            controller.setRollingUpgrade(rollingUpgrades);
+            controller.setRollingUpgradePreserveScale(isRollingUpgradePreserveScale());
+
+            boolean openShift = KubernetesHelper.isOpenShift(kubernetes);
+            if (openShift) {
+                getLog().info("OpenShift platform detected");
+            } else {
+                disableOpenShiftFeatures(controller);
+            }
+
+
+            String fileName = manifest.getName();
+            Object dto = KubernetesHelper.loadYaml(manifest, KubernetesResource.class);
+            if (dto == null) {
+                throw new MojoFailureException("Cannot load kubernetes YAML: " + manifest);
+            }
+
+            // lets check we have created the namespace
+            String namespace = getNamespace();
+            controller.applyNamespace(namespace);
+            controller.setNamespace(namespace);
+
+            if (dto instanceof Template) {
+                Template template = (Template) dto;
+                dto = applyTemplates(template, kubernetes, controller, fileName);
+            }
+
+            Set<KubernetesResource> resources = new LinkedHashSet<>();
+
+            Set<HasMetadata> entities = new TreeSet<>(new HasMetadataComparator());
+            for (KubernetesResource resource : resources) {
+                entities.addAll(KubernetesHelper.toItemList(resource));
+            }
+
+            entities.addAll(KubernetesHelper.toItemList(dto));
+
+            if (createExternalUrls) {
+                if (controller.getOpenShiftClientOrNull() != null) {
+                    createRoutes(controller, entities);
+                } else {
+                    createIngress(controller, kubernetes, entities);
+                }
+            }
+
+            // Apply all items
+            for (HasMetadata entity : entities) {
+                if (entity instanceof Pod) {
+                    Pod pod = (Pod) entity;
+                    controller.applyPod(pod, fileName);
+                } else if (entity instanceof Service) {
+                    Service service = (Service) entity;
+                    controller.applyService(service, fileName);
+                } else if (entity instanceof ReplicationController) {
+                    ReplicationController replicationController = (ReplicationController) entity;
+                    controller.applyReplicationController(replicationController, fileName);
+                } else if (entity != null) {
+                    controller.apply(entity, fileName);
+                }
+            }
+        } catch (Exception e) {
+            throw new MojoExecutionException(e.getMessage(), e);
+        }
+    }

@@ -1,0 +1,69 @@
+    protected void load(boolean strict) {
+        try {
+            activator = DOMHelper.getElementByAttribute("data-activates", getId());
+
+            MaterialWidget navMenu = getNavMenu();
+            if (navMenu != null) {
+                navMenu.setShowOn(ShowOn.SHOW_ON_MED_DOWN);
+                if (alwaysShowActivator && !getTypeMixin().getStyle().equals(SideNavType.FIXED.getCssName())) {
+                    navMenu.setShowOn(ShowOn.SHOW_ON_LARGE);
+                } else {
+                    navMenu.setHideOn(HideOn.HIDE_ON_LARGE);
+                }
+                navMenu.removeStyleName(CssName.NAVMENU_PERMANENT);
+            }
+        } catch (Exception ex) {
+            if (strict) {
+                throw new IllegalArgumentException(
+                        "Could not setup MaterialSideNav please ensure you have " +
+                                "MaterialNavBar with an activator setup to match this widgets id.", ex);
+            }
+        }
+
+        setup();
+        setupDefaultOverlayStyle();
+
+        JsSideNavOptions options = new JsSideNavOptions();
+        options.menuWidth = width;
+        options.edge = edge != null ? edge.getCssName() : null;
+        options.closeOnClick = closeOnClick;
+
+        JsMaterialElement element = $(activator);
+        element.sideNav(options);
+
+        element.off(SideNavEvents.SIDE_NAV_CLOSING);
+        element.on(SideNavEvents.SIDE_NAV_CLOSING, e1 -> {
+            onClosing();
+            return true;
+        });
+
+        element.off(SideNavEvents.SIDE_NAV_CLOSED);
+        element.on(SideNavEvents.SIDE_NAV_CLOSED, e1 -> {
+            onClosed();
+            return true;
+        });
+
+        element.off(SideNavEvents.SIDE_NAV_OPENING);
+        element.on(SideNavEvents.SIDE_NAV_OPENING, e1 -> {
+            onOpening();
+            return true;
+        });
+
+        element.off(SideNavEvents.SIDE_NAV_OPENED);
+        element.on(SideNavEvents.SIDE_NAV_OPENED, e1 -> {
+            onOpened();
+            return true;
+        });
+
+        element.off(SideNavEvents.SIDE_NAV_OVERLAY_ATTACHED);
+        element.on(SideNavEvents.SIDE_NAV_OVERLAY_ATTACHED, e1 -> {
+            onOverlayAttached();
+            return true;
+        });
+
+        $(".collapsible-header").on("click", (e, param1) -> {
+            //e.stopPropagation();
+
+            return true;
+        });
+    }

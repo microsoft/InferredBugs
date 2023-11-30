@@ -1,0 +1,191 @@
+    @Override public void impose(Store store) {
+
+        store.registerRemoveLevelListener(this);
+
+        for (int i = 0; i < list.length; i++) {
+            list[i].putModelConstraint(this, getConsistencyPruningEvent(list[i]));
+        }
+
+        store.addChanged(this);
+        store.countConstraint();
+
+        this.store = store;
+
+        if (debugAll) {
+            for (Var var : list)
+                System.out.println("Variable " + var);
+        }
+
+        // TO DO, adjust (even simplify) all internal data structures
+        // to current domains of variables.
+        // filter which ignores all tuples which already are not supports.
+
+        boolean[] stillConflict = new boolean[tuplesFromConstructor.length];
+
+        int noConflicts = 0;
+
+        int[][] supportCount = new int[list.length][];
+
+        int i = 0;
+
+        for (int[] t : tuplesFromConstructor) {
+
+            stillConflict[i] = true;
+
+            int j = 0;
+
+            if (debugAll) {
+                System.out.print("conflict for analysis[");
+                for (int val : t)
+                    System.out.print(val + " ");
+                System.out.println("]");
+            }
+
+            for (int val : t) {
+
+                // if (debugAll) {
+                // System.out.print("Checking " + x[j]);
+                // System.out.print(" " + val);
+                // System.out.println(Domain.domain.contains(x[j].dom(), val));
+                // }
+
+                if (!list[j].dom().contains(val)) {
+                    // if (!Domain.domain.contains(x[j].dom(), val)) {
+                    stillConflict[i] = false;
+                    break;
+                }
+
+                j++;
+            }
+
+            if (stillConflict[i])
+                noConflicts++;
+
+            if (debugAll) {
+                if (!stillConflict[i]) {
+                    System.out.print("Not support [");
+                    for (int val : t)
+                        System.out.print(val + " ");
+                    System.out.println("]");
+                }
+            }
+
+            i++;
+
+        }
+
+        if (debugAll) {
+            System.out.println("No. still conflicts " + noConflicts);
+        }
+
+        int[][] temp4Shrinking = new int[noConflicts][];
+
+        i = 0;
+        int k = 0;
+
+        for (int[] t : tuplesFromConstructor) {
+
+            if (stillConflict[k]) {
+                temp4Shrinking[i] = t;
+                i++;
+
+                if (debugAll) {
+                    System.out.print("Still support [");
+                    for (int val : t)
+                        System.out.print(val + " ");
+                    System.out.println("]");
+                }
+
+            }
+
+            k++;
+
+        }
+
+        // Only still conflicts are kept.
+
+        tuplesFromConstructor = temp4Shrinking;
+
+        numberTuples = tuplesFromConstructor.length;
+
+        // TO DO, just store parameters for later use in impose
+        // function, move all code below to impose function.
+
+
+        this.tuples = new int[list.length][][][];
+        this.values = new int[list.length][];
+
+        lastofsequence = new int[list.length][][];
+
+        for (i = 0; i < list.length; i++) {
+
+            HashMap<Integer, Integer> val = new HashMap<Integer, Integer>();
+
+            for (int[] t : tuplesFromConstructor) {
+
+                Integer value = t[i];
+                Integer key = val.get(value);
+
+                if (key == null)
+                    val.put(value, 1);
+                else
+                    val.put(value, key + 1);
+            }
+
+            if (debugAll)
+                System.out.println("values " + val.keySet());
+
+            PriorityQueue<Integer> sortedVal = new PriorityQueue<Integer>(val.keySet());
+
+            if (debugAll)
+                System.out.println("Sorted val size " + sortedVal.size());
+
+            values[i] = new int[sortedVal.size()];
+            supportCount[i] = new int[sortedVal.size()];
+            this.tuples[i] = new int[sortedVal.size()][][];
+
+            if (debugAll)
+                System.out.println("values length " + values[i].length);
+
+            for (int j = 0; j < values[i].length; j++) {
+
+                if (debugAll)
+                    System.out.println("sortedVal " + sortedVal);
+
+                values[i][j] = sortedVal.poll();
+                supportCount[i][j] = val.get(Integer.valueOf(values[i][j]));
+                this.tuples[i][j] = new int[supportCount[i][j]][];
+            }
+
+            //			int m = 0;
+            for (int[] t : tuplesFromConstructor) {
+
+                int value = t[i];
+                int position = findPosition(value, values[i]);
+
+                this.tuples[i][position][--supportCount[i][position]] = t;
+                //				m++;
+
+            }
+
+            // @todo, check & improve sorting functionality (possibly reuse existing sorting functionality).
+            for (int j = 0; j < tuples[i].length; j++)
+                TupleUtils.sortTuplesWithin(tuples[i][j]);
+
+            lastofsequence[i] = new int[tuples[i].length][];
+
+            // compute lastOfSequence for each i,j and tuple.
+            // i - for each variable
+            for (int j = 0; j < tuples[i].length; j++) { // for each value
+                lastofsequence[i][j] = new int[tuples[i][j].length];
+                for (int l = 0; l < tuples[i][j].length; l++) // for each tuple
+                    lastofsequence[i][j][l] = computeLastOfSequence(tuples[i][j], i, l);
+            }
+
+        }
+
+        tuplesFromConstructor = null;
+
+        store.raiseLevelBeforeConsistency = true;
+
+    }

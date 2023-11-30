@@ -1,0 +1,28 @@
+    private static void encode(final ConcurrentMap<String, ConcurrentMap<String, PluginType<?>>> map) {
+        final String fileName = rootDir + PATH + FILENAME;
+        DataOutputStream dos = null;
+        try {
+            final File file = new File(rootDir + PATH);
+            file.mkdirs();
+            final FileOutputStream fos = new FileOutputStream(fileName);
+            final BufferedOutputStream bos = new BufferedOutputStream(fos);
+            dos = new DataOutputStream(bos);
+            dos.writeInt(map.size());
+            for (final Map.Entry<String, ConcurrentMap<String, PluginType<?>>> outer : map.entrySet()) {
+                dos.writeUTF(outer.getKey());
+                dos.writeInt(outer.getValue().size());
+                for (final Map.Entry<String, PluginType<?>> entry : outer.getValue().entrySet()) {
+                    dos.writeUTF(entry.getKey());
+                    final PluginType<?> pt = entry.getValue();
+                    dos.writeUTF(pt.getPluginClass().getName());
+                    dos.writeUTF(pt.getElementName());
+                    dos.writeBoolean(pt.isObjectPrintable());
+                    dos.writeBoolean(pt.isDeferChildren());
+                }
+            }
+        } catch (final Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            Closer.closeSilent(dos);
+        }
+    }

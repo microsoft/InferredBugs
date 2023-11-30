@@ -1,0 +1,23 @@
+    @SuppressWarnings("unchecked")
+    private Object getListArg(ManagedList<XmlManagedNode> values, Class<?> setterParamType) {
+        Collection<Object> collection = null;
+
+        if (VerifyUtils.isNotEmpty(values.getTypeName())) {
+            try {
+                collection = (Collection<Object>) XmlApplicationContext.class
+                        .getClassLoader().loadClass(values.getTypeName())
+                        .newInstance();
+            } catch (Throwable t) {
+                log.error("list inject error", t);
+            }
+        } else {
+            collection = (setterParamType == null ? new ArrayList<Object>()
+                    : ConvertUtils.getCollectionObj(setterParamType));
+        }
+
+        for (XmlManagedNode item : values) {
+            Object listValue = getInjectArg(item, null);
+            collection.add(listValue);
+        }
+        return collection;
+    }

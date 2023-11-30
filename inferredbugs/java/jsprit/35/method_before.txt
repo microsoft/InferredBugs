@@ -1,0 +1,42 @@
+    public void read(String filename) {
+        logger.debug("read vrp: {}", filename);
+        XMLConfiguration xmlConfig = new XMLConfiguration();
+        xmlConfig.setFileName(filename);
+        xmlConfig.setAttributeSplittingDisabled(true);
+        xmlConfig.setDelimiterParsingDisabled(true);
+
+        if (schemaValidation) {
+            final InputStream resource = Resource.getAsInputStream("vrp_xml_schema.xsd");
+            if (resource != null) {
+                EntityResolver resolver = new EntityResolver() {
+
+                    @Override
+                    public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException {
+                        {
+                            InputSource is = new InputSource(resource);
+                            return is;
+                        }
+                    }
+                };
+                xmlConfig.setEntityResolver(resolver);
+                xmlConfig.setSchemaValidation(true);
+            } else {
+                logger.debug("cannot find schema-xsd file (vrp_xml_schema.xsd). try to read xml without xml-file-validation.");
+            }
+        }
+        try {
+            xmlConfig.load();
+        } catch (ConfigurationException e) {
+            throw new RuntimeException(e);
+        }
+        readProblemType(xmlConfig);
+        readVehiclesAndTheirTypes(xmlConfig);
+
+        readShipments(xmlConfig);
+        readServices(xmlConfig);
+
+        readInitialRoutes(xmlConfig);
+        readSolutions(xmlConfig);
+
+        addJobsAndTheirLocationsToVrp();
+    }

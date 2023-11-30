@@ -1,0 +1,54 @@
+ @Override
+	public void init() {
+        if (zkConfig.isUseNestedZookeeper()) {
+            NestedZookeeperServers.getInstance().startServerIfNotStarted(zkConfig.getNestedPort(), zkConfig.getNestedDataDir());
+        }
+        log.info("msg=Saturn job: zookeeper registry center init, server lists is: {}.", zkConfig.getServerLists());
+        Builder builder = CuratorFrameworkFactory.builder()
+                .connectString(zkConfig.getServerLists())
+                .sessionTimeoutMs(SESSION_TIMEOUT)
+                .connectionTimeoutMs(CONNECTION_TIMEOUT)
+                .retryPolicy(new ExponentialBackoffRetry(zkConfig.getBaseSleepTimeMilliseconds(), zkConfig.getMaxRetries(), zkConfig.getMaxSleepTimeMilliseconds()))
+                .namespace(zkConfig.getNamespace());
+        if (0 != zkConfig.getSessionTimeoutMilliseconds()) {
+            builder.sessionTimeoutMs(zkConfig.getSessionTimeoutMilliseconds());
+            sessionTimeout = zkConfig.getSessionTimeoutMilliseconds();
+        }
+        if (0 != zkConfig.getConnectionTimeoutMilliseconds()) {
+            builder.connectionTimeoutMs(zkConfig.getConnectionTimeoutMilliseconds());
+        }
+        if (!Strings.isNullOrEmpty(zkConfig.getDigest())) {
+            builder.authorization("digest", zkConfig.getDigest().getBytes(Charset.forName("UTF-8")))
+                   .aclProvider(new ACLProvider() {
+                       
+                       @Override
+                       public List<ACL> getDefaultAcl() {
+                           return ZooDefs.Ids.CREATOR_ALL_ACL;
+                       }
+                       
+                       @Override
+                       public List<ACL> getAclForPath(final String path) {
+                           return ZooDefs.Ids.CREATOR_ALL_ACL;
+                       }
+                   });
+        }
+        client = builder.build();
+		client.start();
+        try {
+        	client.getZookeeperClient().blockUntilConnectedOrTimedOut();
+    		if (!client.getZookeeperClient().isConnected()) {
+    			throw new Exception("the zk client is not connected");
+    		}
+        	client.checkExists().forPath(SLASH_CONSTNAT + zkConfig.getNamespace()); // check namespace node by using client, for UnknownHostException of connection string.         
+        //CHECKSTYLE:OFF
+        } catch (final Exception ex) {
+        	throw new RuntimeException("zk connect fail, zkList is " + zkConfig.getServerLists(),ex);
+        }
+
+		// start monitor.
+		if (zkConfig.getMonitorPort() > 0) {
+			MonitorService monitorService = new MonitorService(this, zkConfig.getMonitorPort());
+			monitorService.listen();
+			log.info("msg=zk monitor port starts at {}. usage: telnet {jobServerIP} {} and execute dump {jobName}", zkConfig.getMonitorPort(), zkConfig.getMonitorPort());
+		}
+    }

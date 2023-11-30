@@ -1,0 +1,37 @@
+    public static void main(final String[] args) throws Exception {
+        // Right now we accept one parameter, the number of nodes in the cluster.
+        final int clusterSize;
+        if (args.length > 0) {
+            clusterSize = Integer.parseInt(args[0]);
+        } else {
+            clusterSize = 1;
+        }
+
+        logger.info("Starting up kafka cluster with {} brokers", clusterSize);
+
+        // Create a test cluster
+        final KafkaTestCluster kafkaTestCluster = new KafkaTestCluster(clusterSize);
+
+        // Start the cluster.
+        kafkaTestCluster.start();
+
+        // Create a topic
+        final String topicName = "TestTopicA";
+        final KafkaTestUtils utils = new KafkaTestUtils(kafkaTestCluster);
+        utils.createTopic(topicName, clusterSize, (short) clusterSize);
+
+        // Publish some data into that topic
+        for (int partition = 0; partition < clusterSize; partition++) {
+            utils.produceRecords(1000, topicName, partition);
+        }
+
+        kafkaTestCluster
+            .getKafkaBrokers()
+            .stream()
+            .forEach((broker) -> logger.info("Started broker with Id {} at {}", broker.getBrokerId(), broker.getConnectString()));
+
+        logger.info("Cluster started at: {}", kafkaTestCluster.getKafkaConnectString());
+
+        // Wait forever.
+        Thread.currentThread().join();
+    }

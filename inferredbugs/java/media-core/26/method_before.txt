@@ -1,0 +1,31 @@
+    public Frame read(long timestamp) {
+		try {
+			if (queue.size() == 0) {
+				this.ready = false;
+				return null;
+			}
+
+
+			//extract packet
+			Frame frame = queue.remove(0);
+
+			//buffer empty now? - change ready flag.
+			if (queue.size() == 0) {
+				this.ready = false;
+				//arrivalDeadLine = 0;
+				//set it as 1 ms since otherwise will be dropped by pipe
+				frame.setDuration(1);
+			}
+
+
+			arrivalDeadLine = rtpClock.convertToRtpTime(frame.getTimestamp() + frame.getDuration());
+
+			//convert duration to nanoseconds
+			frame.setDuration(frame.getDuration() * 1000000L);
+			frame.setTimestamp(frame.getTimestamp() * 1000000L);
+
+			return frame;
+		} finally {
+			LOCK.unlock();
+		}
+    }

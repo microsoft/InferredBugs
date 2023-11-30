@@ -1,0 +1,43 @@
+  @Test
+  public void testSingleAggCombiningWithH2() throws VerdictDBDbmsException, VerdictDBException {
+    QueryExecutionPlan plan = new QueryExecutionPlan("newschema");
+    
+    BaseTable base = new BaseTable(originalSchema, originalTable, "t");
+    SelectQuery leftQuery = SelectQuery.create(new AliasedColumn(ColumnOp.count(), "mycount"), base);
+    leftQuery.addFilterByAnd(ColumnOp.lessequal(new BaseColumn("t", "value"), ConstantColumn.valueOf(5.0)));
+    SelectQuery rightQuery = SelectQuery.create(new AliasedColumn(ColumnOp.count(), "mycount"), base);
+    rightQuery.addFilterByAnd(ColumnOp.greater(new BaseColumn("t", "value"), ConstantColumn.valueOf(5.0)));
+    
+    AggExecutionNode leftNode = AggExecutionNode.create(plan, leftQuery);
+    AggExecutionNode rightNode = AggExecutionNode.create(plan, rightQuery);
+    
+//    ExecutionTokenQueue queue = new ExecutionTokenQueue();
+    AggCombinerExecutionNode combiner = AggCombinerExecutionNode.create(plan, leftNode, rightNode);
+    combiner.print();
+    ExecutionTokenReader reader = ExecutablePlanRunner.getTokenReader(
+        conn, 
+        new SimpleTreePlan(combiner));
+    
+//    combiner.addBroadcastingQueue(queue);
+//    combiner.executeAndWaitForTermination(conn);
+    
+    ExecutionInfoToken token = reader.next();
+    String schemaName = (String) token.getValue("schemaName");
+    String tableName = (String) token.getValue("tableName");
+    
+    DbmsQueryResult result = conn.execute(QueryToSql.convert(
+        new H2Syntax(),
+        SelectQuery.create(ColumnOp.count(), base)));
+    result.next();
+    int expectedCount = Integer.valueOf(result.getValue(0).toString());
+    
+    DbmsQueryResult result2 = conn.execute(QueryToSql.convert(
+        new H2Syntax(),
+        SelectQuery.create(new AsteriskColumn(), new BaseTable(schemaName, tableName, "t"))));
+    result2.next();
+    int actualCount = Integer.valueOf(result2.getValue(0).toString());
+    assertEquals(expectedCount, actualCount);
+    conn.execute(QueryToSql.convert(
+        new H2Syntax(),
+        DropTableQuery.create(schemaName, tableName)));
+  }

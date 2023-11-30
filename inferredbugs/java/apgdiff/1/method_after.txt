@@ -1,0 +1,32 @@
+    public static void parse(final PgDatabase database, final String command) {
+        String line = command;
+        final Matcher matcher = PATTERN_TABLE_NAME.matcher(line);
+        final String tableName;
+
+        if (matcher.find()) {
+            tableName = matcher.group(1).trim();
+            line =
+                ParserUtils.removeSubString(
+                        line,
+                        matcher.start(),
+                        matcher.end());
+        } else {
+            throw new ParserException(
+                    ParserException.CANNOT_PARSE_COMMAND + line);
+        }
+
+        final PgTable table = new PgTable(ParserUtils.getObjectName(tableName));
+        final String schemaName =
+            ParserUtils.getSchemaName(tableName, database);
+        final PgSchema schema = database.getSchema(schemaName);
+
+        if (schema == null) {
+            throw new RuntimeException(
+                    "Cannot get schema '" + schemaName
+                    + "'. Need to issue 'CREATE SCHEMA " + schemaName
+                    + ";' before 'CREATE TABLE " + tableName + "...;'?");
+        }
+
+        schema.addTable(table);
+        parseRows(table, ParserUtils.removeLastSemicolon(line));
+    }

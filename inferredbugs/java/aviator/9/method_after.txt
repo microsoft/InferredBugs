@@ -1,0 +1,34 @@
+  @Override
+  public AviatorObject match(AviatorObject other, Map<String, Object> env) {
+    switch (other.getAviatorType()) {
+      case String:
+        AviatorString aviatorString = (AviatorString) other;
+        Matcher m = this.pattern.matcher(aviatorString.lexeme);
+        if (m.matches()) {
+          boolean captureGroups = RuntimeUtils.getInstance(env)
+              .getOptionValue(Options.PUT_CAPTURING_GROUPS_INTO_ENV).bool;
+          if (captureGroups && env != null && env != Collections.EMPTY_MAP) {
+            int groupCount = m.groupCount();
+            for (int i = 0; i <= groupCount; i++) {
+              env.put("$" + i, m.group(i));
+            }
+          }
+          return AviatorBoolean.TRUE;
+        } else {
+          return AviatorBoolean.FALSE;
+        }
+      case JavaType:
+        AviatorJavaType javaType = (AviatorJavaType) other;
+        final Object javaValue = javaType.getValue(env);
+        if (TypeUtils.isString(javaValue)) {
+          return this.match(new AviatorString(String.valueOf(javaValue)), env);
+        } else {
+          throw new ExpressionRuntimeException(
+              this.desc(env) + " could not match " + other.desc(env));
+        }
+      default:
+        throw new ExpressionRuntimeException(
+            this.desc(env) + " could not match " + other.desc(env));
+    }
+
+  }

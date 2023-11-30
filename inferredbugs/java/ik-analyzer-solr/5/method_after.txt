@@ -1,0 +1,41 @@
+    private void loadStopWordDict() {
+        // 建立一个主词典实例
+        _StopWordDict = new DictSegment((char) 0);
+        // 加载扩展停止词典
+        List<String> extStopWordDictFiles = cfg.getExtStopWordDictionarys();
+        if (extStopWordDictFiles != null) {
+            InputStream is;
+            for (String extStopWordDictName : extStopWordDictFiles) {
+                System.out.println("加载扩展停止词典：" + extStopWordDictName);
+                // 读取扩展词典文件
+                is = this.getClass().getClassLoader().getResourceAsStream(extStopWordDictName);
+                // 如果找不到扩展的字典，则忽略
+                if (is == null) {
+                    continue;
+                }
+                try {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8), 512);
+                    String theWord;
+                    do {
+                        theWord = br.readLine();
+                        if (theWord != null && !"".equals(theWord.trim())) {
+                            // System.out.println(theWord);
+                            // 加载扩展停止词典数据到内存中
+                            _StopWordDict.fillSegment(theWord.trim().toLowerCase().toCharArray());
+                        }
+                    } while (theWord != null);
+
+                } catch (IOException ioe) {
+                    System.err.println("Extension Stop word Dictionary loading exception.");
+                    ioe.printStackTrace();
+
+                } finally {
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }

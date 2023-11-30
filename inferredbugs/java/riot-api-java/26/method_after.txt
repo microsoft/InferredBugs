@@ -1,0 +1,28 @@
+ @Override
+	protected boolean setState(RequestState state) {
+		boolean success = super.setState(state);
+		if (!success) {
+			return false;
+		}
+		if (!listeners.isEmpty()) {
+			if (state == RequestState.Succeeded) {
+				for (RequestListener listener : listeners) {
+					listener.onRequestSucceeded(this);
+				}
+			} else if (state == RequestState.Failed) {
+				for (RequestListener listener : listeners) {
+					listener.onRequestFailed(getException());
+				}
+			} else if (state == RequestState.TimeOut) {
+				for (RequestListener listener : listeners) {
+					listener.onRequestTimeout(this);
+				}
+			}
+		}
+		if (state == RequestState.Succeeded || state == RequestState.Failed || state == RequestState.TimeOut) {
+			synchronized (signal) {
+				signal.notifyAll();
+			}
+		}
+		return true;
+	}

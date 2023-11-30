@@ -1,0 +1,31 @@
+    @Override
+    public Object invoke(MethodInvocation invocation) throws Throwable {
+        
+        if (null == didWeStartWork.get()) {
+            
+            unitOfWork.begin();
+            didWeStartWork.set(Boolean.TRUE);
+            
+        } else {
+            // If unit of work already started we don't do anything here...
+            // another UnitOfWorkInterceptor point point will take care...
+            // This happens if you are nesting your calls.
+            return invocation.proceed();
+        }
+
+        try {
+
+            return invocation.proceed();
+
+        } finally {
+
+            if (null != didWeStartWork.get()) {
+                
+                didWeStartWork.remove();
+                unitOfWork.end();
+                
+            }
+
+        }
+
+    }

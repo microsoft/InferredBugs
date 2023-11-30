@@ -1,0 +1,16 @@
+    private String getContainerId(String containerName) {
+        final String containerNameSearch = containerName.contains("/") ?
+                containerName : String.format("/%s", containerName);
+
+        List<Container> containerList = null;
+        try {
+            containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
+        } catch (DockerException | InterruptedException e) {
+            logger.log(Level.FINE, nodeId + " Error while getting containerId", e);
+            ga.trackException(e);
+        }
+
+        return containerList.stream()
+                .filter(container -> containerNameSearch.equalsIgnoreCase(container.names().get(0)))
+                .findFirst().get().id();
+    }

@@ -1,0 +1,99 @@
+    private void runLint() throws MojoExecutionException
+    {
+        IssueRegistry registry = new BuiltinIssueRegistry();
+
+        LintCliFlags flags = new LintCliFlags();
+        flags.setQuiet( false );
+
+        LintCliClient client = new LintCliClient( flags );
+
+        try
+        {
+            if ( isNotNull( parsedIgnoreWarnings ) )
+            {
+                flags.setIgnoreWarnings( parsedIgnoreWarnings );
+            }
+            if ( isNotNull( parsedWarnAll ) )
+            {
+                flags.setCheckAllWarnings( parsedWarnAll );
+            }
+            if ( isNotNull( parsedWarningsAsErrors ) )
+            {
+                flags.setWarningsAsErrors( parsedWarningsAsErrors );
+            }
+
+            if ( isNotNullAndNotEquals( parsedConfig, "null" ) )
+            {
+                flags.setDefaultConfiguration( new File( parsedConfig ) );
+            }
+
+            if ( isNotNull( parsedFullPath ) )
+            {
+                flags.setFullPath( parsedFullPath );
+            }
+            if ( isNotNull( parsedShowAll ) )
+            {
+                flags.setShowEverything( parsedShowAll );
+            }
+            if ( isNotNull( parsedDisableSourceLines ) )
+            {
+                flags.setShowSourceLines( !parsedDisableSourceLines );
+            }
+            if ( isNotNullAndTrue( parsedEnableHtml ) )
+            {
+                File outHtml = new File( parsedHtmlOutputPath );
+                flags.getReporters().add( new MultiProjectHtmlReporter( client, outHtml ) );
+
+                getLog().info( "Writing Lint HTML report in " + parsedHtmlOutputPath );
+            }
+            if ( isNotNullAndNotEquals( parsedUrl, "none" ) )
+            {
+//                TODO what is this?
+//                parameters.add( "--url" );
+//                parameters.add( parsedUrl );
+            }
+            if ( isNotNullAndTrue( parsedEnableSimpleHtml ) )
+            {
+                File outSimpleHtml = new File( parsedSimpleHtmlOutputPath );
+                flags.getReporters().add( new MultiProjectHtmlReporter( client, outSimpleHtml ) );
+
+                getLog().info( "Writing Lint simple HTML report in " + parsedSimpleHtmlOutputPath );
+            }
+            if ( isNotNullAndTrue( parsedEnableXml ) )
+            {
+                flags.getReporters().add( new XmlReporter( client, new File( parsedXmlOutputPath ) ) );
+
+                getLog().info( "Writing Lint XML report in " + parsedXmlOutputPath );
+            }
+            if ( isNotNullAndTrue( parsedEnableSources ) )
+            {
+//                TODO what is this?
+//                parameters.add( "--sources" );
+//                parameters.add( parsedSources );
+            }
+            if ( isNotNullAndTrue( parsedEnableClasspath ) )
+            {
+//                TODO what is this?
+//                parameters.add( "--classpath" );
+//                parameters.add( parsedClasspath );
+            }
+            if ( isNotNullAndTrue( parsedEnableLibraries ) )
+            {
+//              TODO libraries
+//                parameters.add( "--libraries" );
+//                parameters.add( parsedLibraries );
+            }
+
+            List< File > files = new ArrayList< File >();
+            files.add( resourceDirectory );
+            files.add( androidManifestFile );
+            files.add( sourceDirectory );
+            files.add( assetsDirectory );
+
+            client.run( registry, files );
+        }
+        catch ( IOException ex )
+        {
+            throw new MojoExecutionException( ex.getMessage(), ex );
+        }
+    }

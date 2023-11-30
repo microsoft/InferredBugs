@@ -1,0 +1,21 @@
+    @Test
+    public void integrationTest() throws Exception {
+
+        File inputTweets = new File(this.getClass().getResource("/tweets-in.xls").toURI());
+        File outputTweets = new File(this.getClass().getResource("/tweets-out.xls").toURI());
+
+        Job job = JobBuilder.aNewJob()
+                .reader(new MsExcelRecordReader(inputTweets))
+                .filter(new HeaderRecordFilter())
+                .mapper(new MsExcelRecordMapper(Tweet.class, "id", "user", "message"))
+                .marshaller(new MsExcelRecordMarshaller<>(Tweet.class, "id", "user", "message"))
+                .writer(new MsExcelRecordWriter(outputTweets))
+                .build();
+
+        JobReport report = JobExecutor.execute(job);
+
+        assertThat(report).isNotNull();
+        assertThat(report.getMetrics().getTotalCount()).isEqualTo(3);
+        assertThat(report.getMetrics().getFilteredCount()).isEqualTo(1);
+        assertThat(report.getMetrics().getSuccessCount()).isEqualTo(2);
+    }

@@ -1,0 +1,84 @@
+  public void corrupted_seeder_repair() throws NoSuchAlgorithmException, IOException, URISyntaxException, InterruptedException {
+    this.tracker.setAcceptForeignTorrents(true);
+
+    final int pieceSize = 48 * 1024; // lower piece size to reduce disk usage
+    final int numSeeders = 6;
+    final int piecesCount = numSeeders + 7;
+
+    final List<Client> clientsList;
+    clientsList = new ArrayList<Client>(piecesCount);
+
+    final MessageDigest md5 = MessageDigest.getInstance("MD5");
+
+    try {
+      File baseFile = tempFiles.createTempFile(piecesCount * pieceSize);
+
+      createMultipleSeedersWithDifferentPieces(baseFile, piecesCount, pieceSize, numSeeders, clientsList);
+      String baseMD5 = getFileMD5(baseFile, md5);
+      final Client firstClient = clientsList.get(0);
+
+      new WaitFor(10 * 1000) {
+        @Override
+        protected boolean condition() {
+          return firstClient.getTorrentsStorage().activeTorrents().size() >= 1;
+        }
+      };
+
+      final SharedTorrent torrent = firstClient.getTorrents().iterator().next();
+      final File file = new File(torrent.getParentFile(), TorrentUtils.getTorrentFileNames(torrent).get(0));
+      final int oldByte;
+      {
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        raf.seek(0);
+        oldByte = raf.read();
+        raf.seek(0);
+        // replacing the byte
+        if (oldByte != 35) {
+          raf.write(35);
+        } else {
+          raf.write(45);
+        }
+        raf.close();
+      }
+      final WaitFor waitFor = new WaitFor(60 * 1000) {
+        @Override
+        protected boolean condition() {
+          for (Client client : clientsList) {
+            final SharedTorrent next = client.getTorrents().iterator().next();
+            if (next.getCompletedPieces().cardinality() < next.getPieceCount() - 1) {
+              return false;
+            }
+          }
+          return true;
+        }
+      };
+
+      if (!waitFor.isMyResult()) {
+        fail("All seeders didn't get their files");
+      }
+      Thread.sleep(10 * 1000);
+      {
+        byte[] piece = new byte[pieceSize];
+        FileInputStream fin = new FileInputStream(baseFile);
+        fin.read(piece);
+        fin.close();
+        RandomAccessFile raf;
+        try {
+          raf = new RandomAccessFile(file, "rw");
+          raf.seek(0);
+          raf.write(oldByte);
+          raf.close();
+        } catch (FileNotFoundException e) {
+          e.printStackTrace();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
+      validateMultipleClientsResults(clientsList, md5, baseFile, baseMD5);
+
+    } finally {
+      for (Client client : clientsList) {
+        client.stop();
+      }
+    }
+  }

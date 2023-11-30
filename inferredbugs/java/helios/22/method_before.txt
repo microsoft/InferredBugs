@@ -1,0 +1,48 @@
+  @Override
+  protected int runWithJobId(final Namespace options, final HeliosClient client,
+                             final PrintStream out, final boolean json, final JobId jobId,
+                             final BufferedReader stdin)
+      throws IOException, ExecutionException, InterruptedException {
+    final boolean yes = options.getBoolean(yesArg.getDest());
+    final boolean force = options.getBoolean(forceArg.getDest());
+
+    if (force) {
+      log.warn("If you are using '--force' to skip the interactive prompt, " +
+               "note that we have deprecated it. Please use '--yes'.");
+    }
+
+    if (!yes && !force) {
+      out.printf("This will remove the job %s%n", jobId);
+      final boolean confirmed = Utils.userConfirmed(out, stdin);
+      if (!confirmed) {
+        return 1;
+      }
+    }
+
+    if (!json) {
+      out.printf("Removing job %s%n", jobId);
+    }
+
+    int code = 0;
+
+    final String token = options.getString(tokenArg.getDest());
+    final JobDeleteResponse response = client.deleteJob(jobId, token).get();
+    if (!json) {
+      out.printf("%s: ", jobId);
+    }
+    if (response.getStatus() == JobDeleteResponse.Status.OK) {
+      if (json) {
+        out.printf(response.toJsonString());
+      } else {
+        out.printf("done%n");
+      }
+    } else {
+      if (json) {
+        out.printf(response.toJsonString());
+      } else {
+        out.printf("failed: %s%n", response);
+      }
+      code = 1;
+    }
+    return code;
+  }

@@ -1,0 +1,27 @@
+  void initialize(GlobalSettings globalSettings, ClassLoader classLoader) {
+    if (globalSettings.isAutoregisterJMXBeans()) {
+      // Register JMX MBeans. If an error occurs, don't propagate exception
+      try {
+        registerJMXBeans(new JMXPlatformImpl());
+      } catch (Throwable t) {
+        log.warn("Unable to register Dozer JMX MBeans with the PlatformMBeanServer.  Dozer will still function "
+            + "normally, but management via JMX may not be available", t);
+      }
+    }
+
+    BeanContainer beanContainer = BeanContainer.getInstance();
+
+    registerClassLoader(globalSettings, classLoader, beanContainer);
+    registerProxyResolver(globalSettings, beanContainer);
+
+    if (globalSettings.isElEnabled()) {
+      ELEngine engine = new ELEngine();
+      engine.init();
+      beanContainer.setElEngine(engine);
+      beanContainer.setElementReader(new ExpressionElementReader(engine));
+    }
+
+    for (DozerModule module : ServiceLoader.load(DozerModule.class)) {
+      module.init();
+    }
+  }

@@ -1,0 +1,19 @@
+  private static void checkFollowerCommitLagsLeader(MiniRaftCluster cluster) {
+    List<RaftServerImpl> followers = cluster.getFollowers();
+    RaftServerImpl leader = cluster.getLeader();
+
+    Gauge leaderCommitGauge = RaftServerMetrics
+        .getPeerCommitIndexGauge(leader, leader);
+
+    for (RaftServerImpl follower : followers) {
+      Gauge followerCommitGauge = RaftServerMetrics
+          .getPeerCommitIndexGauge(leader, follower);
+      Assert.assertTrue((Long)leaderCommitGauge.getValue() >=
+          (Long)followerCommitGauge.getValue());
+      Gauge followerMetric = RaftServerMetrics
+          .getPeerCommitIndexGauge(follower, follower);
+      System.out.println(followerCommitGauge.getValue());
+      System.out.println(followerMetric.getValue());
+      Assert.assertTrue((Long)followerCommitGauge.getValue()  <= (Long)followerMetric.getValue());
+    }
+  }

@@ -1,0 +1,40 @@
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  @Override
+  public void onServiceContextReceived(ServiceContext serviceContext) throws Throwable {
+    FlowMessage flowMessage = serviceContext.getFlowMessage();
+    if (serviceContext.isSync()) {
+      CacheManager.get(serviceActorCachePrefix + serviceContext.getFlowName()).add(serviceContext.getId(), getSender(),
+          defaultTimeToLive);
+    }
+    Serializer serializer = ExtensionLoader.load(Serializer.class).load(serviceContext.getCodec());
+
+    Object result = null;
+    Object param = null;
+    try {
+      ServiceContextUtil.fillServiceContext(serviceContext);
+      String pType = getParamType(serviceContext);
+      if (flowMessage.getMessage() != null && ClassUtil.exists(flowMessage.getMessageType())) {
+        pType = flowMessage.getMessageType();
+      }
+      param = serializer.decode(flowMessage.getMessage(), pType);
+      if (getFilter(serviceContext) != null) {
+        getFilter(serviceContext).filter(param, serviceContext);
+      }
+      // logger.info("服务参数类型 {} : {}", pType, getService(serviceContext));
+      result = ((Service) getService(serviceContext)).process(param, serviceContext);
+    } catch (Throwable e) {
+      handleException(serviceContext, e, param, serializer);
+    }
+    if (result != null && result instanceof CompletableFuture) {
+      final Object tempParam = param;
+      ((CompletableFuture<Object>) result).whenComplete((r, e) -> {
+        if (e != null) {
+          handleException(serviceContext, e, tempParam, serializer);
+          return;
+        }
+        handleNextServices(serviceContext, r, flowMessage.getTransactionId(), serializer);
+      });
+    } else {
+      handleNextServices(serviceContext, result, flowMessage.getTransactionId(), serializer);
+    }
+  }

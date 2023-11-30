@@ -1,0 +1,107 @@
+    private void doProcess(JbootHttpRequest request, JbootHttpResponse response) {
+        HttpURLConnection connection = null;
+        InputStream stream = null;
+        try {
+
+            connection = getConnection(request);
+            configConnection(connection, request);
+
+
+            if (request.isGetRquest()) {
+                if (Jboot.me().isDevMode()) {
+                    LOG.debug("do get request:" + request.getRequestUrl());
+                }
+                connection.setInstanceFollowRedirects(true);
+                connection.connect();
+
+                if (connection.getResponseCode() >= 400) {
+                    stream = connection.getErrorStream();
+                } else {
+                    stream = connection.getInputStream();
+                }
+            }
+            /**
+             * 处理 post请求
+             */
+            else if (request.isPostRquest()) {
+
+                if (Jboot.me().isDevMode()) {
+                    LOG.debug("do post request:" + request.getRequestUrl());
+                }
+
+                connection.setRequestMethod("POST");
+                connection.setDoOutput(true);
+
+                if (!request.isMultipartFormData()) {
+                    String postContent = buildParams(request);
+                    if (StringUtils.isNotEmpty(postContent)) {
+                        DataOutputStream dos = new DataOutputStream(connection.getOutputStream());
+                        dos.write(postContent.getBytes(request.getCharset()));
+                        dos.flush();
+                        dos.close();
+                    }
+                    stream = connection.getInputStream();
+                }
+
+                /**
+                 * 处理文件上传
+                 */
+                else {
+
+                    if (request.getParams() != null && request.getParams().size() > 0) {
+                        String endFlag = "\r\n";
+                        String boundary = "---------" + StringUtils.uuid();
+                        connection.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
+                        DataOutputStream dos = new DataOutputStream(connection.getOutputStream());
+                        for (Map.Entry entry : request.getParams().entrySet()) {
+                            if (entry.getValue() instanceof File) {
+                                File file = (File) entry.getValue();
+                                checkFileNormal(file);
+                                dos.writeBytes(boundary + endFlag);
+                                dos.writeBytes(String.format("Content-Disposition: form-data; name=\"%s\"; filename=\"%s\"", entry.getKey(), file.getName()) + endFlag);
+                                dos.writeBytes(endFlag);
+                                FileInputStream fStream = new FileInputStream(file);
+                                byte[] buffer = new byte[2028];
+                                for (int len = 0; (len = fStream.read(buffer)) > 0; ) {
+                                    dos.write(buffer, 0, len);
+                                }
+
+                                dos.writeBytes(endFlag);
+                            } else {
+                                dos.writeBytes("Content-Disposition: form-data; name=\"" + entry.getKey() + "\"");
+                                dos.writeBytes(endFlag);
+                                dos.writeBytes(endFlag);
+                                dos.writeBytes(String.valueOf(entry.getValue()));
+                                dos.writeBytes(endFlag);
+                            }
+                        }
+
+                        dos.writeBytes("--" + boundary + "--" + endFlag);
+                    }
+                }
+            }
+
+            response.setContentType(connection.getContentType());
+            response.setResponseCode(connection.getResponseCode());
+            response.setHeaders(connection.getHeaderFields());
+
+            response.pipe(stream);
+            response.finish();
+
+
+        } catch (Throwable ex) {
+            LOG.warn(ex.toString(), ex);
+            response.setError(ex);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+            if (stream != null) {
+                try {
+                    stream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }

@@ -1,0 +1,64 @@
+    @Override
+    public RelationalReader getRelationalReader(ClassInfo classInfo, String relationshipType, String relationshipDirection) {
+        if(relationalReaderCache.get(classInfo) == null) {
+            relationalReaderCache.put(classInfo, new HashMap<DirectedRelationship, RelationalReader>());
+        }
+        DirectedRelationship directedRelationship = new DirectedRelationship(relationshipType,relationshipDirection);
+        if(relationalReaderCache.get(classInfo).containsKey(directedRelationship)) {
+            return relationalReaderCache.get(classInfo).get(directedRelationship);
+        }
+
+        // 1st, try to find a method explicitly annotated with the relationship type and direction.
+        MethodInfo methodInfo = classInfo.relationshipGetter(relationshipType, relationshipDirection, STRICT_MODE);
+        if (methodInfo != null && !methodInfo.getAnnotations().isEmpty()) {
+            MethodReader methodReader = new MethodReader(classInfo, methodInfo);
+            relationalReaderCache.get(classInfo).put(directedRelationship, methodReader);
+            return methodReader;
+        }
+
+        // 2nd, try to find a field explicitly annotated with the neo4j relationship type and direction
+        FieldInfo fieldInfo = classInfo.relationshipField(relationshipType, relationshipDirection, STRICT_MODE);
+        if (fieldInfo != null && !fieldInfo.getAnnotations().isEmpty()) {
+            FieldReader fieldReader =  new FieldReader(classInfo, fieldInfo);
+            relationalReaderCache.get(classInfo).put(directedRelationship, fieldReader);
+            return fieldReader;
+        }
+
+        //If the direction is INCOMING, then the annotation should have been present and we should have found a match already.
+        //If it's outgoing, then proceed to find other matches
+        if(!relationshipDirection.equals(Relationship.INCOMING)) {
+
+            // 3rd, try to find a method  annotated with the relationship type and direction, allowing for implied relationships
+            methodInfo = classInfo.relationshipGetter(relationshipType, relationshipDirection, INFERRED_MODE);
+            if (methodInfo != null && !methodInfo.getAnnotations().isEmpty()) {
+                MethodReader methodReader = new MethodReader(classInfo, methodInfo);
+                relationalReaderCache.get(classInfo).put(directedRelationship, methodReader);
+                return methodReader;
+            }
+
+            // 4th, try to find a field  annotated with the neo4j relationship type and direction, allowing for implied relationships
+            fieldInfo = classInfo.relationshipField(relationshipType, relationshipDirection, INFERRED_MODE);
+            if (fieldInfo != null && !fieldInfo.getAnnotations().isEmpty()) {
+                FieldReader fieldReader = new FieldReader(classInfo, fieldInfo);
+                relationalReaderCache.get(classInfo).put(directedRelationship, fieldReader);
+                return fieldReader;
+            }
+
+
+            // 5th, try to find a "getXYZ" method where XYZ is derived from the given relationship type
+            if (methodInfo != null) {
+                MethodReader methodReader =  new MethodReader(classInfo, methodInfo);
+                relationalReaderCache.get(classInfo).put(directedRelationship, methodReader);
+                return methodReader;
+            }
+
+            // 6th, try to find a "XYZ" field name where XYZ is derived from the relationship type
+            if (fieldInfo != null) {
+                FieldReader fieldReader =  new FieldReader(classInfo, fieldInfo);
+                relationalReaderCache.get(classInfo).put(directedRelationship, fieldReader);
+                return fieldReader;
+            }
+        }
+        relationalReaderCache.get(classInfo).put(directedRelationship, null);
+        return null;
+    }

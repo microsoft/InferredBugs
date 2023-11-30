@@ -1,0 +1,31 @@
+  private void run(final Class<?> clazz, final Class<?> test,
+      final MethodMutatorFactory... mutators) {
+
+    final ReportOptions data = new ReportOptions();
+
+    final Set<Predicate<String>> tests = Collections.singleton(Prelude
+        .isEqualTo(test.getName()));
+    data.setTargetTests(tests);
+    data.setDependencyAnalysisMaxDistance(-1);
+
+    final Set<Predicate<String>> mutees = Collections.singleton(Prelude
+        .isEqualTo(clazz.getName()));
+    data.setTargetClasses(mutees);
+
+    data.setTimeoutConstant(PercentAndConstantTimeoutStrategy.DEFAULT_CONSTANT);
+    data.setTimeoutFactor(PercentAndConstantTimeoutStrategy.DEFAULT_FACTOR);
+
+    final ArrayList<Predicate<String>> inScope = new ArrayList<Predicate<String>>();
+    inScope.addAll(mutees);
+    inScope.addAll(tests);
+
+    data.setClassesInScope(inScope);
+
+    final JavaAgent agent = new JarCreatingJarFinder();
+
+    try {
+      createEngineAndRun(data, agent, mutators);
+    } finally {
+      agent.close();
+    }
+  }

@@ -1,0 +1,28 @@
+    private BuildStrategy createBuildStrategy(ImageConfiguration imageConfig, OpenShiftBuildStrategy osBuildStrategy) {
+        if (osBuildStrategy == OpenShiftBuildStrategy.docker) {
+            return new BuildStrategyBuilder().withType("Docker").build();
+        } else if (osBuildStrategy == OpenShiftBuildStrategy.s2i) {
+            BuildImageConfiguration buildConfig = imageConfig.getBuildConfiguration();
+            Map<String, String> fromExt = buildConfig.getFromExt();
+
+            String fromName = getMapValueWithDefault(fromExt, OpenShiftBuildStrategy.SourceStrategy.name, buildConfig.getFrom());
+            String fromKind = getMapValueWithDefault(fromExt, OpenShiftBuildStrategy.SourceStrategy.kind, "DockerImage");
+            String fromNamespace = getMapValueWithDefault(fromExt, OpenShiftBuildStrategy.SourceStrategy.namespace, "ImageStreamTag".equals(fromKind) ? "openshift" : null);
+            if (fromNamespace.isEmpty()) {
+                fromNamespace = null;
+            }
+
+            return new BuildStrategyBuilder()
+                    .withType("Source")
+                    .withNewSourceStrategy()
+                    .withNewFrom()
+                    .withKind(fromKind)
+                    .withName(fromName)
+                    .withNamespace(fromNamespace)
+                    .endFrom()
+                    .endSourceStrategy()
+                    .build();
+        } else {
+            throw new IllegalArgumentException("Unsupported BuildStrategy " + osBuildStrategy);
+        }
+    }

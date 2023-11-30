@@ -1,0 +1,26 @@
+    @Test
+    public void testProxy()  throws Exception
+    {
+        int frontendPort = Utils.findOpenPort();
+        int backendPort = Utils.findOpenPort();
+
+        Context ctx = ZMQ.context(1);
+        assert (ctx != null);
+
+        Main mt = new Main(ctx, frontendPort, backendPort);
+        mt.start();
+        new Dealer(ctx, "AA", backendPort).start();
+        new Dealer(ctx, "BB", backendPort).start();
+
+        Thread.sleep(1000);
+        Thread c1 = new Client(ctx, "X", frontendPort);
+        c1.start();
+
+        Thread c2 = new Client(ctx, "Y", frontendPort);
+        c2.start();
+
+        c1.join();
+        c2.join();
+
+        ctx.term();
+    }

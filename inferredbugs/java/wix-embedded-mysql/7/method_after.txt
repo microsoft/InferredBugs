@@ -1,0 +1,27 @@
+    private void execute(final String sql) {
+        String command = (Platform.detect() == Windows) ? format("\"%s\"", sql) : sql;
+        try {
+            Process p = new ProcessBuilder(new String[]{
+                    Paths.get(executable.getBaseDir().getAbsolutePath(), "bin", "mysql").toString(),
+                    "--protocol=tcp",
+                    format("--user=%s", SystemDefaults.USERNAME),
+                    format("--port=%s", config.getPort()),
+                    schemaName}).start();
+
+            IOUtils.copy(new StringReader(sql), p.getOutputStream(), Charset.defaultCharset());
+            p.getOutputStream().close();
+
+            if (p.waitFor() != 0) {
+                String out = IOUtils.toString(p.getInputStream());
+                String err = IOUtils.toString(p.getErrorStream());
+
+                if (isNullOrEmpty(out))
+                    throw new CommandFailedException(command, schemaName, p.waitFor(), err);
+                else
+                    throw new CommandFailedException(command, schemaName, p.waitFor(), out);
+            }
+
+        } catch (IOException | InterruptedException e) {
+            throw new CommandFailedException(command, schemaName, e.getMessage(), e);
+        }
+    }

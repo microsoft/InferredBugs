@@ -1,0 +1,27 @@
+    void connectIfNeededAndDoOp(GenericCallback<Void> op) {
+        boolean doOpNow;
+
+        synchronized (this) {
+            if (channel != null && state == ConnectionState.CONNECTED) {
+                doOpNow = true;
+            } else {
+                // if reached here, channel is either null (first connection
+                // attempt),
+                // or the channel is disconnected
+                doOpNow = false;
+
+                // connection attempt is still in progress, queue up this
+                // op. Op will be executed when connection attempt either
+                // fails
+                // or
+                // succeeds
+                pendingOps.add(op);
+
+                connect();
+            }
+        }
+
+        if (doOpNow) {
+            op.operationComplete(BKException.Code.OK, null);
+        }
+    }

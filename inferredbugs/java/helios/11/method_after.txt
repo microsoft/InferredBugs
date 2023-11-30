@@ -1,0 +1,18 @@
+  @Test
+  public void testDeploymentFailure() throws Exception {
+    final long start = System.currentTimeMillis();
+
+    assertThat(testResult(TempJobFailureTestImpl.class),
+               hasSingleFailureContaining("AssertionError: Unexpected job state"));
+    final long end = System.currentTimeMillis();
+    assertTrue("Test should not time out", (end - start) < Jobs.TIMEOUT_MILLIS);
+
+    final byte[] testReport = Files.readAllBytes(REPORT_DIR.getRoot().listFiles()[0].toPath());
+    final TemporaryJobEvent[] events = Json.read(testReport, TemporaryJobEvent[].class);
+
+    for (final TemporaryJobEvent event : events) {
+      if (event.getStep().equals("test")) {
+        assertFalse("test should be reported as failed", event.isSuccess());
+      }
+    }
+  }

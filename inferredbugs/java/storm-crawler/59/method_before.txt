@@ -1,0 +1,76 @@
+    @Override
+    protected void populateBuffer() {
+        // not used yet or returned empty results
+        if (lastDate == null) {
+            lastDate = new Date();
+            lastStartOffset = 0;
+        }
+        // been running same query for too long and paging deep?
+        else if (maxStartOffset != -1 && lastStartOffset > maxStartOffset) {
+            LOG.info("Reached max start offset {}", lastStartOffset);
+            lastStartOffset = 0;
+        }
+
+        String formattedLastDate = ISODateTimeFormat.dateTimeNoMillis().print(
+                lastDate.getTime());
+
+        LOG.info("{} Populating buffer with nextFetchDate <= {}", logIdprefix,
+                formattedLastDate);
+
+        QueryBuilder queryBuilder = QueryBuilders.rangeQuery("nextFetchDate")
+                .lte(formattedLastDate);
+
+        if (filterQuery != null) {
+            queryBuilder = boolQuery().must(queryBuilder).filter(
+                    QueryBuilders.queryStringQuery(filterQuery));
+        }
+
+        SearchRequest request = new SearchRequest(indexName).types(docType)
+                .searchType(SearchType.QUERY_THEN_FETCH);
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(queryBuilder);
+        sourceBuilder.from(lastStartOffset);
+        sourceBuilder.size(maxBucketNum);
+        sourceBuilder.explain(false);
+        sourceBuilder.trackTotalHits(false);
+
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-preference.html
+        // _shards:2,3
+        if (shardID != -1) {
+            request.preference("_shards:" + shardID);
+        }
+
+        if (StringUtils.isNotBlank(totalSortField)) {
+            sourceBuilder.sort(new FieldSortBuilder(totalSortField)
+                    .order(SortOrder.ASC));
+        }
+
+        CollapseBuilder collapse = new CollapseBuilder(partitionField);
+
+        // group expansion -> sends sub queries for each bucket
+        if (maxURLsPerBucket > 1) {
+            InnerHitBuilder ihb = new InnerHitBuilder();
+            ihb.setSize(maxURLsPerBucket);
+            ihb.setName("urls_per_bucket");
+            // sort within a bucket
+            if (StringUtils.isNotBlank(bucketSortField)) {
+                List<SortBuilder<?>> sorts = new LinkedList<>();
+                FieldSortBuilder bucketsorter = SortBuilders.fieldSort(
+                        bucketSortField).order(SortOrder.ASC);
+                sorts.add(bucketsorter);
+                ihb.setSorts(sorts);
+            }
+            collapse.setInnerHits(ihb);
+        }
+
+        sourceBuilder.collapse(collapse);
+
+        request.source(sourceBuilder);
+
+        // dump query to log
+        LOG.debug("{} ES query {}", logIdprefix, request.toString());
+
+        isInQuery.set(true);
+        client.searchAsync(request, this);
+    }

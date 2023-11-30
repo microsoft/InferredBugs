@@ -1,0 +1,58 @@
+    private void handleBodyFetch(MimeMessage mimeMessage,
+                                 String sectionSpecifier,
+                                 String partial,
+                                 StringBuilder response) throws IOException, MessagingException {
+        if (sectionSpecifier.length() == 0) {
+            // TODO - need to use an InputStream from the response here.
+            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            mimeMessage.writeTo(bout);
+            byte[] bytes = bout.toByteArray();
+            bytes = doPartial(partial, bytes, response);
+            addLiteral(bytes, response);
+        } else if ("HEADER".equalsIgnoreCase(sectionSpecifier)) {
+            Enumeration<?> inum = mimeMessage.getAllHeaderLines();
+            addHeaders(inum, response);
+        } else if (sectionSpecifier.startsWith("HEADER.FIELDS.NOT")) {
+            String[] excludeNames = extractHeaderList(sectionSpecifier, "HEADER.FIELDS.NOT".length());
+            Enumeration<?> inum = mimeMessage.getNonMatchingHeaderLines(excludeNames);
+            addHeaders(inum, response);
+        } else if (sectionSpecifier.startsWith("HEADER.FIELDS ")) {
+            String[] includeNames = extractHeaderList(sectionSpecifier, "HEADER.FIELDS ".length());
+            Enumeration<?> inum = mimeMessage.getMatchingHeaderLines(includeNames);
+            addHeaders(inum, response);
+        } else if (sectionSpecifier.endsWith("MIME")) {
+            String[] strs = sectionSpecifier.trim().split("\\.");
+            int partNumber = Integer.parseInt(strs[0]) - 1;
+            MimeMultipart mp = (MimeMultipart) mimeMessage.getContent();
+            byte[] bytes = GreenMailUtil.getHeaderAsBytes(mp.getBodyPart(partNumber));
+            bytes = doPartial(partial, bytes, response);
+            addLiteral(bytes, response);
+        } else if ("TEXT".equalsIgnoreCase(sectionSpecifier)) {
+            handleBodyFetchForText(mimeMessage, partial, response);
+        } else {
+            if (log.isDebugEnabled()) {
+                log.debug("Fetching body part for section specifier " + sectionSpecifier +
+                        " and mime message (contentType=" + mimeMessage.getContentType());
+            }
+            String contentType = mimeMessage.getContentType();
+            if (contentType.startsWith("text/plain") && "1".equals(sectionSpecifier)) {
+                handleBodyFetchForText(mimeMessage, partial, response);
+            } else {
+                MimeMultipart mp = (MimeMultipart) mimeMessage.getContent();
+                BodyPart part = null;
+                String[] nestedIdx = sectionSpecifier.split("\\.");
+                for (String idx : nestedIdx) {
+                    int partNumber = Integer.parseInt(idx) - 1;
+                    if (null == part) {
+                        part = mp.getBodyPart(partNumber);
+                    } else {
+                        // Content must be multipart
+                        part = ((Multipart) part.getContent()).getBodyPart(partNumber);
+                    }
+                }
+                byte[] bytes = GreenMailUtil.getBodyAsBytes(part);
+                bytes = doPartial(partial, bytes, response);
+                addLiteral(bytes, response);
+            }
+        }
+    }

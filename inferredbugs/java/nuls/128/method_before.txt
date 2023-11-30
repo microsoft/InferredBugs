@@ -1,0 +1,52 @@
+    @Test
+    public void newTx() throws Exception {
+
+        assertNotNull(service);
+
+        // new a tx
+        Transaction tx = new TestTransaction();
+        CoinData coinData = new CoinData();
+        List<Coin> fromList = new ArrayList<>();
+        fromList.add(new Coin(new byte[20], Na.NA, 0L));
+        coinData.setFrom(fromList);
+        tx.setCoinData(coinData);
+        tx.setTime(1l);
+
+        assertNotNull(tx);
+        assertNotNull(tx.getHash());
+        assertEquals(tx.getHash().getDigestHex(), "08001220b9ab6a1e5ab8e2b09758d6143bb9b66b8fe0c2c4bf49f2bfb74709ef2bf1d02f");
+
+        Result result = service.newTx(tx);
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertFalse(result.isFailed());
+
+        //test orphan
+        NulsDataValidator<TestTransaction> testValidator = new NulsDataValidator<TestTransaction>() {
+            @Override
+            public ValidateResult validate(TestTransaction data) {
+                if (data.getHash().getDigestHex().equals("08001220328876d03b50feba0ac58d3fcb4638a2fb95847315a88c8de7105408d931999a")) {
+                    return ValidateResult.getFailedResult("test.transaction", TransactionErrorCode.ORPHAN_TX);
+                } else {
+                    return ValidateResult.getSuccessResult();
+                }
+            }
+        };
+        ValidatorManager.addValidator(TestTransaction.class, testValidator);
+
+        tx = new TestTransaction();
+        tx.setTime(2l);
+        result = service.newTx(tx);
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertFalse(result.isFailed());
+
+        List<Transaction> list = TxMemoryPool.getInstance().getAll();
+        assertNotNull(list);
+        assertEquals(list.size(), 1);
+
+        List<Transaction> orphanList = TxMemoryPool.getInstance().getAllOrphan();
+        assertNotNull(orphanList);
+        assertEquals(orphanList.size(), 1);
+
+    }

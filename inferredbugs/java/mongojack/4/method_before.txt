@@ -1,0 +1,19 @@
+    @Test
+    public void dbRefWithObjectIdShouldBeSavedAsDbRef() {
+        JacksonDBCollection<ObjectIdOwner, String> coll = getCollection(ObjectIdOwner.class, String.class);
+        JacksonDBCollection<ObjectIdReferenced, byte[]> refColl = getCollection(ObjectIdReferenced.class, byte[].class);
+
+        byte[] refId = refColl.insert(new ObjectIdReferenced(10)).getSavedId();
+        String id = coll.insert(new ObjectIdOwner(new DBRef<ObjectIdReferenced, byte[]>(refId, refColl.getName()))).getSavedId();
+
+        ObjectIdOwner saved = coll.findOneById(id);
+        assertThat(saved.ref, notNullValue());
+        assertThat(saved.ref.getId(), equalTo(refId));
+        assertThat(saved.ref.getCollectionName(), equalTo(refColl.getName()));
+
+        // Try loading it
+        ObjectIdReferenced ref = saved.ref.fetch();
+        assertThat(ref, notNullValue());
+        assertThat(ref._id, equalTo(refId));
+        assertThat(ref.i, equalTo(10));
+    }

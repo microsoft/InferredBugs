@@ -1,0 +1,40 @@
+    public void messageReceived(ChannelHandlerContext ctx, HardwareStateHolder state, StringMessage message) {
+        Session session = sessionDao.userSession.get(state.user);
+
+        String[] bodyParts = message.body.split(StringUtils.BODY_SEPARATOR_STRING);
+
+        if (bodyParts.length != 3) {
+            throw new IllegalCommandException("SetWidgetProperty command body has wrong format.");
+        }
+
+        byte pin = ParseUtil.parseByte(bodyParts[0]);
+        String property = bodyParts[1];
+        String propertyValue = bodyParts[2];
+
+        if (property.length() == 0 || propertyValue.length() == 0) {
+            throw new IllegalCommandException("SetWidgetProperty command body has wrong format.");
+        }
+
+        DashBoard dash = state.user.profile.getDashByIdOrThrow(state.dashId);
+
+        //for now supporting only virtual pins
+        Widget widget = dash.findWidgetByPin(pin, PinType.VIRTUAL);
+        boolean isChanged;
+        try {
+            isChanged = ReflectionUtil.setProperty(widget, property, propertyValue);
+        } catch (Exception e) {
+            log.error("Error setting widget property. Reason : {}", e.getMessage());
+            ctx.writeAndFlush(makeResponse(message.id, ILLEGAL_COMMAND_BODY), ctx.voidPromise());
+            return;
+        }
+
+        if (isChanged) {
+            if (dash.isActive) {
+                session.sendToApps(SET_WIDGET_PROPERTY, message.id, dash.id + StringUtils.BODY_SEPARATOR_STRING + message.body);
+            }
+
+            ctx.writeAndFlush(ok(message.id), ctx.voidPromise());
+        } else {
+            ctx.writeAndFlush(makeResponse(message.id, ILLEGAL_COMMAND_BODY), ctx.voidPromise());
+        }
+    }

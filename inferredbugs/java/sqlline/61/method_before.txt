@@ -1,0 +1,28 @@
+  public void manual(String line, DispatchCallback callback)
+      throws IOException {
+    InputStream in = SqlLine.class.getResourceAsStream("manual.txt");
+    if (in == null) {
+      callback.setToFailure();
+      sqlLine.error(sqlLine.loc("no-manual"));
+      return;
+    }
+
+    // Workaround for windows because of
+    // https://github.com/jline/jline3/issues/304
+    if (System.getProperty("os.name")
+        .toLowerCase(Locale.ROOT).contains("windows")) {
+      sillyLess(in);
+    } else {
+      try {
+        org.jline.builtins.Commands.less(sqlLine.getLineReader().getTerminal(),
+            in, sqlLine.getOutputStream(), sqlLine.getErrorStream(),
+            null, new String[]{"-I", "--syntax=none"});
+      } catch (Exception e) {
+        callback.setToFailure();
+        sqlLine.error(e);
+        return;
+      }
+    }
+
+    callback.setToSuccess();
+  }

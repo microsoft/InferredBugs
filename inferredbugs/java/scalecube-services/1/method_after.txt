@@ -1,0 +1,24 @@
+  @Override
+  public ServiceMessage decodeMessage(Payload payload) {
+    Builder builder = ServiceMessage.builder();
+
+    if (payload.getData().hasRemaining()) {
+      try {
+        builder.data(payload.sliceData());
+      } catch (Throwable ex) {
+        LOGGER.error("Failed to deserialize data", ex);
+      }
+    }
+
+    if (payload.hasMetadata()) {
+      try (ByteBufInputStream inputStream = new ByteBufInputStream(payload.sliceMetadata(), true)) {
+        builder.headers(readFrom(inputStream, mapType));
+      } catch (Throwable ex) {
+        LOGGER.error("Failed to deserialize data", ex);
+      }
+    }
+
+    payload.release();
+
+    return builder.build();
+  }

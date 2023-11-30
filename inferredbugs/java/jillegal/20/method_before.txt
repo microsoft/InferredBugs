@@ -1,0 +1,19 @@
+ @SuppressWarnings("unchecked")
+	@Override
+	protected void init() {
+		super.init();
+		
+		int arrayHeaderSize = JvmUtil.getArrayHeaderSize();
+		arrayIndexScale = JvmUtil.arrayIndexScale(elementType);
+		arrayIndexStartAddress = allocationStartAddress + JvmUtil.arrayBaseOffset(elementType);
+
+		// Copy sample array header to object pool array header
+		for (int i = 0; i < arrayHeaderSize; i++) {
+			directMemoryService.putByte(allocationStartAddress + i, directMemoryService.getByte(sampleArray, i));
+		}
+		
+		// Set length of array object pool array
+		JvmUtil.setArrayLength(allocationStartAddress, elementType, length);
+
+		this.primitiveArray = (A) directMemoryService.getObject(allocationStartAddress);
+	}

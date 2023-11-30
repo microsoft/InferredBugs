@@ -1,0 +1,42 @@
+    public JSONObject actionReadFile(HttpServletRequest request, HttpServletResponse response) throws Exception {
+
+        String path = getPath(request, "path");
+
+        File file = new File(docRoot.getPath() + path);
+
+        if (!file.exists()) {
+            return getErrorResponse(dictionnary.getProperty("INVALID_DIRECTORY_OR_FILE"));
+        }
+
+        if (file.isDirectory()) {
+            return getErrorResponse(dictionnary.getProperty("FORBIDDEN_ACTION_DIR"));
+        }
+
+        if (!isAllowedName(file.getName(), false)) {
+            return getErrorResponse(dictionnary.getProperty("INVALID_DIRECTORY_OR_FILE"));
+        }
+
+        // check if file is readable
+        if (!file.canRead()) {
+            return getErrorResponse(dictionnary.getProperty("NOT_ALLOWED_SYSTEM"));
+        }
+
+        String filename = file.getName();
+        String fileExt = filename.substring(filename.lastIndexOf(".") + 1);
+        String mimeType = FileManagerUtils.getMimeTypeByExt(fileExt);
+        long fileSize = file.length();
+
+        //TO DO : IMPLEMENT HTTP RANGE FOR STREAM FILE (AUDIO/VIDEO)
+
+        response.setContentType(mimeType);
+        response.setHeader("Content-Length", Long.toString(fileSize));
+        response.setHeader("Content-Transfer-Encoding", "binary");
+        response.setHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
+
+        try {
+            FileUtils.copy(new BufferedInputStream(new FileInputStream(file)), response.getOutputStream());
+        } catch (IOException e) {
+            throw new Exception("Read file error: " + path, e);
+        }
+        return null;
+    }

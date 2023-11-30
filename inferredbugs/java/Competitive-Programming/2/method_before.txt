@@ -1,0 +1,117 @@
+    public static void main(String[] args) throws IOException {
+        final InputReader in = new InputReader(System.in);
+        int qSZ = 0, uSZ = 0;
+        V = in.readInt();
+        int Q = in.readInt();
+        int E = V - 1;
+        Query queries[] = new Query[MAX];
+        Update updates[] = new Update[MAX];
+        map = new HashMap<>();    // Used to compress the keys
+
+        adj = new ArrayList[V + 1];
+        for (int i = 1; i <= V; i++) {
+            adj[i] = new ArrayList<>();
+        }
+        val = new int[V + 1];
+        for (int i = 1; i <= V; i++) {
+            val[i] = in.readInt();
+        }
+        for (int i = 1; i <= V; i++) {
+            if (!map.containsKey(val[i])) {
+                map.put(val[i], map.size());
+            }
+            val[i] = map.get(val[i]);
+        }
+        int currVal[] = new int[V + 1];
+        System.arraycopy(val, 0, currVal, 0, V + 1);
+        while (E-- > 0) {
+            final int u = in.readInt();
+            final int v = in.readInt();
+            adj[u].add(v);
+            adj[v].add(u);
+        }
+        start = new int[V + 1];
+        end = new int[V + 1];
+        eulerTour = new int[2 * (V + 1)];
+        level = new int[V + 1];
+        marked = new boolean[V + 1];
+        DP = new int[log(V) + 1][V + 1];
+        parent = new int[V + 1];
+        blockCache = new int[2 * (V + 1)];
+        dfs(1, 0, 0);
+        binaryLift();
+        while (Q-- > 0) {
+            if (in.readInt() == 1) { // Query
+                final int u = in.readInt();
+                final int v = in.readInt();
+                final Query q;
+                if (end[u] < start[v])    // Cousin Nodes
+                {
+                    q = new Query(end[u], start[v], uSZ, LCA(u, v), qSZ);
+                } else if (start[u] > end[v]) {
+                    q = new Query(end[v], start[u], uSZ, LCA(u, v), qSZ);
+                } else            // Ancestors
+                {
+                    q = new Query(Math.min(start[u], start[v]), Math.max(start[u], start[v]), uSZ, -1, qSZ);
+                }
+                queries[qSZ++] = q;
+            } else {
+                final int idx = in.readInt();
+                int newVal = in.readInt();
+                if (!map.containsKey(newVal)) {
+                    map.put(newVal, map.size());
+                }
+                newVal = map.get(newVal);
+                updates[uSZ++] = new Update(idx, newVal, currVal[idx]);
+                currVal[idx] = newVal;
+            }
+        }
+        freq = new int[map.size()];
+        BLOCK_SIZE = (int) (Math.pow(2 * V, 2.0 / 3.0) + 1);
+        for (int i = 0; i < blockCache.length; i++) {
+            blockCache[i] = i / BLOCK_SIZE;
+        }
+        Arrays.sort(queries, 0, qSZ, new MoComparator());
+        final int ans[] = new int[qSZ];
+        int moLeft = -1, moRight = -1;
+        int currUpd = 0;
+        for (int i = 0; i < qSZ; i++) {
+            final Query q = queries[i];
+            while (currUpd < q.numUpdatesLess) {
+                final Update u = updates[currUpd];
+                update(u.idx, u.newVal);
+                currUpd++;
+            }
+            while (currUpd > q.numUpdatesLess) {
+                final Update u = updates[currUpd - 1];
+                update(u.idx, u.prevVal);
+                currUpd--;
+            }
+            while (moLeft < q.L - 1) {
+                moLeft++;
+                visit(eulerTour[moLeft]);
+            }
+            while (moLeft >= q.L) {
+                visit(eulerTour[moLeft]);
+                moLeft--;
+            }
+            while (moRight < q.R) {
+                moRight++;
+                visit(eulerTour[moRight]);
+            }
+            while (moRight > q.R) {
+                visit(eulerTour[moRight]);
+                moRight--;
+            }
+            if (q.LCA != -1) {
+                visit(q.LCA);
+            }
+            ans[q.id] = distinctCount;
+            if (q.LCA != -1) {
+                visit(q.LCA);
+            }
+        }
+        for (final int a : ans) {
+            System.out.println(a);
+        }
+    }

@@ -1,0 +1,66 @@
+  @Override public void process(ClusterEvent event) throws Exception {
+    LOG.info("START PersistAssignmentStage.process()");
+    long startTime = System.currentTimeMillis();
+
+    ClusterDataCache cache = event.getAttribute("ClusterDataCache");
+    ClusterConfig clusterConfig = cache.getClusterConfig();
+
+    if (!clusterConfig.isPersistBestPossibleAssignment()) {
+      return;
+    }
+
+    BestPossibleStateOutput bestPossibleAssignment =
+        event.getAttribute(AttributeName.BEST_POSSIBLE_STATE.name());
+
+    HelixManager helixManager = event.getAttribute("helixmanager");
+    HelixDataAccessor accessor = helixManager.getHelixDataAccessor();
+    PropertyKey.Builder keyBuilder = accessor.keyBuilder();
+    Map<String, Resource> resourceMap = event.getAttribute(AttributeName.RESOURCES.name());
+
+    for (String resourceId : bestPossibleAssignment.resourceSet()) {
+      Resource resource = resourceMap.get(resourceId);
+      if (resource != null) {
+        final IdealState idealState = cache.getIdealState(resourceId);
+        if (idealState == null) {
+          LOG.warn("IdealState not found for resource " + resourceId);
+          continue;
+        }
+        IdealState.RebalanceMode mode = idealState.getRebalanceMode();
+        if (!mode.equals(IdealState.RebalanceMode.SEMI_AUTO) && !mode
+            .equals(IdealState.RebalanceMode.FULL_AUTO)) {
+          // do not persist assignment for resource in neither semi or full auto.
+          continue;
+        }
+
+        boolean needPersist = false;
+        if (mode.equals(IdealState.RebalanceMode.FULL_AUTO)) {
+          // persist preference list in ful-auto mode.
+          Map<String, List<String>> newLists =
+              bestPossibleAssignment.getPreferenceLists(resourceId);
+          if (newLists != null && hasPreferenceListChanged(newLists, idealState)) {
+            idealState.setPreferenceLists(newLists);
+            needPersist = true;
+          }
+        }
+
+        Map<Partition, Map<String, String>> bestPossibleAssignements =
+            bestPossibleAssignment.getResourceMap(resourceId);
+
+        if (bestPossibleAssignements != null && hasInstanceMapChanged(bestPossibleAssignements,
+            idealState)) {
+          for (Partition partition : bestPossibleAssignements.keySet()) {
+            Map<String, String> instanceMap = bestPossibleAssignements.get(partition);
+            idealState.setInstanceStateMap(partition.getPartitionName(), instanceMap);
+          }
+          needPersist = true;
+        }
+
+        if (needPersist) {
+          accessor.setProperty(keyBuilder.idealStates(resourceId), idealState);
+        }
+      }
+    }
+
+    long endTime = System.currentTimeMillis();
+    LOG.info("END PersistAssignmentStage.process(), took " + (endTime - startTime) + " ms");
+  }

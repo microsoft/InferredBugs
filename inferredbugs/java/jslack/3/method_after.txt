@@ -1,0 +1,21 @@
+    public Request<?> toSlackRequest(HttpRequest<?> req, LinkedHashMap<String, String> body) {
+        String requestBody = body.entrySet().stream().map(e -> {
+            try {
+                String k = URLEncoder.encode(e.getKey(), "UTF-8");
+                String v = URLEncoder.encode(e.getValue(), "UTF-8");
+                return k + "=" + v;
+            } catch (UnsupportedEncodingException ex) {
+                return e.getKey() + "=" + e.getValue();
+            }
+        }).collect(Collectors.joining("&"));
+        RequestHeaders headers = new RequestHeaders(req.getHeaders().asMap());
+
+        SlackRequestParser.HttpRequest rawRequest = SlackRequestParser.HttpRequest.builder()
+                .requestUri(req.getPath())
+                .queryString(flatten(req.getParameters().asMap()))
+                .headers(headers)
+                .requestBody(requestBody)
+                .remoteAddress(toString(req.getRemoteAddress().getAddress().getAddress()))
+                .build();
+        return requestParser.parse(rawRequest);
+    }

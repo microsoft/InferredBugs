@@ -1,0 +1,78 @@
+    @Override
+    public final void initialize(Resource resource, final ValueMap params) throws
+            PersistenceException, RepositoryException {
+        final ModifiableValueMap properties = resource.adaptTo(ModifiableValueMap.class);
+
+        if (properties.get(KEY_INITIALIZED, false)) {
+            log.warn("Refusing to re-initialize an already initialized Bulk Workflow Manager.");
+            return;
+        }
+
+        properties.putAll(params);
+        properties.put(KEY_JOB_NAME, resource.getPath());
+
+        // Query for all candidate resources
+
+        final ResourceResolver resourceResolver = resource.getResourceResolver();
+        final Session session = resourceResolver.adaptTo(Session.class);
+        final QueryManager queryManager = session.getWorkspace().getQueryManager();
+        final QueryResult queryResult = queryManager.createQuery(properties.get(KEY_QUERY, ""),
+                Query.JCR_SQL2).execute();
+        final NodeIterator nodes = queryResult.getNodes();
+
+        long size = queryResult.getNodes().getSize();
+        if (size < 0) {
+            log.debug("Using provided estimate total size [ {} ] as actual size [ {} ] could not be retrieved.",
+                    properties.get(KEY_ESTIMATED_TOTAL, DEFAULT_ESTIMATED_TOTAL), size);
+            size = properties.get(KEY_ESTIMATED_TOTAL, DEFAULT_ESTIMATED_TOTAL);
+        }
+
+        final int batchSize = properties.get(KEY_BATCH_SIZE, DEFAULT_BATCH_SIZE);
+        final Bucket bucket = new Bucket(batchSize, size,
+                resource.getChild(NN_BATCHES).getPath(), "sling:Folder");
+
+        // Create the structure
+        String currentBatch = null;
+        int total = 0;
+        Node previousBatchNode = null, node = null;
+        while (nodes.hasNext()) {
+
+            final String batchPath = bucket.getNextPath(resourceResolver);
+
+            if (currentBatch == null) {
+                // Set the currentBatch to the first batch folder
+                currentBatch = batchPath;
+            }
+
+            final String batchItemPath = batchPath + "/" + total++;
+            node = JcrUtil.createPath(batchItemPath, SLING_FOLDER, JcrConstants.NT_UNSTRUCTURED, session, false);
+
+            JcrUtil.setProperty(node, KEY_PATH, nodes.nextNode().getPath());
+
+            if (total % batchSize == 0) {
+                previousBatchNode = node.getParent();
+            } else if ((total % batchSize == 1) && previousBatchNode != null) {
+                // Set the "next batch" property, so we know what the next batch to process is when
+                // the current batch is complete
+                JcrUtil.setProperty(previousBatchNode, KEY_NEXT_BATCH, node.getParent().getPath());
+            }
+
+            if (total % SAVE_THRESHOLD == 0) {
+                session.save();
+            }
+        }
+
+        // Set last batch's "next batch" property to complete so we know we're done
+        JcrUtil.setProperty(node.getParent(), KEY_NEXT_BATCH, STATE_COMPLETE);
+
+        if (total % SAVE_THRESHOLD != 0) {
+            session.save();
+        }
+
+        properties.put(KEY_CURRENT_BATCH, currentBatch);
+        properties.put(KEY_TOTAL, total);
+        properties.put(KEY_INITIALIZED, true);
+        properties.put(KEY_STATE, STATE_NOT_STARTED);
+
+        resource.getResourceResolver().commit();
+    }

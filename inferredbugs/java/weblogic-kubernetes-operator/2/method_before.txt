@@ -1,0 +1,35 @@
+  @Test
+  public void testNamespaceWatch() {
+    Assume.assumeTrue(System.getProperty("os.name").toLowerCase().contains("nix"));
+
+    ClientHolder client = ClientHelper.getInstance().take();
+    try {
+
+      Watch<V1Namespace> watch = Watch.createWatch(
+          client.getApiClient(),
+          client.getCoreApiClient().listNamespaceCall(null,
+              null,
+              null,
+              null,
+              null,
+              5,
+              null,
+              60,
+              Boolean.TRUE,
+              null,
+              null),
+          new TypeToken<Watch.Response<V1Namespace>>() {
+          }.getType());
+
+
+      for (Watch.Response<V1Namespace> item : watch) {
+        System.out.printf("%s : %s%n", item.type, item.object.getMetadata().getName());
+      }
+
+    } catch (ApiException e) {
+      fail();
+    } catch (RuntimeException e) {
+      System.out.println("stream finished");
+    }
+
+  }

@@ -1,0 +1,28 @@
+    public synchronized void createTableIfMissing() {
+        Connection connection;
+        PreparedStatement preparedStatement = null;
+        ResultSet resultSet = null;
+
+        try {
+            connection = this.dbConfig.getConnection();
+            preparedStatement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table' AND name='repo';");
+
+            resultSet = preparedStatement.executeQuery();
+            String value = Values.EMPTYSTRING;
+            while (resultSet.next()) {
+                value = resultSet.getString("name");
+            }
+
+            if (Singleton.getHelpers().isNullEmptyOrWhitespace(value)) {
+                preparedStatement = connection.prepareStatement("CREATE TABLE IF NOT EXISTS \"repo\" (\"name\" VARCHAR PRIMARY KEY  NOT NULL ,\"scm\" VARCHAR,\"url\" VARCHAR,\"username\" VARCHAR,\"password\" VARCHAR, \"source\", \"branch\" VARCHAR, data text);");
+                preparedStatement.execute();
+            }
+        }
+        catch (SQLException ex) {
+            this.logger.severe(String.format("5ec972ce::error in class %s exception %s searchcode was to create the api key table, so api calls will fail", ex.getClass(), ex.getMessage()));
+        }
+        finally {
+            this.helpers.closeQuietly(resultSet);
+            this.helpers.closeQuietly(preparedStatement);
+        }
+    }

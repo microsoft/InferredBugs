@@ -1,0 +1,34 @@
+  @Override
+  public void run()
+  {
+    while (running)
+    {
+      if (this.kcp.isClosed())
+      {
+        this.running = false;
+        continue;
+      }
+      long st = System.currentTimeMillis();
+      this.kcp.update();
+      if (this.kcp.needUpdate())
+      {
+        continue;
+      }
+      long end = System.currentTimeMillis();
+      while ((end - st) < this.interval)
+      {
+        synchronized (waitLock)
+        {
+          try
+          {
+            waitLock.wait(this.interval - end + st);
+          } catch (Exception ex)
+          {
+          }
+        }
+        break;
+      }
+    }
+    nioEventLoopGroup.shutdownGracefully();
+    this.channel.close();
+  }

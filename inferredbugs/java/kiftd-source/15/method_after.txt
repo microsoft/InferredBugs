@@ -1,0 +1,43 @@
+ @Override
+	public String checkImportFolder(HttpServletRequest request) {
+		final String account = (String) request.getSession().getAttribute("ACCOUNT");
+		final String folderId = request.getParameter("folderId");
+		final String folderName = request.getParameter("folderName");
+		final String maxUploadFileSize = request.getParameter("maxSize");
+		CheckImportFolderRespons cifr = new CheckImportFolderRespons();
+		// 先行权限检查
+		if (!ConfigureReader.instance().authorized(account, AccountAuth.UPLOAD_FILES)) {
+			cifr.setResult(NO_AUTHORIZED);
+			return gson.toJson(cifr);
+		}
+		// 开始文件上传体积限制检查
+		try {
+			// 获取最大文件体积（以Byte为单位）
+			long mufs = Long.parseLong(maxUploadFileSize);
+			long pMaxUploadSize = ConfigureReader.instance().getUploadFileSize(account);
+			if (pMaxUploadSize >= 0) {
+				if (mufs > pMaxUploadSize) {
+					cifr.setResult("fileOverSize");
+					cifr.setMaxSize(formatMaxUploadFileSize(ConfigureReader.instance().getUploadFileSize(account)));
+					return gson.toJson(cifr);
+				}
+			}
+		} catch (Exception e) {
+			cifr.setResult(ERROR_PARAMETER);
+			return gson.toJson(cifr);
+		}
+		// 开始文件夹命名冲突检查，若无重名则允许上传。
+		final List<Folder> folders = flm.queryByParentId(folderId);
+		try {
+			folders.stream().parallel()
+			.filter((n) -> n.getFolderName().equals(
+					new String(folderName.getBytes(Charset.forName("UTF-8")), Charset.forName("UTF-8"))))
+			.findAny().get();
+			cifr.setResult("repeatFolder");
+			return gson.toJson(cifr);
+		} catch (NoSuchElementException e) {
+			// 通过所有检查，允许上传
+			cifr.setResult("permitUpload");
+			return gson.toJson(cifr);
+		}
+	}

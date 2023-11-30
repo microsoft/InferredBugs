@@ -1,0 +1,28 @@
+    protected Manifest readManifest(Path pluginPath) throws PluginException {
+        if (FileUtils.isJarFile(pluginPath)) {
+            try(JarFile jar = new JarFile(pluginPath.toFile())) {
+                Manifest manifest = jar.getManifest();
+                if (manifest != null) {
+                    return manifest;
+                }
+            } catch (IOException e) {
+                throw new PluginException(e);
+            }
+        }
+
+        Path manifestPath = getManifestPath(pluginPath);
+        if (manifestPath == null) {
+            throw new PluginException("Cannot find the manifest path");
+        }
+
+        log.debug("Lookup plugin descriptor in '{}'", manifestPath);
+        if (Files.notExists(manifestPath)) {
+            throw new PluginException("Cannot find '{}' path", manifestPath);
+        }
+
+        try (InputStream input = Files.newInputStream(manifestPath)) {
+            return new Manifest(input);
+        } catch (IOException e) {
+            throw new PluginException(e);
+        }
+    }

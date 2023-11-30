@@ -1,0 +1,24 @@
+    @Override
+    protected void processEvents(int readyCount) throws IOReactorException {
+        processSessionRequests();
+        
+        if (readyCount > 0) {
+            Set<SelectionKey> selectedKeys = this.selector.selectedKeys();
+            for (Iterator<SelectionKey> it = selectedKeys.iterator(); it.hasNext(); ) {
+                
+                SelectionKey key = it.next();
+                processEvent(key);
+                
+            }
+            selectedKeys.clear();
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        if ((currentTime - this.lastTimeoutCheck) >= this.selectTimeout) {
+            this.lastTimeoutCheck = currentTime;
+            Set<SelectionKey> keys = this.selector.keys();
+            synchronized (keys) {
+                processTimeouts(keys);
+            }
+        }
+    }

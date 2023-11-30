@@ -1,0 +1,29 @@
+    @Override
+    public AccessKey merge(AccessKey key) {
+        try {
+            long userId = key.getUserId();
+            User user = key.getUser();
+            Location location = new Location(USER_AND_LABEL_ACCESS_KEY_NS, String.valueOf(userId) + "n" + key.getLabel());
+            if (key.getId() == null) {
+                key.setId(getId(COUNTERS_LOCATION));
+                StoreValue storeValue = new StoreValue.Builder(key.getId()).withLocation(location).build();
+                client.execute(storeValue);
+            } else {
+                AccessKey existing = find(key.getId());
+                if (existing != null && existing.getLabel().equals(key.getLabel())) {
+                    DeleteValue delete = new DeleteValue.Builder(location).build();
+                    client.execute(delete);
+                }
+                StoreValue storeValue = new StoreValue.Builder(key.getId()).withLocation(location).build();
+                client.execute(storeValue);
+
+            }
+            Location accessKeyLocation = new Location(ACCESS_KEY_NS, String.valueOf(key.getId()));
+            removeReferences(key);
+            StoreValue storeOp = new StoreValue.Builder(key).withLocation(accessKeyLocation).build();
+            client.execute(storeOp);
+            return restoreReferences(key, user);
+        } catch (ExecutionException | InterruptedException e) {
+            throw new HivePersistenceLayerException("Cannot store access key.", e);
+        }
+    }

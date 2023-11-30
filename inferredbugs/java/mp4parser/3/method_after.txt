@@ -1,0 +1,25 @@
+    SortedMap<Long, Long> getOffsets(MovieFragmentBox moof, long trackId) {
+        isoBufferWrapper = moof.getIsoFile().getOriginalIso();
+        SortedMap<Long, Long> offsets2Sizes = new TreeMap<Long, Long>();
+        List<TrackFragmentBox> traf = moof.getBoxes(TrackFragmentBox.class);
+        for (TrackFragmentBox trackFragmentBox : traf) {
+            if (trackFragmentBox.getTrackFragmentHeaderBox().getTrackId() == trackId) {
+                long baseDataOffset;
+                if (trackFragmentBox.getTrackFragmentHeaderBox().hasBaseDataOffset()) {
+                    baseDataOffset = trackFragmentBox.getTrackFragmentHeaderBox().getBaseDataOffset();
+                } else {
+                    baseDataOffset = moof.getOffset();
+                }
+
+                for (TrackRunBox trun: trackFragmentBox.getBoxes(TrackRunBox.class)) {
+                    long sampleBaseOffset = baseDataOffset + trun.getDataOffset();
+                    long[] sampleOffsets = trun.getSampleOffsets();
+                    long[] sampleSizes = trun.getSampleSizes();
+                    for (int i = 0; i < sampleSizes.length; i++) {
+                        offsets2Sizes.put(sampleOffsets[i] + sampleBaseOffset, sampleSizes[i]);
+                    }
+                }
+            }
+        }
+        return offsets2Sizes;
+    }

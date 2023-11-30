@@ -1,0 +1,222 @@
+  @Override
+  public String render(ClassModel model, int index, int size, Map<String, Object> session) {
+
+    if (isExcludedClass(model.getType().getName())) {
+      return null;
+    }
+
+    StringWriter sw = new StringWriter();
+    PrintWriter writer = new PrintWriter(sw);
+
+    ClassTypeInfo type = model.getType();
+
+    if (index == 0) {
+      Util.generateLicense(writer);
+      registerJvmClasses();
+      for (Object fqcn : jvmClasses()) {
+        JVMClass.generateDTS(writer, fqcn.toString());
+      }
+
+      // include a file if present
+      writer.print(includeFileIfPresent("index.header.d.ts"));
+
+      if (!type.getModuleName().equals("vertx")) {
+        if (isOptionalModule("@vertx/core")) {
+          writer.println("// @ts-ignore");
+        }
+        // hard coded imports for non codegen types
+        writer.print("import { Handler, AsyncResult } from '@vertx/core';\n\n");
+      }
+    } else {
+      writer.print("\n");
+    }
+
+    boolean imports = false;
+
+    @SuppressWarnings("unchecked")
+    Map<String, String> aliasMap = (Map<String, String>) session.computeIfAbsent("aliasMap", (a) -> new HashMap<String, String>());
+    for (ApiTypeInfo referencedType : model.getReferencedTypes()) {
+      if (!isImported(referencedType, session)) {
+        if (!referencedType.getRaw().getModuleName().equals(type.getModuleName())) {
+          String simpleName = referencedType.getSimpleName();
+          if (simpleName.equals(model.getIfaceSimpleName())) {
+            String aliasName = simpleName + "Super";
+            simpleName = simpleName + " as " + aliasName;
+            aliasMap.put(referencedType.getName(), aliasName);
+          }
+          // ignore missing imports
+          if (isOptionalModule(getNPMScope(referencedType.getRaw().getModule()))) {
+            writer.println("// @ts-ignore");
+          }
+          writer.printf("import { %s } from '%s';\n", simpleName, getNPMScope(referencedType.getRaw().getModule()));
+          imports = true;
+        }
+      }
+    }
+    for (ClassTypeInfo dataObjectType : model.getReferencedDataObjectTypes()) {
+      if (!isImported(dataObjectType, session)) {
+        if (dataObjectType.getRaw().getModuleName().equals(type.getModuleName())) {
+          writer.printf("import { %s } from './options';\n", dataObjectType.getSimpleName());
+          imports = true;
+        } else {
+          writer.printf("import { %s } from '%s/options';\n", dataObjectType.getSimpleName(), getNPMScope(dataObjectType.getRaw().getModule()));
+          imports = true;
+        }
+      }
+    }
+    for (EnumTypeInfo enumType : model.getReferencedEnumTypes()) {
+      if (!isImported(enumType, session)) {
+        if (enumType.getRaw().getModuleName().equals(type.getModuleName())) {
+          writer.printf("import { %s } from './enums';\n", enumType.getSimpleName());
+          imports = true;
+        } else {
+          writer.printf("import { %s } from '%s/enums';\n", enumType.getSimpleName(), getNPMScope(enumType.getRaw().getModule()));
+          imports = true;
+        }
+      }
+    }
+
+    if (imports) {
+      writer.print("\n");
+    }
+
+    final Set<String> superTypes = new HashSet<>();
+    model.getAbstractSuperTypes().forEach(ti -> superTypes.add(genType(ti)));
+
+    if (model.isHandler()) {
+      if (model.isConcrete()) {
+        superTypes.add("Handler<" + genType(model.getHandlerArg()) + ">");
+      }
+    }
+
+    generateDoc(writer, model.getDoc(), "");
+
+    writer.printf("export %s %s%s", model.isConcrete() ? "abstract class" : "interface", type.getSimpleName(), genGeneric(type.getParams()));
+
+    if (model.isConcrete()) {
+      if (model.getConcreteSuperType() != null) {
+        String simpleName = aliasMap.get(model.getConcreteSuperType().getName());
+        writer.printf(" extends %s", simpleName != null ? simpleName : genType(model.getConcreteSuperType()));
+      }
+      if (!superTypes.isEmpty()) {
+        writer.printf(" implements %s", String.join(", ", superTypes));
+      }
+    } else {
+      if (model.isHandler()) {
+        writer.printf(" extends Handler<%s>", genType(model.getHandlerArg()));
+        if (!superTypes.isEmpty()) {
+          writer.printf(", %s", String.join(", ", superTypes));
+        }
+      } else {
+        if (!superTypes.isEmpty()) {
+          writer.printf(" extends %s", String.join(", ", superTypes));
+        }
+      }
+    }
+
+    writer.print(" {\n");
+
+    boolean moreConstants = false;
+    boolean hasConstantInInterface = !model.isConcrete() && model.getConstants().size() > 0;
+
+    // this looks awkward (and it is) but TS does not allow static constants in interfaces
+    // so they get listed on the abstract classes.
+    if (model.isConcrete()) {
+      for (ConstantInfo constant : model.getConstants()) {
+        if (moreConstants) {
+          writer.print("\n");
+        }
+
+        generateDoc(writer, constant.getDoc(), "  ");
+
+        writer.printf("  static readonly %s : %s;\n", constant.getName(), genType(constant.getType()));
+        moreConstants = true;
+      }
+    }
+
+    boolean moreMethods = false;
+    boolean hasStaticMethodsInInterface = false;
+
+    for (MethodInfo method : model.getMethods()) {
+      if (isExcluded(type.getSimpleName(), method.getName(), method.getParams())) {
+        continue;
+      }
+
+      if (!model.isConcrete() && method.isStaticMethod()) {
+        hasStaticMethodsInInterface = true;
+        continue;
+      }
+
+      if (moreMethods || moreConstants) {
+        writer.print("\n");
+      }
+
+      generateMethod(writer, type, method);
+      moreMethods = true;
+    }
+
+    // BEGIN of non polyglot methods...
+
+    for (MethodInfo method : model.getAnyJavaTypeMethods()) {
+      if (isExcluded(type.getSimpleName(), method.getName(), method.getParams())) {
+        continue;
+      }
+
+      if (moreMethods || moreConstants) {
+        writer.print("\n");
+      }
+
+      generateMethod(writer, type, method);
+      moreMethods = true;
+    }
+
+    writer.print("}\n");
+
+
+    // if the model is not concrete (interface) we need to merge types to allow declaring the constants
+    // from the java interface
+
+    if (hasConstantInInterface || hasStaticMethodsInInterface) {
+      writer.print("\n");
+      writer.printf("export abstract class %s%s implements %s%s {\n", type.getSimpleName(), genGeneric(type.getParams()), type.getSimpleName(), genGeneric(type.getParams()));
+
+      moreConstants = false;
+      for (ConstantInfo constant : model.getConstants()) {
+        if (moreConstants) {
+          writer.print("\n");
+        }
+
+        generateDoc(writer, constant.getDoc(), "  ");
+
+        writer.printf("  static readonly %s : %s;\n", constant.getName(), genType(constant.getType()));
+        moreConstants = true;
+      }
+
+      moreMethods = false;
+      for (MethodInfo method : model.getMethods()) {
+        if (isExcluded(type.getSimpleName(), method.getName(), method.getParams())) {
+          continue;
+        }
+
+        if (!method.isStaticMethod()) {
+          continue;
+        }
+
+        if (moreMethods || moreConstants) {
+          writer.print("\n");
+        }
+
+        generateMethod(writer, type, method);
+        moreMethods = true;
+      }
+
+      writer.print("}\n");
+    }
+
+    if (index == size - 1) {
+      // include a file if present
+      writer.print(includeFileIfPresent("index.footer.d.ts"));
+    }
+
+    return sw.toString();
+  }

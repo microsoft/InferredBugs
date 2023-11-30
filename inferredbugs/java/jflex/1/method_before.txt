@@ -1,0 +1,41 @@
+  public void runNext() throws TestFailException {
+    // Get first file and remove it from vector
+    InputOutput current = inputOutput.remove(0);
+    // Create List with only first input in	 
+    List<String> param = new ArrayList<String>();
+    param.add(current.getName() + ".input");
+
+    // Excute Main on that input
+    classExecResult = Exec.execClass
+      (className, testPath.toString(), new ArrayList<String>(), param, 
+       Main.jflexTestVersion);
+    if (Main.verbose) {
+      System.out.println("Running scanner on [" + current.getName() + "]");
+    }
+    
+    // check for output conformance
+    File expected = new File(current.getName() + ".output");
+
+    if (expected.exists()) {
+      DiffStream check = new DiffStream();        
+      String diff;
+      try {
+        diff = check.diff(jflexDiff, new StringReader(classExecResult.getOutput()), 
+                          new FileReader(expected));
+      }
+      catch (FileNotFoundException e) {
+        System.out.println("Error opening file " + expected);
+        throw new TestFailException();
+      }
+      if (diff != null) {
+        System.out.println("Test failed, unexpected output: " + diff);
+        System.out.println("Test output: " + classExecResult.getOutput());
+        throw new TestFailException();
+      }
+    }
+    else {
+      System.out.println("Warning: no file for expected output [" + expected + "]");
+    }
+
+    // System.out.println(classExecResult);
+  }

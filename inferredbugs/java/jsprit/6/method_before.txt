@@ -1,0 +1,68 @@
+ @Override
+	public InsertionData calculate(final VehicleRoute currentRoute, final Job jobToInsert, final Vehicle newVehicle, double newVehicleDepartureTime, final Driver newDriver, final double bestKnownCosts) {
+		if(jobToInsert == null) throw new IllegalStateException("jobToInsert is missing.");
+		if(newVehicle == null || newVehicle instanceof NoVehicle) throw new IllegalStateException("newVehicle is missing.");
+		if(!(jobToInsert instanceof Shipment)) throw new IllegalStateException("jobToInsert should be of type Shipment!");
+		InsertionContext insertionContext = new InsertionContext(currentRoute, jobToInsert, newVehicle, newDriver, newVehicleDepartureTime);
+		if(!hardRouteLevelConstraint.fulfilled(insertionContext)){
+			return InsertionData.noInsertionFound();
+		}
+		
+		double bestCost = bestKnownCosts;
+		ActivityInsertionCosts bestMarginals = null;
+		Shipment shipment = (Shipment)jobToInsert;
+		TourActivity pickupShipment = activityFactory.createPickup(shipment);
+		TourActivity deliveryShipment = activityFactory.createDelivery(shipment);
+		
+		int pickupInsertionIndex = InsertionData.NO_INDEX;
+		int deliveryInsertionIndex = InsertionData.NO_INDEX;
+		int insertionIndex = 0;
+		Start start = Start.newInstance(newVehicle.getLocationId(), newVehicle.getEarliestDeparture(), newVehicle.getLatestArrival());
+		start.setEndTime(newVehicleDepartureTime);
+		
+		End end = End.newInstance(newVehicle.getLocationId(), 0.0, newVehicle.getLatestArrival());
+		
+//		TourActivity prevAct = start;
+//		double prevActStartTime = newVehicleDepartureTime;
+//		int actIndex = 0;
+////		currentRoute.getTourActivities().getActivities().
+//		for(int i=0)
+//		for(TourActivity nextAct : currentRoute.getTourActivities().getActivities()){
+//			if(neighborhood.areNeighbors(deliveryAct2Insert.getLocationId(), prevAct.getLocationId()) && neighborhood.areNeighbors(deliveryAct2Insert.getLocationId(), nextAct.getLocationId())){
+//				ActivityInsertionCosts mc = calculate(insertionContext, prevAct, nextAct, deliveryAct2Insert, prevActStartTime);
+//				if(mc != null){ 
+//					if(mc.getAdditionalCosts() < bestCost){
+//						bestCost = mc.getAdditionalCosts();
+//						bestMarginals = mc;
+//						insertionIndex = actIndex;
+//					}
+//				}
+//			}
+//			double nextActArrTime = prevActStartTime + transportCosts.getTransportTime(prevAct.getLocationId(), nextAct.getLocationId(), prevActStartTime, newDriver, newVehicle);
+//			double nextActEndTime = CalcUtils.getActivityEndTime(nextActArrTime, nextAct);
+//			
+//			prevActStartTime = nextActEndTime;
+//
+//			prevAct = nextAct;
+//			actIndex++;
+//		}
+//		End nextAct = end;
+//		if(neighborhood.areNeighbors(deliveryAct2Insert.getLocationId(), prevAct.getLocationId()) && neighborhood.areNeighbors(deliveryAct2Insert.getLocationId(), nextAct.getLocationId())){
+//			ActivityInsertionCosts mc = calculate(insertionContext, prevAct, nextAct, deliveryAct2Insert, prevActStartTime);
+//			if(mc != null) {
+//				if(mc.getAdditionalCosts() < bestCost){
+//					bestCost = mc.getAdditionalCosts();
+//					bestMarginals = mc;
+//					insertionIndex = actIndex;
+//				}
+//			}
+//		}			
+//
+//		if(insertionIndex == InsertionData.NO_INDEX) {
+//			return InsertionData.noInsertionFound();
+//		}
+		InsertionData insertionData = new InsertionData(bestCost, InsertionData.NO_INDEX, insertionIndex, newVehicle, newDriver);
+		insertionData.setVehicleDepartureTime(newVehicleDepartureTime);
+		insertionData.setAdditionalTime(bestMarginals.getAdditionalTime());
+		return insertionData;
+	}

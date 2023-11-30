@@ -1,0 +1,22 @@
+    @Test
+    public void expirationDateTest() {
+        AccessKey key = new AccessKey();
+        CLIENT.setStatus(UserStatus.ACTIVE);
+        key.setUser(CLIENT);
+        Timestamp inPast = new Timestamp(0);
+        key.setExpirationDate(inPast);
+        HiveSecurityContext hiveSecurityContext = new HiveSecurityContext();
+        hiveSecurityContext.setHivePrincipal(new HivePrincipal(null, null, key));
+        AccessKeyInterceptor interceptor = new AccessKeyInterceptor();
+        interceptor.setHiveSecurityContext(hiveSecurityContext);
+        try {
+            interceptor.checkPermissions(null);
+        } catch (Exception e) {
+            if (e instanceof HiveException) {
+                HiveException hiveException = (HiveException) e;
+                assertEquals(401, hiveException.getCode().intValue());
+            } else {
+                fail("Hive exception expected");
+            }
+        }
+    }

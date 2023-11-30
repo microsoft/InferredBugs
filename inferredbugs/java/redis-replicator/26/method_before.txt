@@ -1,0 +1,40 @@
+    @Test
+    public void testFileV7() throws IOException, InterruptedException {
+        Replicator redisReplicator = new RedisReplicator(
+                RedisSocketReplicatorTest.class.getClassLoader().getResourceAsStream("dumpV7.rdb"),
+                Configuration.defaultSetting());
+        final AtomicInteger acc = new AtomicInteger(0);
+        redisReplicator.addRdbListener(new RdbListener.Adaptor() {
+            @Override
+            public void handle(Replicator replicator, KeyValuePair<?> kv) {
+                acc.incrementAndGet();
+                if (kv.getKey().equals("abcd")) {
+                    KeyStringValueString ksvs = (KeyStringValueString) kv;
+                    assertEquals("abcd", ksvs.getValue());
+                }
+                if (kv.getKey().equals("foo")) {
+                    KeyStringValueString ksvs = (KeyStringValueString) kv;
+                    assertEquals("bar", ksvs.getValue());
+                }
+                if (kv.getKey().equals("aaa")) {
+                    KeyStringValueString ksvs = (KeyStringValueString) kv;
+                    assertEquals("bbb", ksvs.getValue());
+                }
+            }
+
+            @Override
+            public void postFullSync(Replicator replicator, long checksum) {
+                super.postFullSync(replicator, checksum);
+                assertEquals(19, acc.get());
+            }
+        });
+        redisReplicator.addCloseListener(new CloseListener() {
+            @Override
+            public void handle(Replicator replicator) {
+                System.out.println("close testFileV7");
+                assertEquals(19, acc.get());
+            }
+        });
+        redisReplicator.open();
+
+    }

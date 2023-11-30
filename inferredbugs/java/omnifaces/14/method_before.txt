@@ -1,0 +1,24 @@
+ @Override
+	public UIViewRoot restoreView(FacesContext context, String viewId) {
+		if (isUnloadRequest(context)) {
+			UIViewRoot createdView = createView(context, viewId);
+			createdView.restoreViewScopeState(context, getRenderKit(context).getResponseStateManager().getState(context, viewId));
+			BeanManager.INSTANCE.getReference(ViewScopeManager.class).preDestroyView();
+			responseComplete();
+			return createdView;
+		}
+
+		UIViewRoot restoredView = super.restoreView(context, viewId);
+
+		if (!(isRestorableViewEnabled(context) && restoredView == null && context.isPostback())) {
+			return restoredView;
+		}
+
+		try {
+			UIViewRoot createdView = buildView(viewId);
+			return isRestorableView(createdView) ? createdView : null;
+		}
+		catch (IOException e) {
+			throw new FacesException(e);
+		}
+	}

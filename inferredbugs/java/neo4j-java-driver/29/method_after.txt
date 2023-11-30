@@ -1,0 +1,57 @@
+    @Test
+    public void shouldNotPutBackPurgedConnection() throws IOException, InterruptedException, StubServer.ForceKilled
+    {
+        // Given
+        StubServer server = StubServer.start( "not_reuse_connection.script", 9001 );
+
+        //START servers
+        StubServer readServer = StubServer.start( "empty.script", 9002 );
+        StubServer writeServer1 = StubServer.start( "dead_server.script", 9003 );
+        StubServer writeServer2 = StubServer.start( "empty.script", 9006 );
+        URI uri = URI.create( "bolt+routing://127.0.0.1:9001" );
+
+        RoutingDriver driver = (RoutingDriver) GraphDatabase.driver( uri, config );
+
+
+        //Open both a read and a write session
+        Session readSession = driver.session( AccessMode.READ );
+        Session writeSession = driver.session( AccessMode.WRITE );
+
+        try
+        {
+            writeSession.run( "MATCH (n) RETURN n.name" );
+            writeSession.close();
+            fail();
+        }
+        catch (SessionExpiredException e)
+        {
+            //ignore
+        }
+        //We now lost all write servers
+        assertThat(driver.writeServers(), hasSize( 0 ));
+
+        //reacquiring will trow out the current read server at 9002
+        writeSession = driver.session( AccessMode.WRITE );
+
+        assertThat(driver.routingServers(), contains(address( 9004 )));
+        assertThat(driver.readServers(), contains(address( 9005 )));
+        assertThat(driver.writeServers(), contains(address( 9006 )));
+        assertFalse(driver.connectionPool().hasAddress(address( 9002 ) ));
+
+        // now we close the read session and the connection should not be put
+        // back to the pool
+        Connection connection = ((NetworkSession) ((RoutingNetworkSession) readSession).delegate).connection;
+        assertTrue( connection.isOpen() );
+        readSession.close();
+        assertFalse( connection.isOpen() );
+        assertFalse(driver.connectionPool().hasAddress(address( 9002 ) ));
+        writeSession.close();
+
+        driver.close();
+
+        // Finally
+        assertThat( server.exitStatus(), equalTo( 0 ) );
+        assertThat( readServer.exitStatus(), equalTo( 0 ) );
+        assertThat( writeServer1.exitStatus(), equalTo( 0 ) );
+        assertThat( writeServer2.exitStatus(), equalTo( 0 ) );
+    }

@@ -1,0 +1,14 @@
+    public void init() {
+        //load five(CACHE_COUNT) round from db on the start time ;
+        Block bestBlock = getBestBlock();
+        BlockRoundData roundData = new BlockRoundData(bestBlock.getHeader().getExtend());
+        boolean updateCacheStatus = true;
+        for (long i = roundData.getRoundIndex(); i >= 1 && i >= roundData.getRoundIndex() - CACHE_COUNT; i--) {
+            Block firstBlock = getBlockService().getRoundFirstBlock(i - 1);
+            BlockRoundData preRoundData = new BlockRoundData(firstBlock.getHeader().getExtend());
+            PocMeetingRound round = calcRound(firstBlock.getHeader().getHeight(), i, preRoundData.getRoundEndTime(), updateCacheStatus);
+            ROUND_MAP.put(round.getIndex(), round);
+            Log.debug("load the round data index:{}", round.getIndex());
+            updateCacheStatus = false;
+        }
+    }

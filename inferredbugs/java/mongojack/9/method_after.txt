@@ -1,0 +1,35 @@
+    @Test
+    public void collectionOfObjectIdDbRefsShouldBeSavedAsObjectIdDbRefs() {
+        JacksonDBCollection<ObjectIdCollectionOwner, String> coll = getCollection(ObjectIdCollectionOwner.class, String.class);
+        JacksonDBCollection<ObjectIdReferenced, byte[]> refColl = getCollection(ObjectIdReferenced.class, byte[].class, "referenced");
+
+        byte[] refId1 = new org.bson.types.ObjectId().toByteArray();
+        refColl.insert(new ObjectIdReferenced(refId1, 10));
+        byte[] refId2 = new org.bson.types.ObjectId().toByteArray();
+        refColl.insert(new ObjectIdReferenced(refId2, 20));
+
+        ObjectIdCollectionOwner owner = new ObjectIdCollectionOwner();
+        owner.list = Arrays.asList(new DBRef<ObjectIdReferenced, byte[]>(refId1, refColl.getName()), new DBRef<ObjectIdReferenced, byte[]>(refId2, refColl.getName()));
+        owner._id = "foo";
+        coll.insert(owner);
+
+        ObjectIdCollectionOwner saved = coll.findOneById("foo");
+        assertThat(saved.list, notNullValue());
+        assertThat(saved.list, hasSize(2));
+        assertThat(saved.list.get(0).getId(), equalTo(refId1));
+        assertThat(saved.list.get(0).getCollectionName(), equalTo(refColl.getName()));
+        assertThat(saved.list.get(1).getId(), equalTo(refId2));
+        assertThat(saved.list.get(1).getCollectionName(), equalTo(refColl.getName()));
+
+
+        // Try loading them
+        ObjectIdReferenced ref = saved.list.get(0).fetch();
+        assertThat(ref, notNullValue());
+        assertThat(ref._id, equalTo(refId1));
+        assertThat(ref.i, equalTo(10));
+
+        ref = saved.list.get(1).fetch();
+        assertThat(ref, notNullValue());
+        assertThat(ref._id, equalTo(refId2));
+        assertThat(ref.i, equalTo(20));
+    }

@@ -1,0 +1,223 @@
+  @Override
+  public boolean process(Set<? extends TypeElement> type, RoundEnvironment env) {
+
+    Elements elementUtils = processingEnv.getElementUtils();
+    Types typeUtils = processingEnv.getTypeUtils();
+    Filer filer = processingEnv.getFiler();
+
+    //
+    // Processor options
+    //
+    boolean isLibrary = false;
+    String fragmentArgsLib = processingEnv.getOptions().get(OPTION_IS_LIBRARY);
+    if (fragmentArgsLib != null && fragmentArgsLib.equalsIgnoreCase("true")) {
+      isLibrary = true;
+    }
+
+    String supportAnnotationsStr = processingEnv.getOptions().get(OPTION_SUPPORT_ANNOTATIONS);
+    if (supportAnnotationsStr != null && supportAnnotationsStr.equalsIgnoreCase("false")) {
+      supportAnnotations = false;
+    }
+
+    String additionalBuilderAnnotations[] = {};
+    String builderAnnotationsStr =
+        processingEnv.getOptions().get(OPTION_ADDITIONAL_BUILDER_ANNOTATIONS);
+    if (builderAnnotationsStr != null && builderAnnotationsStr.length() > 0) {
+      additionalBuilderAnnotations = builderAnnotationsStr.split(" "); // White space is delimiter
+    }
+
+    List<ProcessingException> processingExceptions = new ArrayList<ProcessingException>();
+
+    JavaWriter jw = null;
+
+    // REMEMBER: It's a SET! it uses .equals() .hashCode() to determine if element already in set
+    Set<TypeElement> fragmentClasses = new HashSet<TypeElement>();
+
+    Element[] origHelper = null;
+
+    // Search for @Arg fields
+    for (Element element : env.getElementsAnnotatedWith(Arg.class)) {
+
+      try {
+        TypeElement enclosingElement = (TypeElement) element.getEnclosingElement();
+
+        // Check if its a fragment
+        if (!isFragmentClass(enclosingElement, TYPE_FRAGMENT, TYPE_SUPPORT_FRAGMENT)) {
+          throw new ProcessingException(element,
+              "@Arg can only be used on fragment fields (%s.%s)",
+              enclosingElement.getQualifiedName(), element);
+        }
+
+        if (element.getModifiers().contains(Modifier.FINAL)) {
+          throw new ProcessingException(element,
+              "@Arg fields must not be final (%s.%s)",
+              enclosingElement.getQualifiedName(), element);
+        }
+
+        if (element.getModifiers()
+            .contains(Modifier.STATIC)) {
+          throw new ProcessingException(element,
+              "@Arg fields must not be static (%s.%s)",
+              enclosingElement.getQualifiedName(), element);
+        }
+
+        // Skip abstract classes
+        if (!enclosingElement.getModifiers().contains(Modifier.ABSTRACT)) {
+          fragmentClasses.add(enclosingElement);
+        }
+      } catch (ProcessingException e) {
+        processingExceptions.add(e);
+      }
+    }
+
+    // Search for "just" @FragmentWithArgs
+    for (Element element : env.getElementsAnnotatedWith(FragmentWithArgs.class)) {
+      try {
+        scanForAnnotatedFragmentClasses(env, FragmentWithArgs.class, fragmentClasses, element);
+      } catch (ProcessingException e) {
+        processingExceptions.add(e);
+      }
+    }
+
+    // Store the key - value for the generated FragmentArtMap class
+    Map<String, String> autoMapping = new HashMap<String, String>();
+
+    for (TypeElement fragmentClass : fragmentClasses) {
+
+      JavaFileObject jfo = null;
+      try {
+
+        AnnotatedFragment fragment = collectArgumentsForType(fragmentClass);
+
+        String builder = fragment.getSimpleName() + "Builder";
+        List<Element> originating = new ArrayList<Element>(10);
+        originating.add(fragmentClass);
+        TypeMirror superClass = fragmentClass.getSuperclass();
+        while (superClass.getKind() != TypeKind.NONE) {
+          TypeElement element = (TypeElement) typeUtils.asElement(superClass);
+          if (element.getQualifiedName().toString().startsWith("android.")) {
+            break;
+          }
+          originating.add(element);
+          superClass = element.getSuperclass();
+        }
+
+        String qualifiedFragmentName = fragment.getQualifiedName();
+        String qualifiedBuilderName = qualifiedFragmentName + "Builder";
+
+        Element[] orig = originating.toArray(new Element[originating.size()]);
+        origHelper = orig;
+
+        jfo = filer.createSourceFile(qualifiedBuilderName, orig);
+        Writer writer = jfo.openWriter();
+        jw = new JavaWriter(writer);
+        writePackage(jw, fragmentClass);
+        jw.emitImports("android.os.Bundle");
+        if (supportAnnotations) {
+          jw.emitImports("android.support.annotation.NonNull");
+          if (!fragment.getOptionalFields().isEmpty()) {
+            jw.emitImports("android.support.annotation.Nullable");
+          }
+        }
+
+        jw.emitEmptyLine();
+
+        // Additional builder annotations
+        for (String builderAnnotation : additionalBuilderAnnotations) {
+          jw.emitAnnotation(builderAnnotation);
+        }
+
+        jw.beginType(builder, "class", EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
+
+        if (!fragment.getBundlerVariableMap().isEmpty()) {
+          jw.emitEmptyLine();
+          for (Map.Entry<String, String> e : fragment.getBundlerVariableMap().entrySet()) {
+            jw.emitField(e.getKey(), e.getValue(),
+                EnumSet.of(Modifier.PRIVATE, Modifier.FINAL, Modifier.STATIC),
+                "new " + e.getKey() + "()");
+          }
+        }
+        jw.emitEmptyLine();
+        jw.emitField("Bundle", "mArguments", EnumSet.of(Modifier.PRIVATE, Modifier.FINAL),
+            "new Bundle()");
+        jw.emitEmptyLine();
+
+        Set<ArgumentAnnotatedField> required = fragment.getRequiredFields();
+
+        String[] args = new String[required.size() * 2];
+        int index = 0;
+
+        for (ArgumentAnnotatedField arg : required) {
+          boolean annotate = supportAnnotations && !arg.isPrimitive();
+          args[index++] = annotate ? "@NonNull " + arg.getType() : arg.getType();
+          args[index++] = arg.getVariableName();
+        }
+        jw.beginMethod(null, builder, EnumSet.of(Modifier.PUBLIC), args);
+
+        for (ArgumentAnnotatedField arg : required) {
+          writePutArguments(jw, arg.getVariableName(), "mArguments", arg);
+        }
+
+        jw.endMethod();
+
+        if (!required.isEmpty()) {
+          jw.emitEmptyLine();
+          writeNewFragmentWithRequiredMethod(builder, fragmentClass, jw, args);
+        }
+
+        Set<ArgumentAnnotatedField> optionalArguments = fragment.getOptionalFields();
+
+        for (ArgumentAnnotatedField arg : optionalArguments) {
+          writeBuilderMethod(builder, jw, arg);
+        }
+
+        jw.emitEmptyLine();
+        writeBuildBundleMethod(jw);
+
+        jw.emitEmptyLine();
+        writeInjectMethod(jw, fragmentClass, fragment);
+
+        jw.emitEmptyLine();
+        writeBuildMethod(jw, fragmentClass);
+
+        jw.endType();
+
+        autoMapping.put(qualifiedFragmentName, qualifiedBuilderName);
+      } catch (IOException e) {
+        processingExceptions.add(
+            new ProcessingException(fragmentClass, "Unable to write builder for type %s: %s",
+                fragmentClass, e.getMessage()));
+      } catch (ProcessingException e) {
+        processingExceptions.add(e);
+        if (jfo != null) {
+          jfo.delete();
+        }
+      } finally {
+        if (jw != null) {
+          try {
+            jw.close();
+          } catch (IOException e1) {
+            processingExceptions.add(new ProcessingException(fragmentClass,
+                "Unable to close javawriter while generating builder for type %s: %s",
+                fragmentClass, e1.getMessage()));
+          }
+        }
+      }
+    }
+
+    // Write the automapping class
+    if (origHelper != null && !isLibrary) {
+      try {
+        writeAutoMapping(autoMapping, origHelper);
+      } catch (ProcessingException e) {
+        processingExceptions.add(e);
+      }
+    }
+
+    // Print errors
+    for (ProcessingException e : processingExceptions) {
+      error(e);
+    }
+
+    return true;
+  }

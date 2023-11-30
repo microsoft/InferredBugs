@@ -1,0 +1,28 @@
+    @Test
+    public void testRestartAuditorBookieAfterCrashing() throws Exception {
+        BookieServer auditor = verifyAuditor();
+
+        shudownBookie(auditor);
+
+        // restarting Bookie with same configurations.
+        int indexOfDownBookie = bs.indexOf(auditor);
+        ServerConfiguration serverConfiguration = bsConfs
+                .get(indexOfDownBookie);
+        bs.remove(indexOfDownBookie);
+        bsConfs.remove(indexOfDownBookie);
+        tmpDirs.remove(indexOfDownBookie);
+        startBookie(serverConfiguration);
+        // starting corresponding auditor elector
+        String addr = StringUtils.addrToString(auditor.getLocalAddress());
+        LOG.debug("Performing Auditor Election:" + addr);
+        auditorElectors.get(addr).doElection();
+
+        // waiting for new auditor to come
+        BookieServer newAuditor = waitForNewAuditor(auditor);
+        Assert.assertNotSame(
+                "Auditor re-election is not happened for auditor failure!",
+                auditor, newAuditor);
+        Assert.assertFalse("No relection after old auditor rejoins", auditor
+                .getLocalAddress().getPort() == newAuditor.getLocalAddress()
+                .getPort());
+    }

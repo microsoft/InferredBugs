@@ -1,0 +1,41 @@
+    private Map<Long, Float> createFeatureMapWithCN5New(long firstNode) throws QueryExecutionException {
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", firstNode);
+        Result res = database.execute(DEFAULT_VECTOR_QUERY_WITH_CONCEPT, params);
+        Map<Long, Float> result = new HashMap<>();
+        Map<Long, Float> result_idf = new HashMap<>();
+        while (res != null && res.hasNext()) {
+            Map<String, Object> next = res.next();
+            long id = (long) next.get("tagId");
+            int nTerms = (int) next.get("nTerms");
+            //float tf = getFloatValue(next.get("tf"));
+            float tf = getFloatValue(next.get("tf")) / nTerms;
+            float idf = Double.valueOf(Math.log10(Float.valueOf(getFloatValue(next.get("idf"))).doubleValue())).floatValue();
+
+            // ConceptNet5 Level_1 tags
+            //long cn5_tag = Long.valueOf((String) next.get("cn5_l1_tag"));
+            long cn5_tag = (long) next.get("cn5_l1_tag");
+            float cn5_tag_w = getFloatValue(next.get("cn5_l1_tag_w"));
+
+            if (cn5_tag > -1) {
+                if (!result.containsKey(cn5_tag)) {
+                    result.put(cn5_tag, tf);
+                    result_idf.put(cn5_tag, idf);
+                } else {
+                    result.put(cn5_tag, result.get(cn5_tag) + tf);
+                    if (result_idf.get(cn5_tag) < idf) // use the highest idf
+                    {
+                        result_idf.put(cn5_tag, idf);
+                    }
+                }
+            } else {
+                result.put(id, tf);
+                result_idf.put(id, idf);
+            }
+        }
+
+        result.keySet().forEach((key) -> {
+            result.put(key, result.get(key) * result_idf.get(key));
+        });
+        return result;
+    }

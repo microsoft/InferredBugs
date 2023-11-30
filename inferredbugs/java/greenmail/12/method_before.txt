@@ -1,0 +1,32 @@
+    @Override
+    public void renameMailbox(MailFolder existingFolder, String newName) throws FolderException {
+        HierarchicalFolder toRename = (HierarchicalFolder) existingFolder;
+        HierarchicalFolder parent = toRename.getParent();
+
+        int idx = newName.lastIndexOf(ImapConstants.HIERARCHY_DELIMITER_CHAR);
+        String newFolderName;
+        String newFolderPathWithoutName;
+        if (idx > 0) {
+            newFolderName = newName.substring(idx + 1);
+            newFolderPathWithoutName = newName.substring(0, idx);
+        } else {
+            newFolderName = newName;
+            newFolderPathWithoutName = "";
+        }
+
+        if (parent.getName().equals(newFolderPathWithoutName)) {
+            // Simple rename
+            toRename.setName(newFolderName);
+        } else {
+            // Hierarchy change
+            parent.removeChild(toRename);
+            HierarchicalFolder userFolder = getInboxOrUserRootFolder(toRename);
+            String[] path = newName.split('\\' + ImapConstants.HIERARCHY_DELIMITER);
+            HierarchicalFolder newParent = userFolder;
+            for (int i = 0; i < path.length - 1; i++) {
+                newParent = newParent.getChild(path[i]);
+            }
+            toRename.moveToNewParent(newParent);
+            toRename.setName(newFolderName);
+        }
+    }
